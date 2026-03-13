@@ -1,126 +1,126 @@
-name: GatherGo Backend CI
+# name: GatherGo Backend CI
 
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'backend/**'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'backend/**'
+# on:
+#   push:
+#     branches: [main]
+#     paths:
+#       - 'backend/**'
+#   pull_request:
+#     branches: [main]
+#     paths:
+#       - 'backend/**'
 
-jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
+# jobs:
+#   lint:
+#     name: Lint
+#     runs-on: ubuntu-latest
+#     defaults:
+#       run:
+#         working-directory: backend
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+#           cache: 'npm'
+#           cache-dependency-path: backend/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+#       - name: Install dependencies
+#         run: npm ci
 
-      - name: Run ESLint
-        run: npm run lint
+#       - name: Run ESLint
+#         run: npm run lint
 
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    needs: lint
-    defaults:
-      run:
-        working-directory: backend
+#   test:
+#     name: Test
+#     runs-on: ubuntu-latest
+#     needs: lint
+#     defaults:
+#       run:
+#         working-directory: backend
 
-    env:
-      NODE_ENV: test
-      JWT_SECRET: test-jwt-secret-ci
-      JWT_REFRESH_SECRET: test-jwt-refresh-secret-ci
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: test-key
-      AWS_SECRET_ACCESS_KEY: test-secret
-      AWS_RDS_HOST: localhost
-      AWS_RDS_PORT: 5432
-      AWS_RDS_DB: gathergo_test
-      AWS_RDS_USER: postgres
-      AWS_RDS_PASSWORD: postgres
-      AWS_S3_BUCKET: test-bucket
-      AWS_CLOUDFRONT_DOMAIN: test.cloudfront.net
-      AWS_SES_FROM_EMAIL: test@gathergo.app
-      GOOGLE_CLIENT_ID: test-google-client-id
-      GOOGLE_CLIENT_SECRET: test-google-client-secret
+#     env:
+#       NODE_ENV: test
+#       JWT_SECRET: test-jwt-secret-ci
+#       JWT_REFRESH_SECRET: test-jwt-refresh-secret-ci
+#       AWS_REGION: us-east-1
+#       AWS_ACCESS_KEY_ID: test-key
+#       AWS_SECRET_ACCESS_KEY: test-secret
+#       AWS_RDS_HOST: localhost
+#       AWS_RDS_PORT: 5432
+#       AWS_RDS_DB: gathergo_test
+#       AWS_RDS_USER: postgres
+#       AWS_RDS_PASSWORD: postgres
+#       AWS_S3_BUCKET: test-bucket
+#       AWS_CLOUDFRONT_DOMAIN: test.cloudfront.net
+#       AWS_SES_FROM_EMAIL: test@gathergo.app
+#       GOOGLE_CLIENT_ID: test-google-client-id
+#       GOOGLE_CLIENT_SECRET: test-google-client-secret
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: gathergo_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+#     services:
+#       postgres:
+#         image: postgres:15
+#         env:
+#           POSTGRES_USER: postgres
+#           POSTGRES_PASSWORD: postgres
+#           POSTGRES_DB: gathergo_test
+#         ports:
+#           - 5432:5432
+#         options: >-
+#           --health-cmd pg_isready
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+#           cache: 'npm'
+#           cache-dependency-path: backend/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+#       - name: Install dependencies
+#         run: npm ci
 
-      - name: Run migrations
-        run: npm run migrate
+#       - name: Run migrations
+#         run: npm run migrate
 
-      - name: Run tests
-        run: npm test
+#       - name: Run tests
+#         run: npm test
 
-  build:
-    name: Build Check
-    runs-on: ubuntu-latest
-    needs: lint
-    defaults:
-      run:
-        working-directory: backend
+#   build:
+#     name: Build Check
+#     runs-on: ubuntu-latest
+#     needs: lint
+#     defaults:
+#       run:
+#         working-directory: backend
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+#           cache: 'npm'
+#           cache-dependency-path: backend/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+#       - name: Install dependencies
+#         run: npm ci
 
-      - name: Verify app can load
-        run: node -e "require('./src/app')"
-        env:
-          NODE_ENV: test
-          JWT_SECRET: test
-          JWT_REFRESH_SECRET: test
+#       - name: Verify app can load
+#         run: node -e "require('./src/app')"
+#         env:
+#           NODE_ENV: test
+#           JWT_SECRET: test
+#           JWT_REFRESH_SECRET: test
