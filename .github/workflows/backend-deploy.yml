@@ -5,8 +5,8 @@ on:
     branches:
       - main
     # 🎯 Only trigger if files in the backend folder change
-    paths:
-      - 'backend/**'
+    # paths:
+    #   - 'backend/**'
 
 jobs:
   deploy:
@@ -32,7 +32,9 @@ jobs:
 
     - name: Build Docker image
       run: |
-        docker build -t backend-api ./backend
+        ls -R
+        cd backend
+        docker build -t backend-api .
 
     - name: Tag Docker image
       run: |
