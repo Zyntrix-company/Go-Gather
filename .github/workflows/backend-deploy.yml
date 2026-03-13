@@ -1,8 +1,9 @@
-name: Deploy Backend to AWS
+name: Deploy Backend
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
     # 🎯 Only trigger if files in the backend folder change
     paths:
       - 'backend/**'
@@ -10,37 +11,33 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # 🎯 Set the context to the backend folder for all steps
+    # 🎯 Context for monorepo
     defaults:
       run:
         working-directory: ./backend
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-1
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-south-1
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+    - name: Login to Amazon ECR
+      uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build, Tag, and Push Image to ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          # Build using the Dockerfile inside the backend folder
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+    - name: Build Docker image
+      run: |
+        docker build -t backend-api .
 
-      - name: Deploy to App Runner
-        run: |
-          aws apprunner start-deployment --service-arn ${{ secrets.AWS_APP_RUNNER_ARN }}
+    - name: Tag Docker image
+      run: |
+        docker tag backend-api:latest 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:latest
+
+    - name: Push Docker image to ECR
+      run: |
+        docker push 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:latest
