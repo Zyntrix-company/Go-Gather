@@ -22,14 +22,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { profileSchema } from '../../utils/validators';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
-import Toast from 'react-native-toast-message';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 type FormData = {
   fullName: string;
-  dob?: string;
-  gender?: string;
-  country?: string;
+  dob: string;
+  gender: string;
+  country: string;
   bio?: string;
 };
 
@@ -183,12 +182,13 @@ const pickerStyles = StyleSheet.create({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CreateProfileScreen({ navigation }: any) {
-  const { control, handleSubmit, setValue } = useForm<FormData>({
+  const { control, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(profileSchema),
   });
 
   const [avatar, setAvatar] = useState<{ uri: string; fileName: string; type: string } | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoUploadSuccess, setPhotoUploadSuccess] = useState(false);
   const [gender, setGender] = useState('');
   const [country, setCountry] = useState('');
   const [showGenderPicker, setShowGenderPicker] = useState(false);
@@ -200,6 +200,8 @@ export default function CreateProfileScreen({ navigation }: any) {
   const { uploadPhoto, saveProfile } = useAuth();
   const isLoading = useAuthStore((s) => s.isLoading);
   const user = useAuthStore((s) => s.user);
+
+  const isEditing = !!(user && user.isProfileComplete);
 
   // Pre-fill if editing
   useEffect(() => {
@@ -226,7 +228,15 @@ export default function CreateProfileScreen({ navigation }: any) {
         setAvatar({ uri: user.photoUrl, fileName: 'avatar.jpg', type: 'image/jpeg' });
       }
     }
-  }, [user, setValue]);
+  }, [user, setValue, isEditing]);
+
+  // Auto-remove "Photo uploaded" text after 5 seconds
+  useEffect(() => {
+    if (photoUploadSuccess) {
+      const timer = setTimeout(() => setPhotoUploadSuccess(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [photoUploadSuccess]);
 
   // ─── Step A: Pick & upload photo ─────────────────────────────────────────
   function pickImage() {
@@ -240,18 +250,22 @@ export default function CreateProfileScreen({ navigation }: any) {
 
       // Preview immediately
       setAvatar({ uri: fileUri, fileName, type: mimeType });
+      setPhotoUploadSuccess(false);
 
       // Upload to S3 via the backend
       setUploadingPhoto(true);
       try {
         const cdnUrl = await uploadPhoto(fileUri, fileName, mimeType);
-        console.log('[Upload Success]: Photo URL:', cdnUrl);
-        // Update avatar URI to the CDN url returned
-        setAvatar({ uri: cdnUrl, fileName, type: mimeType });
+        if (cdnUrl) {
+          console.log('[Upload Success]: URL ready:', cdnUrl);
+          // Keep the local URI for a brief moment or use the CDN URL with a unique key
+          // This prevents the "vanish" if the CDN URL hasn't propagated yet.
+          setAvatar({ uri: `${cdnUrl}?t=${Date.now()}`, fileName, type: mimeType });
+          setPhotoUploadSuccess(true);
+        }
       } catch (err) {
         console.error('[Upload Error]:', err);
-        // Revert preview on failure
-        setAvatar(null);
+        // Do NOT setAvatar(null) here, keep the local preview so it doesn't vanish
       } finally {
         setUploadingPhoto(false);
       }
@@ -285,15 +299,6 @@ export default function CreateProfileScreen({ navigation }: any) {
     }
   }
 
-  // Format dob as DD/MM/YYYY while typing
-  function handleDobChange(onChange: (val: string) => void, text: string) {
-    const nums = text.replace(/\D/g, '');
-    let formatted = nums;
-    if (nums.length > 2 && nums.length <= 4) formatted = `${nums.slice(0, 2)}/${nums.slice(2)}`;
-    else if (nums.length > 4) formatted = `${nums.slice(0, 2)}/${nums.slice(2, 4)}/${nums.slice(4, 8)}`;
-    onChange(formatted);
-  }
-
   function onDateChange(event: any, selectedDate?: Date) {
     setShowDatePicker(false);
     if (selectedDate) {
@@ -315,7 +320,7 @@ export default function CreateProfileScreen({ navigation }: any) {
         title="Select Gender"
         options={GENDERS}
         selected={gender}
-        onSelect={(val) => { setGender(val); setValue('gender', val); }}
+        onSelect={(val) => { setGender(val); setValue('gender', val); if (apiError) setApiError(null); }}
         onClose={() => setShowGenderPicker(false)}
       />
 
@@ -325,7 +330,7 @@ export default function CreateProfileScreen({ navigation }: any) {
         title="Select Country"
         options={COUNTRIES}
         selected={country}
-        onSelect={(val) => { setCountry(val); setValue('country', val); }}
+        onSelect={(val) => { setCountry(val); setValue('country', val); if (apiError) setApiError(null); }}
         onClose={() => setShowCountryPicker(false)}
       />
 
@@ -346,8 +351,10 @@ export default function CreateProfileScreen({ navigation }: any) {
 
           {/* Form */}
           <View style={styles.form}>
-            <Text style={styles.title}>Create Profile</Text>
-            <Text style={styles.subtitle}>Fill in your details to continue</Text>
+            <Text style={styles.title}>{isEditing ? 'Edit Profile' : 'Create Profile'}</Text>
+            <Text style={styles.subtitle}>
+              {isEditing ? 'Update your personal information' : 'Fill in your details to continue'}
+            </Text>
 
             {/* Avatar — Step A */}
             <View style={styles.avatarSection}>
@@ -355,7 +362,12 @@ export default function CreateProfileScreen({ navigation }: any) {
                 <View style={styles.avatarOuter}>
                   <View style={styles.avatarInner}>
                     {avatar ? (
-                      <Image source={{ uri: avatar.uri }} style={styles.avatarImage} />
+                      <Image
+                        key={avatar.uri} // Force re-render if URI changes
+                        source={{ uri: avatar.uri }}
+                        style={styles.avatarImage}
+                        resizeMode="cover"
+                      />
                     ) : (
                       <PersonIcon />
                     )}
@@ -368,7 +380,7 @@ export default function CreateProfileScreen({ navigation }: any) {
                     : <Text style={styles.addBadgeText}>+</Text>}
                 </View>
               </TouchableOpacity>
-              {avatar && !uploadingPhoto && (
+              {photoUploadSuccess && !uploadingPhoto && (
                 <Text style={styles.photoHint}>Photo uploaded ✓</Text>
               )}
             </View>
@@ -382,8 +394,9 @@ export default function CreateProfileScreen({ navigation }: any) {
                   style={[
                     styles.input,
                     focusedField === 'fullName' && styles.inputFocused,
+                    errors.fullName && styles.inputError,
                   ]}
-                  placeholder="Full Name"
+                  placeholder="Full Name "
                   placeholderTextColor="#94a3b8"
                   value={value}
                   onChangeText={(val) => {
@@ -410,9 +423,10 @@ export default function CreateProfileScreen({ navigation }: any) {
                   style={[
                     styles.dropdownBtn,
                     showDatePicker && styles.inputFocused,
+                    errors.dob && styles.inputError,
                   ]}>
                   <Text style={[styles.dropdownText, !value && styles.dropdownPlaceholder]}>
-                    {value || 'Date of Birth (DD/MM/YYYY)'}
+                    {value || 'Date of Birth (DD/MM/YYYY) '}
                   </Text>
                   <CalendarIcon />
                 </TouchableOpacity>
@@ -442,12 +456,13 @@ export default function CreateProfileScreen({ navigation }: any) {
               style={[
                 styles.dropdownBtn,
                 showGenderPicker && styles.inputFocused,
+                errors.gender && styles.inputError,
               ]}
               onPress={() => setShowGenderPicker(true)}
               activeOpacity={0.8}
               disabled={busy}>
               <Text style={[styles.dropdownText, !gender && styles.dropdownPlaceholder]}>
-                {gender || 'Select Gender'}
+                {gender || 'Select Gender '}
               </Text>
               <ChevronDown />
             </TouchableOpacity>
@@ -457,12 +472,13 @@ export default function CreateProfileScreen({ navigation }: any) {
               style={[
                 styles.dropdownBtn,
                 showCountryPicker && styles.inputFocused,
+                errors.country && styles.inputError,
               ]}
               onPress={() => setShowCountryPicker(true)}
               activeOpacity={0.8}
               disabled={busy}>
               <Text style={[styles.dropdownText, !country && styles.dropdownPlaceholder]}>
-                {country || 'Select Country'}
+                {country || 'Select Country '}
               </Text>
               <ChevronDown />
             </TouchableOpacity>
@@ -476,6 +492,7 @@ export default function CreateProfileScreen({ navigation }: any) {
                     styles.input,
                     styles.bioInput,
                     focusedField === 'bio' && styles.inputFocused,
+                    errors.bio && styles.inputError,
                   ]}
                   placeholder="Tell us a bit about yourself and your travel style..."
                   placeholderTextColor="#94a3b8"
@@ -510,7 +527,7 @@ export default function CreateProfileScreen({ navigation }: any) {
               disabled={busy}>
               {isLoading
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.primaryBtnText}>Save & Continue</Text>}
+                : <Text style={styles.primaryBtnText}>{isEditing ? 'Save Changes' : 'Save & Continue'}</Text>}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -525,7 +542,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 100, // Extra padding for bio and scroll
+    paddingBottom: 100,
   },
   logoRow: { marginBottom: 56 },
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
@@ -615,6 +632,9 @@ const styles = StyleSheet.create({
   },
   inputFocused: {
     borderColor: '#0d9488',
+  },
+  inputError: {
+    borderColor: '#ef4444',
   },
   apiErrorText: {
     fontSize: 14,
