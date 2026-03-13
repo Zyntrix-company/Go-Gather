@@ -1,6 +1,6 @@
 # 🌍 GatherGo — Backend (Milestone 1)
 
-Welcome to the GatherGo backend! This is a Node.js + Express.js API designed for Milestone 1 (Authentication & User Profiles). It uses PostgreSQL on AWS RDS, S3 for storage, SES for email (OTPs), and SNS for push notifications..
+Welcome to the GatherGo backend! This is a Node.js + Express.js API designed for Milestone 1 (Authentication & User Profiles). It uses PostgreSQL on AWS RDS, S3 for storage, SES for email (OTPs), and SNS for push notifications.
 
 ---
 
