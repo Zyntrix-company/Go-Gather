@@ -1,0 +1,83 @@
+import React, { useEffect } from 'react';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import Logo from '../../components/common/Logo';
+import BlobBackground from '../../components/common/BlobBackground';
+import useAuth from '../../hooks/useAuth';
+import colors from '../../theme/colors';
+
+export default function SplashScreen({ navigation }: any) {
+  const { loadFromToken } = useAuth();
+
+  useEffect(() => {
+    async function init() {
+      try {
+        const user = await loadFromToken();
+
+        if (!user) {
+          // No valid token at all → go to Login
+          return navigation.replace('Login');
+        }
+
+        // Token is valid — route based on profile status
+        if (user.isVerified === false) {
+          // User registered but hasn't verified email yet
+          return navigation.replace('OtpVerification', { email: user.email ?? '' });
+        }
+
+        if (user.isProfileComplete === false) {
+          // Verified but hasn't completed profile setup
+          return navigation.replace('CreateProfile');
+        }
+
+        // Fully onboarded — RootNavigator will show HomeScreen automatically
+        // because setAuth (called inside loadFromToken) sets isAuthenticated=true.
+        // We still replace to 'Login' to clear the Splash from stack,
+        // but RootNavigator will immediately render HomeScreen.
+        return navigation.replace('Login');
+      } catch {
+        navigation.replace('Login');
+      }
+    }
+
+    init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <BlobBackground>
+      <View style={styles.content}>
+        <View style={styles.logoWrap}>
+          <Logo size="large" />
+        </View>
+
+        <Text style={styles.tagline}>Your adventures, perfectly planned</Text>
+
+        <ActivityIndicator size="large" color={colors.accent} style={styles.loader} />
+      </View>
+    </BlobBackground>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    zIndex: 10,
+  },
+  logoWrap: {
+    marginBottom: 28,
+  },
+  tagline: {
+    textAlign: 'center',
+    color: '#64748b',
+    fontSize: 18,
+    fontWeight: '400',
+    marginBottom: 37,
+    letterSpacing: 0.1,
+  },
+  loader: {
+    marginTop: 4,
+  },
+});

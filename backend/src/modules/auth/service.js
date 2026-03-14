@@ -211,10 +211,10 @@ const googleAuth = async ({ idToken, deviceToken, platform }) => {
       );
     }
   } else {
-    // Create new user
+    // Create new user (Auto-verifying email since Google verified it)
     result = await db.query(
-      `INSERT INTO users (email, google_id, is_profile_complete)
-       VALUES ($1, $2, false)
+      `INSERT INTO users (email, google_id, is_profile_complete, is_verified)
+       VALUES ($1, $2, false, true)
        RETURNING *`,
       [email, googleId],
     );
