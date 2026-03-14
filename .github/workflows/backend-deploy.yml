@@ -37,8 +37,8 @@ jobs:
 
     - name: Tag Docker image
       run: |
-        docker tag backend-api:latest 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
+        docker tag backend-api:latest 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ GITHUB_SHA::7 }}
 
     - name: Push Docker image to ECR
       run: |
-        docker push 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
+        docker push 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ GITHUB_SHA::7 }}
