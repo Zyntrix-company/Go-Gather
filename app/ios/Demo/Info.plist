@@ -29,9 +29,21 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>fb1761986381428717</string>
 				<string>com.googleusercontent.apps.444293164368-62ticnka5jbe7phea60phv6otd69nkbe</string>
 			</array>
 		</dict>
+	</array>
+	<key>FacebookAppID</key>
+	<string>1761986381428717</string>
+	<key>FacebookClientToken</key>
+	<string>f778bd8f5404cecb363f113f6495b9ce</string>
+	<key>FacebookDisplayName</key>
+	<string>GatherGo</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>fbapi</string>
+		<string>fb-messenger-share-api</string>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
