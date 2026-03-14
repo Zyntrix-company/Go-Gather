@@ -278,10 +278,10 @@ const facebookAuth = async ({ accessToken, deviceToken, platform }) => {
       );
     }
   } else {
-    // Create new user
+    // Create new user (Auto-verifying email since Facebook verified it)
     result = await db.query(
-      `INSERT INTO users (email, facebook_id, is_profile_complete)
-       VALUES ($1, $2, false)
+      `INSERT INTO users (email, facebook_id, is_profile_complete, is_verified)
+       VALUES ($1, $2, false, true)
        RETURNING *`,
       [email, facebookId],
     );
