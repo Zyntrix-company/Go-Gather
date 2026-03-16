@@ -224,8 +224,9 @@ export default function CreateProfileScreen({ navigation }: any) {
       if (user.bio) {
         setValue('bio', user.bio);
       }
-      if (user.photoUrl) {
-        setAvatar({ uri: user.photoUrl, fileName: 'avatar.jpg', type: 'image/jpeg' });
+      const existingPhoto = user.photoUrl || user.avatarUrl || user.profile?.avatarUrl;
+      if (existingPhoto) {
+        setAvatar({ uri: existingPhoto, fileName: 'avatar.jpg', type: 'image/jpeg' });
       }
     }
   }, [user, setValue, isEditing]);
@@ -426,7 +427,7 @@ export default function CreateProfileScreen({ navigation }: any) {
                     errors.dob && styles.inputError,
                   ]}>
                   <Text style={[styles.dropdownText, !value && styles.dropdownPlaceholder]}>
-                    {value || 'Date of Birth (DD/MM/YYYY) '}
+                    {value || 'Date of Birth *'}
                   </Text>
                   <CalendarIcon />
                 </TouchableOpacity>
@@ -494,7 +495,7 @@ export default function CreateProfileScreen({ navigation }: any) {
                     focusedField === 'bio' && styles.inputFocused,
                     errors.bio && styles.inputError,
                   ]}
-                  placeholder="Tell us a bit about yourself and your travel style..."
+                  placeholder="Adventurer, foodie, or slow traveler? Tell us your story..."
                   placeholderTextColor="#94a3b8"
                   value={value}
                   onFocus={() => setFocusedField('bio')}

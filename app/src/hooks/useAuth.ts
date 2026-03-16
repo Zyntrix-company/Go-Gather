@@ -1,3 +1,5 @@
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { LoginManager } from 'react-native-fbsdk-next';
 import Toast from 'react-native-toast-message';
 import useAuthStore from '../store/authStore';
 import authApi from '../api/auth.api';
@@ -54,11 +56,56 @@ export default function useAuth() {
   }
 
   /**
+   * Google Login
+   */
+  async function googleLogin(idToken: string) {
+    setLoading(true);
+    try {
+      const res = await authApi.googleLogin(idToken);
+      await storage.setToken(res.accessToken);
+      await storage.setRefreshToken(res.refreshToken);
+      setAuth(res.user, res.accessToken, res.refreshToken);
+      return res;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /**
+   * Facebook Login
+   */
+  async function facebookLogin(accessToken: string) {
+    setLoading(true);
+    try {
+      const res = await authApi.facebookLogin(accessToken);
+      await storage.setToken(res.accessToken);
+      await storage.setRefreshToken(res.refreshToken);
+      setAuth(res.user, res.accessToken, res.refreshToken);
+      return res;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /**
    * Logout — calls API and clears all local state & tokens.
    */
   async function logout() {
     setLoading(true);
     try {
+      // 1. Social Sign Outs
+      try {
+        await GoogleSignin.signOut();
+      } catch (e) {
+        // Silently ignore if not logged in via Google
+      }
+      try {
+        LoginManager.logOut();
+      } catch (e) {
+        // Silently ignore
+      }
+
+      // 2. Clear backend session
       const refreshToken = await storage.getRefreshToken();
       if (refreshToken) {
         await authApi.logout(refreshToken).catch(() => {
@@ -66,6 +113,7 @@ export default function useAuth() {
         });
       }
     } finally {
+      // 3. Clear local storage and store
       await storage.clearAll();
       storeLogout();
       setLoading(false);
@@ -118,7 +166,26 @@ export default function useAuth() {
   }
 
   /**
+   * Refresh the user profile from the server and sync the store.
+   * Safe to call anywhere — will NOT clear tokens on failure.
+   */
+  async function refreshProfile() {
+    try {
+      const token = await storage.getToken();
+      if (!token) return null;
+      const user = await authApi.getMe();
+      const refreshToken = await storage.getRefreshToken();
+      setAuth(user, token, refreshToken);
+      return user;
+    } catch (e: any) {
+      console.warn('[refreshProfile] Failed:', e?.response?.status, e?.message);
+      return null;
+    }
+  }
+
+  /**
    * Save profile details (Step B of CreateProfile).
+   * After saving, always re-fetches from server to keep store up to date.
    */
   async function saveProfile(payload: {
     fullName: string;
@@ -129,15 +196,25 @@ export default function useAuth() {
   }) {
     setLoading(true);
     try {
-      const res = await authApi.saveProfile(payload);
-      if (res.user) {
-        useAuthStore.getState().updateUser(res.user);
-      }
-      return res;
+      await authApi.saveProfile(payload);
+      // Always re-fetch from server so store has the latest saved data
+      await refreshProfile();
     } finally {
       setLoading(false);
     }
   }
 
-  return { signup, verifyOtp, login, logout, loadFromToken, resendOtp, uploadPhoto, saveProfile };
+  return { 
+    signup, 
+    verifyOtp, 
+    login, 
+    googleLogin, 
+    facebookLogin, 
+    logout, 
+    loadFromToken, 
+    refreshProfile,
+    resendOtp, 
+    uploadPhoto, 
+    saveProfile 
+  };
 }

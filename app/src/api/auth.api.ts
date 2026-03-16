@@ -50,10 +50,55 @@ export type AuthResponse = AuthTokens & {
 
 // ─── API Methods ──────────────────────────────────────────────────────────────
 
+/**
+ * Flatten the backend's nested user.profile into a single User object.
+ * Backend shape: { accessToken, refreshToken, user: { id, email, ..., profile: { fullName, avatarUrl, ... } } }
+ */
+function normalizeUser(raw: any): User {
+  if (!raw) return {} as User;
+  const profile = raw.profile ?? {};
+
+  const photo = raw.photoUrl ||
+    profile.avatarUrl ||
+    profile.photoUrl ||
+    raw.avatarUrl ||
+    raw.photo_url ||
+    profile.photo_url ||
+    raw.avatar ||
+    profile.avatar ||
+    raw.photo ||
+    profile.photo ||
+    '';
+
+  return {
+    id: raw.id || raw._id,
+    email: raw.email,
+    phone: raw.phone,
+    isVerified: raw.isVerified,
+    isProfileComplete: raw.isProfileComplete,
+    fullName: raw.fullName || profile.fullName || raw.full_name || profile.full_name || '',
+    dob: raw.dob || profile.dob || raw.date_of_birth || profile.date_of_birth || '',
+    gender: raw.gender || profile.gender || '',
+    country: raw.country || profile.country || '',
+    bio: raw.bio || profile.bio || '',
+    photoUrl: photo,
+    avatarUrl: photo,
+    profile: profile,
+  };
+}
+
+function normalizeAuthResponse(data: any): AuthResponse {
+  const raw = data.user ?? data;
+  return {
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    user: normalizeUser(raw),
+  };
+}
+
 const authApi = {
   /**
    * POST /auth/signup
-   * Sends OTP to the provided email. Does NOT return tokens yet.
    */
   signup: async (payload: SignupPayload): Promise<{ message: string }> => {
     const { data } = await client.post('/auth/signup', payload);
@@ -62,11 +107,10 @@ const authApi = {
 
   /**
    * POST /auth/verify-email
-   * Verifies OTP and returns accessToken + refreshToken.
    */
   verifyOtp: async (payload: VerifyOtpPayload): Promise<AuthResponse> => {
     const { data } = await client.post('/auth/verify-email', payload);
-    return data;
+    return normalizeAuthResponse(data);
   },
 
   /**
@@ -79,14 +123,13 @@ const authApi = {
 
   /**
    * POST /auth/login
-   * Standard email/password login.
    */
   login: async (payload: LoginPayload): Promise<AuthResponse> => {
     const { data } = await client.post('/auth/login', {
       ...payload,
       platform: payload.platform ?? (Platform.OS === 'ios' ? 'ios' : 'android'),
     });
-    return data;
+    return normalizeAuthResponse(data);
   },
 
   /**
@@ -98,7 +141,7 @@ const authApi = {
       deviceToken,
       platform: Platform.OS === 'ios' ? 'ios' : 'android',
     });
-    return data;
+    return normalizeAuthResponse(data);
   },
 
   /**
@@ -110,7 +153,7 @@ const authApi = {
       deviceToken,
       platform: Platform.OS === 'ios' ? 'ios' : 'android',
     });
-    return data;
+    return normalizeAuthResponse(data);
   },
 
   /**
@@ -120,8 +163,9 @@ const authApi = {
    */
   getMe: async (): Promise<User> => {
     const { data } = await client.get('/auth/me');
-    // Normalize: handle nested `user` key if backend wraps it
-    return data.user ?? data;
+    // Backend shape: { message, user: { ... } } or { id, email, ... }
+    const raw = data.user ?? data;
+    return normalizeUser(raw);
   },
 
   /**

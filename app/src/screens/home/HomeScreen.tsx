@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -42,10 +42,10 @@ const StarIcon = ({ color = "#f59e0b", size = 16 }: { color?: string, size?: num
   </Svg>
 );
 
-const PinIcon = () => (
+const PinIcon = ({ color = "#94a3b8" }) => (
   <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-    <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-    <Circle cx={12} cy={10} r={3} stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    <Circle cx={12} cy={10} r={3} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 
@@ -67,6 +67,19 @@ const MoreIcon = () => (
 const FabIcon = () => (
   <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
     <Path d="M12 5v14M5 12h14" stroke="#ffffff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+const PlusIcon = ({ color = "#64748b" }) => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+    <Path d="M12 5v14M5 12h14" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+const EditIcon = () => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+    <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 
@@ -97,10 +110,10 @@ const LogoutIcon = () => (
 
 // --- Bottom Nav Icons ---
 
-const NavIcon = ({ name, active }: { name: string, active?: boolean }) => {
+const NavIcon = ({ name, active, onPress }: { name: string, active?: boolean, onPress: () => void }) => {
   const color = active ? "#0d9488" : "#94a3b8";
   return (
-    <View style={styles.navItem}>
+    <TouchableOpacity style={styles.navItem} onPress={onPress}>
       {name === 'trips' && (
         <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
           <Path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2v11z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -139,28 +152,296 @@ const NavIcon = ({ name, active }: { name: string, active?: boolean }) => {
       <Text style={[styles.navText, active && styles.navTextActive]}>
         {name.charAt(0).toUpperCase() + name.slice(1)}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 };
 
 export default function HomeScreen({ navigation }: any) {
-  const { logout } = useAuth();
-  const user = useAuthStore((s) => s.user);
+  const { logout, refreshProfile } = useAuth();
+  const rawUser = useAuthStore((s) => s.user) as any;
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [activeTab, setActiveTab] = useState<'trips' | 'events' | 'feed' | 'friends' | 'chat' | 'gallery'>('trips');
 
-  // Mock avatars
+  // Fetch fresh user data from the server on mount
+  useEffect(() => {
+    refreshProfile();
+  }, []);
+
+  // Normalize field names — handles both camelCase and snake_case from any backend
+  const user = rawUser ? {
+    fullName: rawUser.fullName ?? rawUser.full_name ?? '',
+    email: rawUser.email ?? '',
+    country: rawUser.country ?? '',
+    bio: rawUser.bio ?? '',
+    dob: rawUser.dob ?? rawUser.date_of_birth ?? '',
+    gender: rawUser.gender ?? '',
+    photoUrl: rawUser.photoUrl ?? rawUser.avatarUrl ?? rawUser.profile?.avatarUrl ?? rawUser.photo_url ?? rawUser.avatar ?? rawUser.photo ?? '',
+    isProfileComplete: rawUser.isProfileComplete ?? rawUser.is_profile_complete ?? false,
+  } : null;
   const avatars = [
     { id: 1, uri: 'https://i.pravatar.cc/150?u=1' },
     { id: 2, uri: 'https://i.pravatar.cc/150?u=2' },
     { id: 3, uri: 'https://i.pravatar.cc/150?u=3' },
   ];
 
+  const renderHomeContent = () => (
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      {/* Welcome Section */}
+      <View style={styles.welcomeSection}>
+        <View style={styles.welcomeRow}>
+          <View style={styles.welcomeTextContainer}>
+            <Text style={styles.welcomeTitle}>Welcome, {user?.fullName?.split(' ')[0] || 'Explorer'}!</Text>
+            <Text style={styles.welcomeSubtitle}>Gather your crew & make memories</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => setActiveTab('gallery')}
+            activeOpacity={0.8}>
+            {user?.photoUrl ? (
+              <Image
+                key={user.photoUrl}
+                source={{ uri: user.photoUrl }}
+                style={styles.welcomeAvatar}
+              />
+            ) : (
+              <View style={[styles.welcomeAvatar, styles.welcomeAvatarPlaceholder]}>
+                <Text style={styles.welcomeAvatarInitial}>
+                  {(user?.fullName || 'E')[0].toUpperCase()}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Create New Trip Button */}
+      <TouchableOpacity style={styles.createBtn} activeOpacity={0.9}>
+        <Text style={styles.createBtnText}>Create New Trip</Text>
+      </TouchableOpacity>
+
+      {/* AI Assistance Box */}
+      <View style={styles.aiBox}>
+        <Text style={styles.aiText}>Need help planning your adventure?</Text>
+        <TouchableOpacity style={styles.askBtn}>
+          <StarIcon color="#0d9488" size={14} />
+          <Text style={styles.askBtnText}>Ask Swee</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Upcoming Trips Section */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Upcoming Trips</Text>
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.cardMedia}>
+          <Image
+            source={require('../../assets/images/goa_beach.png')}
+            style={styles.cardImage as any}
+          />
+          <TouchableOpacity style={styles.cardMore}>
+            <MoreIcon />
+          </TouchableOpacity>
+          <View style={styles.participantAvatars}>
+            {avatars.map((av, idx) => (
+              <Image
+                key={av.id}
+                source={{ uri: av.uri }}
+                style={[styles.miniAvatar as any, { marginLeft: idx > 0 ? -10 : 0 }]}
+              />
+            ))}
+            <View style={styles.moreCounter}>
+              <Text style={styles.moreCounterText}>+1</Text>
+            </View>
+          </View>
+        </View>
+        <View style={styles.cardBody}>
+          <View style={styles.cardMain}>
+            <Text style={styles.cardTitle}>Goa Birthday Trip</Text>
+            <View style={styles.cardInfoRow}>
+              <View style={styles.infoItem}>
+                <PinIcon />
+                <Text style={styles.infoText}>Goa, India</Text>
+              </View>
+            </View>
+            <View style={styles.cardInfoRow}>
+              <View style={styles.infoItem}>
+                <CalendarIcon />
+                <Text style={styles.infoText}>15 May - 20 May</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.daysBadge}>
+            <Text style={styles.daysNumber}>63</Text>
+            <Text style={styles.daysLabel}>DAYS TO GO</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Upcoming Events Section */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Upcoming Events</Text>
+      </View>
+
+      <View style={styles.card}>
+        <View style={styles.cardMedia}>
+          <Image
+            source={require('../../assets/images/music_festival.png')}
+            style={styles.cardImage as any}
+          />
+          <TouchableOpacity style={styles.cardMore}>
+            <MoreIcon />
+          </TouchableOpacity>
+          <View style={styles.participantAvatars}>
+            {avatars.slice(0, 2).map((av, idx) => (
+              <Image
+                key={av.id}
+                source={{ uri: av.uri }}
+                style={[styles.miniAvatar as any, { marginLeft: idx > 0 ? -10 : 0 }]}
+              />
+            ))}
+            <View style={styles.moreCounter}>
+              <Text style={styles.moreCounterText}>+1</Text>
+            </View>
+          </View>
+          <TouchableOpacity style={styles.fabEvent}>
+            <FabIcon />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.cardBody}>
+          <View style={styles.cardMain}>
+            <Text style={styles.cardTitle}>Spring Music Festival</Text>
+            <View style={styles.cardInfoRow}>
+              <View style={styles.infoItem}>
+                <PinIcon />
+                <Text style={styles.infoText}>Bangalore, Palace Grounds</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </View>
+    </ScrollView>
+  );
+
+  const renderGalleryContent = () => {
+    const displayName = user?.fullName || '';
+    const displayHandle = displayName.toLowerCase().replace(/ /g, '_') || 'username';
+    const displayCountry = user?.country || '';
+    const displayBio = user?.bio || '';
+    const displayPhoto = user?.photoUrl || '';
+    // Format ISO dob (e.g. '2026-03-08T00:00:00.000Z') → '8 Mar 2026'
+    const displayDob = user?.dob
+      ? new Date(user.dob).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '';
+
+    return (
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* Profile Header Block */}
+        <View style={styles.galleryHeader}>
+          <View style={styles.galleryAvatarContainer}>
+            {displayPhoto ? (
+              <Image
+                key={displayPhoto}               // key forces re-render when URL changes
+                source={{ uri: displayPhoto }}
+                style={styles.galleryAvatar}
+              />
+            ) : (
+              <View style={[styles.galleryAvatar, styles.galleryAvatarPlaceholder]}>
+                <Text style={styles.galleryAvatarInitial}>
+                  {displayName ? displayName[0].toUpperCase() : '?'}
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.galleryEditBtn}
+              onPress={() => navigation.navigate('Profile')}>
+              <EditIcon />
+            </TouchableOpacity>
+          </View>
+
+          {displayName ? (
+            <Text style={styles.galleryName}>{displayName}</Text>
+          ) : null}
+          {displayName ? (
+            <Text style={styles.galleryHandle}>@{displayHandle}</Text>
+          ) : null}
+
+          <View style={styles.galleryMetaRow}>
+            {displayCountry ? (
+              <View style={styles.galleryLocation}>
+                <PinIcon color="#0d9488" />
+                <Text style={styles.galleryLocationText}>{displayCountry}</Text>
+              </View>
+            ) : null}
+            {displayDob ? (
+              <View style={styles.galleryDob}>
+                <CalendarIcon />
+                <Text style={styles.galleryLocationText}>{displayDob}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {displayBio ? (
+            <Text style={styles.galleryBio}>{displayBio}</Text>
+          ) : null}
+        </View>
+
+        {/* Gallery Sections */}
+        <View style={styles.gallerySection}>
+          <View style={styles.galleryRowHeader}>
+            <Text style={styles.gallerySectionTitle}>Gallery of Trips</Text>
+            <TouchableOpacity><PlusIcon /></TouchableOpacity>
+          </View>
+          <View style={styles.galleryGrid}>
+            <View style={styles.gallerySmallCard}>
+              <Image source={require('../../assets/images/music_festival.png')} style={styles.galleryCardImg} />
+              <View style={styles.galleryCardOverlay}>
+                <Text style={styles.galleryCardText} numberOfLines={1}>Winter Ski Trip</Text>
+              </View>
+            </View>
+            <View style={styles.gallerySmallCard}>
+              <Image source={require('../../assets/images/goa_beach.png')} style={styles.galleryCardImg} />
+              <View style={styles.galleryCardOverlay}>
+                <Text style={styles.galleryCardText} numberOfLines={1}>Goa Birthday Trip</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.gallerySection, { marginTop: 20 }]}>
+          <View style={styles.galleryRowHeader}>
+            <Text style={styles.gallerySectionTitle}>Gallery of Events</Text>
+            <TouchableOpacity><PlusIcon /></TouchableOpacity>
+          </View>
+          <View style={styles.galleryGrid}>
+            <View style={styles.gallerySmallCard}>
+              <Image source={require('../../assets/images/music_festival.png')} style={styles.galleryCardImg} />
+              <View style={styles.galleryCardOverlay}>
+                <Text style={styles.galleryCardText} numberOfLines={1}>Spring Music Festi...</Text>
+              </View>
+            </View>
+            <View style={styles.gallerySmallCard}>
+              <Image source={require('../../assets/images/goa_beach.png')} style={styles.galleryCardImg} />
+              <View style={styles.galleryCardOverlay}>
+                <Text style={styles.galleryCardText} numberOfLines={1}>Birthday Dinner</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+        <TouchableOpacity style={styles.galleryFab}>
+          <FabIcon />
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  };
+
   return (
     <BlobBackground>
       <SafeAreaView style={styles.container}>
-        {/* Header */}
+        {/* Header (Only show on Home, or shared?) UI suggests it is shared */}
         <View style={styles.header}>
-          <Logo size="small" />
+          <TouchableOpacity onPress={() => setActiveTab('trips')}>
+            <Logo size="small" />
+          </TouchableOpacity>
           <View style={styles.headerRight}>
             <TouchableOpacity style={styles.headerIcon}>
               <BellIcon />
@@ -184,7 +465,7 @@ export default function HomeScreen({ navigation }: any) {
             <View style={styles.profileDropdown}>
               <View style={styles.dropdownHeader}>
                 <Image
-                  source={{ uri: user?.photoUrl || 'https://i.pravatar.cc/150?u=me' }}
+                  source={user?.photoUrl ? { uri: user.photoUrl } : { uri: 'https://i.pravatar.cc/150?u=me' }}
                   style={styles.dropdownAvatar}
                 />
                 <View style={styles.dropdownUserText}>
@@ -230,133 +511,16 @@ export default function HomeScreen({ navigation }: any) {
           </View>
         )}
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}>
-
-          {/* Welcome Section */}
-          <View style={styles.welcomeSection}>
-            <Text style={styles.welcomeTitle}>Welcome, {user?.fullName?.split(' ')[0] || 'Explorer'}!</Text>
-            <Text style={styles.welcomeSubtitle}>Gather your crew & make memories</Text>
-          </View>
-
-          {/* Create New Trip Button */}
-          <TouchableOpacity style={styles.createBtn} activeOpacity={0.9}>
-            <Text style={styles.createBtnText}>Create New Trip</Text>
-          </TouchableOpacity>
-
-          {/* AI Assistance Box */}
-          <View style={styles.aiBox}>
-            <Text style={styles.aiText}>Need help planning your adventure?</Text>
-            <TouchableOpacity style={styles.askBtn}>
-              <StarIcon color="#0d9488" size={14} />
-              <Text style={styles.askBtnText}>Ask Swee</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Upcoming Trips Section */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Upcoming Trips</Text>
-          </View>
-
-          <View style={styles.card}>
-            <View style={styles.cardMedia}>
-              <Image
-                source={require('../../assets/images/goa_beach.png')}
-                style={styles.cardImage as any}
-              />
-              <TouchableOpacity style={styles.cardMore}>
-                <MoreIcon />
-              </TouchableOpacity>
-              <View style={styles.participantAvatars}>
-                {avatars.map((av, idx) => (
-                  <Image
-                    key={av.id}
-                    source={{ uri: av.uri }}
-                    style={[styles.miniAvatar as any, { marginLeft: idx > 0 ? -10 : 0 }]}
-                  />
-                ))}
-                <View style={styles.moreCounter}>
-                  <Text style={styles.moreCounterText}>+1</Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.cardBody}>
-              <View style={styles.cardMain}>
-                <Text style={styles.cardTitle}>Goa Birthday Trip</Text>
-                <View style={styles.cardInfoRow}>
-                  <View style={styles.infoItem}>
-                    <PinIcon />
-                    <Text style={styles.infoText}>Goa, India</Text>
-                  </View>
-                </View>
-                <View style={styles.cardInfoRow}>
-                  <View style={styles.infoItem}>
-                    <CalendarIcon />
-                    <Text style={styles.infoText}>15 May - 20 May</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={styles.daysBadge}>
-                <Text style={styles.daysNumber}>63</Text>
-                <Text style={styles.daysLabel}>DAYS TO GO</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Upcoming Events Section */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Upcoming Events</Text>
-          </View>
-
-          <View style={styles.card}>
-            <View style={styles.cardMedia}>
-              <Image
-                source={require('../../assets/images/music_festival.png')}
-                style={styles.cardImage as any}
-              />
-              <TouchableOpacity style={styles.cardMore}>
-                <MoreIcon />
-              </TouchableOpacity>
-              <View style={styles.participantAvatars}>
-                {avatars.slice(0, 2).map((av, idx) => (
-                  <Image
-                    key={av.id}
-                    source={{ uri: av.uri }}
-                    style={[styles.miniAvatar as any, { marginLeft: idx > 0 ? -10 : 0 }]}
-                  />
-                ))}
-                <View style={styles.moreCounter}>
-                  <Text style={styles.moreCounterText}>+1</Text>
-                </View>
-              </View>
-              {/* Floating Action Button inside Event */}
-              <TouchableOpacity style={styles.fabEvent}>
-                <FabIcon />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.cardBody}>
-              <View style={styles.cardMain}>
-                <Text style={styles.cardTitle}>Spring Music Festival</Text>
-                <View style={styles.cardInfoRow}>
-                  <View style={styles.infoItem}>
-                    <PinIcon />
-                    <Text style={styles.infoText}>Bangalore, Palace Grounds</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </View>
-        </ScrollView>
+        {/* Content based on Active Tab */}
+        {activeTab === 'gallery' ? renderGalleryContent() : renderHomeContent()}
 
         {/* Bottom Tab Bar */}
         <View style={styles.tabBar}>
-          <NavIcon name="trips" active />
-          <NavIcon name="events" />
-
-          <NavIcon name="friends" />
-          <NavIcon name="chat" />
-          <NavIcon name="gallery" />
+          <NavIcon name="trips" active={activeTab === 'trips'} onPress={() => setActiveTab('trips')} />
+          <NavIcon name="events" active={activeTab === 'events'} onPress={() => setActiveTab('events')} />
+          <NavIcon name="friends" active={activeTab === 'friends'} onPress={() => setActiveTab('friends')} />
+          <NavIcon name="chat" active={activeTab === 'chat'} onPress={() => setActiveTab('chat')} />
+          <NavIcon name="gallery" active={activeTab === 'gallery'} onPress={() => setActiveTab('gallery')} />
         </View>
       </SafeAreaView>
     </BlobBackground>
@@ -499,6 +663,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#64748b',
     marginTop: 5,
+  },
+  welcomeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+  },
+  welcomeTextContainer: {
+    flex: 1,
+  },
+  welcomeAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#0d9488',
+  },
+  welcomeAvatarPlaceholder: {
+    backgroundColor: 'rgba(13, 148, 136, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  welcomeAvatarInitial: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#0d9488',
   },
   createBtn: {
     backgroundColor: '#0d9488',
@@ -711,5 +901,150 @@ const styles = StyleSheet.create({
   navTextActive: {
     color: '#0d9488',
     fontWeight: '700',
+  },
+
+  // Gallery View Styles
+  galleryHeader: {
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  galleryAvatarContainer: {
+    position: 'relative',
+    marginBottom: 10,
+  },
+  galleryAvatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 3,
+    borderColor: '#0d9488',
+  },
+  galleryEditBtn: {
+    position: 'absolute',
+    top: 5,
+    right: -10,
+    backgroundColor: '#fff',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  galleryName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  galleryHandle: {
+    fontSize: 14,
+    color: '#0d9488',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  galleryMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 6,
+  },
+  galleryLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  galleryDob: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  galleryLocationText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  galleryBio: {
+    fontSize: 15,
+    color: '#334155',
+    textAlign: 'center',
+    marginTop: 12,
+    paddingHorizontal: 20,
+    lineHeight: 22,
+  },
+  gallerySection: {
+    marginTop: 10,
+  },
+  galleryRowHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  gallerySectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  galleryGrid: {
+    flexDirection: 'row',
+    gap: 15,
+  },
+  gallerySmallCard: {
+    flex: 1,
+    height: 150,
+    borderRadius: 15,
+    overflow: 'hidden',
+    backgroundColor: '#f1f5f9',
+    position: 'relative',
+  },
+  galleryCardImg: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  galleryCardOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  galleryCardText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  galleryFab: {
+    position: 'absolute',
+    bottom: 20,
+    right: 0,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#0d9488',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0d9488',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  galleryAvatarPlaceholder: {
+    backgroundColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  galleryAvatarInitial: {
+    fontSize: 40,
+    fontWeight: '700',
+    color: '#0d9488',
   },
 });

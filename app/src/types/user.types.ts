@@ -10,7 +10,13 @@ export interface User {
   country?: string;
   bio?: string;
   avatarUri?: string;
+  avatarUrl?: string;
   photoUrl?: string;
   isVerified?: boolean;
   isProfileComplete?: boolean;
+  profile?: {
+    avatarUrl?: string;
+    fullName?: string;
+    [key: string]: any;
+  };
 }

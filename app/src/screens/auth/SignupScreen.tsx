@@ -21,6 +21,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { signupSchema } from '../../utils/validators';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { LoginManager, AccessToken } from 'react-native-fbsdk-next';
 import colors from '../../theme/colors';
 
 type FormData = {
@@ -280,11 +282,23 @@ export default function SignupScreen({ navigation }: any) {
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(signupSchema) });
-  const { signup } = useAuth();
+  const { signup, googleLogin, facebookLogin } = useAuth();
+  const [apiError, setApiError] = useState<string | null>(null);
   const isLoading = useAuthStore((s) => s.isLoading);
+
+  function handleLoginNavigation(user: any) {
+    if (user.isVerified === false) {
+      return navigation.replace('OtpVerification', { email: user.email });
+    }
+    if (user.isProfileComplete === false) {
+      return navigation.replace('CreateProfile');
+    }
+    // RootNavigator will take care of Home navigation
+  }
 
   async function onSubmit(data: FormData) {
     try {
+      setApiError(null);
       // Combine country code + phone number before sending
       const fullPhone = data.phone
         ? `${selectedCountry.code}${data.phone.replace(/^0+/, '')}`
@@ -293,8 +307,47 @@ export default function SignupScreen({ navigation }: any) {
       await signup(data.email, fullPhone, data.password);
       // On success, backend sends OTP to email → navigate to OTP screen
       navigation.navigate('OtpVerification', { email: data.email });
-    } catch {
-      // Errors are handled globally by the Axios interceptor (toast shown)
+    } catch (err: any) {
+      console.error('[Signup Error]:', err);
+      const msg = err.response?.data?.message || err.response?.data?.error || 'Something went wrong. Please try again.';
+      setApiError(msg);
+    }
+  }
+
+  async function onGoogleButtonPress() {
+    try {
+      setApiError(null);
+      await GoogleSignin.hasPlayServices();
+      const result = await GoogleSignin.signIn();
+      const idToken = result.data?.idToken;
+      if (idToken) {
+        const res = await googleLogin(idToken);
+        console.log('[Google Login Success]:', res.user?.email);
+        handleLoginNavigation(res.user);
+      }
+    } catch (error: any) {
+      console.error('[Google Login Error]:', error);
+      if (error.code !== 'SIGN_IN_CANCELLED') {
+        setApiError('Google sign in failed.');
+      }
+    }
+  }
+
+  async function onFacebookButtonPress() {
+    try {
+      setApiError(null);
+      const result = await LoginManager.logInWithPermissions(['public_profile', 'email']);
+      if (result.isCancelled) return;
+
+      const data = await AccessToken.getCurrentAccessToken();
+      if (data) {
+        const res = await facebookLogin(data.accessToken);
+        console.log('[Facebook Login Success]:', res.user?.email);
+        handleLoginNavigation(res.user);
+      }
+    } catch (error: any) {
+      console.error('[Facebook Login Error]:', error);
+      setApiError('Facebook sign in failed.');
     }
   }
 
@@ -328,13 +381,21 @@ export default function SignupScreen({ navigation }: any) {
             <Text style={styles.title}>Create Account</Text>
 
             {/* Google */}
-            <TouchableOpacity style={styles.socialBtn} activeOpacity={0.75} onPress={() => { }}>
+            <TouchableOpacity 
+              style={styles.socialBtn} 
+              activeOpacity={0.75} 
+              onPress={onGoogleButtonPress}
+              disabled={isLoading}>
               <GoogleIcon />
               <Text style={styles.socialBtnText}>Continue with Google</Text>
             </TouchableOpacity>
 
             {/* Facebook */}
-            <TouchableOpacity style={[styles.socialBtn, styles.socialBtnGap]} activeOpacity={0.75} onPress={() => { }}>
+            <TouchableOpacity 
+              style={[styles.socialBtn, styles.socialBtnGap]} 
+              activeOpacity={0.75} 
+              onPress={onFacebookButtonPress}
+              disabled={isLoading}>
               <FacebookIcon />
               <Text style={styles.socialBtnText}>Continue with Facebook</Text>
             </TouchableOpacity>
@@ -510,6 +571,11 @@ export default function SignupScreen({ navigation }: any) {
               )}
             />
 
+            {/* API Error Message */}
+            {apiError && (
+              <Text style={styles.apiErrorText}>{apiError}</Text>
+            )}
+
             {/* Continue */}
             <TouchableOpacity
               style={[styles.primaryBtn, isLoading && { opacity: 0.7 }]}
@@ -602,6 +668,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 2,
     marginLeft: 2,
+  },
+  apiErrorText: {
+    fontSize: 14,
+    color: '#ef4444',
+    textAlign: 'center',
+    marginVertical: 10,
+    fontWeight: '500',
   },
 
   phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },

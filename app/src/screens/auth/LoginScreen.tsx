@@ -18,6 +18,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema } from '../../utils/validators';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { LoginManager, AccessToken } from 'react-native-fbsdk-next';
 
 type FormData = {
   email: string;
@@ -69,24 +71,67 @@ export default function LoginScreen({ navigation }: any) {
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(loginSchema),
   });
-  const { login } = useAuth();
+  const { login, googleLogin, facebookLogin } = useAuth();
   const isLoading = useAuthStore((s) => s.isLoading);
+
+  function handleLoginNavigation(user: any) {
+    if (user.isVerified === false) {
+      return navigation.replace('OtpVerification', { email: user.email });
+    }
+    if (user.isProfileComplete === false) {
+      return navigation.replace('CreateProfile');
+    }
+    // Home navigation is handled automatically by RootNavigator when store updates
+  }
 
   async function onSubmit(data: FormData) {
     try {
       setApiError(null);
       const res = await login(data.email, data.password);
       console.log('[Login Success]: User authenticated:', res.user?.email);
-      if (res.user?.isVerified === false) {
-        return navigation.replace('OtpVerification', { email: data.email });
-      }
-      if (res.user?.isProfileComplete === false) {
-        return navigation.replace('CreateProfile');
-      }
+      handleLoginNavigation(res.user);
     } catch (err: any) {
       console.error('[Login Error]:', err);
       const msg = err.response?.data?.message || err.response?.data?.error || 'Invalid email or password.';
       setApiError(msg);
+    }
+  }
+
+  async function onGoogleButtonPress() {
+    try {
+      setApiError(null);
+      await GoogleSignin.hasPlayServices();
+      const result = await GoogleSignin.signIn();
+      const idToken = result.data?.idToken;
+      if (idToken) {
+        const res = await googleLogin(idToken);
+        console.log('[Google Login Success]:', res.user?.email);
+        handleLoginNavigation(res.user);
+      }
+    } catch (error: any) {
+      console.error('[Google Login Error]:', error);
+      // Don't show error if user cancelled
+      if (error.code !== 'SIGN_IN_CANCELLED') {
+        setApiError('Google sign in failed.');
+      }
+    }
+  }
+
+  async function onFacebookButtonPress() {
+    try {
+      setApiError(null);
+      const result = await LoginManager.logInWithPermissions(['public_profile', 'email']);
+      if (result.isCancelled) return;
+
+      const data = await AccessToken.getCurrentAccessToken();
+      if (data) {
+        const res = await facebookLogin(data.accessToken);
+        console.log('[Facebook Login Success]:', res.user?.email);
+        handleLoginNavigation(res.user);
+      }
+    } catch (error: any) {
+      console.error('[Facebook Login Error]:', error);
+      setApiError('Facebook sign in failed.');
     }
   }
 
@@ -114,13 +159,21 @@ export default function LoginScreen({ navigation }: any) {
             <Text style={styles.subtitle}>Log in to access your trips and groups.</Text>
 
             {/* Google — space-y-2 gap between buttons */}
-            <TouchableOpacity style={styles.socialBtn} activeOpacity={0.75} onPress={() => { }}>
+            <TouchableOpacity 
+              style={styles.socialBtn} 
+              activeOpacity={0.75} 
+              onPress={onGoogleButtonPress}
+              disabled={isLoading}>
               <GoogleIcon />
               <Text style={styles.socialBtnText}>Continue with Google</Text>
             </TouchableOpacity>
 
             {/* Facebook */}
-            <TouchableOpacity style={[styles.socialBtn, styles.socialBtnGap]} activeOpacity={0.75} onPress={() => { }}>
+            <TouchableOpacity 
+              style={[styles.socialBtn, styles.socialBtnGap]} 
+              activeOpacity={0.75} 
+              onPress={onFacebookButtonPress}
+              disabled={isLoading}>
               <FacebookIcon />
               <Text style={styles.socialBtnText}>Continue with Facebook</Text>
             </TouchableOpacity>
