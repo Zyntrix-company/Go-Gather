@@ -42,3 +42,26 @@ jobs:
     - name: Push Docker image to ECR
       run: |
         docker push 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
+
+    - name: Deploy to EC2 via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          # Login to ECR from EC2
+          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 092201262561.dkr.ecr.ap-south-1.amazonaws.com
+    
+          # Pull latest image
+          docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
+    
+          # Stop and remove old container
+          docker stop backend-container || true
+          docker rm backend-container || true
+    
+          # Run new container
+          docker run -d \
+            --name backend-container \
+            -p 8000:8000 \
+            092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
