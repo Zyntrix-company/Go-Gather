@@ -1,6 +1,7 @@
 const db = require('../../config/database');
 const config = require('../../config');
 const logger = require('../../utils/logger');
+const { sendWelcomeEmail } = require('../../utils/mailer');
 
 /**
  * POST /users/profile — Save/create the user profile after signup.
@@ -48,6 +49,11 @@ const saveProfile = async (userId, profileData) => {
     );
 
     const row = result.rows[0];
+
+    // Fire welcome email — non-blocking, failure does not affect the response
+    sendWelcomeEmail(row.email, row.full_name).catch((err) => {
+      logger.error('Failed to send welcome email', { userId, error: err.message });
+    });
 
     return {
       id: row.id,
