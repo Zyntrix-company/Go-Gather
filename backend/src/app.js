@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -7,10 +8,28 @@ const logger = require('./utils/logger');
 const errorHandler = require('./middleware/errorHandler');
 
 // Module routers
-const authRoutes = require('./modules/auth/routes');
-const usersRoutes = require('./modules/users/routes');
+const authRoutes    = require('./modules/auth/routes');
+const usersRoutes   = require('./modules/users/routes');
+const homeRoutes    = require('./modules/home/home.routes');
+const tripsRoutes   = require('./modules/trips/trips.routes');
+const friendsRoutes = require('./modules/friends/friends.routes');
+const invitesRoutes = require('./modules/invites/invites.routes');
 
 const app = express();
+
+/* ───────────────────────────────────────────
+ * Universal Links / App Links — BEFORE any auth middleware
+ * Must be served as application/json without a .json extension in the URL.
+ * ─────────────────────────────────────────── */
+app.get('/.well-known/apple-app-site-association', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.sendFile(path.join(__dirname, 'static/apple-app-site-association'));
+});
+
+app.get('/.well-known/assetlinks.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.sendFile(path.join(__dirname, 'static/assetlinks.json'));
+});
 
 /* ───────────────────────────────────────────
  * Global Middleware
@@ -46,8 +65,12 @@ app.get('/health', (_req, res) => {
 /* ───────────────────────────────────────────
  * API Routes
  * ─────────────────────────────────────────── */
-app.use('/auth', authRoutes);
-app.use('/users', usersRoutes);
+app.use('/auth',    authRoutes);
+app.use('/users',   usersRoutes);
+app.use('/home',    homeRoutes);
+app.use('/trips',   tripsRoutes);
+app.use('/friends', friendsRoutes);
+app.use('/invites', invitesRoutes);
 
 /* ───────────────────────────────────────────
  * 404 Handler

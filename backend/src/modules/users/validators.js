@@ -1,4 +1,4 @@
-const { body, param } = require('express-validator');
+const { body, param, query } = require('express-validator');
 
 const saveProfileValidation = [
   body('fullName')
@@ -33,7 +33,42 @@ const getPublicProfileValidation = [
     .withMessage('User ID must be a valid UUID'),
 ];
 
+// PUT /users/profile — update profile including optional username
+const updateProfileValidation = [
+  body('fullName')
+    .optional()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Full name must be between 2 and 100 characters')
+    .trim(),
+  body('username')
+    .optional()
+    .matches(/^[a-z0-9_]{3,20}$/)
+    .withMessage('Username must be 3–20 chars, lowercase letters, numbers, and underscores only'),
+  body('bio')
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage('Bio must be at most 500 characters')
+    .trim(),
+  body('country')
+    .optional()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Country must be between 2 and 100 characters')
+    .trim(),
+];
+
+// GET /users/search
+const searchUsersValidation = [
+  query('q')
+    .notEmpty()
+    .withMessage('q (search query) is required')
+    .isLength({ max: 100 })
+    .withMessage('Search query too long')
+    .trim(),
+];
+
 module.exports = {
   saveProfileValidation,
   getPublicProfileValidation,
+  updateProfileValidation,
+  searchUsersValidation,
 };

@@ -51,8 +51,60 @@ const getPublicProfile = async (req, res, next) => {
   }
 };
 
+/**
+ * PUT /users/profile — Update profile fields (including username)
+ */
+const updateProfile = async (req, res, next) => {
+  try {
+    const result = await usersService.updateProfile(req.user.id, req.body);
+    return res.status(200).json({ message: 'Profile updated successfully', user: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /users/search — Search users with friendship status
+ */
+const searchUsers = async (req, res, next) => {
+  try {
+    const users = await usersService.searchUsers(req.user.id, req.query.q);
+    return res.status(200).json({ users });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /users/:id/profile — Enhanced profile with friendship + stats
+ */
+const getUserProfile = async (req, res, next) => {
+  try {
+    const profile = await usersService.getUserProfile(req.user.id, req.params.id);
+    return res.status(200).json({ user: profile });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /users/:id/gallery — Past trips and events
+ */
+const getUserGallery = async (req, res, next) => {
+  try {
+    const gallery = await usersService.getUserGallery(req.params.id);
+    return res.status(200).json(gallery);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   saveProfile,
   uploadPhoto,
   getPublicProfile,
+  updateProfile,
+  searchUsers,
+  getUserProfile,
+  getUserGallery,
 };
