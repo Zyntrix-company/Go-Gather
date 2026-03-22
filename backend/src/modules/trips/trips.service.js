@@ -17,11 +17,13 @@ const calcDaysToGo = (startDate) => {
   return Math.max(0, Math.round((start - today) / 86400000));
 };
 
+const toDateStr = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+
 const formatTrip = (t) => ({
   id: t.id,
   name: t.name,
-  startDate: t.start_date,
-  endDate: t.end_date,
+  startDate: toDateStr(t.start_date),
+  endDate: toDateStr(t.end_date),
   location: {
     name: t.location_name,
     lat: t.location_lat ? parseFloat(t.location_lat) : null,
