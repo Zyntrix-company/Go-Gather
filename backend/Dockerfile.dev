@@ -1,0 +1,21 @@
+# ─── Development image (hot reload via nodemon) ───────────────────────────────
+FROM node:18-alpine
+
+RUN apk add --no-cache dumb-init
+
+WORKDIR /app
+
+# Install ALL deps (including nodemon)
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY src/ ./src/
+COPY migrations/ ./migrations/
+COPY package.json ./
+
+EXPOSE 3000
+
+ENV NODE_ENV=development
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["npx", "nodemon", "src/server.js"]

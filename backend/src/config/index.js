@@ -68,4 +68,40 @@ module.exports = {
   // ─── App URLs ────────────────────────────────
   clientUrl: process.env.CLIENT_URL || 'http://localhost:3001',
   passwordResetUrl: process.env.PASSWORD_RESET_URL || 'http://localhost:3001/reset-password',
+  appDeepLinkBaseUrl: process.env.APP_DEEP_LINK_BASE_URL || 'https://gathergo.app',
+
+  // ─── FCM ─────────────────────────────────────
+  fcm: {
+    serverKey: process.env.FCM_SERVER_KEY,
+  },
+
+  // ─── Branch.io ───────────────────────────────
+  branch: {
+    key:    process.env.BRANCH_KEY,
+    secret: process.env.BRANCH_SECRET,
+  },
+
+  // ─── Invite & App Store Links ─────────────────
+  invite: {
+    baseUrl:          process.env.APP_INVITE_BASE_URL || 'https://gathergo.app/invite',
+    appIsLive:        process.env.APP_IS_LIVE === 'true',
+    androidApkUrl:    process.env.ANDROID_APK_URL,
+    iosTfUrl:         process.env.IOS_TESTFLIGHT_URL,
+    androidStoreUrl:  process.env.ANDROID_STORE_URL,
+    iosStoreUrl:      process.env.IOS_STORE_URL,
+    ogImageUrl:       process.env.OG_INVITE_IMAGE_URL,
+  },
+
+  // ─── Rate Limits ─────────────────────────────
+  rateLimits: {
+    friendInvitePerHour: parseInt(process.env.FRIEND_INVITE_RATE_LIMIT_PER_HOUR, 10) || 10,
+    friendRequestPerDay: parseInt(process.env.FRIEND_REQUEST_RATE_LIMIT_PER_DAY, 10) || 20,
+  },
+
+  // ─── Universal Links ─────────────────────────
+  universalLinks: {
+    appBundleId:      process.env.APP_BUNDLE_ID      || 'com.gathergo',
+    appTeamId:        process.env.APP_TEAM_ID        || 'XXXXXXXXXX',
+    androidSha256:    process.env.ANDROID_SHA256_CERT,
+  },
 };

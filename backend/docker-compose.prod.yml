@@ -1,0 +1,87 @@
+# ─── Production Deployment ────────────────────────────────────────────────────
+# Uses the production Dockerfile (non-root user, dumb-init, health check).
+# Database is AWS RDS — NOT included here.
+#
+# Usage (on the server):
+#   # 1. Copy .env.prod to the server (never commit it)
+#   # 2. Build and start:
+#   docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+#   # Rolling update (zero-downtime behind a load balancer):
+#   docker-compose -f docker-compose.prod.yml --env-file .env.prod pull
+#   docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api
+#
+#   # View logs:
+#   docker-compose -f docker-compose.prod.yml logs -f api
+
+version: '3.9'
+
+services:
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: gathergo-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - '${PORT:-3000}:3000'
+    environment:
+      NODE_ENV:   production
+      PORT:       3000
+      # ── JWT ────────────────────────────────────────────────────────────────
+      JWT_SECRET:           ${JWT_SECRET}
+      JWT_REFRESH_SECRET:   ${JWT_REFRESH_SECRET}
+      # ── Database (RDS) ─────────────────────────────────────────────────────
+      AWS_RDS_HOST:         ${AWS_RDS_HOST}
+      AWS_RDS_PORT:         ${AWS_RDS_PORT:-5432}
+      AWS_RDS_DB:           ${AWS_RDS_DB}
+      AWS_RDS_USER:         ${AWS_RDS_USER}
+      AWS_RDS_PASSWORD:     ${AWS_RDS_PASSWORD}
+      # ── AWS ────────────────────────────────────────────────────────────────
+      AWS_REGION:           ${AWS_REGION}
+      AWS_ACCESS_KEY_ID:    ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET:        ${AWS_S3_BUCKET}
+      AWS_CLOUDFRONT_DOMAIN: ${AWS_CLOUDFRONT_DOMAIN}
+      AWS_SES_FROM_EMAIL:   ${AWS_SES_FROM_EMAIL}
+      AWS_SES_ACCESS_KEY_ID: ${AWS_SES_ACCESS_KEY_ID}
+      AWS_SES_SECRET_ACCESS_KEY: ${AWS_SES_SECRET_ACCESS_KEY}
+      AWS_SNS_PLATFORM_APP_ARN_IOS:     ${AWS_SNS_PLATFORM_APP_ARN_IOS}
+      AWS_SNS_PLATFORM_APP_ARN_ANDROID: ${AWS_SNS_PLATFORM_APP_ARN_ANDROID}
+      # ── Auth ───────────────────────────────────────────────────────────────
+      GOOGLE_CLIENT_ID:     ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      FACEBOOK_APP_ID:      ${FACEBOOK_APP_ID}
+      FACEBOOK_APP_SECRET:  ${FACEBOOK_APP_SECRET}
+      # ── Push / Branch ──────────────────────────────────────────────────────
+      FCM_SERVER_KEY:       ${FCM_SERVER_KEY}
+      BRANCH_KEY:           ${BRANCH_KEY}
+      BRANCH_SECRET:        ${BRANCH_SECRET}
+      # ── App URLs ───────────────────────────────────────────────────────────
+      CLIENT_URL:           ${CLIENT_URL}
+      APP_DEEP_LINK_BASE_URL: ${APP_DEEP_LINK_BASE_URL}
+      APP_INVITE_BASE_URL:  ${APP_INVITE_BASE_URL}
+      APP_IS_LIVE:          ${APP_IS_LIVE:-true}
+      ANDROID_STORE_URL:    ${ANDROID_STORE_URL}
+      IOS_STORE_URL:        ${IOS_STORE_URL}
+      OG_INVITE_IMAGE_URL:  ${OG_INVITE_IMAGE_URL}
+      # ── Universal Links ────────────────────────────────────────────────────
+      APP_BUNDLE_ID:        ${APP_BUNDLE_ID}
+      APP_TEAM_ID:          ${APP_TEAM_ID}
+      ANDROID_SHA256_CERT:  ${ANDROID_SHA256_CERT}
+      # ── Rate limits ────────────────────────────────────────────────────────
+      FRIEND_INVITE_RATE_LIMIT_PER_HOUR: ${FRIEND_INVITE_RATE_LIMIT_PER_HOUR:-10}
+      FRIEND_REQUEST_RATE_LIMIT_PER_DAY: ${FRIEND_REQUEST_RATE_LIMIT_PER_DAY:-20}
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/health | grep -q "ok" || exit 1']
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '5'

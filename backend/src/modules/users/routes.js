@@ -7,6 +7,8 @@ const upload = require('../../middleware/upload');
 
 const router = Router();
 
+// ── Authenticated routes ───────────────────────────────────────────────────────
+
 // POST /users/profile — Save profile after signup (requires auth)
 router.post(
   '/profile',
@@ -14,6 +16,15 @@ router.post(
   validators.saveProfileValidation,
   validate,
   controller.saveProfile,
+);
+
+// PUT /users/profile — Update profile fields including username (requires auth)
+router.put(
+  '/profile',
+  authenticateJWT,
+  validators.updateProfileValidation,
+  validate,
+  controller.updateProfile,
 );
 
 // PUT /users/photo — Upload profile photo to S3 (requires auth)
@@ -24,7 +35,37 @@ router.put(
   controller.uploadPhoto,
 );
 
-// GET /users/:id — Get public user profile
+// GET /users/search — Search users with friendship status (requires auth)
+// IMPORTANT: must be registered BEFORE /:id to avoid Express matching "search" as a UUID param
+router.get(
+  '/search',
+  authenticateJWT,
+  validators.searchUsersValidation,
+  validate,
+  controller.searchUsers,
+);
+
+// ── Per-user routes ────────────────────────────────────────────────────────────
+
+// GET /users/:id/profile — Enhanced profile with friendship status + stats (requires auth)
+router.get(
+  '/:id/profile',
+  authenticateJWT,
+  validators.getPublicProfileValidation,
+  validate,
+  controller.getUserProfile,
+);
+
+// GET /users/:id/gallery — Past trips/events (requires auth)
+router.get(
+  '/:id/gallery',
+  authenticateJWT,
+  validators.getPublicProfileValidation,
+  validate,
+  controller.getUserGallery,
+);
+
+// GET /users/:id — Get public user profile (no auth required — legacy endpoint)
 router.get(
   '/:id',
   validators.getPublicProfileValidation,

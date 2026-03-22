@@ -7,6 +7,11 @@ module.exports = {
     '!src/config/index.js',
   ],
   coverageDirectory: 'coverage',
-  setupFilesAfterSetup: [],
+  coverageReporters: ['text', 'lcov', 'html'],
+  setupFiles: ['<rootDir>/__tests__/setup.js'],
   verbose: true,
+  testTimeout: 10000,
+  // Prevent open handles from hanging test runner
+  forceExit: true,
+  detectOpenHandles: true,
 };

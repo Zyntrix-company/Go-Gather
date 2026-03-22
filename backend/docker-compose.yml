@@ -1,0 +1,84 @@
+# ─── Local Development ────────────────────────────────────────────────────────
+# Usage:
+#   docker-compose up            # starts api + postgres
+#   docker-compose up --build    # rebuild after code changes
+#   docker-compose down -v       # stop and remove volumes
+#
+# The API container mounts ./src as a volume so changes hot-reload via nodemon.
+# Postgres data is persisted in the named volume `pgdata`.
+
+version: '3.9'
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       gathergo
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d gathergo']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── API (development — hot reload) ──────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '${PORT:-3000}:3000'
+    environment:
+      NODE_ENV:            development
+      PORT:                3000
+      # ─── JWT ─────────────────────────────────────────
+      JWT_SECRET:          ${JWT_SECRET:-dev-jwt-secret-change-in-prod}
+      JWT_REFRESH_SECRET:  ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-in-prod}
+      # ─── Database (override to point at local postgres) ─
+      AWS_RDS_HOST:        postgres
+      AWS_RDS_PORT:        5432
+      AWS_RDS_DB:          gathergo
+      AWS_RDS_USER:        postgres
+      AWS_RDS_PASSWORD:    postgres
+      # ─── AWS (read from host .env or override) ────────
+      AWS_REGION:          ${AWS_REGION:-ap-south-1}
+      AWS_ACCESS_KEY_ID:   ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_S3_BUCKET:       ${AWS_S3_BUCKET:-}
+      AWS_CLOUDFRONT_DOMAIN: ${AWS_CLOUDFRONT_DOMAIN:-}
+      AWS_SES_FROM_EMAIL:  ${AWS_SES_FROM_EMAIL:-}
+      # ─── Google OAuth ─────────────────────────────────
+      GOOGLE_CLIENT_ID:    ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # ─── FCM / Branch ─────────────────────────────────
+      FCM_SERVER_KEY:      ${FCM_SERVER_KEY:-}
+      BRANCH_KEY:          ${BRANCH_KEY:-}
+      BRANCH_SECRET:       ${BRANCH_SECRET:-}
+      APP_INVITE_BASE_URL: ${APP_INVITE_BASE_URL:-https://gathergo.app/invite}
+      APP_IS_LIVE:         'false'
+      CLIENT_URL:          http://localhost:3001
+    volumes:
+      - ./src:/app/src:ro           # hot-reload source
+      - ./migrations:/app/migrations:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/health | grep -q "ok" || exit 1']
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+volumes:
+  pgdata:
+    driver: local
