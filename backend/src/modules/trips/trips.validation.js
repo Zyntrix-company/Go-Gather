@@ -19,10 +19,10 @@ const createTripValidation = [
   body('location').notEmpty().withMessage('location is required').isObject().withMessage('location must be an object'),
   body('location.name').notEmpty().withMessage('location.name is required').isString().isLength({ max: 500 }),
   body('location.lat')
-    .notEmpty().withMessage('location.lat is required')
+    .optional()
     .isFloat({ min: -90, max: 90 }).withMessage('location.lat must be a valid latitude'),
   body('location.lng')
-    .notEmpty().withMessage('location.lng is required')
+    .optional()
     .isFloat({ min: -180, max: 180 }).withMessage('location.lng must be a valid longitude'),
   body('reminders').optional().isBoolean(),
   body('friendIds').optional().isArray(),
