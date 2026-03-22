@@ -94,4 +94,10 @@ router.get(
   controller.getMe,
 );
 
+// POST /auth/facebook/data-deletion — Facebook data deletion callback (no auth, called by Facebook)
+router.post(
+  '/facebook/data-deletion',
+  controller.facebookDataDeletion,
+);
+
 module.exports = router;

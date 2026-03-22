@@ -190,6 +190,20 @@ const resendOTP = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /auth/facebook/data-deletion
+ */
+const facebookDataDeletion = async (req, res, next) => {
+  try {
+    const signedRequest = req.body?.signed_request;
+    const result = await authService.facebookDataDeletion(signedRequest);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   signup,
   login,
@@ -202,4 +216,5 @@ module.exports = {
   resetPassword,
   resendOTP,
   getMe,
+  facebookDataDeletion,
 };

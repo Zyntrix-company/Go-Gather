@@ -542,6 +542,72 @@ const getMe = async (userId) => {
   };
 };
 
+/**
+ * POST /auth/facebook/data-deletion
+ * Facebook Data Deletion Callback — verifies the signed_request, deletes user
+ * data associated with the Facebook UID, and returns a confirmation response.
+ */
+const facebookDataDeletion = async (signedRequest) => {
+  const crypto = require('crypto');
+
+  if (!signedRequest) {
+    const err = new Error('signed_request is required');
+    err.statusCode = 400; err.error = 'MISSING_SIGNED_REQUEST'; throw err;
+  }
+
+  const [encodedSig, encodedPayload] = signedRequest.split('.');
+  if (!encodedSig || !encodedPayload) {
+    const err = new Error('Invalid signed_request format');
+    err.statusCode = 400; err.error = 'INVALID_SIGNED_REQUEST'; throw err;
+  }
+
+  // Verify HMAC-SHA256 signature
+  const appSecret = config.facebook.appSecret;
+  const expectedSig = crypto
+    .createHmac('sha256', appSecret)
+    .update(encodedPayload)
+    .digest('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  if (expectedSig !== encodedSig) {
+    const err = new Error('Invalid signed_request signature');
+    err.statusCode = 400; err.error = 'INVALID_SIGNATURE'; throw err;
+  }
+
+  // Decode payload
+  const payload = JSON.parse(
+    Buffer.from(encodedPayload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'),
+  );
+
+  const facebookUserId = payload.user_id;
+  if (!facebookUserId) {
+    const err = new Error('user_id missing from signed_request payload');
+    err.statusCode = 400; err.error = 'INVALID_PAYLOAD'; throw err;
+  }
+
+  // Find user and delete their data
+  const userResult = await db.query(
+    'SELECT id FROM users WHERE facebook_id = $1',
+    [facebookUserId],
+  );
+
+  if (userResult.rows.length > 0) {
+    const userId = userResult.rows[0].id;
+    // Delete the user entirely — cascades to all related data via FK constraints
+    await db.query('DELETE FROM users WHERE id = $1', [userId]);
+    logger.info('Facebook data deletion: user deleted', { userId, facebookUserId });
+  } else {
+    logger.info('Facebook data deletion: no user found for facebook_id', { facebookUserId });
+  }
+
+  const confirmationCode = `fb-del-${facebookUserId}-${Date.now()}`;
+  const statusUrl = `${config.appDeepLinkBaseUrl}/data-deletion?code=${confirmationCode}`;
+
+  return { url: statusUrl, confirmation_code: confirmationCode };
+};
+
 module.exports = {
   signup,
   login,
@@ -554,4 +620,5 @@ module.exports = {
   resetPassword,
   resendOTP,
   getMe,
+  facebookDataDeletion,
 };
