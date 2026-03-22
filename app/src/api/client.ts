@@ -46,7 +46,13 @@ client.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     // Don't inject token on public routes
     if (!isPublicRoute(config.url)) {
-      const token = await storage.getToken();
+      // Primary: read from secure storage (Keychain)
+      let token = await storage.getToken();
+      // Fallback: use in-memory store in case Keychain read fails (e.g. Android timing issue)
+      if (!token) {
+        const { default: useAuthStore } = await import('../store/authStore');
+        token = useAuthStore.getState().accessToken;
+      }
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -101,7 +107,12 @@ client.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = await storage.getRefreshToken();
+        // Primary: read from secure storage; fallback to in-memory store
+        let refreshToken = await storage.getRefreshToken();
+        if (!refreshToken) {
+          const { default: useAuthStore } = await import('../store/authStore');
+          refreshToken = useAuthStore.getState().refreshToken;
+        }
         if (!refreshToken) throw new Error('No refresh token');
 
         const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken });

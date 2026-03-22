@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -22,11 +22,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { profileSchema } from '../../utils/validators';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
-import DateTimePicker from '@react-native-community/datetimepicker';
 
 type FormData = {
   fullName: string;
-  dob: string;
   gender: string;
   country: string;
   bio?: string;
@@ -47,19 +45,6 @@ function ChevronDown() {
   );
 }
 
-function CalendarIcon() {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-      <Path
-        stroke="#94a3b8"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M8 2v3M16 2v3M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"
-      />
-    </Svg>
-  );
-}
 
 function PersonIcon() {
   return (
@@ -71,6 +56,22 @@ function PersonIcon() {
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const GENDERS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
+
+// Maps display labels ↔ API values
+const GENDER_TO_API: Record<string, string> = {
+  'Male': 'male',
+  'Female': 'female',
+  'Non-binary': 'other',
+  'Prefer not to say': 'prefer_not_to_say',
+};
+const GENDER_FROM_API: Record<string, string> = {
+  'male': 'Male',
+  'female': 'Female',
+  'other': 'Non-binary',
+  'non-binary': 'Non-binary',
+  'prefer_not_to_say': 'Prefer not to say',
+  'prefer-not-to-say': 'Prefer not to say',
+};
 
 const COUNTRIES = [
   'Afghanistan', 'Albania', 'Algeria', 'Argentina', 'Armenia', 'Australia', 'Austria',
@@ -180,56 +181,98 @@ const pickerStyles = StyleSheet.create({
   cancelText: { fontSize: 15, color: '#64748b', fontWeight: '500' },
 });
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function deriveInitialState(user: ReturnType<typeof useAuthStore.getState>['user']) {
+  const g = user?.gender ? (GENDER_FROM_API[user.gender] ?? '') : '';
+  const c = user?.country || '';
+  const photo = user?.photoUrl || user?.avatarUrl || (user?.profile as any)?.avatarUrl || '';
+  return { g, c, photo };
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CreateProfileScreen({ navigation }: any) {
-  const { control, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
+  const { uploadPhoto, saveProfile, refreshProfile } = useAuth();
+  const isLoading = useAuthStore((s) => s.isLoading);
+  // Read user ONCE synchronously before any hook so we can seed initial state
+  const user = useAuthStore((s) => s.user);
+
+  const { g: initialGender, c: initialCountry, photo: initialPhoto } = deriveInitialState(user);
+
+  const { control, handleSubmit, setValue, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(profileSchema),
+    // Seed form on first render — no flash of empty fields
+    defaultValues: {
+      fullName: user?.fullName || '',
+      gender: initialGender,
+      country: initialCountry,
+      bio: user?.bio || '',
+    },
   });
 
-  const [avatar, setAvatar] = useState<{ uri: string; fileName: string; type: string } | null>(null);
+  const [avatar, setAvatar] = useState<{ uri: string; fileName: string; type: string } | null>(
+    initialPhoto ? { uri: initialPhoto, fileName: 'avatar.jpg', type: 'image/jpeg' } : null,
+  );
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoUploadSuccess, setPhotoUploadSuccess] = useState(false);
-  const [gender, setGender] = useState('');
-  const [country, setCountry] = useState('');
+  const [gender, setGender] = useState(initialGender);
+  const [country, setCountry] = useState(initialCountry);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
-
-  const { uploadPhoto, saveProfile } = useAuth();
-  const isLoading = useAuthStore((s) => s.isLoading);
-  const user = useAuthStore((s) => s.user);
+  // Stores the device-local file URI from the last image pick.
+  // Used as fallback when the CDN URL fails to load (CloudFront access issue).
+  const localPreviewUriRef = useRef<string>('');
 
   const isEditing = !!(user && user.isProfileComplete);
 
-  // Pre-fill if editing
+  // On mount, fetch fresh profile data from the server.
+  // This covers the OAuth case where the backend response may not include all
+  // profile fields — refreshProfile() will populate them and trigger the
+  // re-sync effect below.
   useEffect(() => {
-    if (user) {
-      if (user.fullName) setValue('fullName', user.fullName);
-      if (user.dob) {
-        // Convert YYYY-MM-DD to DD/MM/YYYY
-        const [y, m, d] = user.dob.split('-');
-        if (y && m && d) setValue('dob', `${d}/${m}/${y}`);
-      }
-      if (user.gender) {
-        const g = user.gender.charAt(0).toUpperCase() + user.gender.slice(1);
-        setGender(g);
-        setValue('gender', g);
-      }
-      if (user.country) {
-        setCountry(user.country);
-        setValue('country', user.country);
-      }
-      if (user.bio) {
-        setValue('bio', user.bio);
-      }
-      const existingPhoto = user.photoUrl || user.avatarUrl || user.profile?.avatarUrl;
-      if (existingPhoto) {
-        setAvatar({ uri: existingPhoto, fileName: 'avatar.jpg', type: 'image/jpeg' });
-      }
+    refreshProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Effect A — Re-sync FORM FIELDS when core profile data arrives from the server
+  // (covers OAuth first-load: user.id stays the same but fullName/gender/etc. populate).
+  // Intentionally excludes photoUrl so a photo upload never wipes the user's draft edits.
+  useEffect(() => {
+    if (!user) return;
+    const { g, c } = deriveInitialState(user);
+    reset({
+      fullName: user.fullName || '',
+      gender: g,
+      country: c,
+      bio: user.bio || '',
+    });
+    setGender(g);
+    setCountry(c);
+  }, [user?.id, user?.fullName, user?.gender, user?.country, user?.bio]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Effect B — Sync AVATAR ONLY when the stored photo URL changes (after upload or profile fetch).
+  // Kept separate so it never triggers a form reset.
+  // Skipped when the user just picked a local image — we keep the local preview visible
+  // instead of switching to the CDN URL, which may fail to load (CloudFront access issue).
+  useEffect(() => {
+    if (localPreviewUriRef.current) {
+      console.log('[Effect B] Skipping CDN sync — local preview is active:', localPreviewUriRef.current);
+      return;
     }
-  }, [user, setValue, isEditing]);
+    const photo =
+      user?.photoUrl ||
+      user?.avatarUrl ||
+      (user?.profile as any)?.avatarUrl ||
+      '';
+    console.log('[Effect B] user?.photoUrl:', user?.photoUrl);
+    console.log('[Effect B] user?.avatarUrl:', user?.avatarUrl);
+    console.log('[Effect B] resolved photo:', photo || '(EMPTY)');
+    if (photo) {
+      console.log('[Effect B] Syncing avatar from store:', photo);
+      setAvatar({ uri: photo, fileName: 'avatar.jpg', type: 'image/jpeg' });
+    }
+  }, [user?.photoUrl, user?.avatarUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-remove "Photo uploaded" text after 5 seconds
   useEffect(() => {
@@ -241,7 +284,7 @@ export default function CreateProfileScreen({ navigation }: any) {
 
   // ─── Step A: Pick & upload photo ─────────────────────────────────────────
   function pickImage() {
-    launchImageLibrary({ mediaType: 'photo', quality: 0.8 }, async (res) => {
+    launchImageLibrary({ mediaType: 'photo', quality: 0.7, maxWidth: 1280, maxHeight: 1280 }, async (res) => {
       if (!res.assets || !res.assets[0]) return;
 
       const asset = res.assets[0];
@@ -249,7 +292,33 @@ export default function CreateProfileScreen({ navigation }: any) {
       const fileName = asset.fileName ?? `photo_${Date.now()}.jpg`;
       const mimeType = asset.type ?? 'image/jpeg';
 
-      // Preview immediately
+      console.log('[pickImage] Asset picked:');
+      console.log('  fileUri:', fileUri);
+      console.log('  fileName:', fileName);
+      console.log('  mimeType:', mimeType);
+      console.log('  fileSize (bytes):', asset.fileSize ?? 'unknown');
+      console.log('  dimensions:', asset.width, 'x', asset.height);
+
+      if (!mimeType.startsWith('image/')) {
+        setApiError('Only image files are allowed');
+        return;
+      }
+
+      // Reject files larger than 8 MB before attempting the upload.
+      // Most servers cap multipart uploads around 5–10 MB; exceeding this causes
+      // the server to close the connection silently → "Network request failed".
+      const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
+      if (asset.fileSize && asset.fileSize > MAX_BYTES) {
+        const sizeMB = (asset.fileSize / (1024 * 1024)).toFixed(1);
+        console.warn(`[pickImage] File rejected — ${sizeMB} MB exceeds the 8 MB limit`);
+        setApiError(`Image is too large (${sizeMB} MB). Please choose a smaller photo.`);
+        return;
+      }
+
+      // Save local URI as preview fallback — used if the CDN URL fails to load
+      localPreviewUriRef.current = fileUri;
+
+      // Preview immediately with the local file (always works, no CDN dependency)
       setAvatar({ uri: fileUri, fileName, type: mimeType });
       setPhotoUploadSuccess(false);
 
@@ -257,16 +326,39 @@ export default function CreateProfileScreen({ navigation }: any) {
       setUploadingPhoto(true);
       try {
         const cdnUrl = await uploadPhoto(fileUri, fileName, mimeType);
+        console.log('[pickImage] cdnUrl returned from uploadPhoto:', cdnUrl || '(EMPTY)');
+        // Keep showing the local preview — don't switch to CDN URL here because
+        // the CloudFront distribution may return 403 on Android (unsigned URL / private S3).
+        // The local preview is visually identical and loads reliably.
         if (cdnUrl) {
-          console.log('[Upload Success]: URL ready:', cdnUrl);
-          // Keep the local URI for a brief moment or use the CDN URL with a unique key
-          // This prevents the "vanish" if the CDN URL hasn't propagated yet.
-          setAvatar({ uri: `${cdnUrl}?t=${Date.now()}`, fileName, type: mimeType });
+          console.log('[pickImage] Upload succeeded. Keeping local preview visible. CDN URL:', cdnUrl);
           setPhotoUploadSuccess(true);
+        } else {
+          console.warn('[pickImage] cdnUrl is empty — photo saved on server but URL not returned in response. Check backend field names in the upload response body.');
         }
-      } catch (err) {
-        console.error('[Upload Error]:', err);
-        // Do NOT setAvatar(null) here, keep the local preview so it doesn't vanish
+      } catch (err: any) {
+        console.error('[pickImage] ── UPLOAD FAILED ─────────────────────────────────');
+        console.error('[pickImage] Error message :', err?.message);
+        console.error('[pickImage] Server response:', JSON.stringify(err?.response ?? null));
+        if (err?.message === 'Network request failed') {
+          console.error('[pickImage] ► "Network request failed" means the fetch() call');
+          console.error('[pickImage]   never got a response from the server.');
+          console.error('[pickImage]   Most likely causes:');
+          console.error('[pickImage]   1. File too large — server closed connection before responding.');
+          console.error('[pickImage]      Check backend multer/busboy maxFileSize limit.');
+          console.error('[pickImage]   2. content:// URI — Android media URI not readable by fetch.');
+          console.error('[pickImage]      Check [pickImage] fileUri log above for the URI scheme.');
+          console.error('[pickImage]   3. Server down / wrong IP — check API_BASE reachability.');
+        }
+        console.error('[pickImage] ────────────────────────────────────────────────────');
+
+        const msg =
+          err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          err?.message ||
+          'Photo upload failed';
+
+        setApiError(msg);
       } finally {
         setUploadingPhoto(false);
       }
@@ -277,18 +369,14 @@ export default function CreateProfileScreen({ navigation }: any) {
   async function onSubmit(data: FormData) {
     try {
       setApiError(null);
-      let dob = data.dob;
-      if (dob && dob.length === 10) {
-        const [dd, mm, yyyy] = dob.split('/');
-        if (dd && mm && yyyy) dob = `${yyyy}-${mm}-${dd}`;
-      }
 
       await saveProfile({
         fullName: data.fullName,
-        dob,
-        gender: gender.toLowerCase().replace(/ /g, '-') || undefined,
+        gender: GENDER_TO_API[gender] || undefined,
         country: country || undefined,
         bio: data.bio || undefined,
+        
+        
       });
 
       console.log('[Save Success]: Profile updated for user.');
@@ -300,16 +388,6 @@ export default function CreateProfileScreen({ navigation }: any) {
     }
   }
 
-  function onDateChange(event: any, selectedDate?: Date) {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      const d = selectedDate.getDate().toString().padStart(2, '0');
-      const m = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
-      const y = selectedDate.getFullYear();
-      setValue('dob', `${d}/${m}/${y}`, { shouldValidate: true });
-      if (apiError) setApiError(null);
-    }
-  }
 
   const busy = isLoading || uploadingPhoto;
 
@@ -368,6 +446,23 @@ export default function CreateProfileScreen({ navigation }: any) {
                         source={{ uri: avatar.uri }}
                         style={styles.avatarImage}
                         resizeMode="cover"
+                        onLoadStart={() => console.log('[AvatarImage] Loading started:', avatar.uri)}
+                        onLoad={() => console.log('[AvatarImage] Loaded successfully:', avatar.uri)}
+                        onError={(e) => {
+                          console.error('[AvatarImage] ── LOAD FAILED ──────────────────────────');
+                          console.error('[AvatarImage] URI:', avatar.uri);
+                          console.error('[AvatarImage] Native error:', e.nativeEvent.error);
+                          console.error('[AvatarImage] ► Backend fix needed: ensure the S3 object');
+                          console.error('[AvatarImage]   is publicly readable OR CloudFront is');
+                          console.error('[AvatarImage]   configured with OAC and the bucket policy');
+                          console.error('[AvatarImage]   allows cloudfront.amazonaws.com access.');
+                          console.error('[AvatarImage] ─────────────────────────────────────────');
+                          // Fall back to the local preview if the user just picked an image
+                          if (localPreviewUriRef.current && avatar.uri !== localPreviewUriRef.current) {
+                            console.log('[AvatarImage] Falling back to local preview:', localPreviewUriRef.current);
+                            setAvatar({ uri: localPreviewUriRef.current, fileName: 'avatar.jpg', type: 'image/jpeg' });
+                          }
+                        }}
                       />
                     ) : (
                       <PersonIcon />
@@ -413,43 +508,7 @@ export default function CreateProfileScreen({ navigation }: any) {
               )}
             />
 
-            <Controller
-              control={control}
-              name="dob"
-              render={({ field: { value } }) => (
-                <TouchableOpacity
-                  onPress={() => setShowDatePicker(true)}
-                  activeOpacity={0.8}
-                  disabled={busy}
-                  style={[
-                    styles.dropdownBtn,
-                    showDatePicker && styles.inputFocused,
-                    errors.dob && styles.inputError,
-                  ]}>
-                  <Text style={[styles.dropdownText, !value && styles.dropdownPlaceholder]}>
-                    {value || 'Date of Birth *'}
-                  </Text>
-                  <CalendarIcon />
-                </TouchableOpacity>
-              )}
-            />
 
-            {showDatePicker && (
-              <DateTimePicker
-                value={(() => {
-                  const val = control._formValues.dob;
-                  if (val && val.length === 10) {
-                    const [d, m, y] = val.split('/');
-                    return new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
-                  }
-                  return new Date();
-                })()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={onDateChange}
-                maximumDate={new Date()}
-              />
-            )}
 
 
             {/* Gender */}
@@ -545,7 +604,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 100,
   },
-  logoRow: { marginBottom: 56 },
+  logoRow: { marginBottom: 56, alignItems: 'flex-start' },
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
   title: {
     fontSize: 28,

@@ -11,7 +11,11 @@ export default function SplashScreen({ navigation }: any) {
   useEffect(() => {
     async function init() {
       try {
-        const user = await loadFromToken();
+        // Wait for both the user profile to load AND at least 4 seconds
+        const [user] = await Promise.all([
+          loadFromToken(),
+          new Promise<void>(resolve => setTimeout(resolve, 3000)),
+        ]);
 
         if (!user) {
           // No valid token at all → go to Login
@@ -30,9 +34,6 @@ export default function SplashScreen({ navigation }: any) {
         }
 
         // Fully onboarded — RootNavigator will show HomeScreen automatically
-        // because setAuth (called inside loadFromToken) sets isAuthenticated=true.
-        // We still replace to 'Login' to clear the Splash from stack,
-        // but RootNavigator will immediately render HomeScreen.
         return navigation.replace('Login');
       } catch {
         navigation.replace('Login');
@@ -40,7 +41,7 @@ export default function SplashScreen({ navigation }: any) {
     }
 
     init();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

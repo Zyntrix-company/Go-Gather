@@ -615,8 +615,7 @@ const styles = StyleSheet.create({
   kav: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 },
 
-  // mb-14 from Figma
-  logoRow: { marginBottom: 60 },
+  logoRow: { marginBottom: 60, alignItems: 'flex-start' },
 
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
   title: {

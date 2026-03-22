@@ -1,9 +1,9 @@
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { LoginManager } from 'react-native-fbsdk-next';
-import Toast from 'react-native-toast-message';
 import useAuthStore from '../store/authStore';
 import authApi from '../api/auth.api';
 import storage from '../utils/storage';
+
 
 export default function useAuth() {
   const { setAuth, logout: storeLogout, setLoading } = useAuthStore();
@@ -62,8 +62,11 @@ export default function useAuth() {
     setLoading(true);
     try {
       const res = await authApi.googleLogin(idToken);
+      console.log('[googleLogin] accessToken present:', !!res.accessToken);
+      console.log('[googleLogin] refreshToken present:', !!res.refreshToken);
+      console.log('[googleLogin] user:', JSON.stringify(res.user));
       await storage.setToken(res.accessToken);
-      await storage.setRefreshToken(res.refreshToken);
+      if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
       setAuth(res.user, res.accessToken, res.refreshToken);
       return res;
     } finally {
@@ -78,8 +81,11 @@ export default function useAuth() {
     setLoading(true);
     try {
       const res = await authApi.facebookLogin(accessToken);
+      console.log('[facebookLogin] accessToken present:', !!res.accessToken);
+      console.log('[facebookLogin] refreshToken present:', !!res.refreshToken);
+      console.log('[facebookLogin] user:', JSON.stringify(res.user));
       await storage.setToken(res.accessToken);
-      await storage.setRefreshToken(res.refreshToken);
+      if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
       setAuth(res.user, res.accessToken, res.refreshToken);
       return res;
     } finally {
@@ -128,14 +134,15 @@ export default function useAuth() {
   async function loadFromToken() {
     setLoading(true);
     try {
-      const token = await storage.getToken();
+      // Keychain can fail silently on Android — fall back to in-memory store
+      const token = (await storage.getToken()) || useAuthStore.getState().accessToken;
       if (!token) {
         setLoading(false);
         return null;
       }
 
       const user = await authApi.getMe();
-      const refreshToken = await storage.getRefreshToken();
+      const refreshToken = (await storage.getRefreshToken()) || useAuthStore.getState().refreshToken;
       setAuth(user, token, refreshToken);
       return user;
     } catch {
@@ -158,11 +165,21 @@ export default function useAuth() {
 
   /**
    * Upload profile photo via multipart form.
+   * Updates the store immediately so the new photo is visible everywhere.
    * Returns the CDN URL of the uploaded image.
    */
   async function uploadPhoto(fileUri: string, fileName: string, mimeType: string) {
     const res = await authApi.uploadPhoto(fileUri, fileName, mimeType);
-    return res.photoUrl;
+    const photoUrl = res.photoUrl;
+    console.log('[useAuth.uploadPhoto] photoUrl from API:', photoUrl || '(EMPTY)');
+    if (photoUrl) {
+      useAuthStore.getState().updateUser({ photoUrl, avatarUrl: photoUrl });
+      console.log('[useAuth.uploadPhoto] Store updated with photoUrl');
+    }
+    console.log('[useAuth.uploadPhoto] Calling refreshProfile...');
+    const refreshed = await refreshProfile();
+    console.log('[useAuth.uploadPhoto] refreshProfile result — photoUrl:', refreshed?.photoUrl || '(EMPTY)');
+    return photoUrl;
   }
 
   /**
@@ -171,10 +188,11 @@ export default function useAuth() {
    */
   async function refreshProfile() {
     try {
-      const token = await storage.getToken();
+      // Keychain can fail silently on Android — fall back to in-memory store
+      const token = (await storage.getToken()) || useAuthStore.getState().accessToken;
       if (!token) return null;
       const user = await authApi.getMe();
-      const refreshToken = await storage.getRefreshToken();
+      const refreshToken = (await storage.getRefreshToken()) || useAuthStore.getState().refreshToken;
       setAuth(user, token, refreshToken);
       return user;
     } catch (e: any) {
@@ -189,7 +207,6 @@ export default function useAuth() {
    */
   async function saveProfile(payload: {
     fullName: string;
-    dob?: string;
     gender?: string;
     country?: string;
     bio?: string;

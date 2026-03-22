@@ -305,7 +305,10 @@ const styles = StyleSheet.create({
   },
 
   // Logo row — mb-14 from Figma
-  logoRow: { marginBottom: 58 },
+  logoRow: {
+    marginBottom: 58,
+    alignItems: 'flex-start',
+  },
 
   // Form container — max-w-sm mx-auto
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },

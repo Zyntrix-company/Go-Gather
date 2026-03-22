@@ -2,20 +2,27 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/home/HomeScreen';
 import CreateProfileScreen from '../screens/auth/CreateProfileScreen';
+import NotificationsScreen from '../screens/main/NotificationsScreen';
+import TripDetailScreen from '../screens/main/TripDetailScreen';
+import EventDetailScreen from '../screens/main/EventDetailScreen';
+import ChatDetailScreen from '../screens/main/ChatDetailScreen';
 import useAuthStore from '../store/authStore';
 
 export type MainStackParamList = {
   Home: undefined;
-  Profile: undefined;
+  CreateProfile: undefined;
+  Notifications: undefined;
+  TripDetail: { trip: any };
+  EventDetail: { event: any };
+  ChatDetail: { chat: any };
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
 export default function MainStack() {
   const user = useAuthStore((s) => s.user);
-  
-  // If the user hasn't finished their profile, landing them on 'Profile' forces completion.
-  const initialRouteName = (!user || user.isProfileComplete === false) ? 'Profile' : 'Home';
+
+  const initialRouteName = (!user || user.isProfileComplete === false) ? 'CreateProfile' : 'Home';
 
   return (
     <Stack.Navigator
@@ -23,9 +30,14 @@ export default function MainStack() {
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',
+        contentStyle: { backgroundColor: 'transparent' },
       }}>
       <Stack.Screen name="Home" component={HomeScreen} />
-      <Stack.Screen name="Profile" component={CreateProfileScreen} />
+      <Stack.Screen name="CreateProfile" component={CreateProfileScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="TripDetail" component={TripDetailScreen} />
+      <Stack.Screen name="EventDetail" component={EventDetailScreen} />
+      <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
     </Stack.Navigator>
   );
 }

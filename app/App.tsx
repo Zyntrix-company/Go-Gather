@@ -6,15 +6,32 @@
  */
 
 import React, { useEffect } from 'react';
-import { StatusBar, Platform } from 'react-native';
+import { StatusBar, Platform, PermissionsAndroid } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import RootNavigator from './src/navigation/RootNavigator';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import Geolocation from '@react-native-community/geolocation';
 import Toast from 'react-native-toast-message';
+
+// Configure geolocation to use native Android location provider
+Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLevel: 'whenInUse' });
+
+async function requestAppPermissions() {
+  if (Platform.OS !== 'android') return;
+  try {
+    await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+    ]);
+  } catch {
+    // Silently handle — permissions can be requested again contextually
+  }
+}
 
 function App() {
   useEffect(() => {
+    requestAppPermissions();
     // TODO: replace with actual webClientId from Google Cloud console
     try {
       GoogleSignin.configure({
@@ -29,7 +46,7 @@ function App() {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
+      <NavigationContainer theme={{ dark: false, colors: { primary: '#0d9488', background: 'transparent', card: 'transparent', text: '#0f172a', border: 'transparent', notification: '#0d9488' }, fonts: { regular: { fontFamily: 'System', fontWeight: '400' }, medium: { fontFamily: 'System', fontWeight: '500' }, bold: { fontFamily: 'System', fontWeight: '700' }, heavy: { fontFamily: 'System', fontWeight: '900' } } }}>
         <StatusBar barStyle="dark-content" />
         <RootNavigator />
         <Toast />

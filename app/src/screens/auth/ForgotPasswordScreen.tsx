@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     paddingTop: 22,
     paddingBottom: 40,
   },
-  logoRow: { marginBottom: 32 },
+  logoRow: { marginBottom: 32, alignItems: 'flex-start' },
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
 
   iconWrap: { alignItems: 'center', marginBottom: 20 },

@@ -3,8 +3,9 @@
  * All methods map 1:1 to the Postman collection endpoints.
  */
 import { Platform } from 'react-native';
-import client from './client';
+import client, { API_BASE } from './client';
 import { User } from '../types/user.types';
+import storage from '../utils/storage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,6 @@ export type ResendOtpPayload = {
 
 export type ProfilePayload = {
   fullName: string;
-  dob?: string;
   gender?: string;
   country?: string;
   bio?: string;
@@ -76,10 +76,9 @@ function normalizeUser(raw: any): User {
     phone: raw.phone,
     isVerified: raw.isVerified,
     isProfileComplete: raw.isProfileComplete,
-    fullName: raw.fullName || profile.fullName || raw.full_name || profile.full_name || '',
-    dob: raw.dob || profile.dob || raw.date_of_birth || profile.date_of_birth || '',
-    gender: raw.gender || profile.gender || '',
-    country: raw.country || profile.country || '',
+    fullName: raw.fullName || profile.fullName || raw.name || raw.full_name || profile.full_name || raw.displayName || '',
+    gender: raw.gender || profile.gender || raw.sex || '',
+    country: raw.country || profile.country || (raw.locale ? raw.locale.split('-').pop().toUpperCase() : ''),
     bio: raw.bio || profile.bio || '',
     photoUrl: photo,
     avatarUrl: photo,
@@ -207,17 +206,81 @@ const authApi = {
    * Returns the photo URL (CloudFront CDN URL).
    */
   uploadPhoto: async (fileUri: string, fileName: string, mimeType: string): Promise<{ photoUrl: string }> => {
-    const formData = new FormData();
-    formData.append('photo', {
-      uri: fileUri,
-      name: fileName,
-      type: mimeType,
-    } as any);
+    // XMLHttpRequest is used instead of fetch because fetch+FormData has known
+    // Android compatibility issues with content:// URIs and gives no progress info.
+    // XHR handles multipart uploads more reliably across Android versions.
+    const token = await storage.getToken();
 
-    const { data } = await client.put('/users/photo', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    console.log('[uploadPhoto] ── Starting XHR upload ──────────────────────────');
+    console.log('[uploadPhoto] URI scheme :', fileUri.split('://')[0] + '://');
+    console.log('[uploadPhoto] fileName   :', fileName);
+    console.log('[uploadPhoto] mimeType   :', mimeType);
+    console.log('[uploadPhoto] token OK   :', !!token);
+    console.log('[uploadPhoto] endpoint   :', `${API_BASE}/users/photo`);
+
+    const formData = new FormData();
+    formData.append('photo', { uri: fileUri, name: fileName, type: mimeType } as any);
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', `${API_BASE}/users/photo`);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.timeout = 30000; // 30-second timeout — avoids silent hangs on slow networks
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          console.log(`[uploadPhoto] Progress: ${pct}%  (${e.loaded}/${e.total} bytes)`);
+        }
+      };
+
+      xhr.onload = () => {
+        console.log('[uploadPhoto] HTTP status:', xhr.status);
+        let data: any = {};
+        try {
+          data = JSON.parse(xhr.responseText);
+          console.log('[uploadPhoto] Raw response:', JSON.stringify(data));
+        } catch {
+          console.warn('[uploadPhoto] Could not parse response JSON:', xhr.responseText);
+        }
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          // Backend may return URL at top-level OR nested under user.profile
+          const photoUrl =
+            data.photoUrl ??
+            data.url ??
+            data.avatarUrl ??
+            data.user?.profile?.avatarUrl ??
+            data.user?.avatarUrl ??
+            data.user?.photoUrl ??
+            data.avatar ??
+            data.photo_url ??
+            data.photo ??
+            '';
+          console.log('[uploadPhoto] Extracted photoUrl:', photoUrl || '(EMPTY — field name mismatch, see Raw response above)');
+          resolve({ photoUrl });
+        } else {
+          const err: any = new Error(data?.message || `Upload failed with status ${xhr.status}`);
+          err.response = { data, status: xhr.status };
+          reject(err);
+        }
+      };
+
+      xhr.onerror = () => {
+        console.error('[uploadPhoto] XHR onerror — connection-level failure');
+        console.error('[uploadPhoto] Server may have closed the connection (file too large?)');
+        console.error('[uploadPhoto] ► Backend: check multer/busboy fileSize limit on PUT /users/photo');
+        reject(new Error('Network request failed'));
+      };
+
+      xhr.ontimeout = () => {
+        console.error('[uploadPhoto] XHR timed out after 30s');
+        console.error('[uploadPhoto] ► Backend: upload handler may be hanging; check server logs');
+        reject(new Error('Upload timed out — please try again'));
+      };
+
+      xhr.send(formData);
     });
-    return data;
   },
 
   /**

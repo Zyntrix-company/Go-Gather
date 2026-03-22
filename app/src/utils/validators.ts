@@ -61,7 +61,6 @@ export const profileSchema = z.object({
     .string()
     .min(2, 'Full name must be at least 2 characters')
     .max(60, 'Full name is too long'),
-  dob: z.string().min(10, 'Date of birth is required'),
   gender: z.string().min(1, 'Gender is required'),
   country: z.string().min(1, 'Country is required'),
   bio: z.string().max(100, 'Bio must be under 100 characters').optional(),
