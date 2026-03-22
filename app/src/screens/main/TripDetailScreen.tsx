@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
   TextInput, Alert, Dimensions, Animated, PanResponder, Image, Platform,
@@ -9,6 +9,45 @@ import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import BlobBackground from '../../components/common/BlobBackground';
+import useAuthStore from '../../store/authStore';
+import Toast from 'react-native-toast-message';
+import {
+  getTripDetail,
+  updateTrip as apiUpdateTrip,
+  deleteTrip as apiDeleteTrip,
+  getTripMembers,
+  inviteToTrip,
+  removeTripMember,
+  getActivities,
+  createActivity,
+  updateActivity,
+  deleteActivity,
+  uploadActivityPhotos,
+  getActivityPhotos,
+  deleteActivityPhoto,
+  getExpenses,
+  createExpense,
+  updateExpense,
+  deleteExpense,
+  getBalances,
+  settleDebt,
+  getDocs,
+  uploadDoc,
+  deleteDoc,
+  getTripPhotos,
+  uploadTripPhotos,
+  deleteTripPhoto,
+  getNotes,
+  createNote,
+  updateNote,
+  deleteNote,
+  getPolls,
+  createPoll,
+  voteOnPoll,
+  getFriends,
+  handleApiError,
+} from '../../api/trips.api';
+import type { TripMember, Debt } from '../../api/trips.api';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -175,6 +214,25 @@ function TabBar({ tabs, active, onSelect }: { tabs: string[]; active: string; on
 
 export default function TripDetailScreen({ route, navigation }: any) {
   const trip = route?.params?.trip;
+  const rawUser = useAuthStore(s => s.user) as any;
+  const currentUserId: string = rawUser?.id ?? '';
+
+  // ── API-driven state ──
+  const [role, setRole] = useState<'admin' | 'member'>('member');
+  const [members, setMembers] = useState<TripMember[]>([]);
+  const [balances, setBalances] = useState<Debt[]>([]);
+  const [myBalance, setMyBalance] = useState<number>(0);
+  const [totalExpenses, setTotalExpenses] = useState<string>('0.00');
+
+  // ── Loading / submitting flags ──
+  const [isLoadingInit, setIsLoadingInit] = useState(true);
+  const [isLoadingActivities, setIsLoadingActivities] = useState(false);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+  const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
+  const [isLoadingExpenses, setIsLoadingExpenses] = useState(false);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(false);
+  const [isLoadingPolls, setIsLoadingPolls] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── Data state ──
   const [activities,    setActivities]   = useState<Activity[]>([]);
@@ -183,8 +241,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [expenses,      setExpenses]      = useState<Expense[]>([]);
   const [polls,         setPolls]         = useState<Poll[]>([]);
   const [notes,         setNotes]         = useState<Note[]>([]);
-  const [extraMembers,  setExtraMembers]  = useState<string[]>([]);
+  const [apiFriends,    setApiFriends]    = useState<{ id: string; name: string; avatarUrl: string | null }[]>([]);
   const [showCompleted, setShowCompleted] = useState(false);
+
+  const tripId: string = trip?.id ?? '';
 
   // ── Modal visibility ──
   const [showAddAct,   setShowAddAct]   = useState(false);
@@ -245,6 +305,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [noteCategory,    setNoteCategory]    = useState<'general' | 'idea' | 'important' | 'todo'>('general');
   const [showNoteCatDrop, setShowNoteCatDrop] = useState(false);
   const [editingNoteId,   setEditingNoteId]   = useState<string | null>(null);
+  const [expandedNoteId,  setExpandedNoteId]  = useState<string | null>(null);
 
   // ── Activity photos ──
   const [actPhotos, setActPhotos] = useState<string[]>([]);
@@ -259,17 +320,165 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate,   setEditEndDate]   = useState('');
 
+  // ── Initial fetch: trip detail + members + activities ──
+  useEffect(() => {
+    if (!tripId) return;
+    (async () => {
+      try {
+        const [detailRes, membersRes, activitiesRes] = await Promise.all([
+          getTripDetail(tripId),
+          getTripMembers(tripId),
+          getActivities(tripId),
+        ]);
+        setRole(detailRes.role);
+        setMembers(membersRes.members);
+        setActivities(activitiesRes.activities.map(a => ({
+          id: a.id,
+          title: a.title,
+          date: a.date ?? '',
+          hour: a.time ? a.time.split(':')[0] : '',
+          minute: a.time ? a.time.split(':')[1] : '',
+          location: a.location,
+          description: a.description,
+          completed: false,
+          createdBy: a.createdBy,
+        })));
+      } catch (err) {
+        handleApiError(err);
+      } finally {
+        setIsLoadingInit(false);
+      }
+    })();
+  }, [tripId]);
+
+  // ── Load expenses + balances when expenses modal opens ──
+  useEffect(() => {
+    if (!showExpenses || !tripId) return;
+    (async () => {
+      setIsLoadingExpenses(true);
+      try {
+        const [expRes, balRes] = await Promise.all([
+          getExpenses(tripId),
+          getBalances(tripId),
+        ]);
+        setExpenses(expRes.expenses.map(e => ({
+          id: e.id,
+          description: e.description,
+          amount: parseFloat(e.amount),
+          category: e.category ?? 'General',
+          paidBy: e.paidBy,
+          splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
+          splitAmong: e.splits.map(s => s.userId),
+          date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
+          createdBy: e.paidBy,
+        })));
+        setBalances(balRes.debts);
+        setMyBalance(balRes.myBalance);
+        setTotalExpenses(balRes.totalExpenses);
+      } catch (err) {
+        handleApiError(err);
+      } finally {
+        setIsLoadingExpenses(false);
+      }
+    })();
+  }, [showExpenses, tripId]);
+
+  // ── Load docs when docs modal opens ──
+  useEffect(() => {
+    if (!showDocs || !tripId) return;
+    (async () => {
+      setIsLoadingDocs(true);
+      try {
+        const res = await getDocs(tripId);
+        setDocs(res.docs.map(d => ({ id: d.id, name: d.fileName, uri: d.fileUrl, uploadedBy: d.uploadedBy })));
+      } catch (err) {
+        handleApiError(err);
+      } finally {
+        setIsLoadingDocs(false);
+      }
+    })();
+  }, [showDocs, tripId]);
+
+  // ── Load photos when photos modal opens ──
+  useEffect(() => {
+    if (!showPhotos || !tripId) return;
+    (async () => {
+      setIsLoadingPhotos(true);
+      try {
+        const res = await getTripPhotos(tripId);
+        setPhotos(res.photos.map(p => ({ id: p.id, uri: p.url, name: p.id, uploadedBy: p.uploadedBy })));
+      } catch (err) {
+        handleApiError(err);
+      } finally {
+        setIsLoadingPhotos(false);
+      }
+    })();
+  }, [showPhotos, tripId]);
+
+  // ── Load notes when notes modal opens ──
+  useEffect(() => {
+    if (!showNotes || !tripId) return;
+    (async () => {
+      setIsLoadingNotes(true);
+      try {
+        const res = await getNotes(tripId);
+        setNotes(res.notes.map(n => ({
+          id: n.id,
+          title: n.title,
+          body: n.content,
+          category: (n.category ?? 'general') as Note['category'],
+          date: new Date(n.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
+          pinned: false,
+          createdBy: n.createdBy,
+        })));
+      } catch (err) {
+        handleApiError(err);
+      } finally {
+        setIsLoadingNotes(false);
+      }
+    })();
+  }, [showNotes, tripId]);
+
+  // ── Load polls when polls modal opens ──
+  useEffect(() => {
+    if (!showPolls || !tripId) return;
+    (async () => {
+      setIsLoadingPolls(true);
+      try {
+        const res = await getPolls(tripId);
+        setPolls(res.polls.map(p => ({
+          id: p.id,
+          question: p.question,
+          options: p.options.map(o => ({ id: o.id, text: o.text, votes: [] })),
+          createdBy: p.createdBy,
+        })));
+      } catch (err) {
+        handleApiError(err);
+      } finally {
+        setIsLoadingPolls(false);
+      }
+    })();
+  }, [showPolls, tripId]);
+
+  // ── Load members + friends when members modal opens ──
+  useEffect(() => {
+    if (!showMembers || !tripId) return;
+    getTripMembers(tripId).then(res => setMembers(res.members)).catch(handleApiError);
+    getFriends().then(res => setApiFriends(res.friends.map(f => ({ id: f.user.id, name: f.user.name, avatarUrl: f.user.avatarUrl })))).catch(() => {});
+  }, [showMembers, tripId]);
+
   // ── Derived ──
   const days        = trip?.startDateISO ? daysUntilISO(trip.startDateISO) : 0;
-  const upcoming    = activities.filter(a => !a.completed);
-  const completed   = activities.filter(a => !!a.completed);
+  const upcoming    = activities.filter((a: any) => !a.completed);
+  const completed   = activities.filter((a: any) => !!a.completed);
   const totalExp    = expenses.reduce((s, e) => s + e.amount, 0);
-  const memberCount = 1 + extraMembers.length;
+  const memberCount = members.length;
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
-  const filteredFriends = FRIENDS.filter(f =>
-    f.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
-    f.email.toLowerCase().includes(memberSearch.toLowerCase())
-  );
+  const memberIds = new Set(members.map(m => m.userId));
+  const friendPool = apiFriends.length > 0 ? apiFriends : FRIENDS.map(f => ({ id: f.id, name: f.name, avatarUrl: f.avatar }));
+  const filteredFriends = friendPool
+    .filter(f => !memberIds.has(f.id) && f.name.toLowerCase().includes(memberSearch.toLowerCase()))
+    .map(f => ({ id: f.id, name: f.name, email: '', avatar: (f as any).avatarUrl ?? (f as any).avatar ?? `https://i.pravatar.cc/150?u=${f.id}` }));
 
   // ── Handlers ──
   function resetActForm() {
@@ -280,24 +489,72 @@ export default function TripDetailScreen({ route, navigation }: any) {
     setEditingActivityId(null);
   }
 
-  function handleAddActivity() {
+  // ── Activity handlers (API-backed) ──
+
+  async function handleAddActivity() {
     if (!actTitle.trim()) { Alert.alert('Error', 'Please enter a title'); return; }
-    if (editingActivityId) {
-      setActivities(p => p.map(a => a.id === editingActivityId
-        ? { ...a, title: actTitle.trim(), date: actDate ? fmtDate(actDate) : a.date, hour: actHour, minute: actMin, location: actLocation, description: actDesc }
-        : a
-      ));
-    } else {
-      setActivities(p => [...p, { id: Date.now().toString(), title: actTitle.trim(), date: actDate ? fmtDate(actDate) : '', hour: actHour, minute: actMin, location: actLocation, description: actDesc, completed: false }]);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const timeStr = (actHour && actMin) ? `${actHour}:${actMin}` : undefined;
+      const dateStr = actDate ? actDate.toISOString().split('T')[0] : undefined;
+      if (editingActivityId) {
+        const res = await updateActivity(tripId, editingActivityId, {
+          title: actTitle.trim(),
+          description: actDesc || undefined,
+          date: dateStr,
+          time: timeStr,
+          location: actLocation || undefined,
+        });
+        setActivities(p => p.map(a => a.id === editingActivityId ? {
+          ...a,
+          title: res.activity.title,
+          date: res.activity.date ?? '',
+          hour: res.activity.time ? res.activity.time.split(':')[0] : '',
+          minute: res.activity.time ? res.activity.time.split(':')[1] : '',
+          location: res.activity.location,
+          description: res.activity.description,
+        } : a));
+      } else {
+        const res = await createActivity(tripId, {
+          title: actTitle.trim(),
+          description: actDesc || undefined,
+          date: dateStr,
+          time: timeStr,
+          location: actLocation || undefined,
+        });
+        const a = res.activity;
+        setActivities(p => [...p, {
+          id: a.id,
+          title: a.title,
+          date: a.date ?? '',
+          hour: a.time ? a.time.split(':')[0] : '',
+          minute: a.time ? a.time.split(':')[1] : '',
+          location: a.location,
+          description: a.description,
+          completed: false,
+          createdBy: a.createdBy,
+        }]);
+        // Upload activity photos if any were staged
+        if (actPhotos.length > 0) {
+          const assets = actPhotos.map((uri, i) => ({ uri, name: `photo_${i}.jpg`, type: 'image/jpeg' }));
+          await uploadActivityPhotos(tripId, a.id, assets).catch(() => {});
+        }
+      }
+      resetActForm();
+      setShowAddAct(false);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setIsSubmitting(false);
     }
-    resetActForm(); setShowAddAct(false);
   }
 
   function startEditActivity(act: Activity) {
     setActTitle(act.title);
-    setActDate(act.date ? undefined : undefined);
-    setActHour(act.hour);
-    setActMin(act.minute);
+    setActDate(undefined);
+    setActHour((act as any).hour ?? '');
+    setActMin((act as any).minute ?? '');
     setActLocation(act.location || '');
     setActDesc(act.description || '');
     setEditingActivityId(act.id);
@@ -305,34 +562,155 @@ export default function TripDetailScreen({ route, navigation }: any) {
     setShowAddAct(true);
   }
 
+  async function handleDeleteActivity(actId: string) {
+    Alert.alert('Delete', 'Remove this activity?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await deleteActivity(tripId, actId);
+          setActivities(p => p.filter(a => a.id !== actId));
+        } catch (err) { handleApiError(err); }
+      }},
+    ]);
+  }
+
+  // ── Photo handlers (API-backed) ──
+
   function handlePickPhoto(cam: boolean) {
     const fn = cam ? launchCamera : launchImageLibrary;
-    fn({ mediaType: 'photo', selectionLimit: cam ? 1 : 5 }, res => {
+    fn({ mediaType: 'mixed', selectionLimit: 5 }, async res => {
       if (res.didCancel || res.errorCode) return;
-      setPhotos(p => [...p, ...(res.assets || []).map(a => ({ id: Date.now().toString() + Math.random(), uri: a.uri || '', name: a.fileName || 'photo.jpg' }))]);
+      const assets = (res.assets || []).map(a => ({
+        uri: a.uri ?? '',
+        type: a.type ?? 'image/jpeg',
+        name: a.fileName ?? 'photo.jpg',
+      })).filter(a => a.uri);
+      if (!assets.length) return;
+      try {
+        const data = await uploadTripPhotos(tripId, assets);
+        setPhotos(p => [...p, ...data.photos.map(ph => ({ id: ph.id, uri: ph.url, name: ph.id, uploadedBy: ph.uploadedBy }))]);
+      } catch (err) { handleApiError(err); }
     });
   }
+
+  async function handleDeletePhoto(photoId: string, uploadedBy: string) {
+    if (role !== 'admin' && uploadedBy !== currentUserId) {
+      Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'You can only delete your own photos.' });
+      return;
+    }
+    try {
+      await deleteTripPhoto(tripId, photoId);
+      setPhotos(p => p.filter(ph => ph.id !== photoId));
+    } catch (err) { handleApiError(err); }
+  }
+
+  // ── Doc handlers (API-backed) ──
 
   function handleUploadDoc() {
-    launchImageLibrary({ mediaType: 'mixed', selectionLimit: 5 }, res => {
+    launchImageLibrary({ mediaType: 'mixed', selectionLimit: 1 }, async res => {
       if (res.didCancel || res.errorCode) return;
-      setDocs(p => [...p, ...(res.assets || []).map(a => ({ id: Date.now().toString() + Math.random(), uri: a.uri || '', name: a.fileName || 'document' }))]);
+      const asset = res.assets?.[0];
+      if (!asset?.uri) return;
+      try {
+        const data = await uploadDoc(tripId, { uri: asset.uri, type: asset.type, name: asset.fileName ?? 'document' });
+        setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: data.doc.fileUrl, uploadedBy: data.doc.uploadedBy }]);
+      } catch (err) { handleApiError(err); }
     });
   }
 
-  function handleAddExpense() {
-    if (!expDesc.trim() || !expAmount) { Alert.alert('Error', 'Please fill description and amount'); return; }
-    if (editingExpenseId) {
-      setExpenses(p => p.map(e => e.id === editingExpenseId
-        ? { ...e, description: expDesc.trim(), amount: parseFloat(expAmount) || 0, category: expCategory.label, paidBy: expPaidBy, splitType: expSplitType, splitAmong: expSplitAmong }
-        : e
-      ));
-      setEditingExpenseId(null);
-    } else {
-      const d = new Date();
-      setExpenses(p => [...p, { id: Date.now().toString(), description: expDesc.trim(), amount: parseFloat(expAmount) || 0, category: expCategory.label, paidBy: expPaidBy, splitType: expSplitType, splitAmong: expSplitAmong, date: `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}` }]);
+  async function handleDeleteDoc(docId: string, uploadedBy: string) {
+    if (role !== 'admin' && uploadedBy !== currentUserId) {
+      Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'You can only delete your own documents.' });
+      return;
     }
-    setExpDesc(''); setExpAmount(''); setExpCategory(EXPENSE_CATS[0]); setExpPaidBy('You'); setExpSplitType('equally'); setExpSplitAmong(['You']); setExpSplitDetails({}); setShowAddExpense(false);
+    try {
+      await deleteDoc(tripId, docId);
+      setDocs(p => p.filter(d => d.id !== docId));
+    } catch (err) { handleApiError(err); }
+  }
+
+  // ── Expense handlers (API-backed) ──
+
+  async function handleAddExpense() {
+    if (!expDesc.trim() || !expAmount) { Alert.alert('Error', 'Please fill description and amount'); return; }
+    if (isSubmitting) return;
+
+    const amount = parseFloat(expAmount) || 0;
+    // Build splitAmong
+    const apiSplitType = expSplitType === 'equally' ? 'equal' : expSplitType === 'percent' ? 'percentage' : 'amount';
+    const memberIds = members.length > 0
+      ? members.map(m => m.userId)
+      : expSplitAmong.filter(id => id !== 'You');
+    const splitAmong = apiSplitType === 'equal'
+      ? memberIds.map(id => ({ userId: id }))
+      : memberIds.map(id => ({
+          userId: id,
+          ...(apiSplitType === 'amount' ? { amount: amount / Math.max(memberIds.length, 1) } : { percentage: 100 / Math.max(memberIds.length, 1) }),
+        }));
+
+    // Validation
+    if (apiSplitType === 'amount') {
+      const sum = (splitAmong as any[]).reduce((s: number, x: any) => s + (x.amount ?? 0), 0);
+      if (Math.abs(sum - amount) > 0.01) {
+        Alert.alert('Validation Error', 'Split amounts must sum to the total expense amount.');
+        return;
+      }
+    }
+    if (apiSplitType === 'percentage') {
+      const sum = (splitAmong as any[]).reduce((s: number, x: any) => s + (x.percentage ?? 0), 0);
+      if (Math.abs(sum - 100) > 0.01) {
+        Alert.alert('Validation Error', 'Percentages must sum to 100.');
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+    try {
+      const catMap: Record<string, string> = {
+        'General': 'general', 'Food & Dining': 'food', 'Transport': 'transportation',
+        'Stay': 'accommodation', 'Entertainment': 'entertainment', 'Shopping': 'shopping', 'Other': 'other',
+      };
+      const body = {
+        description: expDesc.trim(),
+        amount,
+        category: catMap[expCategory.label] ?? 'general',
+        splitType: apiSplitType as 'equal' | 'amount' | 'percentage',
+        splitAmong: splitAmong.length ? splitAmong : [{ userId: currentUserId }],
+      };
+
+      let res: any;
+      if (editingExpenseId) {
+        res = await updateExpense(tripId, editingExpenseId, body);
+        setExpenses(p => p.map(e => e.id === editingExpenseId ? {
+          ...e, description: res.expense.description,
+          amount: parseFloat(res.expense.amount),
+          category: res.expense.category ?? e.category,
+        } : e));
+        setEditingExpenseId(null);
+      } else {
+        res = await createExpense(tripId, body);
+        const exp = res.expense;
+        const d = new Date(exp.createdAt);
+        setExpenses(p => [...p, {
+          id: exp.id, description: exp.description, amount: parseFloat(exp.amount),
+          category: exp.category ?? 'general', paidBy: exp.paidBy,
+          splitType: exp.splitType === 'equal' ? 'equally' : exp.splitType === 'percentage' ? 'percent' : 'amount',
+          splitAmong: exp.splits.map((s: any) => s.userId),
+          date: `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`,
+          createdBy: exp.paidBy,
+        }]);
+      }
+      if (res.balances) {
+        setBalances(res.balances);
+      }
+      setExpDesc(''); setExpAmount(''); setExpCategory(EXPENSE_CATS[0]);
+      setExpPaidBy('You'); setExpSplitType('equally'); setExpSplitAmong(['You']);
+      setExpSplitDetails({}); setShowAddExpense(false);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function startEditExpense(exp: Expense) {
@@ -346,27 +724,113 @@ export default function TripDetailScreen({ route, navigation }: any) {
     setShowAddExpense(true);
   }
 
-  function handleCreatePoll() {
-    const valid = pollOptions.filter(o => o.trim());
-    if (!pollQuestion.trim() || valid.length < 2) { Alert.alert('Error', 'Enter a question and at least 2 options'); return; }
-    setPolls(p => [...p, { id: Date.now().toString(), question: pollQuestion.trim(), options: valid.map((t, i) => ({ id: String(i), text: t, votes: [] })) }]);
-    setPollQuestion(''); setPollOptions(['', '', '']);
+  async function handleDeleteExpense(eid: string, createdBy: string) {
+    if (role !== 'admin' && createdBy !== currentUserId) {
+      Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'You can only delete your own expenses.' });
+      return;
+    }
+    Alert.alert('Delete', 'Remove this expense?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          const res = await deleteExpense(tripId, eid);
+          setExpenses(p => p.filter(e => e.id !== eid));
+          if (res.balances) setBalances(res.balances);
+        } catch (err) { handleApiError(err); }
+      }},
+    ]);
   }
 
-  function handleAddNote() {
-    if (!noteTitle.trim()) { Alert.alert('Error', 'Please enter a title'); return; }
-    if (editingNoteId) {
-      setNotes(p => p.map(n => n.id === editingNoteId
-        ? { ...n, title: noteTitle.trim(), body: noteBody, category: noteCategory }
-        : n
-      ));
-      setEditingNoteId(null);
-    } else {
-      const d = new Date();
-      const dateStr = `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
-      setNotes(p => [...p, { id: Date.now().toString(), title: noteTitle.trim(), body: noteBody, category: noteCategory, date: dateStr, pinned: false }]);
+  async function handleSettleDebt(withUserId: string, amount: number) {
+    try {
+      const res = await settleDebt(tripId, { withUserId, amount });
+      setBalances(res.outstanding);
+      Toast.show({ type: 'success', text1: 'Settlement recorded!' });
+    } catch (err) { handleApiError(err); }
+  }
+
+  // ── Poll handlers (API-backed) ──
+
+  async function handleCreatePoll() {
+    const valid = pollOptions.filter(o => o.trim());
+    if (!pollQuestion.trim() || valid.length < 2) { Alert.alert('Error', 'Enter a question and at least 2 options'); return; }
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const res = await createPoll(tripId, { question: pollQuestion.trim(), options: valid });
+      const p = res.poll;
+      setPolls(prev => [...prev, {
+        id: p.id, question: p.question,
+        options: p.options.map(o => ({ id: o.id, text: o.text, votes: [] })),
+        createdBy: p.createdBy,
+      }]);
+      setPollQuestion(''); setPollOptions(['', '', '']);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setIsSubmitting(false);
     }
-    setNoteTitle(''); setNoteBody(''); setNoteCategory('general');
+  }
+
+  async function handleVote(pollId: string, optionId: string) {
+    try {
+      const res = await voteOnPoll(tripId, pollId, optionId);
+      setPolls(prev => prev.map(p => p.id === pollId ? {
+        ...p,
+        options: res.poll.options.map(o => ({ ...o, votes: Array(o.voteCount).fill('') })),
+      } : p));
+    } catch (err) { handleApiError(err); }
+  }
+
+  // ── Note handlers (API-backed) ──
+
+  async function handleAddNote() {
+    if (!noteTitle.trim()) { Alert.alert('Error', 'Please enter a title'); return; }
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      if (editingNoteId) {
+        const res = await updateNote(tripId, editingNoteId, {
+          title: noteTitle.trim(),
+          content: noteBody,
+          category: noteCategory,
+        });
+        setNotes(p => p.map(n => n.id === editingNoteId ? {
+          ...n, title: res.note.title, body: res.note.content, category: res.note.category ?? noteCategory,
+        } : n));
+        setEditingNoteId(null);
+      } else {
+        const res = await createNote(tripId, {
+          title: noteTitle.trim(),
+          content: noteBody,
+          category: noteCategory,
+        });
+        const n = res.note;
+        const d = new Date(n.createdAt);
+        setNotes(p => [...p, {
+          id: n.id, title: n.title, body: n.content,
+          category: (n.category ?? 'general') as Note['category'],
+          date: `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`,
+          pinned: false, createdBy: n.createdBy,
+        }]);
+      }
+      setNoteTitle(''); setNoteBody(''); setNoteCategory('general');
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteNote(noteId: string, createdBy: string) {
+    if (role !== 'admin' && createdBy !== currentUserId) {
+      Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'You can only delete your own notes.' });
+      return;
+    }
+    try {
+      await deleteNote(tripId, noteId);
+      setNotes(p => p.filter(n => n.id !== noteId));
+    } catch (err) { handleApiError(err); }
   }
 
   function startEditNote(note: Note) {
@@ -381,6 +845,58 @@ export default function TripDetailScreen({ route, navigation }: any) {
     setEditName(trip?.name || ''); setEditLocation(trip?.location || '');
     setEditStartDate(trip?.startDate || ''); setEditEndDate(trip?.endDate || '');
     setShowEditTrip(true);
+  }
+
+  async function handleSaveTrip() {
+    if (!editName.trim()) { Alert.alert('Error', 'Trip name is required'); return; }
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await apiUpdateTrip(tripId, {
+        name: editName.trim(),
+        location: editLocation ? { name: editLocation } : undefined,
+        startDate: editStartDate || undefined,
+        endDate: editEndDate || undefined,
+      });
+      setShowEditTrip(false);
+      Toast.show({ type: 'success', text1: 'Trip updated!' });
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleInviteMembers() {
+    const emailsToInvite = inviteInput.trim() ? [inviteInput.trim()] : [];
+    const friendsToAdd = selectedFriends.length ? selectedFriends : [];
+    if (!emailsToInvite.length && !friendsToAdd.length) {
+      Alert.alert('Error', 'Select friends or enter an email to invite');
+      return;
+    }
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const res = await inviteToTrip(tripId, {
+        friendIds: friendsToAdd.length ? friendsToAdd : undefined,
+        emails: emailsToInvite.length ? emailsToInvite : undefined,
+      });
+      const addedCount = res.added?.length ?? 0;
+      const invitedCount = res.invited?.length ?? 0;
+      Toast.show({ type: 'success', text1: `${addedCount} added, ${invitedCount} invite(s) sent` });
+      if (res.invited?.length) {
+        const url = res.invited[0].branchUrl;
+        Alert.alert('Invite Link', `Share this link:\n${url}`);
+      }
+      // Refresh members list
+      const membersRes = await getTripMembers(tripId);
+      setMembers(membersRes.members);
+      setInviteInput(''); setSelectedFriends([]);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -405,7 +921,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
               <Text style={styles.tripDates}>{trip?.startDate ?? ''}{trip?.endDate ? ` - ${trip.endDate}` : ''}</Text>
               {!!trip?.location && <Text style={styles.tripLocation}>{trip.location}</Text>}
             </View>
-            {/* Right: days counter + pencil */}
+            {/* Right: days counter + edit/delete controls */}
             <View style={styles.daysArea}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
                 <Text style={styles.daysNumber}>{Math.abs(days)}</Text>
@@ -414,6 +930,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 </TouchableOpacity>
               </View>
               <Text style={styles.daysLabel}>{days > 0 ? 'Days to go' : days === 0 ? 'Today!' : 'Days ago'}</Text>
+              {role === 'admin' && (
+                <TouchableOpacity
+                  onPress={() => Alert.alert('Delete Trip', 'This will permanently delete the trip and all its data.', [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: async () => {
+                      try { await apiDeleteTrip(tripId); navigation.goBack(); }
+                      catch (err) { handleApiError(err); }
+                    }},
+                  ])}
+                  style={{ marginTop: 4 }} activeOpacity={0.7}>
+                  <Text style={{ fontSize: 11, color: '#ef4444', fontWeight: '600' }}>Delete Trip</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
@@ -493,9 +1022,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <TouchableOpacity onPress={() => setActivities(p => p.map(a => a.id === act.id ? { ...a, completed: true } : a))} style={styles.doneBtn} activeOpacity={0.7}>
                     <Text style={styles.doneTxt}>Done</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => Alert.alert('Delete', 'Remove this activity?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => setActivities(p => p.filter(a => a.id !== act.id)) }])} style={styles.trashBtn} activeOpacity={0.7}>
-                    <TrashIcon />
-                  </TouchableOpacity>
+                  {(role === 'admin' || (act as any).createdBy === currentUserId) && (
+                    <TouchableOpacity onPress={() => handleDeleteActivity(act.id)} style={styles.trashBtn} activeOpacity={0.7}>
+                      <TrashIcon />
+                    </TouchableOpacity>
+                  )}
                 </View>
               ))}
             </View>
@@ -726,9 +1257,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       <Path d="M14 2v6h6M16 13H8M16 17H8" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                     </Svg>
                     <Text style={{ flex: 1, fontSize: 13, color: '#0f172a', marginLeft: 10 }} numberOfLines={1}>{doc.name}</Text>
-                    <TouchableOpacity onPress={() => setDocs(p => p.filter(d => d.id !== doc.id))} activeOpacity={0.7}>
-                      <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '600' }}>Remove</Text>
-                    </TouchableOpacity>
+                    {(role === 'admin' || (doc as any).uploadedBy === currentUserId) && (
+                      <TouchableOpacity onPress={() => handleDeleteDoc(doc.id, (doc as any).uploadedBy ?? '')} activeOpacity={0.7}>
+                        <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '600' }}>Remove</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ))}
               </View>
@@ -749,19 +1282,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
               {/* Current members (always visible) */}
               <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
                 <Text style={styles.memberSectionLabel}>Current Members</Text>
-                <View style={styles.memberRow}>
-                  <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>
-                  <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={styles.memberName}>You</Text>
-                    <Text style={styles.memberEmail}>you@swee.app</Text>
-                  </View>
-                  <View style={styles.ownerBadge}><Text style={styles.ownerTxt}>Owner</Text></View>
-                </View>
-                {extraMembers.map((email, i) => (
-                  <View key={i} style={styles.memberRow}>
-                    <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>
-                    <Text style={{ flex: 1, fontSize: 13, color: '#0f172a', marginLeft: 10 }}>{email}</Text>
-                    <TouchableOpacity onPress={() => setExtraMembers(p => p.filter((_, j) => j !== i))} activeOpacity={0.7}><Text style={{ color: '#ef4444', fontSize: 12 }}>Remove</Text></TouchableOpacity>
+                {members.map(m => (
+                  <View key={m.userId} style={styles.memberRow}>
+                    {m.avatarUrl
+                      ? <Image source={{ uri: m.avatarUrl }} style={styles.memberAvatar as any} />
+                      : <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>}
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={styles.memberName}>{m.fullName}{m.userId === currentUserId ? ' (You)' : ''}</Text>
+                    </View>
+                    {m.role === 'admin'
+                      ? <View style={styles.ownerBadge}><Text style={styles.ownerTxt}>Admin</Text></View>
+                      : role === 'admin' && m.userId !== currentUserId
+                        ? <TouchableOpacity onPress={async () => { try { await removeTripMember(tripId, m.userId); setMembers(p => p.filter(x => x.userId !== m.userId)); } catch (e) { handleApiError(e); } }} activeOpacity={0.7}><Text style={{ color: '#ef4444', fontSize: 12 }}>Remove</Text></TouchableOpacity>
+                        : null}
                   </View>
                 ))}
               </View>
@@ -774,26 +1307,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <TextInput style={styles.searchInput} placeholder="Search by name or email..." placeholderTextColor="#94a3b8" value={memberSearch} onChangeText={setMemberSearch} />
                   </View>
                   {filteredFriends.map(f => {
-                    const added = extraMembers.includes(f.email);
                     const sel = selectedFriends.includes(f.id);
                     return (
-                      <TouchableOpacity key={f.id} style={styles.memberRow} onPress={() => { if (!added) setSelectedFriends(p => p.includes(f.id) ? p.filter(x => x !== f.id) : [...p, f.id]); }} activeOpacity={0.8}>
+                      <TouchableOpacity key={f.id} style={styles.memberRow} onPress={() => setSelectedFriends(p => p.includes(f.id) ? p.filter(x => x !== f.id) : [...p, f.id])} activeOpacity={0.8}>
                         <Image source={{ uri: f.avatar }} style={styles.memberAvatar as any} />
                         <View style={{ flex: 1, marginLeft: 10 }}>
                           <Text style={styles.memberName}>{f.name}</Text>
-                          <Text style={styles.memberEmail}>{f.email}</Text>
                         </View>
-                        {added ? <Text style={{ fontSize: 11, color: '#0d9488', fontWeight: '600' }}>Added</Text>
-                          : sel ? <View style={styles.checkCircle}><CheckIcon /></View>
-                          : null}
+                        {sel ? <View style={styles.checkCircle}><CheckIcon /></View> : null}
                       </TouchableOpacity>
                     );
                   })}
                   {selectedFriends.length > 0 && (
-                    <TouchableOpacity style={[styles.tealBtnFull, { marginTop: 12 }]} onPress={() => {
-                      const emails = FRIENDS.filter(f => selectedFriends.includes(f.id) && !extraMembers.includes(f.email)).map(f => f.email);
-                      setExtraMembers(p => [...p, ...emails]); setSelectedFriends([]);
-                    }} activeOpacity={0.85}>
+                    <TouchableOpacity style={[styles.tealBtnFull, { marginTop: 12 }]} onPress={handleInviteMembers} activeOpacity={0.85}>
                       <Text style={styles.tealBtnTxt}>Add {selectedFriends.length} Member{selectedFriends.length > 1 ? 's' : ''}</Text>
                     </TouchableOpacity>
                   )}
@@ -816,7 +1342,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </View>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <TextInput style={[styles.fInput, { flex: 1 }]} placeholder={inviteMethod === 'email' ? 'Enter email address' : inviteMethod === 'sms' ? 'Enter phone number' : 'Enter WhatsApp number'} placeholderTextColor="#94a3b8" value={inviteInput} onChangeText={setInviteInput} keyboardType={inviteMethod === 'email' ? 'email-address' : 'phone-pad'} autoCapitalize="none" />
-                    <TouchableOpacity style={styles.sendBtn} onPress={() => { if (inviteInput.trim()) { Alert.alert('Invite Sent', `Invitation sent to ${inviteInput.trim()}`); setInviteInput(''); } }} activeOpacity={0.85}>
+                    <TouchableOpacity style={styles.sendBtn} onPress={handleInviteMembers} activeOpacity={0.85}>
                       <Text style={styles.tealBtnTxt}>Send</Text>
                     </TouchableOpacity>
                   </View>
@@ -866,9 +1392,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     {photos.map(ph => (
                       <View key={ph.id} style={{ width: 80, height: 80 }}>
                         <Image source={{ uri: ph.uri }} style={{ width: 80, height: 80, borderRadius: 8 } as any} />
-                        <TouchableOpacity onPress={() => setPhotos(p => p.filter(x => x.id !== ph.id))} style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
-                          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>✕</Text>
-                        </TouchableOpacity>
+                        {(role === 'admin' || (ph as any).uploadedBy === currentUserId) && (
+                          <TouchableOpacity onPress={() => handleDeletePhoto(ph.id, (ph as any).uploadedBy ?? '')} style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>✕</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     ))}
                   </View>
@@ -970,10 +1498,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           <View style={{ alignItems: 'flex-end' }}>
                             <Text style={styles.expAmt}>₹{exp.amount.toFixed(2)}</Text>
                             <Text style={{ fontSize: 11, color: '#0d9488', marginBottom: 6 }}>You lent ₹0</Text>
-                            <View style={{ flexDirection: 'row', gap: 12 }}>
-                              <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '600' }}>Edit</Text></TouchableOpacity>
-                              <TouchableOpacity onPress={() => setExpenses(p => p.filter(e => e.id !== exp.id))} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '600' }}>Delete</Text></TouchableOpacity>
-                            </View>
+                            {(role === 'admin' || (exp as any).createdBy === currentUserId) && (
+                              <View style={{ flexDirection: 'row', gap: 12 }}>
+                                <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '600' }}>Edit</Text></TouchableOpacity>
+                                <TouchableOpacity onPress={() => handleDeleteExpense(exp.id, (exp as any).createdBy ?? '')} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '600' }}>Delete</Text></TouchableOpacity>
+                              </View>
+                            )}
                           </View>
                         </View>
                       ))}
@@ -985,17 +1515,38 @@ export default function TripDetailScreen({ route, navigation }: any) {
               {expTab === 'Balances' && (
                 <View style={styles.dBody}>
                   <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                    <View style={[styles.balCard]}><Text style={styles.balLabel}>Total</Text><Text style={styles.balValue}>₹{totalExp.toFixed(0)}</Text></View>
-                    <View style={[styles.balCard, { backgroundColor: '#f0fdf4' }]}><Text style={styles.balLabel}>You paid</Text><Text style={[styles.balValue, { color: '#16a34a' }]}>₹{totalExp.toFixed(0)}</Text></View>
-                    <View style={[styles.balCard, { backgroundColor: '#fff1f2' }]}><Text style={styles.balLabel}>Your share</Text><Text style={[styles.balValue, { color: '#e11d48' }]}>₹{totalExp.toFixed(0)}</Text></View>
+                    <View style={[styles.balCard]}><Text style={styles.balLabel}>Total</Text><Text style={styles.balValue}>₹{parseFloat(totalExpenses || '0').toFixed(0)}</Text></View>
+                    <View style={[styles.balCard, { backgroundColor: myBalance >= 0 ? '#f0fdf4' : '#fff1f2' }]}>
+                      <Text style={styles.balLabel}>My Balance</Text>
+                      <Text style={[styles.balValue, { color: myBalance >= 0 ? '#16a34a' : '#e11d48' }]}>
+                        {myBalance >= 0 ? '+' : ''}₹{Math.abs(myBalance).toFixed(0)}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.emptyCenter}>
-                    <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
-                      <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                    <Text style={styles.emptyTitle}>All settled up!</Text>
-                    <Text style={styles.emptySub}>No outstanding balances</Text>
-                  </View>
+                  {balances.length === 0 ? (
+                    <View style={styles.emptyCenter}>
+                      <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
+                        <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                      </Svg>
+                      <Text style={styles.emptyTitle}>All settled up!</Text>
+                      <Text style={styles.emptySub}>No outstanding balances</Text>
+                    </View>
+                  ) : balances.map((debt, i) => (
+                    <View key={i} style={[styles.expRow, { alignItems: 'center' }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.expName}>{debt.fromName} owes {debt.toName}</Text>
+                        <Text style={styles.expMeta}>₹{debt.amount.toFixed(2)}</Text>
+                      </View>
+                      {debt.from === currentUserId && (
+                        <TouchableOpacity
+                          style={[styles.tealBtnFull, { paddingHorizontal: 12, paddingVertical: 6 }]}
+                          onPress={() => handleSettleDebt(debt.to, debt.amount)}
+                          activeOpacity={0.85}>
+                          <Text style={[styles.tealBtnTxt, { fontSize: 12 }]}>Settle</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
                 </View>
               )}
             </ScrollView>
@@ -1037,16 +1588,18 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       const total = Math.max(1, poll.options.reduce((s, o) => s + o.votes.length, 0));
                       const pct = opt.votes.length / total;
                       return (
-                        <TouchableOpacity key={opt.id} style={styles.pollOptRow} onPress={() => setPolls(p => p.map(po => po.id === poll.id ? { ...po, options: po.options.map(o => o.id === opt.id ? { ...o, votes: o.votes.includes('you') ? o.votes.filter(v => v !== 'you') : [...o.votes, 'you'] } : o) } : po))} activeOpacity={0.8}>
+                        <TouchableOpacity key={opt.id} style={styles.pollOptRow} onPress={() => handleVote(poll.id, opt.id)} activeOpacity={0.8}>
                           <View style={[styles.pollBar, { width: `${Math.max(4, pct * 100)}%` }]} />
                           <Text style={styles.pollOptTxt}>{opt.text}</Text>
                           <Text style={styles.pollVotes}>{opt.votes.length}</Text>
                         </TouchableOpacity>
                       );
                     })}
-                    <TouchableOpacity onPress={() => setPolls(p => p.filter(po => po.id !== poll.id))} activeOpacity={0.7} style={{ marginTop: 8, alignSelf: 'flex-end' }}>
-                      <Text style={{ fontSize: 11, color: '#ef4444' }}>Delete Poll</Text>
-                    </TouchableOpacity>
+                    {role === 'admin' && (
+                      <TouchableOpacity onPress={() => setPolls(p => p.filter(po => po.id !== poll.id))} activeOpacity={0.7} style={{ marginTop: 8, alignSelf: 'flex-end' }}>
+                        <Text style={{ fontSize: 11, color: '#ef4444' }}>Delete Poll</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ))}
               </View>
@@ -1107,7 +1660,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     {notes.map(note => {
                       const cat = NOTE_CATS.find(c => c.key === note.category)!;
                       return (
-                        <View key={note.id} style={[styles.noteCard, note.pinned && { backgroundColor: '#fefce8', borderColor: '#fde68a' }]}>
+                        <TouchableOpacity
+                          key={note.id}
+                          activeOpacity={0.85}
+                          onPress={() => setExpandedNoteId(expandedNoteId === note.id ? null : note.id)}
+                          style={[styles.noteCard, note.pinned && { backgroundColor: '#fefce8', borderColor: '#fde68a' }]}
+                        >
                           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
                             {/* Category emoji */}
                             <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#f0fdf9', alignItems: 'center', justifyContent: 'center' }}>
@@ -1115,9 +1673,15 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             </View>
                             {/* Title + body */}
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.noteTitle} numberOfLines={1}>{note.title}</Text>
-                              {!!note.body && <Text style={styles.noteBody} numberOfLines={2}>{note.body}</Text>}
-                              <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>By You{note.date ? ` • ${note.date}` : ''}</Text>
+                              <Text style={styles.noteTitle}>{note.title}</Text>
+                              {!!note.body && (
+                                <Text style={styles.noteBody} numberOfLines={expandedNoteId === note.id ? undefined : 2}>
+                                  {note.body}
+                                </Text>
+                              )}
+                              <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                                By You{note.date ? ` • ${note.date}` : ''}{expandedNoteId !== note.id ? '  tap to expand' : '  tap to collapse'}
+                              </Text>
                             </View>
                             {/* Action icons */}
                             <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
@@ -1136,14 +1700,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                   <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#64748b" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
                                 </Svg>
                               </TouchableOpacity>
-                              <TouchableOpacity onPress={() => setNotes(p => p.filter(n => n.id !== note.id))} activeOpacity={0.7} style={{ padding: 4 }}>
+                              <TouchableOpacity onPress={() => handleDeleteNote(note.id, (note as any).createdBy ?? '')} activeOpacity={0.7} style={{ padding: 4 }}>
                                 <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
                                   <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="#ef4444" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
                                 </Svg>
                               </TouchableOpacity>
                             </View>
                           </View>
-                        </View>
+                        </TouchableOpacity>
                       );
                     })}
                   </View>
@@ -1175,7 +1739,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
             </ScrollView>
             <View style={styles.dFooterRow}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowEditTrip(false)} activeOpacity={0.7}><Text style={styles.cancelTxt}>Cancel</Text></TouchableOpacity>
-              <TouchableOpacity style={[styles.tealBtnFull, { flex: 1 }]} onPress={() => { Alert.alert('Saved', 'Trip details updated.'); setShowEditTrip(false); }} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>Save Changes</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.tealBtnFull, { flex: 1 }, isSubmitting && { opacity: 0.6 }]} onPress={handleSaveTrip} disabled={isSubmitting} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>{isSubmitting ? 'Saving...' : 'Save Changes'}</Text></TouchableOpacity>
             </View>
           </View>
         </View>

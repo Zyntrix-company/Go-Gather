@@ -12,7 +12,7 @@ export type AuthStackParamList = {
   Splash: undefined;
   Login: undefined;
   Signup: undefined;
-  OtpVerification: { email: string };
+  OtpVerification: { email: string; source?: 'signup' | 'login' };
   CreateProfile: undefined;
   ForgotPassword: undefined;
   ResetPassword: { email: string };

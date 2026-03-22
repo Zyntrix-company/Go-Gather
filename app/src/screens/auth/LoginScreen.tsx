@@ -73,13 +73,15 @@ export default function LoginScreen({ navigation }: any) {
   });
   const { login, googleLogin, facebookLogin } = useAuth();
   const isLoading = useAuthStore((s) => s.isLoading);
+  const setPendingProfileSetup = useAuthStore((s) => s.setPendingProfileSetup);
 
   function handleLoginNavigation(user: any) {
     if (user.isVerified === false) {
       return navigation.replace('OtpVerification', { email: user.email });
     }
     if (user.isProfileComplete === false) {
-      return navigation.replace('CreateProfile');
+      setPendingProfileSetup(true);
+      return;
     }
     // Home navigation is handled automatically by RootNavigator when store updates
   }

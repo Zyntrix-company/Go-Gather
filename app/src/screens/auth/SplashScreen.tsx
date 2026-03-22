@@ -3,10 +3,12 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import Logo from '../../components/common/Logo';
 import BlobBackground from '../../components/common/BlobBackground';
 import useAuth from '../../hooks/useAuth';
+import useAuthStore from '../../store/authStore';
 import colors from '../../theme/colors';
 
 export default function SplashScreen({ navigation }: any) {
   const { loadFromToken } = useAuth();
+  const setPendingProfileSetup = useAuthStore((s) => s.setPendingProfileSetup);
 
   useEffect(() => {
     async function init() {
@@ -30,7 +32,8 @@ export default function SplashScreen({ navigation }: any) {
 
         if (user.isProfileComplete === false) {
           // Verified but hasn't completed profile setup
-          return navigation.replace('CreateProfile');
+          setPendingProfileSetup(true);
+          return; // RootNavigator switches to ProfileSetupNavigator automatically
         }
 
         // Fully onboarded — RootNavigator will show HomeScreen automatically

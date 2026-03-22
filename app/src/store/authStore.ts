@@ -7,11 +7,13 @@ export type AuthState = {
   refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  pendingProfileSetup: boolean;
 
   setAuth: (user: User | null, accessToken?: string | null, refreshToken?: string | null) => void;
   logout: () => void;
   updateUser: (data: Partial<User>) => void;
   setLoading: (val: boolean) => void;
+  setPendingProfileSetup: (val: boolean) => void;
 };
 
 const useAuthStore = create<AuthState>((set) => ({
@@ -20,6 +22,7 @@ const useAuthStore = create<AuthState>((set) => ({
   refreshToken: null,
   isAuthenticated: false,
   isLoading: false,
+  pendingProfileSetup: false,
 
   setAuth: (user, accessToken, refreshToken) =>
     set({
@@ -35,6 +38,7 @@ const useAuthStore = create<AuthState>((set) => ({
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
+      pendingProfileSetup: false,
     }),
 
   updateUser: (data) =>
@@ -43,6 +47,8 @@ const useAuthStore = create<AuthState>((set) => ({
     })),
 
   setLoading: (val) => set({ isLoading: val }),
+
+  setPendingProfileSetup: (val) => set({ pendingProfileSetup: val }),
 }));
 
 export default useAuthStore;

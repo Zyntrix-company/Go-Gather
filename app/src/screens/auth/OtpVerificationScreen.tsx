@@ -23,7 +23,9 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
 
   const { verifyOtp, resendOtp } = useAuth();
   const isLoading = useAuthStore((s) => s.isLoading);
+  const setPendingProfileSetup = useAuthStore((s) => s.setPendingProfileSetup);
   const email = route.params?.email ?? 'your email';
+  const source = route.params?.source;
 
   // ─── Countdown timer ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -61,13 +63,12 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
 
     try {
       const res = await verifyOtp(email, otpValue);
-      // After successful verification, check if profile is complete
-      if (res.user?.isProfileComplete === false) {
-        navigation.replace('CreateProfile');
-      } else {
-        // Fully onboarded — go to Home / Login for now
-        navigation.replace('Login');
+      // After signup, or when profile is incomplete, show CreateProfile before Main
+      if (source === 'signup' || res.user?.isProfileComplete === false) {
+        setPendingProfileSetup(true);
+        // RootNavigator will switch to ProfileSetupNavigator automatically
       }
+      // If profile is complete, RootNavigator switches to MainStack automatically
     } catch {
       // Global Axios interceptor already shows an error toast.
       // Reset OTP fields so user can try again.

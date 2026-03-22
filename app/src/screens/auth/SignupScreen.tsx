@@ -306,7 +306,7 @@ export default function SignupScreen({ navigation }: any) {
 
       await signup(data.email, fullPhone, data.password);
       // On success, backend sends OTP to email → navigate to OTP screen
-      navigation.navigate('OtpVerification', { email: data.email });
+      navigation.navigate('OtpVerification', { email: data.email, source: 'signup' });
     } catch (err: any) {
       console.error('[Signup Error]:', err);
       const msg = err.response?.data?.message || err.response?.data?.error || 'Something went wrong. Please try again.';

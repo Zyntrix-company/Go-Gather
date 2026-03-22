@@ -24,7 +24,7 @@ export default function useAuth() {
 
   /**
    * Verify OTP — called from OtpVerificationScreen.
-   * Stores tokens securely and updates store.
+   * Stores tokens securely, updates store, then fetches full profile from /auth/me.
    */
   async function verifyOtp(email: string, otp: string) {
     setLoading(true);
@@ -33,6 +33,8 @@ export default function useAuth() {
       await storage.setToken(res.accessToken);
       await storage.setRefreshToken(res.refreshToken);
       setAuth(res.user, res.accessToken, res.refreshToken);
+      // Fetch full profile so store has complete name/photo data
+      try { await authApi.getMe().then(u => setAuth(u, res.accessToken, res.refreshToken)); } catch {}
       return res;
     } finally {
       setLoading(false);
@@ -41,6 +43,8 @@ export default function useAuth() {
 
   /**
    * Login with email & password.
+   * After setting tokens, fetches full profile from /auth/me so the store
+   * always has complete name/photo data regardless of what the login response returns.
    */
   async function login(email: string, password: string, deviceToken?: string) {
     setLoading(true);
@@ -49,6 +53,8 @@ export default function useAuth() {
       await storage.setToken(res.accessToken);
       await storage.setRefreshToken(res.refreshToken);
       setAuth(res.user, res.accessToken, res.refreshToken);
+      // Fetch full profile so store has complete name/photo data
+      try { await authApi.getMe().then(u => setAuth(u, res.accessToken, res.refreshToken)); } catch {}
       return res;
     } finally {
       setLoading(false);
@@ -62,12 +68,11 @@ export default function useAuth() {
     setLoading(true);
     try {
       const res = await authApi.googleLogin(idToken);
-      console.log('[googleLogin] accessToken present:', !!res.accessToken);
-      console.log('[googleLogin] refreshToken present:', !!res.refreshToken);
-      console.log('[googleLogin] user:', JSON.stringify(res.user));
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
       setAuth(res.user, res.accessToken, res.refreshToken);
+      // Fetch full profile so store has complete name/photo data
+      try { await authApi.getMe().then(u => setAuth(u, res.accessToken, res.refreshToken)); } catch {}
       return res;
     } finally {
       setLoading(false);
@@ -81,12 +86,11 @@ export default function useAuth() {
     setLoading(true);
     try {
       const res = await authApi.facebookLogin(accessToken);
-      console.log('[facebookLogin] accessToken present:', !!res.accessToken);
-      console.log('[facebookLogin] refreshToken present:', !!res.refreshToken);
-      console.log('[facebookLogin] user:', JSON.stringify(res.user));
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
       setAuth(res.user, res.accessToken, res.refreshToken);
+      // Fetch full profile so store has complete name/photo data
+      try { await authApi.getMe().then(u => setAuth(u, res.accessToken, res.refreshToken)); } catch {}
       return res;
     } finally {
       setLoading(false);

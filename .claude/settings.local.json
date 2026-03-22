@@ -8,7 +8,9 @@
       "Bash(node -e \"const v = require\\(''validator''\\); console.log\\(''version:'', v.version\\); console.log\\(''all valid format:'', v.isUUID\\(''aaaa0001-0000-0000-0000-000000000001'', ''all''\\)\\); console.log\\(''pppp invalid hex:'', v.isUUID\\(''pppp0001-0000-4000-8000-000000000001''\\)\\); console.log\\(''good v4:'', v.isUUID\\(''11111111-1111-4111-8111-111111111111''\\)\\);\")",
       "Bash(node -e \"const v = require\\(''validator''\\); [''1'',''2'',''3'',''4'',''5'',''6'',''7'',''8'',''9'',''0'',''a'',''b''].forEach\\(c => { const u = ''aaaa0001-0000-''+c+''000-8000-000000000001''; console.log\\(c + ''000 -> '' + v.isUUID\\(u\\)\\); }\\);\")",
       "Bash(node -e \"const v = require\\(''validator''\\); [''8'',''9'',''a'',''b'',''0'',''1'',''c'',''d''].forEach\\(c => { const u = ''aaaa0001-0000-4000-''+c+''000-000000000001''; console.log\\(c + ''000 -> '' + v.isUUID\\(u\\)\\); }\\);\")",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(git push:*)",
+      "Bash(find /e/Demo -type f -name *trip* -o -name *Trip*)"
     ]
   }
 }

@@ -26,6 +26,13 @@ import BlobBackground from '../../components/common/BlobBackground';
 import AppHeader from '../../components/common/AppHeader';
 import useAuthStore from '../../store/authStore';
 import useAuth from '../../hooks/useAuth';
+import {
+  getTrips,
+  createTrip as apiCreateTrip,
+  deleteTrip as apiDeleteTrip,
+  getFriends,
+  handleApiError,
+} from '../../api/trips.api';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -480,6 +487,40 @@ function EventCard({ event, onPress, onMore }: any) {
   );
 }
 
+// ─── API → UI trip mapper ─────────────────────────────────────────────────────
+
+function fmtDisplayDate(iso: string): string {
+  if (!iso) return 'TBD';
+  const d = new Date(iso + 'T00:00:00');
+  return `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`;
+}
+function fmtFullDate(iso: string): string {
+  if (!iso) return 'TBD';
+  const d = new Date(iso + 'T00:00:00');
+  return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} ${d.getFullYear()}`;
+}
+function mapApiTrip(t: any): Trip {
+  const locName = typeof t.location === 'string'
+    ? t.location
+    : (t.location?.name ?? '');
+  const s: string = t.startDate ?? '';
+  const e: string = t.endDate ?? '';
+  return {
+    id: t.id,
+    name: t.name,
+    location: locName,
+    startDate: fmtDisplayDate(s),
+    endDate: fmtDisplayDate(e),
+    startDateISO: s,
+    endDateISO: e,
+    fullStartDate: fmtFullDate(s),
+    fullEndDate: fmtFullDate(e),
+    image: require('../../assets/images/goa_beach.png'),
+    members: [],
+    extraMembers: Math.max(0, (t.memberCount ?? 1) - 1),
+  };
+}
+
 // ─── Create Trip Modal (matches Figma exactly) ───────────────────────────────
 
 const CT_FRIENDS = [
@@ -490,11 +531,13 @@ const CT_FRIENDS = [
   { id: '5', name: 'Ahmed Al-Rashid', email: 'ahmed_explorer@example.com', uri: 'https://i.pravatar.cc/150?img=53' },
 ];
 
-function CreateTripModal({ visible, onClose, onSave }: any) {
+function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClose: () => void; onSave: (data: any) => Promise<void> }) {
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [startDateObj, setStartDateObj] = useState<Date | undefined>(undefined);
   const [endDateObj, setEndDateObj] = useState<Date | undefined>(undefined);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apiFriends, setApiFriends] = useState<typeof CT_FRIENDS>(CT_FRIENDS);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [reminders, setReminders] = useState(false);
@@ -523,21 +566,30 @@ function CreateTripModal({ visible, onClose, onSave }: any) {
     setFriendSearch(''); setInviteEmail('');
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!name.trim()) { Alert.alert('Error', 'Please enter a trip name'); return; }
-    onSave({
-      name: name.trim(),
-      location: location.trim(),
-      startDate: formatDate(startDateObj),
-      endDate: formatDate(endDateObj),
-      startDateISO: startDateObj?.toISOString(),
-    });
-    reset(); onClose();
+    setIsSubmitting(true);
+    try {
+      await onSave({
+        name: name.trim(),
+        location: location.trim(),
+        startDate: formatDate(startDateObj),
+        endDate: formatDate(endDateObj),
+        startDateISO: startDateObj ? startDateObj.toISOString().split('T')[0] : undefined,
+        endDateISO: endDateObj ? endDateObj.toISOString().split('T')[0] : undefined,
+        friendIds: selectedFriendIds,
+        inviteEmail: inviteEmail.trim() || undefined,
+      });
+      reset();
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function handleUploadDocs() {
     launchImageLibrary(
-      { mediaType: 'mixed', selectionLimit: 5 },
+      { mediaType: 'mixed', selectionLimit: 0 },
       (response) => {
         if (response.didCancel || response.errorCode) return;
         const names = (response.assets || []).map(a => a.fileName || `File_${Date.now()}.pdf`);
@@ -565,9 +617,27 @@ function CreateTripModal({ visible, onClose, onSave }: any) {
     }
     setFetchingLocation(true);
     Geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const { latitude, longitude } = pos.coords;
-        setLocation(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=14&addressdetails=1`,
+            { headers: { 'User-Agent': 'GatherGo/1.0' } }
+          );
+          const data = await res.json();
+          const a = data.address || {};
+          // Build a clean readable address: suburb/city, state, country
+          const parts = [
+            a.suburb || a.neighbourhood || a.village || a.town,
+            a.city || a.county || a.state_district,
+            a.state,
+            a.country,
+          ].filter(Boolean);
+          setLocation(parts.length > 0 ? parts.join(', ') : data.display_name || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        } catch {
+          // Fallback to coordinates if reverse geocoding fails
+          setLocation(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+        }
         setFetchingLocation(false);
       },
       (err) => {
@@ -582,9 +652,23 @@ function CreateTripModal({ visible, onClose, onSave }: any) {
     setSelectedFriendIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   }
 
-  const filteredFriends = CT_FRIENDS.filter(f =>
+  // Load real friends from API when invite sub-modal opens
+  useEffect(() => {
+    if (!showInviteModal) return;
+    getFriends(friendSearch || undefined).then(data => {
+      const mapped = data.friends.map(f => ({
+        id: f.user.id,
+        name: f.user.name,
+        email: '',
+        uri: f.user.avatarUrl ?? `https://i.pravatar.cc/150?u=${f.user.id}`,
+      }));
+      if (mapped.length > 0) setApiFriends(mapped);
+    }).catch(() => { /* keep CT_FRIENDS fallback */ });
+  }, [showInviteModal]);
+
+  const filteredFriends = apiFriends.filter(f =>
     f.name.toLowerCase().includes(friendSearch.toLowerCase()) ||
-    f.email.toLowerCase().includes(friendSearch.toLowerCase())
+    (f.email && f.email.toLowerCase().includes(friendSearch.toLowerCase()))
   );
 
   return (
@@ -773,8 +857,8 @@ function CreateTripModal({ visible, onClose, onSave }: any) {
             <TouchableOpacity onPress={() => { reset(); onClose(); }} activeOpacity={0.7}>
               <Text style={styles.ctCancelText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.ctCreateBtn} onPress={handleSave} activeOpacity={0.85}>
-              <Text style={styles.ctCreateBtnText}>Create Trip</Text>
+            <TouchableOpacity style={[styles.ctCreateBtn, isSubmitting && { opacity: 0.6 }]} onPress={handleSave} disabled={isSubmitting} activeOpacity={0.85}>
+              <Text style={styles.ctCreateBtnText}>{isSubmitting ? 'Creating...' : 'Create Trip'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -945,17 +1029,26 @@ function SweeFab({ onPress }: { onPress: () => void }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function HomeScreen({ navigation }: any) {
-  const { logout } = useAuth();
+  const { logout, refreshProfile } = useAuth();
   const rawUser = useAuthStore((s) => s.user) as any;
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showCreateTrip, setShowCreateTrip] = useState(false);
   const [showTripMenu, setShowTripMenu] = useState<string | null>(null);
-  const [trips, setTrips] = useState<Trip[]>(MOCK_TRIPS);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [isLoadingTrips, setIsLoadingTrips] = useState(false);
+  const [tripsPage, setTripsPage] = useState(1);
+  const [hasMoreTrips, setHasMoreTrips] = useState(false);
   const [events] = useState(MOCK_EVENTS);
   const [insightIndex, setInsightIndex] = useState(0);
   const insightRef = useRef<FlatList>(null);
   const [avatarError, setAvatarError] = useState(false);
+
+  // Refresh profile on mount so name/avatar are always up to date
+  useEffect(() => {
+    refreshProfile();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-scroll Travel Insights every 5 seconds
   useEffect(() => {
@@ -968,6 +1061,27 @@ export default function HomeScreen({ navigation }: any) {
     }, 5000);
     return () => clearInterval(timer);
   }, []);
+
+  // Load trips on mount
+  useEffect(() => {
+    loadTrips(1, true);
+  }, []);
+
+  async function loadTrips(page: number = 1, replace: boolean = false) {
+    if (isLoadingTrips) return;
+    setIsLoadingTrips(true);
+    try {
+      const data = await getTrips({ page, limit: 20 });
+      const mapped = data.trips.map(mapApiTrip);
+      setTrips(prev => replace ? mapped : [...prev, ...mapped]);
+      setTripsPage(page);
+      setHasMoreTrips(data.trips.length === 20);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setIsLoadingTrips(false);
+    }
+  }
 
   const user = rawUser ? {
     fullName: rawUser.fullName ?? rawUser.full_name ?? '',
@@ -991,7 +1105,23 @@ export default function HomeScreen({ navigation }: any) {
 
   function deleteTrip(trip: Trip) {
     setShowTripMenu(null);
-    setTrips(p => p.filter(t => t.id !== trip.id));
+    Alert.alert(
+      'Delete Trip',
+      `Delete "${trip.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive', onPress: async () => {
+            try {
+              await apiDeleteTrip(trip.id);
+              setTrips(p => p.filter(t => t.id !== trip.id));
+            } catch (err) {
+              handleApiError(err);
+            }
+          },
+        },
+      ],
+    );
   }
 
   function toggleTripMenu(id: string) {
@@ -1228,6 +1358,34 @@ export default function HomeScreen({ navigation }: any) {
           )}
         </>
       )}
+
+      {/* Loading / empty states */}
+      {isLoadingTrips && trips.length === 0 && (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateSubtitle}>Loading your trips...</Text>
+        </View>
+      )}
+      {!isLoadingTrips && trips.length === 0 && (
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIconCircle}>
+            <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
+              <Path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </View>
+          <Text style={styles.emptyStateTitle}>No trips yet</Text>
+          <Text style={styles.emptyStateSubtitle}>Tap "Create New Trip" to plan your first adventure!</Text>
+        </View>
+      )}
+
+      {/* Load More */}
+      {hasMoreTrips && !isLoadingTrips && (
+        <TouchableOpacity
+          style={[styles.createTripBtn, { marginTop: 8, marginBottom: 16, backgroundColor: '#f0fdfa' }]}
+          onPress={() => loadTrips(tripsPage + 1, false)}
+          activeOpacity={0.8}>
+          <Text style={[styles.createTripBtnText, { color: '#0d9488' }]}>Load More</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 
@@ -1461,22 +1619,16 @@ export default function HomeScreen({ navigation }: any) {
         <CreateTripModal
           visible={showCreateTrip}
           onClose={() => setShowCreateTrip(false)}
-          onSave={(data: any) => {
-            const newTrip: Trip = {
-              id: Date.now().toString(),
+          onSave={async (data: any) => {
+            const res = await apiCreateTrip({
               name: data.name,
-              location: data.location || 'Location TBD',
-              startDate: data.startDate || 'TBD',
-              endDate: data.endDate || 'TBD',
-              startDateISO: data.startDate || new Date().toISOString().split('T')[0],
-              endDateISO: data.endDate || new Date().toISOString().split('T')[0],
-              fullStartDate: data.startDate || 'TBD',
-              fullEndDate: data.endDate || 'TBD',
-              image: require('../../assets/images/goa_beach.png'),
-              members: [],
-              extraMembers: 0,
-            };
-            setTrips(p => [newTrip, ...p]);
+              startDate: data.startDateISO ?? data.startDate ?? '',
+              endDate: data.endDateISO ?? data.endDate ?? '',
+              location: { name: data.location || 'TBD' },
+              friendIds: data.friendIds?.length ? data.friendIds : undefined,
+              emails: data.inviteEmail ? [data.inviteEmail] : undefined,
+            });
+            setTrips(p => [mapApiTrip(res.trip), ...p]);
           }}
         />
       </SafeAreaView>

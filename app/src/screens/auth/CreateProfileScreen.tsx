@@ -193,6 +193,8 @@ function deriveInitialState(user: ReturnType<typeof useAuthStore.getState>['user
 export default function CreateProfileScreen({ navigation }: any) {
   const { uploadPhoto, saveProfile, refreshProfile } = useAuth();
   const isLoading = useAuthStore((s) => s.isLoading);
+  const setPendingProfileSetup = useAuthStore((s) => s.setPendingProfileSetup);
+  const pendingProfileSetup = useAuthStore((s) => s.pendingProfileSetup);
   // Read user ONCE synchronously before any hook so we can seed initial state
   const user = useAuthStore((s) => s.user);
 
@@ -380,7 +382,11 @@ export default function CreateProfileScreen({ navigation }: any) {
       });
 
       console.log('[Save Success]: Profile updated for user.');
-      navigation.replace('Home');
+      if (pendingProfileSetup) {
+        setPendingProfileSetup(false); // RootNavigator switches to MainStack
+      } else {
+        navigation.replace('Home');
+      }
     } catch (err: any) {
       console.error('[Save Profile Error]:', err);
       const msg = err.response?.data?.message || err.response?.data?.error || 'Something went wrong. Please try again.';
