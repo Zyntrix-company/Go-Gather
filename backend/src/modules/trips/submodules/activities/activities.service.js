@@ -1,6 +1,6 @@
-const { v4: uuidv4 } = require('uuid');
 const { query: db } = require('../../../../config/database');
-const { uploadToS3, deleteFromS3, sanitiseFilename } = require('../../../../utils/s3.util');
+const { deleteFromS3 } = require('../../../../utils/s3.util');
+const sharedPhotos = require('../../../shared/photos/photos.service');
 const logger = require('../../../../utils/logger');
 
 // ── Time helpers ──────────────────────────────────────────────────────────────
@@ -54,19 +54,6 @@ const formatActivity = (a) => ({
   updatedAt: a.updated_at,
 });
 
-const formatActivityPhoto = (p) => ({
-  id: p.id,
-  activityId: p.activity_id,
-  tripId: p.trip_id,
-  uploadedBy: {
-    userId: p.uploaded_by,
-    name: p.uploader_name || null,
-    avatarUrl: p.uploader_avatar || null,
-  },
-  fileUrl: p.file_url,
-  mimeType: p.mime_type,
-  createdAt: p.created_at,
-});
 
 // ── Activity CRUD ─────────────────────────────────────────────────────────────
 
@@ -179,8 +166,8 @@ const deleteActivity = async (actId, tripId, requesterId, requesterRole) => {
     e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
   }
 
-  // Delete activity photos from S3 first (cascade handles DB)
-  const photosResult = await db('SELECT s3_key FROM trip_activity_photos WHERE activity_id = $1', [actId]);
+  // Delete activity photos from S3 first (DB cascade via activity_id FK handles rows)
+  const photosResult = await db('SELECT s3_key FROM photos WHERE activity_id = $1', [actId]);
   for (const row of photosResult.rows) {
     deleteFromS3(row.s3_key).catch((err) => logger.error('S3 delete failed', { err: err.message }));
   }
@@ -192,7 +179,7 @@ const getActivities = async (tripId) => {
   const result = await db(
     `SELECT
        ta.*,
-       (SELECT COUNT(*) FROM trip_activity_photos WHERE activity_id = ta.id)::int AS photo_count,
+       (SELECT COUNT(*) FROM photos WHERE activity_id = ta.id)::int AS photo_count,
        te.id   AS expense_id_linked,
        te.description AS expense_description,
        te.amount      AS expense_amount
@@ -215,7 +202,7 @@ const getActivityById = async (tripId, actId) => {
   const result = await db(
     `SELECT
        ta.*,
-       (SELECT COUNT(*) FROM trip_activity_photos WHERE activity_id = ta.id)::int AS photo_count,
+       (SELECT COUNT(*) FROM photos WHERE activity_id = ta.id)::int AS photo_count,
        te.id   AS expense_id_linked,
        te.description AS expense_description,
        te.amount      AS expense_amount
@@ -244,7 +231,7 @@ const uploadActivityPhotos = async (tripId, actId, userId, files) => {
 
   // Enforce max 5 photos per activity
   const countResult = await db(
-    'SELECT COUNT(*)::int AS count FROM trip_activity_photos WHERE activity_id = $1',
+    'SELECT COUNT(*)::int AS count FROM photos WHERE activity_id = $1',
     [actId],
   );
   const existing = countResult.rows[0].count;
@@ -255,24 +242,13 @@ const uploadActivityPhotos = async (tripId, actId, userId, files) => {
     e.limit = 5; e.current = existing; throw e;
   }
 
-  const photos = [];
-  for (const file of files) {
-    const safeName = sanitiseFilename(file.originalname);
-    const s3Key = `trips/${tripId}/activities/${actId}/${uuidv4()}-${safeName}`;
-    const fileUrl = await uploadToS3(file.buffer, s3Key, file.mimetype);
-
-    const result = await db(
-      `INSERT INTO trip_activity_photos (activity_id, trip_id, uploaded_by, file_url, s3_key, mime_type)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
-      [actId, tripId, userId, fileUrl, s3Key, file.mimetype],
-    );
-
-    const row = result.rows[0];
-    photos.push(formatActivityPhoto({ ...row, uploader_name: null, uploader_avatar: null }));
-  }
-
-  return photos;
+  // Store in shared photos table with activity_id — appears in trip gallery too
+  return sharedPhotos.uploadPhotos(
+    { parentType: 'trip', parentId: tripId },
+    userId,
+    files,
+    { activityId: actId },
+  );
 };
 
 const getActivityPhotos = async (tripId, actId) => {
@@ -285,20 +261,31 @@ const getActivityPhotos = async (tripId, actId) => {
   }
 
   const result = await db(
-    `SELECT tap.*, p.full_name AS uploader_name, p.avatar_url AS uploader_avatar
-     FROM trip_activity_photos tap
-     LEFT JOIN profiles p ON p.user_id = tap.uploaded_by
-     WHERE tap.activity_id = $1 AND tap.trip_id = $2
-     ORDER BY tap.created_at ASC`,
-    [actId, tripId],
+    `SELECT ph.*, p.full_name AS uploader_name
+     FROM photos ph
+     LEFT JOIN profiles p ON p.user_id = ph.uploaded_by
+     WHERE ph.activity_id = $1
+     ORDER BY ph.created_at ASC`,
+    [actId],
   );
 
-  return result.rows.map(formatActivityPhoto);
+  return result.rows.map((row) => ({
+    id: row.id,
+    activityId: row.activity_id,
+    tripId: row.parent_id,
+    uploadedBy: {
+      userId: row.uploaded_by,
+      name: row.uploader_name || null,
+    },
+    fileUrl: row.file_url,
+    mimeType: row.mime_type,
+    createdAt: row.created_at,
+  }));
 };
 
 const deleteActivityPhoto = async (tripId, actId, photoId, userId, userRole) => {
   const photoResult = await db(
-    'SELECT * FROM trip_activity_photos WHERE id = $1 AND activity_id = $2 AND trip_id = $3',
+    'SELECT * FROM photos WHERE id = $1 AND activity_id = $2 AND parent_id = $3',
     [photoId, actId, tripId],
   );
   if (photoResult.rowCount === 0) {
@@ -312,7 +299,7 @@ const deleteActivityPhoto = async (tripId, actId, photoId, userId, userRole) => 
   }
 
   await deleteFromS3(photo.s3_key);
-  await db('DELETE FROM trip_activity_photos WHERE id = $1', [photoId]);
+  await db('DELETE FROM photos WHERE id = $1', [photoId]);
 };
 
 module.exports = {

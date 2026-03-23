@@ -342,13 +342,12 @@ const updateTrip = async (tripId, updates) => {
 
 const deleteTrip = async (tripId) => {
   const docsResult = await db("SELECT s3_key FROM docs WHERE parent_type = 'trip' AND parent_id = $1", [tripId]);
+  // photos table now includes activity photos (activity_id set) — single query covers all
   const photosResult = await db("SELECT s3_key FROM photos WHERE parent_type = 'trip' AND parent_id = $1", [tripId]);
-  const actPhotosResult = await db('SELECT s3_key FROM trip_activity_photos WHERE trip_id = $1', [tripId]);
 
   const s3Keys = [
     ...docsResult.rows.map((r) => r.s3_key),
     ...photosResult.rows.map((r) => r.s3_key),
-    ...actPhotosResult.rows.map((r) => r.s3_key),
   ];
 
   if (s3Keys.length > 0) await batchDeleteFromS3(s3Keys);

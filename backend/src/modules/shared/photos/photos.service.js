@@ -3,12 +3,14 @@ const { uploadToS3, deleteFromS3, sanitiseFilename } = require('../../../utils/s
 const config = require('../../../config');
 const { v4: uuidv4 } = require('uuid');
 
-const uploadPhotos = async ({ parentType, parentId }, userId, files) => {
+const uploadPhotos = async ({ parentType, parentId }, userId, files, { activityId = null } = {}) => {
   const uploaded = [];
 
   for (const file of files) {
     const safeName = sanitiseFilename(file.originalname);
-    const s3Key = `${parentType}s/${parentId}/photos/${uuidv4()}-${safeName}`;
+    const s3Key = activityId
+      ? `${parentType}s/${parentId}/activities/${activityId}/${uuidv4()}-${safeName}`
+      : `${parentType}s/${parentId}/photos/${uuidv4()}-${safeName}`;
 
     await uploadToS3(file.buffer, s3Key, file.mimetype);
 
@@ -17,10 +19,10 @@ const uploadPhotos = async ({ parentType, parentId }, userId, files) => {
       : `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${s3Key}`;
 
     const result = await db(
-      `INSERT INTO photos (parent_type, parent_id, uploaded_by, file_url, s3_key, mime_type)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO photos (parent_type, parent_id, uploaded_by, file_url, s3_key, mime_type, activity_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [parentType, parentId, userId, fileUrl, s3Key, file.mimetype],
+      [parentType, parentId, userId, fileUrl, s3Key, file.mimetype, activityId],
     );
     uploaded.push(formatPhoto(result.rows[0]));
   }
@@ -74,6 +76,7 @@ const formatPhoto = (p) => ({
   id: p.id,
   parentType: p.parent_type,
   parentId: p.parent_id,
+  activityId: p.activity_id || null,
   uploadedBy: p.uploaded_by,
   uploaderName: p.uploader_name || null,
   fileUrl: p.file_url,
