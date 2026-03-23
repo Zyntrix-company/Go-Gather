@@ -5,7 +5,7 @@ const VALID_CATEGORIES = ['general', 'idea', 'important', 'todo'];
 // ── GET /trips/:id/notes ──────────────────────────────────────
 const getNotes = async (req, res, next) => {
   try {
-    const result = await service.getNotes(req.tripMember.tripId);
+    const result = await service.getNotes(req.tripMember.tripId, req.user.id);
     res.status(200).json(result); // { notes, total }
   } catch (e) { next(e); }
 };
@@ -88,4 +88,19 @@ const deleteNote = async (req, res, next) => {
   }
 };
 
-module.exports = { getNotes, createNote, updateNote, deleteNote };
+// ── POST /trips/:id/notes/:noteId/favorite ────────────────────
+const favoriteNote = async (req, res, next) => {
+  try {
+    const result = await service.favoriteNote(
+      req.tripMember.tripId,
+      req.params.noteId,
+      req.user.id,
+    );
+    res.status(200).json(result); // { isFavorited: bool }
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.error, message: e.message, statusCode: e.statusCode });
+    next(e);
+  }
+};
+
+module.exports = { getNotes, createNote, updateNote, deleteNote, favoriteNote };
