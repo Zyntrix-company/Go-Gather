@@ -180,6 +180,7 @@ export async function createTrip(body: {
   startDate: string;
   endDate: string;
   location: TripLocation;
+  bannerImageUrl?: string;
   reminders?: boolean;
   friendIds?: string[];
   emails?: string[];
@@ -193,7 +194,7 @@ export async function getTripDetail(tripId: string) {
   return res.data as { trip: Trip; role: 'admin' | 'member' };
 }
 
-export async function updateTrip(tripId: string, body: Partial<{ name: string; startDate: string; endDate: string; location: TripLocation }>) {
+export async function updateTrip(tripId: string, body: Partial<{ name: string; startDate: string; endDate: string; location: TripLocation; bannerImageUrl: string }>) {
   const res = await client.put(`/trips/${tripId}`, body);
   return res.data as { trip: Trip };
 }
@@ -201,6 +202,21 @@ export async function updateTrip(tripId: string, body: Partial<{ name: string; s
 export async function deleteTrip(tripId: string) {
   const res = await client.delete(`/trips/${tripId}`);
   return res.data as { success: boolean };
+}
+
+export async function archiveTrip(tripId: string) {
+  const res = await client.post(`/trips/${tripId}/archive`);
+  return res.data as { success: boolean };
+}
+
+export async function unarchiveTrip(tripId: string) {
+  const res = await client.post(`/trips/${tripId}/unarchive`);
+  return res.data as { success: boolean };
+}
+
+export async function getArchivedTrips() {
+  const res = await client.get('/trips?status=archived');
+  return res.data as { trips: Trip[] };
 }
 
 // ─── 2. Trip Members ──────────────────────────────────────────────────────────

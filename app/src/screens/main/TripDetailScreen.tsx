@@ -336,8 +336,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
           id: a.id,
           title: a.title,
           date: a.date ?? '',
-          hour: a.time ? a.time.split(':')[0] : '',
-          minute: a.time ? a.time.split(':')[1] : '',
+          hour: a.time ? String(a.time).split(':')[0] : '',
+          minute: a.time ? String(a.time).split(':')[1] : '',
           location: a.location,
           description: a.description,
           completed: false,
@@ -361,17 +361,22 @@ export default function TripDetailScreen({ route, navigation }: any) {
           getExpenses(tripId),
           getBalances(tripId),
         ]);
-        setExpenses(expRes.expenses.map(e => ({
-          id: e.id,
-          description: e.description,
-          amount: parseFloat(e.amount),
-          category: e.category ?? 'General',
-          paidBy: e.paidBy,
-          splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
-          splitAmong: e.splits.map(s => s.userId),
-          date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
-          createdBy: e.paidBy,
-        })));
+        setExpenses(expRes.expenses.map(e => {
+          const paidByStr = typeof e.paidBy === 'object' && e.paidBy !== null
+            ? (e.paidBy as any).name ?? (e.paidBy as any).fullName ?? (e.paidBy as any).userId ?? 'Unknown'
+            : String(e.paidBy ?? 'Unknown');
+          return {
+            id: e.id,
+            description: e.description,
+            amount: parseFloat(e.amount),
+            category: e.category ?? 'General',
+            paidBy: paidByStr,
+            splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
+            splitAmong: e.splits.map((s: any) => s.userId),
+            date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
+            createdBy: paidByStr,
+          };
+        }));
         setBalances(balRes.debts);
         setMyBalance(balRes.myBalance);
         setTotalExpenses(balRes.totalExpenses);
@@ -469,7 +474,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   // ── Derived ──
   const days        = trip?.startDateISO ? daysUntilISO(trip.startDateISO) : 0;
-  const upcoming    = activities.filter((a: any) => !a.completed);
+  const todayMidnight = (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+  const tomorrowMidnight = (() => { const d = new Date(todayMidnight); d.setDate(d.getDate()+1); return d; })();
+  const activeActs   = activities.filter(a => { if (!a.date) return false; const d = new Date(a.date); d.setHours(0,0,0,0); return d.getTime() === todayMidnight.getTime(); });
+  const upcomingActs = activities.filter(a => { if (!a.date) return true; const d = new Date(a.date); d.setHours(0,0,0,0); return d.getTime() >= tomorrowMidnight.getTime(); });
+  const pastActs     = activities.filter(a => { if (!a.date) return false; const d = new Date(a.date); d.setHours(0,0,0,0); return d.getTime() < todayMidnight.getTime(); });
+  const upcoming    = upcomingActs; // keep alias for existing code
   const completed   = activities.filter((a: any) => !!a.completed);
   const totalExp    = expenses.reduce((s, e) => s + e.amount, 0);
   const memberCount = members.length;
@@ -528,8 +538,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
           id: a.id,
           title: a.title,
           date: a.date ?? '',
-          hour: a.time ? a.time.split(':')[0] : '',
-          minute: a.time ? a.time.split(':')[1] : '',
+          hour: a.time ? String(a.time).split(':')[0] : '',
+          minute: a.time ? String(a.time).split(':')[1] : '',
           location: a.location,
           description: a.description,
           completed: false,
@@ -607,15 +617,37 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── Doc handlers (API-backed) ──
 
   function handleUploadDoc() {
-    launchImageLibrary({ mediaType: 'mixed', selectionLimit: 1 }, async res => {
-      if (res.didCancel || res.errorCode) return;
-      const asset = res.assets?.[0];
-      if (!asset?.uri) return;
-      try {
-        const data = await uploadDoc(tripId, { uri: asset.uri, type: asset.type, name: asset.fileName ?? 'document' });
-        setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: data.doc.fileUrl, uploadedBy: data.doc.uploadedBy }]);
-      } catch (err) { handleApiError(err); }
-    });
+    Alert.alert('Upload Document', 'Choose source', [
+      {
+        text: 'Gallery / Photos',
+        onPress: () => {
+          launchImageLibrary({ mediaType: 'mixed', selectionLimit: 1 }, async res => {
+            if (res.didCancel || res.errorCode) return;
+            const asset = res.assets?.[0];
+            if (!asset?.uri) return;
+            try {
+              const data = await uploadDoc(tripId, { uri: asset.uri, type: asset.type, name: asset.fileName ?? 'document' });
+              setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: data.doc.fileUrl, uploadedBy: data.doc.uploadedBy }]);
+            } catch (err) { handleApiError(err); }
+          });
+        },
+      },
+      {
+        text: 'Files (PDF, Word, etc.)',
+        onPress: () => {
+          launchImageLibrary({ mediaType: 'mixed', selectionLimit: 1, includeBase64: false }, async res => {
+            if (res.didCancel || res.errorCode) return;
+            const asset = res.assets?.[0];
+            if (!asset?.uri) return;
+            try {
+              const data = await uploadDoc(tripId, { uri: asset.uri, type: asset.type ?? 'application/octet-stream', name: asset.fileName ?? 'document' });
+              setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: data.doc.fileUrl, uploadedBy: data.doc.uploadedBy }]);
+            } catch (err) { handleApiError(err); }
+          });
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   }
 
   async function handleDeleteDoc(docId: string, uploadedBy: string) {
@@ -670,10 +702,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
         'General': 'general', 'Food & Dining': 'food', 'Transport': 'transportation',
         'Stay': 'accommodation', 'Entertainment': 'entertainment', 'Shopping': 'shopping', 'Other': 'other',
       };
+      const payerId = expPaidBy === 'You' ? currentUserId : (members.find(m => m.fullName === expPaidBy)?.userId ?? currentUserId);
       const body = {
         description: expDesc.trim(),
         amount,
         category: catMap[expCategory.label] ?? 'general',
+        paidBy: payerId,
         splitType: apiSplitType as 'equal' | 'amount' | 'percentage',
         splitAmong: splitAmong.length ? splitAmong : [{ userId: currentUserId }],
       };
@@ -691,13 +725,16 @@ export default function TripDetailScreen({ route, navigation }: any) {
         res = await createExpense(tripId, body);
         const exp = res.expense;
         const d = new Date(exp.createdAt);
+        const expPaidByStr = typeof exp.paidBy === 'object' && exp.paidBy !== null
+          ? (exp.paidBy as any).name ?? (exp.paidBy as any).fullName ?? (exp.paidBy as any).userId ?? 'Unknown'
+          : String(exp.paidBy ?? 'Unknown');
         setExpenses(p => [...p, {
           id: exp.id, description: exp.description, amount: parseFloat(exp.amount),
-          category: exp.category ?? 'general', paidBy: exp.paidBy,
+          category: exp.category ?? 'general', paidBy: expPaidByStr,
           splitType: exp.splitType === 'equal' ? 'equally' : exp.splitType === 'percentage' ? 'percent' : 'amount',
           splitAmong: exp.splits.map((s: any) => s.userId),
           date: `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`,
-          createdBy: exp.paidBy,
+          createdBy: expPaidByStr,
         }]);
       }
       if (res.balances) {
@@ -996,17 +1033,49 @@ export default function TripDetailScreen({ route, navigation }: any) {
           </View>
         </View>
 
+        {/* ── Active Activities (Today) ── */}
+        {activeActs.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Active Activities</Text>
+            <View>
+              {activeActs.map(act => (
+                <View key={act.id} style={[styles.actRow, { borderLeftWidth: 3, borderLeftColor: '#0d9488' }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.actTitle}>{act.title}</Text>
+                    {!!(act.date || act.hour) && <Text style={styles.actMeta}>{act.date}{act.hour ? ` · ${act.hour}:${act.minute || '00'}` : ''}</Text>}
+                    {!!act.location && <Text style={styles.actMeta}>{act.location}</Text>}
+                  </View>
+                  <TouchableOpacity onPress={() => startEditActivity(act)} style={[styles.doneBtn, { marginLeft: 4 }]} activeOpacity={0.7}>
+                    <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+                      <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setActivities(p => p.map(a => a.id === act.id ? { ...a, completed: true } : a))} style={styles.doneBtn} activeOpacity={0.7}>
+                    <Text style={styles.doneTxt}>Done</Text>
+                  </TouchableOpacity>
+                  {(role === 'admin' || (act as any).createdBy === currentUserId) && (
+                    <TouchableOpacity onPress={() => handleDeleteActivity(act.id)} style={styles.trashBtn} activeOpacity={0.7}>
+                      <TrashIcon />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* ── Upcoming Activities ── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Upcoming Activities</Text>
-          {upcoming.length === 0 ? (
+          {upcomingActs.length === 0 ? (
             <View style={styles.emptyBox}>
               <Text style={styles.emptyTitle}>No upcoming activities</Text>
               <Text style={styles.emptySub}>Tap "Add Activities" to create your first activity</Text>
             </View>
           ) : (
             <View>
-              {upcoming.map(act => (
+              {upcomingActs.map(act => (
                 <View key={act.id} style={styles.actRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.actTitle}>{act.title}</Text>
@@ -1032,6 +1101,29 @@ export default function TripDetailScreen({ route, navigation }: any) {
             </View>
           )}
         </View>
+
+        {/* ── Past Activities ── */}
+        {pastActs.length > 0 && (
+          <View style={styles.section}>
+            <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => setShowCompleted(p => !p)} activeOpacity={0.7}>
+              <Text style={styles.sectionTitleDark}>Past Activities</Text>
+              {showCompleted ? <ChevUp /> : <ChevDown />}
+            </TouchableOpacity>
+            {showCompleted && pastActs.map(act => (
+              <View key={act.id} style={[styles.actRow, { opacity: 0.6 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.actTitle, { textDecorationLine: 'line-through' }]}>{act.title}</Text>
+                  {!!(act.date || act.hour) && <Text style={styles.actMeta}>{act.date}{act.hour ? ` · ${act.hour}:${act.minute || '00'}` : ''}</Text>}
+                </View>
+                {(role === 'admin' || (act as any).createdBy === currentUserId) && (
+                  <TouchableOpacity onPress={() => handleDeleteActivity(act.id)} style={styles.trashBtn} activeOpacity={0.7}>
+                    <TrashIcon />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* ── Completed Activities ── */}
         <View style={styles.section}>
