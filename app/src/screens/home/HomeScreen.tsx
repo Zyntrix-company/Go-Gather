@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -675,9 +676,14 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
       },
       (err) => {
         setFetchingLocation(false);
-        Alert.alert('Location Error', err.message || 'Could not get location. Please type it manually.');
+        const msg = err.message || '';
+        if (msg.includes('provider') || msg.includes('No location') || msg.includes('disabled')) {
+          Alert.alert('Location Unavailable', 'Please enable GPS / Location Services on your device, then try again. Or type your location manually.');
+        } else {
+          Alert.alert('Location Error', 'Could not get location. Please type it manually.');
+        }
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 120000 }
     );
   }
 
@@ -1134,10 +1140,13 @@ export default function HomeScreen({ navigation }: any) {
     return () => clearInterval(timer);
   }, []);
 
-  // Load trips on mount
-  useEffect(() => {
-    loadTrips(1, true);
-  }, []);
+  // Load trips on mount AND every time the screen comes back into focus
+  // (so edits made in TripDetailScreen are reflected immediately)
+  useFocusEffect(
+    useCallback(() => {
+      loadTrips(1, true);
+    }, [])
+  );
 
   async function loadTrips(page: number = 1, replace: boolean = false) {
     if (isLoadingTrips) return;
@@ -1309,6 +1318,11 @@ export default function HomeScreen({ navigation }: any) {
         <>
           <View style={styles.sectionRow}>
             <Text style={styles.sectionTitle}>Active Trips</Text>
+            {ongoing.length > 1 && (
+              <TouchableOpacity onPress={() => setActiveTab('trips')} activeOpacity={0.7}>
+                <Text style={styles.seeAll}>See All</Text>
+              </TouchableOpacity>
+            )}
           </View>
           {ongoing.slice(0, 1).map(trip => (
             <TripCardFull

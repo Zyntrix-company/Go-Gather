@@ -262,12 +262,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [actTitle,          setActTitle]          = useState('');
   const [actDate,           setActDate]           = useState<Date | undefined>(undefined);
   const [showActDatePicker, setShowActDatePicker] = useState(false);
-  const [actHour,           setActHour]           = useState('');
-  const [actMin,            setActMin]            = useState('');
+  const [actHour,           setActHour]           = useState(''); // kept for edit-load compat
+  const [actMin,            setActMin]            = useState(''); // kept for edit-load compat
   const [actLocation,       setActLocation]       = useState('');
   const [actDesc,           setActDesc]           = useState('');
-  const [showHourDrop,      setShowHourDrop]      = useState(false);
-  const [showMinDrop,       setShowMinDrop]       = useState(false);
+  const [showTimePicker,    setShowTimePicker]    = useState(false);
+  const [actTime,           setActTime]           = useState<Date | undefined>(undefined);
   // ── Activity inline expense ──
   const [showActExp,        setShowActExp]        = useState(false);
   const [actExpDesc,        setActExpDesc]        = useState('');
@@ -497,7 +497,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   // ── Handlers ──
   function resetActForm() {
-    setActTitle(''); setActDate(undefined); setActHour(''); setActMin('');
+    setActTitle(''); setActDate(undefined); setActHour(''); setActMin(''); setActTime(undefined);
     setActLocation(''); setActDesc(''); setShowActExp(false); setActPhotos([]);
     setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATS[0]);
     setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']);
@@ -511,7 +511,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const timeStr = (actHour && actMin) ? `${actHour}:${actMin}` : undefined;
+      const timeHr = actTime ? String(actTime.getHours()).padStart(2,'0') : actHour;
+      const timeMin = actTime ? String(actTime.getMinutes()).padStart(2,'0') : actMin;
+      const timeStr = (timeHr && timeMin) ? `${timeHr}:${timeMin}` : undefined;
       const dateStr = actDate ? actDate.toISOString().split('T')[0] : undefined;
       if (editingActivityId) {
         const res = await updateActivity(tripId, editingActivityId, {
@@ -570,10 +572,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
     setActDate(undefined);
     setActHour((act as any).hour ?? '');
     setActMin((act as any).minute ?? '');
+    // Build a Date for the time picker from stored hour/min
+    const h = parseInt((act as any).hour ?? '0'); const m = parseInt((act as any).minute ?? '0');
+    if (!isNaN(h)) { const t = new Date(); t.setHours(h, isNaN(m) ? 0 : m, 0, 0); setActTime(t); } else { setActTime(undefined); }
     setActLocation(act.location || '');
     setActDesc(act.description || '');
     setEditingActivityId(act.id);
-    setShowHourDrop(false); setShowMinDrop(false); setShowActExp(false);
+    setShowTimePicker(false); setShowActExp(false);
     setShowAddAct(true);
   }
 
@@ -717,7 +722,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         'General': 'general', 'Food & Dining': 'food', 'Transport': 'transportation',
         'Stay': 'accommodation', 'Entertainment': 'entertainment', 'Shopping': 'shopping', 'Other': 'other',
       };
-      const payerId = expPaidBy === 'You' ? currentUserId : (members.find(m => m.fullName === expPaidBy)?.userId ?? currentUserId);
+      const payerId = expPaidBy === 'You' ? currentUserId : (members.find(m => (m.fullName || (m as any).name) === expPaidBy)?.userId ?? currentUserId);
       const body = {
         description: expDesc.trim(),
         amount,
@@ -1213,52 +1218,28 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </View>
                   <View style={{ flex: 2 }}>
                     <Text style={styles.fLabel}>Time</Text>
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                      {/* Hour dropdown */}
-                      <View style={{ flex: 1, zIndex: showHourDrop ? 20 : 1 }}>
-                        <TouchableOpacity
-                          style={[styles.fInputTouch, showHourDrop && { borderColor: '#0d9488' }]}
-                          onPress={() => { setShowHourDrop(p => !p); setShowMinDrop(false); }}
-                          activeOpacity={0.8}>
-                          <Text style={{ fontSize: 13, color: actHour ? '#0f172a' : '#94a3b8', textAlign: 'center' }}>{actHour || 'Hr'}</Text>
-                        </TouchableOpacity>
-                        {showHourDrop && (
-                          <View style={[styles.dropdown, { position: 'absolute', top: 42, left: 0, right: 0, maxHeight: 160, zIndex: 100, elevation: 10 }]}>
-                            <View style={[styles.dropdownItem, { borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }]}>
-                              <Text style={{ fontSize: 12, color: '#94a3b8', fontWeight: '600' }}>Hour</Text>
-                            </View>
-                            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} style={{ maxHeight: 120 }}>
-                              {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => (
-                                <TouchableOpacity key={h} style={styles.dropdownItem} onPress={() => { setActHour(h); setShowHourDrop(false); }} activeOpacity={0.7}>
-                                  <Text style={{ fontSize: 13, color: actHour === h ? '#0d9488' : '#0f172a', fontWeight: actHour === h ? '700' : '400' }}>{h}</Text>
-                                </TouchableOpacity>
-                              ))}
-                            </ScrollView>
-                          </View>
-                        )}
-                      </View>
-                      {/* Min dropdown */}
-                      <View style={{ flex: 1, zIndex: showMinDrop ? 20 : 1 }}>
-                        <TouchableOpacity
-                          style={[styles.fInputTouch, showMinDrop && { borderColor: '#0d9488' }]}
-                          onPress={() => { setShowMinDrop(p => !p); setShowHourDrop(false); }}
-                          activeOpacity={0.8}>
-                          <Text style={{ fontSize: 13, color: actMin ? '#0f172a' : '#94a3b8', textAlign: 'center' }}>{actMin || 'Min'}</Text>
-                        </TouchableOpacity>
-                        {showMinDrop && (
-                          <View style={[styles.dropdown, { position: 'absolute', top: 42, left: 0, right: 0, zIndex: 100, elevation: 10 }]}>
-                            <View style={[styles.dropdownItem, { borderBottomWidth: 1, borderBottomColor: '#e2e8f0' }]}>
-                              <Text style={{ fontSize: 12, color: '#94a3b8', fontWeight: '600' }}>Min</Text>
-                            </View>
-                            {['00','15','30','45'].map(m => (
-                              <TouchableOpacity key={m} style={styles.dropdownItem} onPress={() => { setActMin(m); setShowMinDrop(false); }} activeOpacity={0.7}>
-                                <Text style={{ fontSize: 13, color: actMin === m ? '#0d9488' : '#0f172a', fontWeight: actMin === m ? '700' : '400' }}>{m}</Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
-                      </View>
-                    </View>
+                    <TouchableOpacity
+                      style={[styles.fInputTouch, showTimePicker && { borderColor: '#0d9488' }]}
+                      onPress={() => setShowTimePicker(p => !p)}
+                      activeOpacity={0.8}>
+                      <Text style={{ fontSize: 13, color: actTime ? '#0f172a' : '#94a3b8', textAlign: 'center' }}>
+                        {actTime
+                          ? `${String(actTime.getHours()).padStart(2,'0')}:${String(actTime.getMinutes()).padStart(2,'0')}`
+                          : 'Select'}
+                      </Text>
+                    </TouchableOpacity>
+                    {showTimePicker && (
+                      <DateTimePicker
+                        value={actTime ?? new Date()}
+                        mode="time"
+                        display="default"
+                        is24Hour
+                        onChange={(_: DateTimePickerEvent, d?: Date) => {
+                          setShowTimePicker(false);
+                          if (d) setActTime(d);
+                        }}
+                      />
+                    )}
                   </View>
                 </View>
 
@@ -1417,7 +1398,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       ? <Image source={{ uri: m.avatarUrl }} style={styles.memberAvatar as any} />
                       : <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>}
                     <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.memberName}>{m.fullName}{m.userId === currentUserId ? ' (You)' : ''}</Text>
+                      <Text style={styles.memberName}>{m.fullName || (m as any).name || 'Member'}{m.userId === currentUserId ? ' (You)' : ''}</Text>
                     </View>
                     {m.role === 'admin'
                       ? <View style={styles.ownerBadge}><Text style={styles.ownerTxt}>Admin</Text></View>
@@ -1584,7 +1565,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       </TouchableOpacity>
                       {showPaidByDrop && (
                         <View style={styles.dropdown}>
-                          {['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.fullName)].map(name => (
+                          {['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.fullName || (m as any).name || 'Member')].map(name => (
                             <TouchableOpacity key={name} style={styles.dropdownItem} onPress={() => { setExpPaidBy(name); setShowPaidByDrop(false); }} activeOpacity={0.7}>
                               <Text style={{ fontSize: 13, color: '#0f172a' }}>{name}</Text>
                             </TouchableOpacity>
@@ -1622,7 +1603,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           <View style={[styles.splitCheck, expSplitAmong.includes(m.userId) && styles.splitCheckActive]}>
                             {expSplitAmong.includes(m.userId) && <CheckIcon />}
                           </View>
-                          <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName}</Text>
+                          <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName || (m as any).name || 'Member'}</Text>
                           {expSplitType !== 'equally' && (
                             <TextInput
                               style={[styles.fInput, { width: 72, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]}
