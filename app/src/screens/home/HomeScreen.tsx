@@ -29,10 +29,12 @@ import useAuth from '../../hooks/useAuth';
 import {
   getTrips,
   createTrip as apiCreateTrip,
+  updateTrip as apiUpdateTrip,
   deleteTrip as apiDeleteTrip,
   archiveTrip as archiveTripApi,
   unarchiveTrip as unarchiveTripApi,
   getArchivedTrips,
+  uploadTripPhotos,
   getFriends,
   handleApiError,
 } from '../../api/trips.api';
@@ -720,7 +722,12 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
             <Text style={styles.ctLabel}>Banner Image</Text>
             <TouchableOpacity
               style={{ width: '100%', height: 140, borderRadius: 12, backgroundColor: '#f1f5f9', overflow: 'hidden', marginBottom: 14, alignItems: 'center', justifyContent: 'center', borderWidth: bannerImageUri ? 0 : 1, borderColor: '#e2e8f0', borderStyle: 'dashed' }}
-              onPress={() => launchImageLibrary({ mediaType: 'photo', selectionLimit: 1 }, res => {
+              onPress={() => launchImageLibrary({
+                mediaType: 'photo',
+                selectionLimit: 1,
+                includeBase64: false,
+                presentationStyle: 'fullScreen',
+              }, res => {
                 if (res.didCancel || res.errorCode) return;
                 const uri = res.assets?.[0]?.uri;
                 if (uri) setBannerImageUri(uri);
@@ -1750,16 +1757,32 @@ export default function HomeScreen({ navigation }: any) {
           visible={showCreateTrip}
           onClose={() => setShowCreateTrip(false)}
           onSave={async (data: any) => {
+            // Step 1: Create trip without bannerImageUrl (local URIs are rejected by API)
             const res = await apiCreateTrip({
               name: data.name,
               startDate: data.startDateISO ?? data.startDate ?? '',
               endDate: data.endDateISO ?? data.endDate ?? '',
               location: { name: data.location || 'TBD' },
-              bannerImageUrl: data.bannerImageUrl,
               friendIds: data.friendIds?.length ? data.friendIds : undefined,
               emails: data.inviteEmail ? [data.inviteEmail] : undefined,
             });
-            setTrips(p => [mapApiTrip(res.trip), ...p]);
+            let newTrip = res.trip;
+            // Step 2: If banner image selected, upload it and update trip with CDN URL
+            if (data.bannerImageUrl && data.bannerImageUrl.startsWith('file')) {
+              try {
+                const photoRes = await uploadTripPhotos(newTrip.id, [{
+                  uri: data.bannerImageUrl,
+                  type: 'image/jpeg',
+                  name: 'banner.jpg',
+                }]);
+                const cdnUrl = photoRes.photos?.[0]?.url;
+                if (cdnUrl) {
+                  const updated = await apiUpdateTrip(newTrip.id, { bannerImageUrl: cdnUrl });
+                  newTrip = updated.trip;
+                }
+              } catch { /* banner upload failed — trip still created */ }
+            }
+            setTrips(p => [mapApiTrip(newTrip), ...p]);
           }}
         />
       </SafeAreaView>
