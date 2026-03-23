@@ -167,6 +167,14 @@ const TRAVEL_INSIGHTS = [
 
 // ─── Date Helpers ─────────────────────────────────────────────────────────────
 
+function parseLocalDate(iso: string): Date {
+  if (!iso) return new Date(0);
+  const parts = iso.split('-');
+  if (parts.length !== 3) return new Date(0);
+  // Use local time to avoid UTC offset shifting the date
+  return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+}
+
 function categorizeTrips(trips: Trip[]) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -174,8 +182,9 @@ function categorizeTrips(trips: Trip[]) {
   const ongoing: Trip[] = [];
   const past: Trip[] = [];
   for (const trip of trips) {
-    const start = new Date(trip.startDateISO);
-    const end = new Date(trip.endDateISO);
+    const start = parseLocalDate(trip.startDateISO);
+    const end = parseLocalDate(trip.endDateISO);
+    if (!trip.startDateISO || !trip.endDateISO) { upcoming.push(trip); continue; }
     if (end < today) past.push(trip);
     else if (start <= today && end >= today) ongoing.push(trip);
     else upcoming.push(trip);
@@ -1140,11 +1149,24 @@ export default function HomeScreen({ navigation }: any) {
     if (isLoadingTrips) return;
     setIsLoadingTrips(true);
     try {
-      const data = await getTrips({ page, limit: 20 });
-      const mapped = data.trips.map(mapApiTrip);
-      setTrips(prev => replace ? mapped : [...prev, ...mapped]);
+      // Fetch all statuses in parallel so we get every trip regardless of status
+      const [upcomingRes, ongoingRes, pastRes] = await Promise.allSettled([
+        getTrips({ status: 'upcoming', page, limit: 50 }),
+        getTrips({ status: 'ongoing', page, limit: 50 }),
+        getTrips({ status: 'past', page, limit: 50 }),
+      ]);
+      const allTrips: any[] = [];
+      const seenIds = new Set<string>();
+      for (const res of [upcomingRes, ongoingRes, pastRes]) {
+        if (res.status === 'fulfilled') {
+          for (const t of res.value.trips) {
+            if (!seenIds.has(t.id)) { seenIds.add(t.id); allTrips.push(t); }
+          }
+        }
+      }
+      const mapped = allTrips.map(mapApiTrip);
+      setTrips(prev => replace ? mapped : [...prev.filter(p => !seenIds.has(p.id)), ...mapped]);
       setTripsPage(page);
-      setHasMoreTrips(data.trips.length === 20);
     } catch (err) {
       handleApiError(err);
     } finally {
