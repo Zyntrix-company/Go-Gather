@@ -30,9 +30,13 @@ import {
   getTrips,
   createTrip as apiCreateTrip,
   deleteTrip as apiDeleteTrip,
+  archiveTrip as archiveTripApi,
+  unarchiveTrip as unarchiveTripApi,
+  getArchivedTrips,
   getFriends,
   handleApiError,
 } from '../../api/trips.api';
+import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -49,6 +53,7 @@ type Trip = {
   fullStartDate: string;    // "15 May 2026"
   fullEndDate: string;
   image: any;
+  bannerImageUrl?: string | null;
   members: { id: string; uri: string }[];
   extraMembers: number;
 };
@@ -330,7 +335,10 @@ function TripCardFull({ trip, onPress, showMenu, onToggleMenu, onArchive, onDele
     <View style={{ marginBottom: 18, zIndex: showMenu ? 100 : 1 }}>
       <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
         <View style={styles.cardMedia}>
-          <Image source={trip.image} style={styles.cardImage as any} />
+          {trip.bannerImageUrl
+            ? <Image source={{ uri: trip.bannerImageUrl }} style={styles.cardImage as any} resizeMode="cover" />
+            : <Image source={trip.image} style={styles.cardImage as any} resizeMode="cover" />
+          }
           {isOngoing && (
             <View style={styles.ongoingBadge}>
               <Text style={styles.ongoingBadgeText}>Ongoing</Text>
@@ -398,7 +406,10 @@ function TripCardPast({ trip, onPress, showMenu, onToggleMenu, onArchive, onDele
   return (
     <View style={{ marginBottom: 10, zIndex: showMenu ? 100 : 1 }}>
       <TouchableOpacity style={styles.pastCard} onPress={onPress} activeOpacity={0.85}>
-        <Image source={trip.image} style={styles.pastCardImage as any} />
+        {trip.bannerImageUrl
+          ? <Image source={{ uri: trip.bannerImageUrl }} style={styles.pastCardImage as any} resizeMode="cover" />
+          : <Image source={trip.image} style={styles.pastCardImage as any} resizeMode="cover" />
+        }
         <View style={styles.pastCardInfo}>
           <Text style={styles.pastCardTitle} numberOfLines={1}>{trip.name}</Text>
           <View style={styles.infoItem}>
@@ -491,20 +502,32 @@ function EventCard({ event, onPress, onMore }: any) {
 
 function fmtDisplayDate(iso: string): string {
   if (!iso) return 'TBD';
-  const d = new Date(iso + 'T00:00:00');
+  // Handle both "YYYY-MM-DD" and ISO datetime strings
+  const clean = iso.includes('T') ? iso.split('T')[0] : iso;
+  const parts = clean.split('-');
+  if (parts.length !== 3) return 'TBD';
+  const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  if (isNaN(d.getTime())) return 'TBD';
   return `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`;
 }
 function fmtFullDate(iso: string): string {
   if (!iso) return 'TBD';
-  const d = new Date(iso + 'T00:00:00');
+  const clean = iso.includes('T') ? iso.split('T')[0] : iso;
+  const parts = clean.split('-');
+  if (parts.length !== 3) return 'TBD';
+  const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  if (isNaN(d.getTime())) return 'TBD';
   return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} ${d.getFullYear()}`;
 }
 function mapApiTrip(t: any): Trip {
   const locName = typeof t.location === 'string'
     ? t.location
     : (t.location?.name ?? '');
-  const s: string = t.startDate ?? '';
-  const e: string = t.endDate ?? '';
+  // API may return full ISO datetime or just YYYY-MM-DD — normalize to YYYY-MM-DD
+  const rawS: string = t.startDate ?? '';
+  const rawE: string = t.endDate ?? '';
+  const s = rawS.includes('T') ? rawS.split('T')[0] : rawS;
+  const e = rawE.includes('T') ? rawE.split('T')[0] : rawE;
   return {
     id: t.id,
     name: t.name,
@@ -516,6 +539,7 @@ function mapApiTrip(t: any): Trip {
     fullStartDate: fmtFullDate(s),
     fullEndDate: fmtFullDate(e),
     image: require('../../assets/images/goa_beach.png'),
+    bannerImageUrl: t.bannerImageUrl ?? null,
     members: [],
     extraMembers: Math.max(0, (t.memberCount ?? 1) - 1),
   };
@@ -549,6 +573,7 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
   const [friendSearch, setFriendSearch] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [fetchingLocation, setFetchingLocation] = useState(false);
+  const [bannerImageUri, setBannerImageUri] = useState<string | undefined>(undefined);
 
   function formatDate(d: Date | undefined): string {
     if (!d) return '';
@@ -564,6 +589,7 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
     setShowStartPicker(false); setShowEndPicker(false);
     setReminders(false); setUploadedDocs([]); setSelectedFriendIds([]);
     setFriendSearch(''); setInviteEmail('');
+    setBannerImageUri(undefined);
   }
 
   async function handleSave() {
@@ -579,6 +605,7 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
         endDateISO: endDateObj ? endDateObj.toISOString().split('T')[0] : undefined,
         friendIds: selectedFriendIds,
         inviteEmail: inviteEmail.trim() || undefined,
+        bannerImageUrl: bannerImageUri,
       });
       reset();
       onClose();
@@ -689,6 +716,41 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
           {/* ── Scrollable Fields ── */}
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.ctScrollContent}>
 
+            {/* Banner Image */}
+            <Text style={styles.ctLabel}>Banner Image</Text>
+            <TouchableOpacity
+              style={{ width: '100%', height: 140, borderRadius: 12, backgroundColor: '#f1f5f9', overflow: 'hidden', marginBottom: 14, alignItems: 'center', justifyContent: 'center', borderWidth: bannerImageUri ? 0 : 1, borderColor: '#e2e8f0', borderStyle: 'dashed' }}
+              onPress={() => launchImageLibrary({ mediaType: 'photo', selectionLimit: 1 }, res => {
+                if (res.didCancel || res.errorCode) return;
+                const uri = res.assets?.[0]?.uri;
+                if (uri) setBannerImageUri(uri);
+              })}
+              activeOpacity={0.8}
+            >
+              {bannerImageUri ? (
+                <>
+                  <Image source={{ uri: bannerImageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  <TouchableOpacity
+                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4 }}
+                    onPress={() => setBannerImageUri(undefined)}
+                  >
+                    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                      <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={{ alignItems: 'center', gap: 6 }}>
+                  <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
+                    <Rect x={3} y={3} width={18} height={18} rx={2} ry={2} stroke="#94a3b8" strokeWidth={2} />
+                    <Circle cx={8.5} cy={8.5} r={1.5} fill="#94a3b8" />
+                    <Path d="M21 15l-5-5L5 21" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                  <Text style={{ color: '#94a3b8', fontSize: 13 }}>Tap to add banner photo</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
             {/* Trip Name */}
             <Text style={styles.ctLabel}>Trip Name</Text>
             <TextInput style={styles.ctInput} placeholder="e.g., Tokyo Getaway" placeholderTextColor="#94a3b8" value={name} onChangeText={setName} />
@@ -727,7 +789,6 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
                 value={startDateObj || new Date()}
                 mode="date"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                minimumDate={new Date()}
                 onChange={(event: DateTimePickerEvent, date?: Date) => {
                   if (Platform.OS === 'android') setShowStartPicker(false);
                   if (event.type === 'set' && date) setStartDateObj(date);
@@ -745,7 +806,6 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
                 value={endDateObj || startDateObj || new Date()}
                 mode="date"
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                minimumDate={startDateObj || new Date()}
                 onChange={(event: DateTimePickerEvent, date?: Date) => {
                   if (Platform.OS === 'android') setShowEndPicker(false);
                   if (event.type === 'set' && date) setEndDateObj(date);
@@ -1040,6 +1100,8 @@ export default function HomeScreen({ navigation }: any) {
   const [tripsPage, setTripsPage] = useState(1);
   const [hasMoreTrips, setHasMoreTrips] = useState(false);
   const [events] = useState(MOCK_EVENTS);
+  const [archivedTrips, setArchivedTrips] = useState<Trip[]>([]);
+  const [showArchivedSection, setShowArchivedSection] = useState(false);
   const [insightIndex, setInsightIndex] = useState(0);
   const insightRef = useRef<FlatList>(null);
   const [avatarError, setAvatarError] = useState(false);
@@ -1100,7 +1162,24 @@ export default function HomeScreen({ navigation }: any) {
 
   function archiveTrip(trip: Trip) {
     setShowTripMenu(null);
-    Alert.alert('Archive Trip', `"${trip.name}" has been archived.`);
+    Alert.alert(
+      'Archive Trip',
+      `Archive "${trip.name}"? It will be moved to the Archived section.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Archive', onPress: async () => {
+            try {
+              await archiveTripApi(trip.id);
+              setTrips(p => p.filter(t => t.id !== trip.id));
+              Toast.show({ type: 'success', text1: 'Trip Archived', text2: `"${trip.name}" moved to archive.` });
+            } catch (err) {
+              handleApiError(err);
+            }
+          },
+        },
+      ],
+    );
   }
 
   function deleteTrip(trip: Trip) {
@@ -1215,18 +1294,13 @@ export default function HomeScreen({ navigation }: any) {
         {/* No dots — use arrow buttons only */}
       </View>
 
-      {/* Upcoming Trips — shown only if user has any */}
-      {upcoming.length > 0 && (
+      {/* Ongoing / Active Trips — shown first */}
+      {ongoing.length > 0 && (
         <>
           <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>Upcoming Trips</Text>
-            {upcoming.length > 1 && (
-              <TouchableOpacity onPress={() => setActiveTab('trips')} activeOpacity={0.7}>
-                <Text style={styles.seeAll}>See All</Text>
-              </TouchableOpacity>
-            )}
+            <Text style={styles.sectionTitle}>Active Trips</Text>
           </View>
-          {upcoming.slice(0, 1).map(trip => (
+          {ongoing.slice(0, 1).map(trip => (
             <TripCardFull
               key={trip.id}
               trip={trip}
@@ -1240,13 +1314,18 @@ export default function HomeScreen({ navigation }: any) {
         </>
       )}
 
-      {/* Ongoing / Active Trips */}
-      {ongoing.length > 0 && (
+      {/* Upcoming Trips */}
+      {upcoming.length > 0 && (
         <>
           <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>Active Trips</Text>
+            <Text style={styles.sectionTitle}>Upcoming Trips</Text>
+            {upcoming.length > 1 && (
+              <TouchableOpacity onPress={() => setActiveTab('trips')} activeOpacity={0.7}>
+                <Text style={styles.seeAll}>See All</Text>
+              </TouchableOpacity>
+            )}
           </View>
-          {ongoing.slice(0, 1).map(trip => (
+          {upcoming.slice(0, 1).map(trip => (
             <TripCardFull
               key={trip.id}
               trip={trip}
@@ -1303,11 +1382,11 @@ export default function HomeScreen({ navigation }: any) {
             <Text style={styles.tripsListSub}>Manage all your adventures</Text>
           </View>
 
-          {/* UPCOMING */}
-          {upcoming.length > 0 && (
+          {/* ACTIVE / ONGOING */}
+          {ongoing.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>UPCOMING</Text>
-              {upcoming.map(trip => (
+              <Text style={styles.sectionLabel}>ACTIVE</Text>
+              {ongoing.map(trip => (
                 <TripCardFull
                   key={trip.id}
                   trip={trip}
@@ -1321,11 +1400,11 @@ export default function HomeScreen({ navigation }: any) {
             </>
           )}
 
-          {/* ACTIVE / ONGOING */}
-          {ongoing.length > 0 && (
+          {/* UPCOMING */}
+          {upcoming.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>ACTIVE</Text>
-              {ongoing.map(trip => (
+              <Text style={styles.sectionLabel}>UPCOMING</Text>
+              {upcoming.map(trip => (
                 <TripCardFull
                   key={trip.id}
                   trip={trip}
@@ -1355,6 +1434,42 @@ export default function HomeScreen({ navigation }: any) {
                 />
               ))}
             </>
+          )}
+
+          {/* ARCHIVED */}
+          {showArchivedSection && archivedTrips.length > 0 && (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
+                <Text style={styles.sectionLabel}>ARCHIVED</Text>
+                <TouchableOpacity onPress={() => setShowArchivedSection(false)}>
+                  <Text style={{ fontSize: 12, color: '#94a3b8' }}>Hide</Text>
+                </TouchableOpacity>
+              </View>
+              {archivedTrips.map(trip => (
+                <View key={trip.id} style={{ marginBottom: 10 }}>
+                  <TripCardPast
+                    trip={trip}
+                    onPress={() => navigateToTrip(trip)}
+                    showMenu={showTripMenu === trip.id}
+                    onToggleMenu={() => toggleTripMenu(trip.id)}
+                    onArchive={async () => {
+                      try {
+                        await unarchiveTripApi(trip.id);
+                        setArchivedTrips(p => p.filter(t => t.id !== trip.id));
+                        loadTrips(1, true);
+                        Toast.show({ type: 'success', text1: 'Unarchived', text2: `"${trip.name}" restored.` });
+                      } catch (err) { handleApiError(err); }
+                    }}
+                    onDelete={() => deleteTrip(trip)}
+                  />
+                </View>
+              ))}
+            </>
+          )}
+          {showArchivedSection && archivedTrips.length === 0 && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateSubtitle}>No archived trips.</Text>
+            </View>
           )}
         </>
       )}
@@ -1577,6 +1692,21 @@ export default function HomeScreen({ navigation }: any) {
           <Text style={styles.dropdownItemText}>Settings</Text>
         </TouchableOpacity>
         <View style={styles.dropdownDivider} />
+        <TouchableOpacity style={styles.dropdownItem} onPress={async () => {
+          setShowProfileMenu(false);
+          try {
+            const data = await getArchivedTrips();
+            setArchivedTrips(data.trips.map(mapApiTrip));
+            setShowArchivedSection(true);
+            setActiveTab('trips');
+          } catch (err) { handleApiError(err); }
+        }}>
+          <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+            <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          </Svg>
+          <Text style={styles.dropdownItemText}>Archived Trips</Text>
+        </TouchableOpacity>
+        <View style={styles.dropdownDivider} />
         <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); logout(); }}>
           <LogoutIcon />
           <Text style={[styles.dropdownItemText, styles.logoutLabel]}>Logout</Text>
@@ -1625,6 +1755,7 @@ export default function HomeScreen({ navigation }: any) {
               startDate: data.startDateISO ?? data.startDate ?? '',
               endDate: data.endDateISO ?? data.endDate ?? '',
               location: { name: data.location || 'TBD' },
+              bannerImageUrl: data.bannerImageUrl,
               friendIds: data.friendIds?.length ? data.friendIds : undefined,
               emails: data.inviteEmail ? [data.inviteEmail] : undefined,
             });
