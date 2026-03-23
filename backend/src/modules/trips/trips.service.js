@@ -30,6 +30,8 @@ const formatTrip = (t) => ({
     lng: t.location_lng ? parseFloat(t.location_lng) : null,
   },
   coverPhotoUrl: t.cover_photo_url,
+  bannerImageUrl: t.banner_image_url || null,
+  archivedAt: t.archived_at || null,
   createdBy: t.created_by,
   createdAt: t.created_at,
   updatedAt: t.updated_at,
@@ -40,7 +42,7 @@ const formatTrip = (t) => ({
 const createTrip = async (userId, body) => {
   const {
     name, startDate, endDate, location = {}, reminders,
-    friendIds = [], emails = [],
+    friendIds = [], emails = [], bannerImageUrl = null,
   } = body;
 
   const client = await getClient();
@@ -49,10 +51,10 @@ const createTrip = async (userId, body) => {
 
     // Insert trip
     const tripResult = await client.query(
-      `INSERT INTO trips (name, start_date, end_date, location_name, location_lat, location_lng, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO trips (name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [name, startDate, endDate, location.name || null, location.lat || null, location.lng || null, userId],
+      [name, startDate, endDate, location.name || null, location.lat || null, location.lng || null, userId, bannerImageUrl],
     );
     const trip = tripResult.rows[0];
 
@@ -169,6 +171,7 @@ const getTrips = async (userId, { status, page = 1, limit = 20 } = {}) => {
   const safLimit = Math.min(limit, 100);
 
   let dateFilter = '';
+  let archiveFilter = 'AND t.archived_at IS NULL'; // exclude archived from all normal lists
   let orderBy = 'ORDER BY t.start_date ASC';
 
   if (status === 'upcoming') {
@@ -180,6 +183,9 @@ const getTrips = async (userId, { status, page = 1, limit = 20 } = {}) => {
   } else if (status === 'ongoing') {
     dateFilter = 'AND t.start_date <= CURRENT_DATE AND t.end_date >= CURRENT_DATE';
     orderBy = 'ORDER BY t.start_date ASC';
+  } else if (status === 'archived') {
+    archiveFilter = 'AND t.archived_at IS NOT NULL';
+    orderBy = 'ORDER BY t.archived_at DESC';
   }
 
   const result = await db(
@@ -203,7 +209,7 @@ const getTrips = async (userId, { status, page = 1, limit = 20 } = {}) => {
      FROM trips t
      JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = $1
      LEFT JOIN trip_members tm2 ON tm2.trip_id = t.id
-     WHERE 1=1 ${dateFilter}
+     WHERE 1=1 ${archiveFilter} ${dateFilter}
      GROUP BY t.id
      ${orderBy}
      LIMIT $2 OFFSET $3`,
@@ -285,6 +291,7 @@ const updateTrip = async (tripId, updates) => {
   if (updates.location?.name !== undefined) { fields.push(`location_name = $${idx++}`); values.push(updates.location.name); }
   if (updates.location?.lat !== undefined) { fields.push(`location_lat = $${idx++}`); values.push(updates.location.lat); }
   if (updates.location?.lng !== undefined) { fields.push(`location_lng = $${idx++}`); values.push(updates.location.lng); }
+  if (updates.bannerImageUrl !== undefined) { fields.push(`banner_image_url = $${idx++}`); values.push(updates.bannerImageUrl); }
 
   if (fields.length === 0) {
     const existing = await db('SELECT * FROM trips WHERE id = $1', [tripId]);
@@ -575,6 +582,30 @@ const acceptInvite = async (token, userId) => {
   return { tripId: invite.trip_id, tripName: invite.trip_name, role: 'member' };
 };
 
+// ─── Archive / Unarchive Trip ─────────────────────────────────────────────────
+
+const archiveTrip = async (tripId) => {
+  const result = await db(
+    'UPDATE trips SET archived_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *',
+    [tripId],
+  );
+  if (result.rowCount === 0) {
+    const err = new Error('Trip not found'); err.statusCode = 404; err.error = 'NOT_FOUND'; throw err;
+  }
+  return formatTrip(result.rows[0]);
+};
+
+const unarchiveTrip = async (tripId) => {
+  const result = await db(
+    'UPDATE trips SET archived_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING *',
+    [tripId],
+  );
+  if (result.rowCount === 0) {
+    const err = new Error('Trip not found'); err.statusCode = 404; err.error = 'NOT_FOUND'; throw err;
+  }
+  return formatTrip(result.rows[0]);
+};
+
 // ─── Email template ───────────────────────────────────────────────────────────
 
 const buildInviteEmail = ({ inviterName, tripName, deepLink, expiresAt }) => `
@@ -613,6 +644,8 @@ module.exports = {
   getTripById,
   updateTrip,
   deleteTrip,
+  archiveTrip,
+  unarchiveTrip,
   inviteToTrip,
   getInviteByToken,
   acceptInvite,

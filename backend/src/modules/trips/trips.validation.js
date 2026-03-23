@@ -24,6 +24,7 @@ const createTripValidation = [
   body('location.lng')
     .optional()
     .isFloat({ min: -180, max: 180 }).withMessage('location.lng must be a valid longitude'),
+  body('bannerImageUrl').optional({ nullable: true }).isURL().withMessage('bannerImageUrl must be a valid URL'),
   body('reminders').optional().isBoolean(),
   body('friendIds').optional().isArray(),
   body('friendIds.*')
@@ -45,6 +46,7 @@ const updateTripValidation = [
   body('location.name').optional().isString().isLength({ max: 500 }),
   body('location.lat').optional().isFloat({ min: -90, max: 90 }),
   body('location.lng').optional().isFloat({ min: -180, max: 180 }),
+  body('bannerImageUrl').optional({ nullable: true }).isURL().withMessage('bannerImageUrl must be a valid URL'),
 ];
 
 const tripIdParam = [
@@ -54,8 +56,8 @@ const tripIdParam = [
 const getTripsQuery = [
   query('status')
     .optional()
-    .isIn(['upcoming', 'past', 'ongoing'])
-    .withMessage('status must be upcoming, past, or ongoing'),
+    .isIn(['upcoming', 'past', 'ongoing', 'archived'])
+    .withMessage('status must be upcoming, past, ongoing, or archived'),
   query('page').optional().isInt({ min: 1 }).toInt(),
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
 ];

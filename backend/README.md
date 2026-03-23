@@ -82,11 +82,12 @@ Body:
 {
   name, startDate, endDate,
   location: { name, lat, lng },   ← required
+  bannerImageUrl: "https://...",   ← optional banner image URL
   reminders: true,                 ← schedules 3 FCM reminders
   friendIds: ["uuid"],            ← directly added, must be accepted friends
   emails: ["x@y.com"]            ← sent Branch smart link via SES
 }
-Response: { trip: { id, name, ... } }
+Response: { trip: { id, name, bannerImageUrl, archivedAt: null, ... } }
 ```
 
 What happens server-side:
@@ -295,6 +296,8 @@ Runs all pending migrations in order:
 - `003` — friends, friend invites, FCM token column
 - `004` — activity descriptions & photos, expense categories, notes redesign (multi-note schema), trip invite phone/branch columns
 - `005` — **consolidate shared tables**: creates `docs`, `photos`, `expenses`, `expense_splits`, `settlements`, `polls`, `poll_options`, `poll_votes`, `notes`; migrates existing data; renames old `trip_*` tables to `_bak_*`
+- `006` — adds `banner_image_url TEXT` to `trips` — optional banner image set on create or update
+- `007` — adds `archived_at TIMESTAMPTZ` to `trips` — null = active, timestamp = archived; indexed for fast filtering
 
 The runner tracks applied migrations in `_migrations` table — safe to re-run, skips already-applied files.
 
@@ -342,18 +345,22 @@ npx jest --testNamePattern="POST /auth/login" --forceExit
 **Recommended test order:**
 ```
 1. Login as Alice (saves token)
-2. GET /home                     — dashboard
-3. GET /trips?status=upcoming    — list trips
-4. GET /trips/:id                — trip detail + stats
-5. POST /trips/:id/expenses      — add expense
-6. GET /trips/:id/balances       — check balances after expense
-7. GET /trips/:id/notes          — list notes
-8. POST /trips/:id/notes         — create note
-9. GET /trips/:id/polls          — list polls (seeded)
-10. POST /trips/:id/polls/:id/vote — cast a vote
-11. GET /friends                 — friend list
-12. GET /friends/requests        — pending requests (Eve's request visible)
-13. POST /friends/invite         — generate invite link
+2. GET /home                        — dashboard
+3. GET /trips?status=upcoming       — list trips (archived excluded)
+4. GET /trips/:id                   — trip detail + stats (includes bannerImageUrl, archivedAt)
+5. POST /trips/:id/expenses         — add expense
+6. GET /trips/:id/balances          — check balances after expense
+7. GET /trips/:id/notes             — list notes
+8. POST /trips/:id/notes            — create note
+9. GET /trips/:id/polls             — list polls (seeded)
+10. POST /trips/:id/polls/:id/vote  — cast a vote
+11. POST /trips/:id/archive         — archive trip (admin only)
+12. GET /trips?status=archived      — confirm trip appears here
+13. POST /trips/:id/unarchive       — restore trip (admin only)
+14. GET /trips?status=upcoming      — confirm trip is back
+15. GET /friends                    — friend list
+16. GET /friends/requests           — pending requests (Eve's request visible)
+17. POST /friends/invite            — generate invite link
 ```
 
 ### Smoke-test all endpoints with curl
@@ -472,10 +479,12 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 ### Trips — Core (`/trips`)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/trips` | Yes | Create trip. `location` required. `friendIds` + `emails` for invites. |
-| GET | `/trips` | Yes | List trips. `?status=upcoming\|ongoing\|past` |
-| GET | `/trips/:id` | Yes | Trip detail with aggregated stats (single SQL query) |
-| PUT | `/trips/:id` | Admin | Update trip metadata |
+| POST | `/trips` | Yes | Create trip. `location` required. Optional `bannerImageUrl`. `friendIds` + `emails` for invites. |
+| GET | `/trips` | Yes | List trips. `?status=upcoming\|ongoing\|past\|archived`. Archived trips are excluded from all non-archived statuses. |
+| GET | `/trips/:id` | Yes | Trip detail with aggregated stats (single SQL query). Returns `bannerImageUrl`, `archivedAt`. |
+| PUT | `/trips/:id` | Admin | Update trip metadata. Supports `name`, `startDate`, `endDate`, `location`, `bannerImageUrl`. |
+| POST | `/trips/:id/archive` | Admin | Archive trip — sets `archived_at = NOW()`. Hidden from all non-archived lists immediately. |
+| POST | `/trips/:id/unarchive` | Admin | Unarchive trip — clears `archived_at`. Trip returns to its natural status bucket based on dates. |
 | DELETE | `/trips/:id` | Admin | Delete trip + S3 cleanup |
 
 ### Trips — Invites

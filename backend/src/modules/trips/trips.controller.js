@@ -58,6 +58,32 @@ const deleteTrip = async (req, res, next) => {
   }
 };
 
+// ── POST /trips/:id/archive ───────────────────────────────────
+const archiveTrip = async (req, res, next) => {
+  try {
+    const trip = await tripsService.archiveTrip(req.params.id);
+    res.status(200).json({ trip });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.error, message: error.message, statusCode: error.statusCode });
+    }
+    next(error);
+  }
+};
+
+// ── POST /trips/:id/unarchive ─────────────────────────────────
+const unarchiveTrip = async (req, res, next) => {
+  try {
+    const trip = await tripsService.unarchiveTrip(req.params.id);
+    res.status(200).json({ trip });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.error, message: error.message, statusCode: error.statusCode });
+    }
+    next(error);
+  }
+};
+
 // ── POST /trips/:id/invite ────────────────────────────────────
 const inviteMembers = async (req, res, next) => {
   try {
@@ -111,6 +137,8 @@ module.exports = {
   getTripById,
   updateTrip,
   deleteTrip,
+  archiveTrip,
+  unarchiveTrip,
   inviteMembers,
   getInvite,
   acceptInvite,
