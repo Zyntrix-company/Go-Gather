@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import DocumentPicker from 'react-native-document-picker';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import useAuthStore from '../../store/authStore';
@@ -315,10 +316,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
   // ── Edit Trip form ──
-  const [editName,      setEditName]      = useState('');
-  const [editLocation,  setEditLocation]  = useState('');
-  const [editStartDate, setEditStartDate] = useState('');
-  const [editEndDate,   setEditEndDate]   = useState('');
+  const [editName,           setEditName]           = useState('');
+  const [editLocation,       setEditLocation]       = useState('');
+  const [editStartDate,      setEditStartDate]      = useState<Date>(new Date());
+  const [editEndDate,        setEditEndDate]        = useState<Date>(new Date());
+  const [showStartPicker,    setShowStartPicker]    = useState(false);
+  const [showEndPicker,      setShowEndPicker]      = useState(false);
 
   // ── Initial fetch: trip detail + members + activities ──
   useEffect(() => {
@@ -634,16 +637,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
       },
       {
         text: 'Files (PDF, Word, etc.)',
-        onPress: () => {
-          launchImageLibrary({ mediaType: 'mixed', selectionLimit: 1, includeBase64: false }, async res => {
-            if (res.didCancel || res.errorCode) return;
-            const asset = res.assets?.[0];
-            if (!asset?.uri) return;
-            try {
-              const data = await uploadDoc(tripId, { uri: asset.uri, type: asset.type ?? 'application/octet-stream', name: asset.fileName ?? 'document' });
-              setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: data.doc.fileUrl, uploadedBy: data.doc.uploadedBy }]);
-            } catch (err) { handleApiError(err); }
-          });
+        onPress: async () => {
+          try {
+            const result = await DocumentPicker.pick({
+              type: [DocumentPicker.types.allFiles],
+              allowMultiSelection: false,
+            });
+            const file = result[0];
+            if (!file?.uri) return;
+            const data = await uploadDoc(tripId, { uri: file.uri, type: file.type ?? 'application/octet-stream', name: file.name ?? 'document' });
+            setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: data.doc.fileUrl, uploadedBy: data.doc.uploadedBy }]);
+          } catch (err: any) {
+            if (!DocumentPicker.isCancel(err)) handleApiError(err);
+          }
         },
       },
       { text: 'Cancel', style: 'cancel' },
@@ -859,11 +865,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     }
   }
 
-  async function handleDeleteNote(noteId: string, createdBy: string) {
-    if (role !== 'admin' && createdBy !== currentUserId) {
-      Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'You can only delete your own notes.' });
-      return;
-    }
+  async function handleDeleteNote(noteId: string) {
     try {
       await deleteNote(tripId, noteId);
       setNotes(p => p.filter(n => n.id !== noteId));
@@ -879,9 +881,25 @@ export default function TripDetailScreen({ route, navigation }: any) {
   }
 
   function openEditTrip() {
-    setEditName(trip?.name || ''); setEditLocation(trip?.location || '');
-    setEditStartDate(trip?.startDate || ''); setEditEndDate(trip?.endDate || '');
+    setEditName(trip?.name || '');
+    setEditLocation(trip?.location || '');
+    // Use ISO dates from trip (startDateISO / endDateISO) to build a real Date object
+    const parseISO = (iso: string) => {
+      if (!iso) return new Date();
+      const clean = iso.includes('T') ? iso.split('T')[0] : iso;
+      const [y, m, d] = clean.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    };
+    setEditStartDate(parseISO(trip?.startDateISO || trip?.startDate || ''));
+    setEditEndDate(parseISO(trip?.endDateISO || trip?.endDate || ''));
     setShowEditTrip(true);
+  }
+
+  function toISODate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 
   async function handleSaveTrip() {
@@ -892,8 +910,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
       await apiUpdateTrip(tripId, {
         name: editName.trim(),
         location: editLocation ? { name: editLocation } : undefined,
-        startDate: editStartDate || undefined,
-        endDate: editEndDate || undefined,
+        startDate: toISODate(editStartDate),
+        endDate: toISODate(editEndDate),
       });
       setShowEditTrip(false);
       Toast.show({ type: 'success', text1: 'Trip updated!' });
@@ -1792,7 +1810,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                   <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#64748b" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
                                 </Svg>
                               </TouchableOpacity>
-                              <TouchableOpacity onPress={() => handleDeleteNote(note.id, (note as any).createdBy ?? '')} activeOpacity={0.7} style={{ padding: 4 }}>
+                              <TouchableOpacity onPress={() => handleDeleteNote(note.id)} activeOpacity={0.7} style={{ padding: 4 }}>
                                 <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
                                   <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="#ef4444" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
                                 </Svg>
@@ -1822,9 +1840,33 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 <Text style={styles.fLabel}>Trip Name</Text>
                 <TextInput style={styles.fInput} placeholder="e.g., Tokyo Getaway" placeholderTextColor="#94a3b8" value={editName} onChangeText={setEditName} />
                 <Text style={styles.fLabel}>Start Date</Text>
-                <TextInput style={styles.fInput} placeholder="DD/MM/YY" placeholderTextColor="#94a3b8" value={editStartDate} onChangeText={setEditStartDate} keyboardType="numeric" />
+                <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowStartPicker(true)} activeOpacity={0.8}>
+                  <Text style={{ color: '#0f172a', fontSize: 14 }}>
+                    {`${String(editStartDate.getDate()).padStart(2,'0')}/${String(editStartDate.getMonth()+1).padStart(2,'0')}/${String(editStartDate.getFullYear()).slice(-2)}`}
+                  </Text>
+                </TouchableOpacity>
+                {showStartPicker && (
+                  <DateTimePicker
+                    value={editStartDate}
+                    mode="date"
+                    display="default"
+                    onChange={(_: DateTimePickerEvent, d?: Date) => { setShowStartPicker(false); if (d) setEditStartDate(d); }}
+                  />
+                )}
                 <Text style={styles.fLabel}>End Date</Text>
-                <TextInput style={styles.fInput} placeholder="DD/MM/YY" placeholderTextColor="#94a3b8" value={editEndDate} onChangeText={setEditEndDate} keyboardType="numeric" />
+                <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowEndPicker(true)} activeOpacity={0.8}>
+                  <Text style={{ color: '#0f172a', fontSize: 14 }}>
+                    {`${String(editEndDate.getDate()).padStart(2,'0')}/${String(editEndDate.getMonth()+1).padStart(2,'0')}/${String(editEndDate.getFullYear()).slice(-2)}`}
+                  </Text>
+                </TouchableOpacity>
+                {showEndPicker && (
+                  <DateTimePicker
+                    value={editEndDate}
+                    mode="date"
+                    display="default"
+                    onChange={(_: DateTimePickerEvent, d?: Date) => { setShowEndPicker(false); if (d) setEditEndDate(d); }}
+                  />
+                )}
                 <Text style={styles.fLabel}>Location</Text>
                 <TextInput style={styles.fInput} placeholder="e.g., Paris, France" placeholderTextColor="#94a3b8" value={editLocation} onChangeText={setEditLocation} />
               </View>
