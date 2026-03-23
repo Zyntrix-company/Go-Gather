@@ -19,6 +19,7 @@
  *   UPCOMING  — "Goa Trip 2027"        start 2027-04-10, admin alice, members bob + charlie
  *   ONGOING   — "Manali Winter 2026"   start 2026-01-01 end 2026-12-31, admin alice, member charlie
  *   PAST      — "Kerala Backwaters"    end 2024-03-20, admin alice, member bob
+ *   ARCHIVED  — "Kasol Trekking 2025"  end 2025-09-07, admin alice, member bob, archived_at set
  *
  * All passwords: TestPass123!
  */
@@ -51,6 +52,7 @@ const IDS = {
   upcomingTrip: 'b0000000-0000-4000-8000-000000000001',
   ongoingTrip:  'b0000000-0000-4000-8000-000000000002',
   pastTrip:     'b0000000-0000-4000-8000-000000000003',
+  archivedTrip: 'b0000000-0000-4000-8000-000000000004',
 
   // Expenses (upcoming trip — multi-user splits for balance testing)
   expense1: 'c0000000-0000-4000-8000-000000000001', // Hotel, equal, alice paid
@@ -174,29 +176,43 @@ async function seed() {
 
     // UPCOMING — starts in the future
     await client.query(
-      `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by)
+      `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
        VALUES ($1, 'Goa Trip 2027', '2027-04-10', '2027-04-15',
-               'Goa, India', 15.2993249, 74.1239960, $2)
-       ON CONFLICT (id) DO NOTHING`,
+               'Goa, India', 15.2993249, 74.1239960, $2,
+               'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2')
+       ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
       [IDS.upcomingTrip, IDS.alice],
     );
 
     // ONGOING — today falls within start_date..end_date
     await client.query(
-      `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by)
+      `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
        VALUES ($1, 'Manali Winter 2026', '2026-01-01', '2026-12-31',
-               'Manali, Himachal Pradesh', 32.2396153, 77.1887145, $2)
-       ON CONFLICT (id) DO NOTHING`,
+               'Manali, Himachal Pradesh', 32.2396153, 77.1887145, $2,
+               'https://images.unsplash.com/photo-1477587458883-47145ed94245')
+       ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
       [IDS.ongoingTrip, IDS.alice],
     );
 
     // PAST — end_date in the past
     await client.query(
-      `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by)
+      `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
        VALUES ($1, 'Kerala Backwaters', '2024-03-15', '2024-03-20',
-               'Alleppey, Kerala', 9.4980762, 76.3388484, $2)
-       ON CONFLICT (id) DO NOTHING`,
+               'Alleppey, Kerala', 9.4980762, 76.3388484, $2,
+               'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944')
+       ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
       [IDS.pastTrip, IDS.alice],
+    );
+
+    // ARCHIVED — past trip that has been archived
+    await client.query(
+      `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url, archived_at)
+       VALUES ($1, 'Kasol Trekking 2025', '2025-09-01', '2025-09-07',
+               'Kasol, Himachal Pradesh', 32.0100000, 77.3148000, $2,
+               'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b',
+               '2025-10-01T10:00:00Z')
+       ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url, archived_at = EXCLUDED.archived_at`,
+      [IDS.archivedTrip, IDS.alice],
     );
 
     // ── 7. Trip members ───────────────────────────────────────────────────────
@@ -212,6 +228,9 @@ async function seed() {
       // Past: alice admin, bob member
       [IDS.pastTrip, IDS.alice, 'admin'],
       [IDS.pastTrip, IDS.bob,   'member'],
+      // Archived: alice admin, bob member
+      [IDS.archivedTrip, IDS.alice, 'admin'],
+      [IDS.archivedTrip, IDS.bob,   'member'],
     ];
     for (const [tripId, userId, role] of members) {
       await client.query(
@@ -465,14 +484,16 @@ async function seed() {
     console.log('\n══════════════════════════════════════════════════════════');
     console.log('  TRIPS');
     console.log('══════════════════════════════════════════════════════════');
-    console.log(`  UPCOMING  Goa Trip 2027       ${IDS.upcomingTrip}`);
-    console.log(`  ONGOING   Manali Winter 2026  ${IDS.ongoingTrip}`);
-    console.log(`  PAST      Kerala Backwaters   ${IDS.pastTrip}`);
+    console.log(`  UPCOMING  Goa Trip 2027         ${IDS.upcomingTrip}  (bannerImageUrl set)`);
+    console.log(`  ONGOING   Manali Winter 2026    ${IDS.ongoingTrip}  (bannerImageUrl set)`);
+    console.log(`  PAST      Kerala Backwaters     ${IDS.pastTrip}  (bannerImageUrl set)`);
+    console.log(`  ARCHIVED  Kasol Trekking 2025   ${IDS.archivedTrip}  (archived_at set, hidden from normal lists)`);
     console.log('\n══════════════════════════════════════════════════════════');
     console.log('  KEY IDs FOR POSTMAN');
     console.log('══════════════════════════════════════════════════════════');
     console.log(`  user_id (alice)   : ${IDS.alice}`);
     console.log(`  trip_id (upcoming): ${IDS.upcomingTrip}`);
+    console.log(`  trip_id (archived): ${IDS.archivedTrip}`);
     console.log(`  expense_id        : ${IDS.expense1}`);
     console.log(`  activity_id       : ${IDS.actUpcoming1}`);
     console.log(`  note_id           : ${IDS.note1}`);

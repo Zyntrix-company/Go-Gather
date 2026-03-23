@@ -86,7 +86,7 @@ const createActivity = async (tripId, userId, body) => {
   // Validate expenseId belongs to this trip
   if (expenseId) {
     const expCheck = await db(
-      'SELECT id FROM trip_expenses WHERE id = $1 AND trip_id = $2',
+      "SELECT id FROM expenses WHERE id = $1 AND parent_type = 'trip' AND parent_id = $2",
       [expenseId, tripId],
     );
     if (expCheck.rowCount === 0) {
@@ -135,7 +135,7 @@ const updateActivity = async (actId, tripId, requesterId, requesterRole, updates
   // Validate expenseId
   if (updates.expenseId) {
     const expCheck = await db(
-      'SELECT id FROM trip_expenses WHERE id = $1 AND trip_id = $2',
+      "SELECT id FROM expenses WHERE id = $1 AND parent_type = 'trip' AND parent_id = $2",
       [updates.expenseId, tripId],
     );
     if (expCheck.rowCount === 0) {
@@ -197,7 +197,7 @@ const getActivities = async (tripId) => {
        te.description AS expense_description,
        te.amount      AS expense_amount
      FROM trip_activities ta
-     LEFT JOIN trip_expenses te ON te.id = ta.expense_id
+     LEFT JOIN expenses te ON te.id = ta.expense_id AND te.parent_type = 'trip'
      WHERE ta.trip_id = $1
      ORDER BY ta.activity_date ASC, ta.activity_time ASC NULLS LAST`,
     [tripId],
@@ -220,7 +220,7 @@ const getActivityById = async (tripId, actId) => {
        te.description AS expense_description,
        te.amount      AS expense_amount
      FROM trip_activities ta
-     LEFT JOIN trip_expenses te ON te.id = ta.expense_id
+     LEFT JOIN expenses te ON te.id = ta.expense_id AND te.parent_type = 'trip'
      WHERE ta.id = $1 AND ta.trip_id = $2`,
     [actId, tripId],
   );

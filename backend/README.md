@@ -298,6 +298,7 @@ Runs all pending migrations in order:
 - `005` — **consolidate shared tables**: creates `docs`, `photos`, `expenses`, `expense_splits`, `settlements`, `polls`, `poll_options`, `poll_votes`, `notes`; migrates existing data; renames old `trip_*` tables to `_bak_*`
 - `006` — adds `banner_image_url TEXT` to `trips` — optional banner image set on create or update
 - `007` — adds `archived_at TIMESTAMPTZ` to `trips` — null = active, timestamp = archived; indexed for fast filtering
+- `008` — creates `note_favorites (note_id, user_id)` — per-user note favorites; toggle via dedicated endpoint; favorited notes sorted to top of GET /notes
 
 The runner tracks applied migrations in `_migrations` table — safe to re-run, skips already-applied files.
 
@@ -545,10 +546,11 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 ### Trips — Notes (backed by shared `notes` table)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| GET | `/trips/:id/notes` | Member | Returns `{ notes[], total }`. Ordered by `updated_at DESC`. |
+| GET | `/trips/:id/notes` | Member | Returns `{ notes[], total }`. Each note includes `isFavorited` for the caller. Favorited notes sorted to top. |
 | POST | `/trips/:id/notes` | Member | Create note. Body: `{ title, content, category }`. Category: general / idea / important / todo. |
 | PUT | `/trips/:id/notes/:noteId` | Member | Partial update. Any member can edit. Sets `last_edited_by`. |
 | DELETE | `/trips/:id/notes/:noteId` | Member | Creator or admin only. |
+| POST | `/trips/:id/notes/:noteId/favorite` | Member | Toggle favorite for the calling user. Returns `{ isFavorited: bool }`. Per-user — does not affect other members. |
 
 ### Friends (`/friends`)
 | Method | Route | Auth | Description |

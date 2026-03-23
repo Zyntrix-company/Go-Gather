@@ -121,5 +121,6 @@ router.get('/:id/notes', tripMemberMW, notesCtrl.getNotes);
 router.post('/:id/notes', tripMemberMW, notesCtrl.createNote);
 router.put('/:id/notes/:noteId', tripMemberMW, notesCtrl.updateNote);
 router.delete('/:id/notes/:noteId', tripMemberMW, notesCtrl.deleteNote);
+router.post('/:id/notes/:noteId/favorite', tripMemberMW, notesCtrl.favoriteNote);
 
 module.exports = router;
