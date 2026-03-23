@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
-import DocumentPicker from 'react-native-document-picker';
+// DocumentPicker loaded dynamically to avoid crash if native module not yet linked
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import useAuthStore from '../../store/authStore';
@@ -42,6 +42,7 @@ import {
   createNote,
   updateNote,
   deleteNote,
+  favoriteNote,
   getPolls,
   createPoll,
   voteOnPoll,
@@ -214,7 +215,7 @@ function TabBar({ tabs, active, onSelect }: { tabs: string[]; active: string; on
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function TripDetailScreen({ route, navigation }: any) {
-  const trip = route?.params?.trip;
+  const [trip, setTrip] = useState(route?.params?.trip);
   const rawUser = useAuthStore(s => s.user) as any;
   const currentUserId: string = rawUser?.id ?? '';
 
@@ -295,6 +296,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [expSplitAmong,       setExpSplitAmong]       = useState<string[]>(['You']);
   const [expSplitDetails,     setExpSplitDetails]     = useState<{[k:string]:string}>({});
   const [showExpCatDrop,      setShowExpCatDrop]      = useState(false);
+  const [showPaidByDrop,      setShowPaidByDrop]      = useState(false);
 
   // ── Polls modal ──
   const [pollQuestion, setPollQuestion] = useState('');
@@ -335,7 +337,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         ]);
         setRole(detailRes.role);
         setMembers(membersRes.members);
-        setActivities(activitiesRes.activities.map(a => ({
+        setActivities((activitiesRes.activities ?? []).map(a => ({
           id: a.id,
           title: a.title,
           date: a.date ?? '',
@@ -364,7 +366,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
           getExpenses(tripId),
           getBalances(tripId),
         ]);
-        setExpenses(expRes.expenses.map(e => {
+        setExpenses((expRes.expenses ?? []).map(e => {
           const paidByStr = typeof e.paidBy === 'object' && e.paidBy !== null
             ? (e.paidBy as any).name ?? (e.paidBy as any).fullName ?? (e.paidBy as any).userId ?? 'Unknown'
             : String(e.paidBy ?? 'Unknown');
@@ -375,7 +377,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
             category: e.category ?? 'General',
             paidBy: paidByStr,
             splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
-            splitAmong: e.splits.map((s: any) => s.userId),
+            splitAmong: (e.splits ?? []).map((s: any) => s.userId),
             date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
             createdBy: paidByStr,
           };
@@ -639,16 +641,25 @@ export default function TripDetailScreen({ route, navigation }: any) {
         text: 'Files (PDF, Word, etc.)',
         onPress: async () => {
           try {
-            const result = await DocumentPicker.pick({
-              type: [DocumentPicker.types.allFiles],
-              allowMultiSelection: false,
-            });
+            // Dynamic require — safe if native module not yet linked (needs rebuild)
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const DocPicker = require('react-native-document-picker').default;
+            const result = await DocPicker.pick({ type: [require('react-native-document-picker').types.allFiles], allowMultiSelection: false });
             const file = result[0];
             if (!file?.uri) return;
             const data = await uploadDoc(tripId, { uri: file.uri, type: file.type ?? 'application/octet-stream', name: file.name ?? 'document' });
             setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: data.doc.fileUrl, uploadedBy: data.doc.uploadedBy }]);
           } catch (err: any) {
-            if (!DocumentPicker.isCancel(err)) handleApiError(err);
+            const msg = err?.message ?? '';
+            if (msg.includes('RNDocumentPicker') || msg.includes('TurboModule') || msg.includes('could not be found')) {
+              Toast.show({ type: 'info', text1: 'Rebuild Required', text2: 'Run a fresh build to enable file picker.' });
+            } else {
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const DocPicker = require('react-native-document-picker').default;
+                if (!DocPicker.isCancel(err)) handleApiError(err);
+              } catch { handleApiError(err); }
+            }
           }
         },
       },
@@ -674,11 +685,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
     if (isSubmitting) return;
 
     const amount = parseFloat(expAmount) || 0;
-    // Build splitAmong
+    // Build splitAmong — map 'You' → currentUserId, use only selected members
     const apiSplitType = expSplitType === 'equally' ? 'equal' : expSplitType === 'percent' ? 'percentage' : 'amount';
-    const memberIds = members.length > 0
-      ? members.map(m => m.userId)
-      : expSplitAmong.filter(id => id !== 'You');
+    const memberIds = expSplitAmong.map(id => id === 'You' ? currentUserId : id).filter(Boolean);
     const splitAmong = apiSplitType === 'equal'
       ? memberIds.map(id => ({ userId: id }))
       : memberIds.map(id => ({
@@ -913,6 +922,16 @@ export default function TripDetailScreen({ route, navigation }: any) {
         startDate: toISODate(editStartDate),
         endDate: toISODate(editEndDate),
       });
+      // Refresh local trip state so header/UI reflects changes immediately
+      setTrip((prev: any) => ({
+        ...prev,
+        name: editName.trim(),
+        location: editLocation,
+        startDateISO: toISODate(editStartDate),
+        endDateISO: toISODate(editEndDate),
+        startDate: editStartDate.toLocaleString('default', { month: 'short', day: 'numeric' }),
+        endDate: editEndDate.toLocaleString('default', { month: 'short', day: 'numeric' }),
+      }));
       setShowEditTrip(false);
       Toast.show({ type: 'success', text1: 'Trip updated!' });
     } catch (err) {
@@ -1529,7 +1548,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
               {expTab === 'All Expenses' && (
                 <View style={styles.dBody}>
-                  <TouchableOpacity style={styles.tealBtnFull} onPress={() => setShowAddExpense(p => !p)} activeOpacity={0.85}>
+                  <TouchableOpacity style={styles.tealBtnFull} onPress={() => {
+                    // Initialize split among with all trip members
+                    const allIds = ['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.userId)];
+                    setExpSplitAmong(allIds);
+                    setExpPaidBy('You');
+                    setExpDesc(''); setExpAmount(''); setExpSplitType('equally'); setExpSplitDetails({});
+                    setShowAddExpense(p => !p);
+                  }} activeOpacity={0.85}>
                     <Text style={styles.tealBtnTxt}>+ Add Expense</Text>
                   </TouchableOpacity>
 
@@ -1553,7 +1579,18 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         </View>
                       )}
                       <Text style={styles.fLabel}>Paid by</Text>
-                      <TextInput style={styles.fInput} placeholder="You" placeholderTextColor="#94a3b8" value={expPaidBy} onChangeText={setExpPaidBy} />
+                      <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowPaidByDrop(p => !p)} activeOpacity={0.8}>
+                        <Text style={{ fontSize: 13, color: '#0f172a' }}>{expPaidBy}</Text>
+                      </TouchableOpacity>
+                      {showPaidByDrop && (
+                        <View style={styles.dropdown}>
+                          {['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.fullName)].map(name => (
+                            <TouchableOpacity key={name} style={styles.dropdownItem} onPress={() => { setExpPaidBy(name); setShowPaidByDrop(false); }} activeOpacity={0.7}>
+                              <Text style={{ fontSize: 13, color: '#0f172a' }}>{name}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
                       <Text style={styles.fLabel}>Split type</Text>
                       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
                         {(['equally', 'amount', 'percent'] as const).map((key, i) => (
@@ -1579,6 +1616,25 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           />
                         )}
                       </TouchableOpacity>
+                      {/* Other trip members */}
+                      {members.filter(m => m.userId !== currentUserId).map(m => (
+                        <TouchableOpacity key={m.userId} style={[styles.splitRow, expSplitAmong.includes(m.userId) && styles.splitRowActive]} onPress={() => setExpSplitAmong(p => p.includes(m.userId) ? p.filter(x => x !== m.userId) : [...p, m.userId])} activeOpacity={0.8}>
+                          <View style={[styles.splitCheck, expSplitAmong.includes(m.userId) && styles.splitCheckActive]}>
+                            {expSplitAmong.includes(m.userId) && <CheckIcon />}
+                          </View>
+                          <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName}</Text>
+                          {expSplitType !== 'equally' && (
+                            <TextInput
+                              style={[styles.fInput, { width: 72, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]}
+                              placeholder={expSplitType === 'percent' ? '0 %' : '0.00'}
+                              placeholderTextColor="#94a3b8"
+                              keyboardType="numeric"
+                              value={expSplitDetails[m.userId] || ''}
+                              onChangeText={v => setExpSplitDetails(p => ({ ...p, [m.userId]: v }))}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      ))}
                       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                         <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddExpense(false)} activeOpacity={0.7}><Text style={styles.cancelTxt}>Cancel</Text></TouchableOpacity>
                         <TouchableOpacity style={[styles.tealBtnFull, { flex: 1 }]} onPress={handleAddExpense} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>{editingExpenseId ? 'Update Expense' : 'Add Expense'}</Text></TouchableOpacity>
@@ -1796,7 +1852,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             {/* Action icons */}
                             <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                               <TouchableOpacity
-                                onPress={() => setNotes(p => p.map(n => n.id === note.id ? { ...n, pinned: !n.pinned } : n))}
+                                onPress={async () => {
+                                  try {
+                                    await favoriteNote(tripId, note.id);
+                                    setNotes(p => p.map(n => n.id === note.id ? { ...n, pinned: !n.pinned } : n));
+                                  } catch (err) { handleApiError(err); }
+                                }}
                                 activeOpacity={0.7}
                                 style={{ padding: 4 }}
                               >
