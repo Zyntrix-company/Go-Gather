@@ -31,6 +31,7 @@ import {
   createTrip as apiCreateTrip,
   updateTrip as apiUpdateTrip,
   deleteTrip as apiDeleteTrip,
+  archiveTrip as archiveTripApi,
   uploadTripPhotos,
   getFriends,
   handleApiError,
@@ -324,10 +325,10 @@ const TrashIcon = () => (
 
 // ─── Trip Card (Upcoming / Ongoing) ──────────────────────────────────────────
 
-function TripCardFull({ trip, onPress, showMenu, onToggleMenu, onDelete }: {
+function TripCardFull({ trip, onPress, showMenu, onToggleMenu, onArchive, onDelete }: {
   trip: Trip; onPress: () => void;
   showMenu: boolean; onToggleMenu: () => void;
-  onDelete: () => void;
+  onArchive: () => void; onDelete: () => void;
 }) {
   const days = daysUntil(trip.startDateISO);
   const isOngoing = days <= 0 && daysUntil(trip.endDateISO) >= 0;
@@ -383,7 +384,13 @@ function TripCardFull({ trip, onPress, showMenu, onToggleMenu, onDelete }: {
       {/* Inline dropdown menu */}
       {showMenu && (
         <View style={styles.tripMenuDropdown}>
-          <TouchableOpacity style={styles.tripMenuItem} onPress={onDelete} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.tripMenuItem} onPress={onArchive} activeOpacity={0.8}>
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+              <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+            <Text style={styles.tripMenuItemText}>Archive Trip</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.tripMenuItem, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]} onPress={onDelete} activeOpacity={0.8}>
             <TrashIcon />
             <Text style={[styles.tripMenuItemText, { color: '#ef4444' }]}>Delete Trip</Text>
           </TouchableOpacity>
@@ -395,10 +402,10 @@ function TripCardFull({ trip, onPress, showMenu, onToggleMenu, onDelete }: {
 
 // ─── Past Trip Card (Compact) ─────────────────────────────────────────────────
 
-function TripCardPast({ trip, onPress, showMenu, onToggleMenu, onDelete }: {
+function TripCardPast({ trip, onPress, showMenu, onToggleMenu, onArchive, onDelete }: {
   trip: Trip; onPress: () => void;
   showMenu: boolean; onToggleMenu: () => void;
-  onDelete: () => void;
+  onArchive: () => void; onDelete: () => void;
 }) {
   return (
     <View style={{ marginBottom: 10, zIndex: showMenu ? 100 : 1 }}>
@@ -434,7 +441,13 @@ function TripCardPast({ trip, onPress, showMenu, onToggleMenu, onDelete }: {
       {/* Inline dropdown menu */}
       {showMenu && (
         <View style={[styles.tripMenuDropdown, { right: 8 }]}>
-          <TouchableOpacity style={styles.tripMenuItem} onPress={onDelete} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.tripMenuItem} onPress={onArchive} activeOpacity={0.8}>
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+              <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+            <Text style={styles.tripMenuItemText}>Archive Trip</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.tripMenuItem, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]} onPress={onDelete} activeOpacity={0.8}>
             <TrashIcon />
             <Text style={[styles.tripMenuItemText, { color: '#ef4444' }]}>Delete Trip</Text>
           </TouchableOpacity>
@@ -1157,6 +1170,28 @@ export default function HomeScreen({ navigation }: any) {
   function navigateToTrip(trip: Trip) { navigation.navigate('TripDetail', { trip }); }
   function navigateToChat(chat: any) { navigation.navigate('ChatDetail', { chat }); }
 
+  function archiveTrip(trip: Trip) {
+    setShowTripMenu(null);
+    Alert.alert(
+      'Archive Trip',
+      `Archive "${trip.name}"? You can restore it from Archived Trips anytime.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Archive', onPress: async () => {
+            try {
+              await archiveTripApi(trip.id);
+              setTrips(p => p.filter(t => t.id !== trip.id));
+              Toast.show({ type: 'success', text1: 'Archived', text2: `"${trip.name}" moved to archive.` });
+            } catch (err) {
+              handleApiError(err);
+            }
+          },
+        },
+      ],
+    );
+  }
+
   function deleteTrip(trip: Trip) {
     setShowTripMenu(null);
     Alert.alert(
@@ -1282,6 +1317,7 @@ export default function HomeScreen({ navigation }: any) {
               onPress={() => navigateToTrip(trip)}
               showMenu={showTripMenu === trip.id}
               onToggleMenu={() => toggleTripMenu(trip.id)}
+              onArchive={() => archiveTrip(trip)}
               onDelete={() => deleteTrip(trip)}
             />
           ))}
@@ -1306,6 +1342,7 @@ export default function HomeScreen({ navigation }: any) {
               onPress={() => navigateToTrip(trip)}
               showMenu={showTripMenu === trip.id}
               onToggleMenu={() => toggleTripMenu(trip.id)}
+              onArchive={() => archiveTrip(trip)}
               onDelete={() => deleteTrip(trip)}
             />
           ))}
@@ -1366,6 +1403,7 @@ export default function HomeScreen({ navigation }: any) {
                   onPress={() => navigateToTrip(trip)}
                   showMenu={showTripMenu === trip.id}
                   onToggleMenu={() => toggleTripMenu(trip.id)}
+                  onArchive={() => archiveTrip(trip)}
                   onDelete={() => deleteTrip(trip)}
                 />
               ))}
@@ -1383,6 +1421,7 @@ export default function HomeScreen({ navigation }: any) {
                   onPress={() => navigateToTrip(trip)}
                   showMenu={showTripMenu === trip.id}
                   onToggleMenu={() => toggleTripMenu(trip.id)}
+                  onArchive={() => archiveTrip(trip)}
                   onDelete={() => deleteTrip(trip)}
                 />
               ))}
@@ -1400,6 +1439,7 @@ export default function HomeScreen({ navigation }: any) {
                   onPress={() => navigateToTrip(trip)}
                   showMenu={showTripMenu === trip.id}
                   onToggleMenu={() => toggleTripMenu(trip.id)}
+                  onArchive={() => archiveTrip(trip)}
                   onDelete={() => deleteTrip(trip)}
                 />
               ))}
@@ -1626,6 +1666,12 @@ export default function HomeScreen({ navigation }: any) {
         <TouchableOpacity style={styles.dropdownItem} onPress={() => setShowProfileMenu(false)}>
           <SettingsIcon />
           <Text style={styles.dropdownItemText}>Settings</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); navigation.navigate('ArchivedTrips'); }}>
+          <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+            <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          </Svg>
+          <Text style={styles.dropdownItemText}>Archived Trips</Text>
         </TouchableOpacity>
         <View style={styles.dropdownDivider} />
         <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); logout(); }}>
