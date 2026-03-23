@@ -428,6 +428,11 @@ export async function deleteNote(tripId: string, noteId: string) {
   return res.data as { success: boolean };
 }
 
+export async function favoriteNote(tripId: string, noteId: string) {
+  const res = await client.post(`/trips/${tripId}/notes/${noteId}/favorite`);
+  return res.data;
+}
+
 // ─── 8. Polls ─────────────────────────────────────────────────────────────────
 
 export async function getPolls(tripId: string) {

@@ -32,8 +32,6 @@ import {
   updateTrip as apiUpdateTrip,
   deleteTrip as apiDeleteTrip,
   archiveTrip as archiveTripApi,
-  unarchiveTrip as unarchiveTripApi,
-  getArchivedTrips,
   uploadTripPhotos,
   getFriends,
   handleApiError,
@@ -318,13 +316,6 @@ function NavIcon({ name, active, onPress }: { name: Tab; active: boolean; onPres
   );
 }
 
-// ─── Archive Icon ─────────────────────────────────────────────────────────────
-
-const ArchiveIcon = () => (
-  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-    <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
 
 const TrashIcon = () => (
   <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
@@ -394,7 +385,9 @@ function TripCardFull({ trip, onPress, showMenu, onToggleMenu, onArchive, onDele
       {showMenu && (
         <View style={styles.tripMenuDropdown}>
           <TouchableOpacity style={styles.tripMenuItem} onPress={onArchive} activeOpacity={0.8}>
-            <ArchiveIcon />
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+              <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
             <Text style={styles.tripMenuItemText}>Archive Trip</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.tripMenuItem, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]} onPress={onDelete} activeOpacity={0.8}>
@@ -449,7 +442,9 @@ function TripCardPast({ trip, onPress, showMenu, onToggleMenu, onArchive, onDele
       {showMenu && (
         <View style={[styles.tripMenuDropdown, { right: 8 }]}>
           <TouchableOpacity style={styles.tripMenuItem} onPress={onArchive} activeOpacity={0.8}>
-            <ArchiveIcon />
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+              <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
             <Text style={styles.tripMenuItemText}>Archive Trip</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.tripMenuItem, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]} onPress={onDelete} activeOpacity={0.8}>
@@ -1116,8 +1111,7 @@ export default function HomeScreen({ navigation }: any) {
   const [tripsPage, setTripsPage] = useState(1);
   const [hasMoreTrips, setHasMoreTrips] = useState(false);
   const [events] = useState(MOCK_EVENTS);
-  const [archivedTrips, setArchivedTrips] = useState<Trip[]>([]);
-  const [showArchivedSection, setShowArchivedSection] = useState(false);
+
   const [insightIndex, setInsightIndex] = useState(0);
   const insightRef = useRef<FlatList>(null);
   const [avatarError, setAvatarError] = useState(false);
@@ -1149,24 +1143,11 @@ export default function HomeScreen({ navigation }: any) {
     if (isLoadingTrips) return;
     setIsLoadingTrips(true);
     try {
-      // Fetch all statuses in parallel so we get every trip regardless of status
-      const [upcomingRes, ongoingRes, pastRes] = await Promise.allSettled([
-        getTrips({ status: 'upcoming', page, limit: 50 }),
-        getTrips({ status: 'ongoing', page, limit: 50 }),
-        getTrips({ status: 'past', page, limit: 50 }),
-      ]);
-      const allTrips: any[] = [];
-      const seenIds = new Set<string>();
-      for (const res of [upcomingRes, ongoingRes, pastRes]) {
-        if (res.status === 'fulfilled') {
-          for (const t of res.value.trips) {
-            if (!seenIds.has(t.id)) { seenIds.add(t.id); allTrips.push(t); }
-          }
-        }
-      }
-      const mapped = allTrips.map(mapApiTrip);
-      setTrips(prev => replace ? mapped : [...prev.filter(p => !seenIds.has(p.id)), ...mapped]);
+      const data = await getTrips({ page, limit: 50 });
+      const mapped = data.trips.map(mapApiTrip);
+      setTrips(prev => replace ? mapped : [...prev, ...mapped]);
       setTripsPage(page);
+      setHasMoreTrips(data.trips.length === 50);
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -1193,7 +1174,7 @@ export default function HomeScreen({ navigation }: any) {
     setShowTripMenu(null);
     Alert.alert(
       'Archive Trip',
-      `Archive "${trip.name}"? It will be moved to the Archived section.`,
+      `Archive "${trip.name}"? You can restore it from Archived Trips anytime.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1201,7 +1182,7 @@ export default function HomeScreen({ navigation }: any) {
             try {
               await archiveTripApi(trip.id);
               setTrips(p => p.filter(t => t.id !== trip.id));
-              Toast.show({ type: 'success', text1: 'Trip Archived', text2: `"${trip.name}" moved to archive.` });
+              Toast.show({ type: 'success', text1: 'Archived', text2: `"${trip.name}" moved to archive.` });
             } catch (err) {
               handleApiError(err);
             }
@@ -1466,40 +1447,6 @@ export default function HomeScreen({ navigation }: any) {
           )}
 
           {/* ARCHIVED */}
-          {showArchivedSection && archivedTrips.length > 0 && (
-            <>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
-                <Text style={styles.sectionLabel}>ARCHIVED</Text>
-                <TouchableOpacity onPress={() => setShowArchivedSection(false)}>
-                  <Text style={{ fontSize: 12, color: '#94a3b8' }}>Hide</Text>
-                </TouchableOpacity>
-              </View>
-              {archivedTrips.map(trip => (
-                <View key={trip.id} style={{ marginBottom: 10 }}>
-                  <TripCardPast
-                    trip={trip}
-                    onPress={() => navigateToTrip(trip)}
-                    showMenu={showTripMenu === trip.id}
-                    onToggleMenu={() => toggleTripMenu(trip.id)}
-                    onArchive={async () => {
-                      try {
-                        await unarchiveTripApi(trip.id);
-                        setArchivedTrips(p => p.filter(t => t.id !== trip.id));
-                        loadTrips(1, true);
-                        Toast.show({ type: 'success', text1: 'Unarchived', text2: `"${trip.name}" restored.` });
-                      } catch (err) { handleApiError(err); }
-                    }}
-                    onDelete={() => deleteTrip(trip)}
-                  />
-                </View>
-              ))}
-            </>
-          )}
-          {showArchivedSection && archivedTrips.length === 0 && (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateSubtitle}>No archived trips.</Text>
-            </View>
-          )}
         </>
       )}
 
@@ -1720,16 +1667,7 @@ export default function HomeScreen({ navigation }: any) {
           <SettingsIcon />
           <Text style={styles.dropdownItemText}>Settings</Text>
         </TouchableOpacity>
-        <View style={styles.dropdownDivider} />
-        <TouchableOpacity style={styles.dropdownItem} onPress={async () => {
-          setShowProfileMenu(false);
-          try {
-            const data = await getArchivedTrips();
-            setArchivedTrips(data.trips.map(mapApiTrip));
-            setShowArchivedSection(true);
-            setActiveTab('trips');
-          } catch (err) { handleApiError(err); }
-        }}>
+        <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); navigation.navigate('ArchivedTrips'); }}>
           <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
             <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
           </Svg>

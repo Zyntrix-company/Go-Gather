@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+// DocumentPicker loaded dynamically to avoid crash if native module not yet linked
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import useAuthStore from '../../store/authStore';
@@ -41,6 +42,7 @@ import {
   createNote,
   updateNote,
   deleteNote,
+  favoriteNote,
   getPolls,
   createPoll,
   voteOnPoll,
@@ -213,7 +215,7 @@ function TabBar({ tabs, active, onSelect }: { tabs: string[]; active: string; on
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function TripDetailScreen({ route, navigation }: any) {
-  const trip = route?.params?.trip;
+  const [trip, setTrip] = useState(route?.params?.trip);
   const rawUser = useAuthStore(s => s.user) as any;
   const currentUserId: string = rawUser?.id ?? '';
 
@@ -294,6 +296,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [expSplitAmong,       setExpSplitAmong]       = useState<string[]>(['You']);
   const [expSplitDetails,     setExpSplitDetails]     = useState<{[k:string]:string}>({});
   const [showExpCatDrop,      setShowExpCatDrop]      = useState(false);
+  const [showPaidByDrop,      setShowPaidByDrop]      = useState(false);
 
   // ── Polls modal ──
   const [pollQuestion, setPollQuestion] = useState('');
@@ -315,10 +318,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
   // ── Edit Trip form ──
-  const [editName,      setEditName]      = useState('');
-  const [editLocation,  setEditLocation]  = useState('');
-  const [editStartDate, setEditStartDate] = useState('');
-  const [editEndDate,   setEditEndDate]   = useState('');
+  const [editName,           setEditName]           = useState('');
+  const [editLocation,       setEditLocation]       = useState('');
+  const [editStartDate,      setEditStartDate]      = useState<Date>(new Date());
+  const [editEndDate,        setEditEndDate]        = useState<Date>(new Date());
+  const [showStartPicker,    setShowStartPicker]    = useState(false);
+  const [showEndPicker,      setShowEndPicker]      = useState(false);
 
   // ── Initial fetch: trip detail + members + activities ──
   useEffect(() => {
@@ -332,7 +337,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         ]);
         setRole(detailRes.role);
         setMembers(membersRes.members);
-        setActivities(activitiesRes.activities.map(a => ({
+        setActivities((activitiesRes.activities ?? []).map(a => ({
           id: a.id,
           title: a.title,
           date: a.date ?? '',
@@ -361,7 +366,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
           getExpenses(tripId),
           getBalances(tripId),
         ]);
-        setExpenses(expRes.expenses.map(e => {
+        setExpenses((expRes.expenses ?? []).map(e => {
           const paidByStr = typeof e.paidBy === 'object' && e.paidBy !== null
             ? (e.paidBy as any).name ?? (e.paidBy as any).fullName ?? (e.paidBy as any).userId ?? 'Unknown'
             : String(e.paidBy ?? 'Unknown');
@@ -372,7 +377,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
             category: e.category ?? 'General',
             paidBy: paidByStr,
             splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
-            splitAmong: e.splits.map((s: any) => s.userId),
+            splitAmong: (e.splits ?? []).map((s: any) => s.userId),
             date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
             createdBy: paidByStr,
           };
@@ -634,16 +639,28 @@ export default function TripDetailScreen({ route, navigation }: any) {
       },
       {
         text: 'Files (PDF, Word, etc.)',
-        onPress: () => {
-          launchImageLibrary({ mediaType: 'mixed', selectionLimit: 1, includeBase64: false }, async res => {
-            if (res.didCancel || res.errorCode) return;
-            const asset = res.assets?.[0];
-            if (!asset?.uri) return;
-            try {
-              const data = await uploadDoc(tripId, { uri: asset.uri, type: asset.type ?? 'application/octet-stream', name: asset.fileName ?? 'document' });
-              setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: data.doc.fileUrl, uploadedBy: data.doc.uploadedBy }]);
-            } catch (err) { handleApiError(err); }
-          });
+        onPress: async () => {
+          try {
+            // Dynamic require — safe if native module not yet linked (needs rebuild)
+            // eslint-disable-next-line @typescript-eslint/no-var-requires
+            const DocPicker = require('react-native-document-picker').default;
+            const result = await DocPicker.pick({ type: [require('react-native-document-picker').types.allFiles], allowMultiSelection: false });
+            const file = result[0];
+            if (!file?.uri) return;
+            const data = await uploadDoc(tripId, { uri: file.uri, type: file.type ?? 'application/octet-stream', name: file.name ?? 'document' });
+            setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: data.doc.fileUrl, uploadedBy: data.doc.uploadedBy }]);
+          } catch (err: any) {
+            const msg = err?.message ?? '';
+            if (msg.includes('RNDocumentPicker') || msg.includes('TurboModule') || msg.includes('could not be found')) {
+              Toast.show({ type: 'info', text1: 'Rebuild Required', text2: 'Run a fresh build to enable file picker.' });
+            } else {
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                const DocPicker = require('react-native-document-picker').default;
+                if (!DocPicker.isCancel(err)) handleApiError(err);
+              } catch { handleApiError(err); }
+            }
+          }
         },
       },
       { text: 'Cancel', style: 'cancel' },
@@ -668,11 +685,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
     if (isSubmitting) return;
 
     const amount = parseFloat(expAmount) || 0;
-    // Build splitAmong
+    // Build splitAmong — map 'You' → currentUserId, use only selected members
     const apiSplitType = expSplitType === 'equally' ? 'equal' : expSplitType === 'percent' ? 'percentage' : 'amount';
-    const memberIds = members.length > 0
-      ? members.map(m => m.userId)
-      : expSplitAmong.filter(id => id !== 'You');
+    const memberIds = expSplitAmong.map(id => id === 'You' ? currentUserId : id).filter(Boolean);
     const splitAmong = apiSplitType === 'equal'
       ? memberIds.map(id => ({ userId: id }))
       : memberIds.map(id => ({
@@ -859,11 +874,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     }
   }
 
-  async function handleDeleteNote(noteId: string, createdBy: string) {
-    if (role !== 'admin' && createdBy !== currentUserId) {
-      Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'You can only delete your own notes.' });
-      return;
-    }
+  async function handleDeleteNote(noteId: string) {
     try {
       await deleteNote(tripId, noteId);
       setNotes(p => p.filter(n => n.id !== noteId));
@@ -879,9 +890,25 @@ export default function TripDetailScreen({ route, navigation }: any) {
   }
 
   function openEditTrip() {
-    setEditName(trip?.name || ''); setEditLocation(trip?.location || '');
-    setEditStartDate(trip?.startDate || ''); setEditEndDate(trip?.endDate || '');
+    setEditName(trip?.name || '');
+    setEditLocation(trip?.location || '');
+    // Use ISO dates from trip (startDateISO / endDateISO) to build a real Date object
+    const parseISO = (iso: string) => {
+      if (!iso) return new Date();
+      const clean = iso.includes('T') ? iso.split('T')[0] : iso;
+      const [y, m, d] = clean.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    };
+    setEditStartDate(parseISO(trip?.startDateISO || trip?.startDate || ''));
+    setEditEndDate(parseISO(trip?.endDateISO || trip?.endDate || ''));
     setShowEditTrip(true);
+  }
+
+  function toISODate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 
   async function handleSaveTrip() {
@@ -892,9 +919,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
       await apiUpdateTrip(tripId, {
         name: editName.trim(),
         location: editLocation ? { name: editLocation } : undefined,
-        startDate: editStartDate || undefined,
-        endDate: editEndDate || undefined,
+        startDate: toISODate(editStartDate),
+        endDate: toISODate(editEndDate),
       });
+      // Refresh local trip state so header/UI reflects changes immediately
+      setTrip((prev: any) => ({
+        ...prev,
+        name: editName.trim(),
+        location: editLocation,
+        startDateISO: toISODate(editStartDate),
+        endDateISO: toISODate(editEndDate),
+        startDate: editStartDate.toLocaleString('default', { month: 'short', day: 'numeric' }),
+        endDate: editEndDate.toLocaleString('default', { month: 'short', day: 'numeric' }),
+      }));
       setShowEditTrip(false);
       Toast.show({ type: 'success', text1: 'Trip updated!' });
     } catch (err) {
@@ -1511,7 +1548,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
               {expTab === 'All Expenses' && (
                 <View style={styles.dBody}>
-                  <TouchableOpacity style={styles.tealBtnFull} onPress={() => setShowAddExpense(p => !p)} activeOpacity={0.85}>
+                  <TouchableOpacity style={styles.tealBtnFull} onPress={() => {
+                    // Initialize split among with all trip members
+                    const allIds = ['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.userId)];
+                    setExpSplitAmong(allIds);
+                    setExpPaidBy('You');
+                    setExpDesc(''); setExpAmount(''); setExpSplitType('equally'); setExpSplitDetails({});
+                    setShowAddExpense(p => !p);
+                  }} activeOpacity={0.85}>
                     <Text style={styles.tealBtnTxt}>+ Add Expense</Text>
                   </TouchableOpacity>
 
@@ -1535,7 +1579,18 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         </View>
                       )}
                       <Text style={styles.fLabel}>Paid by</Text>
-                      <TextInput style={styles.fInput} placeholder="You" placeholderTextColor="#94a3b8" value={expPaidBy} onChangeText={setExpPaidBy} />
+                      <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowPaidByDrop(p => !p)} activeOpacity={0.8}>
+                        <Text style={{ fontSize: 13, color: '#0f172a' }}>{expPaidBy}</Text>
+                      </TouchableOpacity>
+                      {showPaidByDrop && (
+                        <View style={styles.dropdown}>
+                          {['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.fullName)].map(name => (
+                            <TouchableOpacity key={name} style={styles.dropdownItem} onPress={() => { setExpPaidBy(name); setShowPaidByDrop(false); }} activeOpacity={0.7}>
+                              <Text style={{ fontSize: 13, color: '#0f172a' }}>{name}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
                       <Text style={styles.fLabel}>Split type</Text>
                       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
                         {(['equally', 'amount', 'percent'] as const).map((key, i) => (
@@ -1561,6 +1616,25 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           />
                         )}
                       </TouchableOpacity>
+                      {/* Other trip members */}
+                      {members.filter(m => m.userId !== currentUserId).map(m => (
+                        <TouchableOpacity key={m.userId} style={[styles.splitRow, expSplitAmong.includes(m.userId) && styles.splitRowActive]} onPress={() => setExpSplitAmong(p => p.includes(m.userId) ? p.filter(x => x !== m.userId) : [...p, m.userId])} activeOpacity={0.8}>
+                          <View style={[styles.splitCheck, expSplitAmong.includes(m.userId) && styles.splitCheckActive]}>
+                            {expSplitAmong.includes(m.userId) && <CheckIcon />}
+                          </View>
+                          <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName}</Text>
+                          {expSplitType !== 'equally' && (
+                            <TextInput
+                              style={[styles.fInput, { width: 72, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]}
+                              placeholder={expSplitType === 'percent' ? '0 %' : '0.00'}
+                              placeholderTextColor="#94a3b8"
+                              keyboardType="numeric"
+                              value={expSplitDetails[m.userId] || ''}
+                              onChangeText={v => setExpSplitDetails(p => ({ ...p, [m.userId]: v }))}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      ))}
                       <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                         <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddExpense(false)} activeOpacity={0.7}><Text style={styles.cancelTxt}>Cancel</Text></TouchableOpacity>
                         <TouchableOpacity style={[styles.tealBtnFull, { flex: 1 }]} onPress={handleAddExpense} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>{editingExpenseId ? 'Update Expense' : 'Add Expense'}</Text></TouchableOpacity>
@@ -1778,7 +1852,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             {/* Action icons */}
                             <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                               <TouchableOpacity
-                                onPress={() => setNotes(p => p.map(n => n.id === note.id ? { ...n, pinned: !n.pinned } : n))}
+                                onPress={async () => {
+                                  try {
+                                    await favoriteNote(tripId, note.id);
+                                    setNotes(p => p.map(n => n.id === note.id ? { ...n, pinned: !n.pinned } : n));
+                                  } catch (err) { handleApiError(err); }
+                                }}
                                 activeOpacity={0.7}
                                 style={{ padding: 4 }}
                               >
@@ -1792,7 +1871,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                   <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#64748b" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
                                 </Svg>
                               </TouchableOpacity>
-                              <TouchableOpacity onPress={() => handleDeleteNote(note.id, (note as any).createdBy ?? '')} activeOpacity={0.7} style={{ padding: 4 }}>
+                              <TouchableOpacity onPress={() => handleDeleteNote(note.id)} activeOpacity={0.7} style={{ padding: 4 }}>
                                 <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
                                   <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="#ef4444" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
                                 </Svg>
@@ -1822,9 +1901,33 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 <Text style={styles.fLabel}>Trip Name</Text>
                 <TextInput style={styles.fInput} placeholder="e.g., Tokyo Getaway" placeholderTextColor="#94a3b8" value={editName} onChangeText={setEditName} />
                 <Text style={styles.fLabel}>Start Date</Text>
-                <TextInput style={styles.fInput} placeholder="DD/MM/YY" placeholderTextColor="#94a3b8" value={editStartDate} onChangeText={setEditStartDate} keyboardType="numeric" />
+                <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowStartPicker(true)} activeOpacity={0.8}>
+                  <Text style={{ color: '#0f172a', fontSize: 14 }}>
+                    {`${String(editStartDate.getDate()).padStart(2,'0')}/${String(editStartDate.getMonth()+1).padStart(2,'0')}/${String(editStartDate.getFullYear()).slice(-2)}`}
+                  </Text>
+                </TouchableOpacity>
+                {showStartPicker && (
+                  <DateTimePicker
+                    value={editStartDate}
+                    mode="date"
+                    display="default"
+                    onChange={(_: DateTimePickerEvent, d?: Date) => { setShowStartPicker(false); if (d) setEditStartDate(d); }}
+                  />
+                )}
                 <Text style={styles.fLabel}>End Date</Text>
-                <TextInput style={styles.fInput} placeholder="DD/MM/YY" placeholderTextColor="#94a3b8" value={editEndDate} onChangeText={setEditEndDate} keyboardType="numeric" />
+                <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowEndPicker(true)} activeOpacity={0.8}>
+                  <Text style={{ color: '#0f172a', fontSize: 14 }}>
+                    {`${String(editEndDate.getDate()).padStart(2,'0')}/${String(editEndDate.getMonth()+1).padStart(2,'0')}/${String(editEndDate.getFullYear()).slice(-2)}`}
+                  </Text>
+                </TouchableOpacity>
+                {showEndPicker && (
+                  <DateTimePicker
+                    value={editEndDate}
+                    mode="date"
+                    display="default"
+                    onChange={(_: DateTimePickerEvent, d?: Date) => { setShowEndPicker(false); if (d) setEditEndDate(d); }}
+                  />
+                )}
                 <Text style={styles.fLabel}>Location</Text>
                 <TextInput style={styles.fInput} placeholder="e.g., Paris, France" placeholderTextColor="#94a3b8" value={editLocation} onChangeText={setEditLocation} />
               </View>
