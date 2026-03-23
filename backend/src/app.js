@@ -14,6 +14,7 @@ const homeRoutes    = require('./modules/home/home.routes');
 const tripsRoutes   = require('./modules/trips/trips.routes');
 const friendsRoutes = require('./modules/friends/friends.routes');
 const invitesRoutes = require('./modules/invites/invites.routes');
+const contactRoutes = require('./modules/contact/contact.routes');
 
 const app = express();
 
@@ -71,6 +72,7 @@ app.use('/home',    homeRoutes);
 app.use('/trips',   tripsRoutes);
 app.use('/friends', friendsRoutes);
 app.use('/invites', invitesRoutes);
+app.use('/api/contact', contactRoutes);
 
 /* ───────────────────────────────────────────
  * 404 Handler
