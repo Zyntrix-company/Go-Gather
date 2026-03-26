@@ -90,11 +90,7 @@ const createActivity = async (tripId, userId, body) => {
     [tripId, userId, title, date, timeToString(time), locationName || null, description || null, expenseId || null],
   );
 
-  return {
-    ...formatActivity(result.rows[0]),
-    photoCount: 0,
-    linkedExpense: null,
-  };
+  return getActivityById(tripId, result.rows[0].id);
 };
 
 const updateActivity = async (actId, tripId, requesterId, requesterRole, updates) => {
@@ -277,7 +273,7 @@ const getActivityPhotos = async (tripId, actId) => {
       userId: row.uploaded_by,
       name: row.uploader_name || null,
     },
-    fileUrl: row.file_url,
+    url: row.file_url,
     mimeType: row.mime_type,
     createdAt: row.created_at,
   }));

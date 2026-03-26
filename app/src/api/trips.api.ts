@@ -66,6 +66,7 @@ export type Trip = {
   endDate: string;
   location: TripLocation | string;
   coverPhotoUrl: string | null;
+  bannerImageUrl: string | null;   // auto-assigned from category match if not manually uploaded
   createdBy: string;
   daysToGo?: number;
   memberCount?: number;
@@ -94,6 +95,7 @@ export type Activity = {
   createdBy: string;
   createdAt: string;
   photoCount?: number;
+  linkedExpense?: { id: string; description: string; amount: number } | null;
 };
 
 export type Photo = {
@@ -101,7 +103,10 @@ export type Photo = {
   url: string;
   mimeType?: string;
   uploadedBy: string;
-  uploadedAt: string;
+  uploaderName?: string | null;
+  activityId?: string | null;
+  activityTitle?: string | null;
+  createdAt?: string;
 };
 
 export type Doc = {
@@ -253,6 +258,7 @@ export async function createActivity(tripId: string, body: {
   time?: string;
   location?: string;
   cost?: number;
+  expenseId?: string;
 }) {
   const res = await client.post(`/trips/${tripId}/activities`, body);
   return res.data as { activity: Activity };
@@ -312,6 +318,7 @@ export async function createExpense(tripId: string, body: {
   amount: number;
   currency?: string;
   category?: string;
+  paidBy: string;
   splitType: 'equal' | 'amount' | 'percentage';
   splitAmong: SplitUser[];
 }) {

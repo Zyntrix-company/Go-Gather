@@ -58,9 +58,10 @@ const { width: SCREEN_W } = Dimensions.get('window');
 type Activity = {
   id: string; title: string; date: string; hour: string; minute: string;
   location?: string; description?: string; completed?: boolean;
+  linkedExpense?: { id: string; description: string; amount: number } | null;
 };
 type DocItem = { id: string; name: string; uri: string };
-type PhotoItem = { id: string; uri: string; name: string };
+type PhotoItem = { id: string; uri: string; name: string; uploadedBy?: string; activityId?: string | null; activityTitle?: string | null };
 type Expense = {
   id: string; description: string; amount: number; category: string;
   paidBy: string; splitType: 'equally' | 'amount' | 'percent';
@@ -276,7 +277,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [actExpPaidBy,      setActExpPaidBy]      = useState('You');
   const [actExpSplitType,   setActExpSplitType]   = useState<'equally'|'amount'|'percent'>('equally');
   const [actExpSplitAmong,  setActExpSplitAmong]  = useState<string[]>(['You']);
+  const [actExpSplitDetails, setActExpSplitDetails] = useState<{[k:string]:string}>({});
   const [showActExpCatDrop, setShowActExpCatDrop] = useState(false);
+  const [showActExpPaidByDrop, setShowActExpPaidByDrop] = useState(false);
+  const [actExpConfirmed, setActExpConfirmed] = useState(false);
 
   // ── Members modal ──
   const [memberTab,       setMemberTab]       = useState<'From Friends' | 'Invite New'>('From Friends');
@@ -416,7 +420,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       setIsLoadingPhotos(true);
       try {
         const res = await getTripPhotos(tripId);
-        setPhotos(res.photos.map(p => ({ id: p.id, uri: p.url, name: p.id, uploadedBy: p.uploadedBy })));
+        setPhotos(res.photos.map(p => ({ id: p.id, uri: p.url, name: p.id, uploadedBy: p.uploadedBy, activityId: p.activityId ?? null, activityTitle: p.activityTitle ?? null })));
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -501,6 +505,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     setActLocation(''); setActDesc(''); setShowActExp(false); setActPhotos([]);
     setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATS[0]);
     setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']);
+    setActExpSplitDetails({}); setActExpConfirmed(false);
     setEditingActivityId(null);
   }
 
@@ -513,6 +518,55 @@ export default function TripDetailScreen({ route, navigation }: any) {
     try {
       const timeStr = (actHour && actMin) ? `${actHour}:${actMin}` : undefined;
       const dateStr = actDate ? actDate.toISOString().split('T')[0] : undefined;
+
+      // If an expense was staged, create it first then link to activity
+      let linkedExpenseId: string | undefined;
+      if (actExpConfirmed && actExpDesc.trim() && actExpAmount) {
+        const catMap: Record<string, string> = {
+          'General': 'general', 'Food & Dining': 'food', 'Transport': 'transportation',
+          'Stay': 'accommodation', 'Entertainment': 'entertainment', 'Shopping': 'shopping', 'Other': 'other',
+        };
+        const apiSplitType = actExpSplitType === 'equally' ? 'equal' : actExpSplitType === 'percent' ? 'percentage' : 'amount';
+        const expAmount = parseFloat(actExpAmount) || 0;
+        const payerId = actExpPaidBy === 'You' ? currentUserId : (members.find(m => m.fullName === actExpPaidBy)?.userId ?? currentUserId);
+        const memberIdsForSplit = actExpSplitAmong.map(id => id === 'You' ? currentUserId : id).filter(Boolean);
+        const splitAmong = apiSplitType === 'equal'
+          ? memberIdsForSplit.map(id => ({ userId: id }))
+          : memberIdsForSplit.map(id => {
+              const detailKey = id === currentUserId ? 'You' : id;
+              return {
+                userId: id,
+                ...(apiSplitType === 'amount'
+                  ? { amount: parseFloat(actExpSplitDetails[detailKey] || '0') }
+                  : { percentage: parseFloat(actExpSplitDetails[detailKey] || '0') }),
+              };
+            });
+        const expRes = await createExpense(tripId, {
+          description: actExpDesc.trim(),
+          amount: expAmount,
+          category: catMap[actExpCategory.label] ?? 'general',
+          paidBy: payerId,
+          splitType: apiSplitType as 'equal' | 'amount' | 'percentage',
+          splitAmong: splitAmong.length ? splitAmong : [{ userId: currentUserId }],
+        });
+        linkedExpenseId = expRes.expense.id;
+        // Sync to expenses list so main expense management reflects it
+        const exp = expRes.expense;
+        const d = new Date(exp.createdAt);
+        const paidByStr = typeof exp.paidBy === 'object' && exp.paidBy !== null
+          ? (exp.paidBy as any).name ?? (exp.paidBy as any).fullName ?? 'Unknown'
+          : String(exp.paidBy ?? 'Unknown');
+        setExpenses(prev => [...prev, {
+          id: exp.id, description: exp.description, amount: parseFloat(String(exp.amount)),
+          category: exp.category ?? 'general', paidBy: paidByStr,
+          splitType: exp.splitType === 'equal' ? 'equally' : exp.splitType === 'percentage' ? 'percent' : 'amount',
+          splitAmong: (exp.splits ?? []).map((s: any) => s.userId),
+          date: `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`,
+          createdBy: paidByStr,
+        }]);
+        if (expRes.balances) setBalances(expRes.balances);
+      }
+
       if (editingActivityId) {
         const res = await updateActivity(tripId, editingActivityId, {
           title: actTitle.trim(),
@@ -537,6 +591,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
           date: dateStr,
           time: timeStr,
           location: actLocation || undefined,
+          expenseId: linkedExpenseId,
         });
         const a = res.activity;
         setActivities(p => [...p, {
@@ -549,8 +604,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
           description: a.description,
           completed: false,
           createdBy: a.createdBy,
+          linkedExpense: (a as any).linkedExpense ?? null,
         }]);
-        // Upload activity photos if any were staged
         if (actPhotos.length > 0) {
           const assets = actPhotos.map((uri, i) => ({ uri, name: `photo_${i}.jpg`, type: 'image/jpeg' }));
           await uploadActivityPhotos(tripId, a.id, assets).catch(() => {});
@@ -603,7 +658,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       if (!assets.length) return;
       try {
         const data = await uploadTripPhotos(tripId, assets);
-        setPhotos(p => [...p, ...data.photos.map(ph => ({ id: ph.id, uri: ph.url, name: ph.id, uploadedBy: ph.uploadedBy }))]);
+        setPhotos(p => [...p, ...data.photos.map(ph => ({ id: ph.id, uri: ph.url, name: ph.id, uploadedBy: ph.uploadedBy, activityId: null, activityTitle: null }))]);
       } catch (err) { handleApiError(err); }
     });
   }
@@ -1081,6 +1136,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <Text style={styles.actTitle}>{act.title}</Text>
                     {!!(act.date || act.hour) && <Text style={styles.actMeta}>{act.date}{act.hour ? ` · ${act.hour}:${act.minute || '00'}` : ''}</Text>}
                     {!!act.location && <Text style={styles.actMeta}>{act.location}</Text>}
+                    {!!act.linkedExpense && <Text style={styles.actMeta}>💰 {act.linkedExpense.description} · ₹{act.linkedExpense.amount.toFixed(2)}</Text>}
                   </View>
                   <TouchableOpacity onPress={() => startEditActivity(act)} style={[styles.doneBtn, { marginLeft: 4 }]} activeOpacity={0.7}>
                     <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
@@ -1118,6 +1174,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <Text style={styles.actTitle}>{act.title}</Text>
                     {!!(act.date || act.hour) && <Text style={styles.actMeta}>{act.date}{act.hour ? ` · ${act.hour}:${act.minute || '00'}` : ''}</Text>}
                     {!!act.location && <Text style={styles.actMeta}>{act.location}</Text>}
+                    {!!act.linkedExpense && <Text style={styles.actMeta}>💰 {act.linkedExpense.description} · ₹{act.linkedExpense.amount.toFixed(2)}</Text>}
                   </View>
                   <TouchableOpacity onPress={() => startEditActivity(act)} style={[styles.doneBtn, { marginLeft: 4 }]} activeOpacity={0.7}>
                     <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
@@ -1297,7 +1354,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 )}
                 <View style={styles.actExtraRow}>
                   <Text style={styles.actExtraLabel}>Expenses</Text>
-                  <TouchableOpacity onPress={() => setShowActExp(p => !p)} activeOpacity={0.7}><Text style={styles.actExtraBtn}>+ Add Expense</Text></TouchableOpacity>
+                  {!actExpConfirmed && (
+                    <TouchableOpacity onPress={() => setShowActExp(p => !p)} activeOpacity={0.7}>
+                      <Text style={styles.actExtraBtn}>{showActExp ? '− Collapse' : '+ Add Expense'}</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 {showActExp && (
                   <View style={{ backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginTop: 4 }}>
@@ -1317,7 +1378,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         ))}
                       </View>
                     )}
-                    <TextInput style={[styles.fInput, { marginTop: 8 }]} placeholder="Paid by (You)" placeholderTextColor="#94a3b8" value={actExpPaidBy} onChangeText={setActExpPaidBy} />
+                    <Text style={[styles.fLabel, { marginTop: 8 }]}>Paid by</Text>
+                    <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowActExpPaidByDrop(p => !p)} activeOpacity={0.8}>
+                      <Text style={{ fontSize: 13, color: '#0f172a' }}>{actExpPaidBy}</Text>
+                    </TouchableOpacity>
+                    {showActExpPaidByDrop && (
+                      <View style={styles.dropdown}>
+                        {['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.fullName)].map(name => (
+                          <TouchableOpacity key={name} style={styles.dropdownItem} onPress={() => { setActExpPaidBy(name); setShowActExpPaidByDrop(false); }} activeOpacity={0.7}>
+                            <Text style={{ fontSize: 13, color: '#0f172a' }}>{name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
                     <Text style={[styles.fLabel, { marginTop: 8 }]}>Split type</Text>
                     <View style={{ flexDirection: 'row', gap: 6 }}>
                       {(['equally','amount','percent'] as const).map((k, i) => (
@@ -1331,19 +1404,38 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       <View style={[styles.splitCheck, actExpSplitAmong.includes('You') && styles.splitCheckActive]}>{actExpSplitAmong.includes('You') && <CheckIcon />}</View>
                       <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>You</Text>
                       {actExpSplitType !== 'equally' && (
-                        <TextInput style={[styles.fInput, { width: 70, marginBottom: 0, paddingVertical: 5 }]} placeholder={actExpSplitType === 'percent' ? '%' : '₹'} placeholderTextColor="#94a3b8" keyboardType="numeric" />
+                        <TextInput style={[styles.fInput, { width: 70, marginBottom: 0, paddingVertical: 5 }]} placeholder={actExpSplitType === 'percent' ? '%' : '₹'} placeholderTextColor="#94a3b8" keyboardType="numeric" value={actExpSplitDetails['You'] || ''} onChangeText={v => setActExpSplitDetails(p => ({ ...p, You: v }))} />
                       )}
                     </TouchableOpacity>
+                    {members.filter(m => m.userId !== currentUserId).map(m => (
+                      <TouchableOpacity key={m.userId} style={[styles.splitRow, actExpSplitAmong.includes(m.userId) && styles.splitRowActive]} onPress={() => setActExpSplitAmong(p => p.includes(m.userId) ? p.filter(x => x !== m.userId) : [...p, m.userId])} activeOpacity={0.8}>
+                        <View style={[styles.splitCheck, actExpSplitAmong.includes(m.userId) && styles.splitCheckActive]}>{actExpSplitAmong.includes(m.userId) && <CheckIcon />}</View>
+                        <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName}</Text>
+                        {actExpSplitType !== 'equally' && (
+                          <TextInput style={[styles.fInput, { width: 70, marginBottom: 0, paddingVertical: 5 }]} placeholder={actExpSplitType === 'percent' ? '%' : '₹'} placeholderTextColor="#94a3b8" keyboardType="numeric" value={actExpSplitDetails[m.userId] || ''} onChangeText={v => setActExpSplitDetails(p => ({ ...p, [m.userId]: v }))} />
+                        )}
+                      </TouchableOpacity>
+                    ))}
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                      <TouchableOpacity style={[styles.splitTypeBtn, { flex: 1, paddingVertical: 10 }]} onPress={() => setShowActExp(false)} activeOpacity={0.7}><Text style={styles.splitTypeTxt}>Cancel</Text></TouchableOpacity>
+                      <TouchableOpacity style={[styles.splitTypeBtn, { flex: 1, paddingVertical: 10 }]} onPress={() => { setShowActExp(false); if (!actExpConfirmed) { setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATS[0]); setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']); setActExpSplitDetails({}); } }} activeOpacity={0.7}><Text style={styles.splitTypeTxt}>Cancel</Text></TouchableOpacity>
                       <TouchableOpacity style={[styles.tealBtnFull, { flex: 1.4 }]} onPress={() => {
                         if (actExpDesc.trim() && actExpAmount) {
-                          const d = new Date();
-                          setExpenses(p => [...p, { id: Date.now().toString(), description: actExpDesc.trim(), amount: parseFloat(actExpAmount)||0, category: actExpCategory.label, paidBy: actExpPaidBy, splitType: actExpSplitType, splitAmong: actExpSplitAmong, date: `${d.getDate()} ${d.toLocaleString('default',{month:'short'})}` }]);
-                          setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATS[0]); setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']); setShowActExp(false);
+                          setActExpConfirmed(true);
+                          setShowActExp(false);
                         } else { Alert.alert('Error', 'Enter description and amount'); }
-                      }} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>Add</Text></TouchableOpacity>
+                      }} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>Confirm</Text></TouchableOpacity>
                     </View>
+                  </View>
+                )}
+                {actExpConfirmed && !showActExp && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdf9', borderRadius: 8, padding: 10, marginTop: 4, borderWidth: 1, borderColor: '#ccfbf1' }}>
+                    <Text style={{ fontSize: 13, color: '#0f172a', flex: 1 }} numberOfLines={1}>{actExpCategory.emoji} {actExpDesc} · ₹{actExpAmount}</Text>
+                    <TouchableOpacity onPress={() => setShowActExp(true)} activeOpacity={0.7} style={{ marginRight: 10 }}>
+                      <Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '600' }}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => { setActExpConfirmed(false); setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATS[0]); setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']); setActExpSplitDetails({}); }} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '600' }}>Remove</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
@@ -1521,8 +1613,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     {photos.map(ph => (
                       <View key={ph.id} style={{ width: 80, height: 80 }}>
                         <Image source={{ uri: ph.uri }} style={{ width: 80, height: 80, borderRadius: 8 } as any} />
-                        {(role === 'admin' || (ph as any).uploadedBy === currentUserId) && (
-                          <TouchableOpacity onPress={() => handleDeletePhoto(ph.id, (ph as any).uploadedBy ?? '')} style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
+                        {ph.activityId && ph.activityTitle ? (
+                          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.55)', borderBottomLeftRadius: 8, borderBottomRightRadius: 8, paddingHorizontal: 3, paddingVertical: 2 }}>
+                            <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }} numberOfLines={1}>{ph.activityTitle}</Text>
+                          </View>
+                        ) : null}
+                        {(role === 'admin' || ph.uploadedBy === currentUserId) && (
+                          <TouchableOpacity onPress={() => handleDeletePhoto(ph.id, ph.uploadedBy ?? '')} style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
                             <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>✕</Text>
                           </TouchableOpacity>
                         )}

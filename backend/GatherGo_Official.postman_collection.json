@@ -1,8 +1,8 @@
 {
 	"info": {
 		"_postman_id": "9a8b7c6d-5432-11ef-9876-0242ac120002",
-		"name": "GatherGo — Complete API (M1 + M2 + M4 + Prompt A + Migrations 005–009)",
-		"description": "Complete GatherGo collection — seeded test data pre-filled.\n\n⚡ START HERE: Run folder 2 → \"Login as Alice\" — access_token auto-saves.\nAll UUIDs match the seed output.\n\nSetup:\n  1. node seed.js          (from backend/ directory)\n  2. npm run dev\n  3. Run \"Login as Alice\" below\n\nSeed users (password: TestPass123!):\n  alice   → test@gathergo.com     (primary test user)\n  bob     → bob@gathergo.com      (accepted friend of alice)\n  charlie → charlie@gathergo.com  (accepted friend of alice)\n  diana   → diana@gathergo.com    (alice sent request → pending)\n  eve     → eve@gathergo.com      (eve sent request to alice → alice can accept/decline)\n\nSeeded trips:\n  UPCOMING  b0000000-0000-4000-8000-000000000001  Goa Trip 2027\n  ONGOING   b0000000-0000-4000-8000-000000000002  Manali Winter 2026\n  PAST      b0000000-0000-4000-8000-000000000003  Kerala Backwaters\n\nSeeded expenses (Goa trip):\n  c0000000-0000-4000-8000-000000000001  Hotel ₹9000    equal split   alice paid\n  c0000000-0000-4000-8000-000000000002  Scuba ₹4000    percentage    bob paid\n  c0000000-0000-4000-8000-000000000003  Dinner ₹3600   amount split  charlie paid\n\nSeeded invite tokens:\n  friend-invite-seed-token-001  (friend invite, created by alice)\n  trip-invite-seed-token-001    (Goa trip invite, created by alice)\n\nMigration 005: docs, photos, expenses, polls, and notes now use shared tables\nwith parent_type ('trip'|'event') + parent_id. All URLs are unchanged.\n\nMigration 006: trips.banner_image_url (TEXT) — optional banner image for a trip.\nMigration 007: trips.archived_at (TIMESTAMPTZ) — null = active, timestamp = archived.\n  Archived trips are hidden from upcoming/ongoing/past lists.\n  Use GET /trips?status=archived to retrieve them.\n  Archive/unarchive via POST /trips/:id/archive and POST /trips/:id/unarchive (admin only).\n\nMigration 008: note_favorites (note_id, user_id) — per-user note favorites.\n  Toggle via POST /trips/:id/notes/:noteId/favorite → { isFavorited: bool }\n  GET /notes returns isFavorited per note; favorited notes sorted to top.\n\nMigration 009: photos.activity_id (UUID, nullable FK → trip_activities).\n  Activity photos now stored in shared photos table.\n  GET /trips/:id/photos returns ALL photos — activityId=null for standalone, activityId=uuid for activity photos.\n  Enables full trip gallery in one call.",
+		"name": "GatherGo — Complete API (M1 + M2 + M4 + Prompt A + Migrations 005–010)",
+		"description": "Complete GatherGo collection — seeded test data pre-filled.\n\n⚡ START HERE: Run folder 2 → \"Login as Alice\" — access_token auto-saves.\nAll UUIDs match the seed output.\n\nSetup:\n  1. node seed.js          (from backend/ directory)\n  2. npm run dev\n  3. Run \"Login as Alice\" below\n\nSeed users (password: TestPass123!):\n  alice   → test@gathergo.com     (primary test user)\n  bob     → bob@gathergo.com      (accepted friend of alice)\n  charlie → charlie@gathergo.com  (accepted friend of alice)\n  diana   → diana@gathergo.com    (alice sent request → pending)\n  eve     → eve@gathergo.com      (eve sent request to alice → alice can accept/decline)\n\nSeeded trips:\n  UPCOMING  b0000000-0000-4000-8000-000000000001  Goa Trip 2027\n  ONGOING   b0000000-0000-4000-8000-000000000002  Manali Winter 2026\n  PAST      b0000000-0000-4000-8000-000000000003  Kerala Backwaters\n\nSeeded expenses (Goa trip):\n  c0000000-0000-4000-8000-000000000001  Hotel ₹9000    equal split   alice paid\n  c0000000-0000-4000-8000-000000000002  Scuba ₹4000    percentage    bob paid\n  c0000000-0000-4000-8000-000000000003  Dinner ₹3600   amount split  charlie paid\n\nSeeded invite tokens:\n  friend-invite-seed-token-001  (friend invite, created by alice)\n  trip-invite-seed-token-001    (Goa trip invite, created by alice)\n\nMigration 005: docs, photos, expenses, polls, and notes now use shared tables\nwith parent_type ('trip'|'event') + parent_id. All URLs are unchanged.\n\nMigration 006: trips.banner_image_url (TEXT) — optional banner image for a trip.\nMigration 007: trips.archived_at (TIMESTAMPTZ) — null = active, timestamp = archived.\n  Archived trips are hidden from upcoming/ongoing/past lists.\n  Use GET /trips?status=archived to retrieve them.\n  Archive/unarchive via POST /trips/:id/archive and POST /trips/:id/unarchive (admin only).\n\nMigration 008: note_favorites (note_id, user_id) — per-user note favorites.\n  Toggle via POST /trips/:id/notes/:noteId/favorite → { isFavorited: bool }\n  GET /notes returns isFavorited per note; favorited notes sorted to top.\n\nMigration 009: photos.activity_id (UUID, nullable FK → trip_activities).\n  Activity photos now stored in shared photos table.\n  GET /trips/:id/photos returns ALL photos — activityId=null for standalone, activityId=uuid for activity photos.\n  Enables full trip gallery in one call.\n\nMigration 010: categories table — 12 pre-seeded travel categories, each with keywords[] and photo_urls[].\n  Auto-banner assignment on trip creation (fallback chain):\n    1. User supplies bannerImageUrl → used as-is\n    2. No banner → location.name + trip name matched against category keywords → best photo URL used\n    3. No keyword match → generic fallback travel photo\n  GET /trips and GET /trips/:id always return bannerImageUrl (never null after migration 010).\n  bannerImageUrl is OPTIONAL in POST /trips body — omit it to trigger auto-assignment.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -451,19 +451,21 @@
 		},
 		{
 			"name": "6. Trips — Core + Invites + Members",
-			"description": "Seeded trips:\n  UPCOMING  b0000000-0000-4000-8000-000000000001 (Goa Trip 2027)\n  ONGOING   b0000000-0000-4000-8000-000000000002 (Manali Winter 2026)\n  PAST      b0000000-0000-4000-8000-000000000003 (Kerala Backwaters)",
+			"description": "Seeded trips:\n  UPCOMING  b0000000-0000-4000-8000-000000000001 (Goa Trip 2027)\n  ONGOING   b0000000-0000-4000-8000-000000000002 (Manali Winter 2026)\n  PAST      b0000000-0000-4000-8000-000000000003 (Kerala Backwaters)\n\nBanner auto-assignment (Migration 010):\n  bannerImageUrl is OPTIONAL on POST /trips.\n  Omit it → server matches location.name + name against categories keywords → assigns best photo URL.\n  Response always includes a non-null bannerImageUrl.\n  GET /trips and GET /trips/:id both return bannerImageUrl in every trip object.",
 			"item": [
 				{
-					"name": "Create Trip (minimal)",
+					"name": "Create Trip — auto banner (no bannerImageUrl)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"exec": [
 									"const json = pm.response.json();",
+									"pm.test('Status 201', () => pm.response.to.have.status(201));",
+									"pm.test('bannerImageUrl auto-assigned', () => pm.expect(json.trip.bannerImageUrl).to.be.a('string').and.not.empty);",
 									"if (json.trip && json.trip.id) {",
 									"    pm.collectionVariables.set('trip_id', json.trip.id);",
-									"    console.log('✅ trip_id saved:', json.trip.id);",
+									"    console.log('✅ trip_id saved:', json.trip.id, '| banner:', json.trip.bannerImageUrl);",
 									"}"
 								],
 								"type": "text/javascript"
@@ -477,7 +479,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"New Test Trip\",\n    \"startDate\": \"2027-06-01\",\n    \"endDate\": \"2027-06-05\",\n    \"location\": {\n        \"name\": \"Mumbai, Maharashtra\",\n        \"lat\": 19.0760,\n        \"lng\": 72.8777\n    },\n    \"bannerImageUrl\": \"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d\",\n    \"reminders\": true,\n    \"friendIds\": [],\n    \"emails\": []\n}",
+							"raw": "{\n    \"name\": \"Goa Beach Getaway\",\n    \"startDate\": \"2027-06-01\",\n    \"endDate\": \"2027-06-05\",\n    \"location\": {\n        \"name\": \"Goa, Beach, Coastal\",\n        \"lat\": 15.2993,\n        \"lng\": 74.1240\n    },\n    \"reminders\": true\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": {
@@ -485,18 +487,20 @@
 							"host": ["{{base_url}}"],
 							"path": ["trips"]
 						},
-						"description": "Creates a new trip. trip_id auto-saved from response.\nlocation is required."
+						"description": "No bannerImageUrl supplied → server keyword-matches location name against categories table → auto-assigns best photo URL.\nResponse will always contain a non-null bannerImageUrl.\n\nFallback chain:\n  1. bannerImageUrl in body → used as-is\n  2. keyword match in categories → matched photo URL\n  3. no match → generic travel fallback photo"
 					},
 					"response": []
 				},
 				{
-					"name": "Create Trip (with friendIds — invite Bob + Charlie)",
+					"name": "Create Trip — manual banner (with bannerImageUrl)",
 					"event": [
 						{
 							"listen": "test",
 							"script": {
 								"exec": [
 									"const json = pm.response.json();",
+									"pm.test('Status 201', () => pm.response.to.have.status(201));",
+									"pm.test('bannerImageUrl matches supplied URL', () => pm.expect(json.trip.bannerImageUrl).to.include('unsplash.com'));",
 									"if (json.trip && json.trip.id) {",
 									"    pm.collectionVariables.set('trip_id', json.trip.id);",
 									"    console.log('✅ trip_id saved:', json.trip.id);",
@@ -513,7 +517,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Rajasthan Road Trip\",\n    \"startDate\": \"2027-10-01\",\n    \"endDate\": \"2027-10-08\",\n    \"location\": {\n        \"name\": \"Jaipur, Rajasthan\",\n        \"lat\": 26.9124,\n        \"lng\": 75.7873\n    },\n    \"bannerImageUrl\": \"https://images.unsplash.com/photo-1477587458883-47145ed94245\",\n    \"reminders\": true,\n    \"friendIds\": [\n        \"a0000000-0000-4000-8000-000000000002\",\n        \"a0000000-0000-4000-8000-000000000003\"\n    ],\n    \"emails\": [\"outsider@example.com\"]\n}",
+							"raw": "{\n    \"name\": \"Mumbai City Trip\",\n    \"startDate\": \"2027-08-10\",\n    \"endDate\": \"2027-08-14\",\n    \"location\": {\n        \"name\": \"Mumbai, Maharashtra\",\n        \"lat\": 19.0760,\n        \"lng\": 72.8777\n    },\n    \"bannerImageUrl\": \"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=1600&q=80\",\n    \"reminders\": false\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": {
@@ -521,7 +525,44 @@
 							"host": ["{{base_url}}"],
 							"path": ["trips"]
 						},
-						"description": "friendIds: Bob + Charlie (both accepted friends of Alice) — direct-add.\nemails: outsider gets Branch link via SES."
+						"description": "Explicit bannerImageUrl supplied → used as-is, keyword matching skipped."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Trip — with friendIds + auto banner",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"const json = pm.response.json();",
+									"pm.test('Status 201', () => pm.response.to.have.status(201));",
+									"if (json.trip && json.trip.id) {",
+									"    pm.collectionVariables.set('trip_id', json.trip.id);",
+									"    console.log('✅ trip_id saved:', json.trip.id, '| banner:', json.trip.bannerImageUrl);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Rajasthan Road Trip\",\n    \"startDate\": \"2027-10-01\",\n    \"endDate\": \"2027-10-08\",\n    \"location\": {\n        \"name\": \"Jaipur Fort, Rajasthan\",\n        \"lat\": 26.9124,\n        \"lng\": 75.7873\n    },\n    \"reminders\": true,\n    \"friendIds\": [\n        \"a0000000-0000-4000-8000-000000000002\",\n        \"a0000000-0000-4000-8000-000000000003\"\n    ],\n    \"emails\": [\"outsider@example.com\"]\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/trips",
+							"host": ["{{base_url}}"],
+							"path": ["trips"]
+						},
+						"description": "friendIds: Bob + Charlie (accepted friends of Alice) → direct-add.\nemails: outsider@example.com gets Branch link via SES.\nNo bannerImageUrl → 'fort' keyword matches 'Historical & Heritage' category → auto-assigned banner."
 					},
 					"response": []
 				},
@@ -628,14 +669,15 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Goa Trip 2027 — Updated\",\n    \"endDate\": \"2027-04-17\",\n    \"bannerImageUrl\": \"https://images.unsplash.com/photo-1512343879784-a960bf40e7f2\"\n}",
+							"raw": "{\n    \"name\": \"Goa Trip 2027 — Updated\",\n    \"endDate\": \"2027-04-17\",\n    \"bannerImageUrl\": \"https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=1600&q=80\"\n}",
 							"options": { "raw": { "language": "json" } }
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/{{trip_id}}",
 							"host": ["{{base_url}}"],
 							"path": ["trips", "{{trip_id}}"]
-						}
+						},
+						"description": "Override the auto-assigned banner by supplying a new bannerImageUrl.\nPass bannerImageUrl: null to clear it (falls back to auto-assigned on next fetch is not re-triggered — store null or re-create to re-trigger).\nAdmin only."
 					},
 					"response": []
 				},
@@ -1309,7 +1351,7 @@
 							"host": ["{{base_url}}"],
 							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "activities", "{{activity_id}}", "photos"]
 						},
-						"description": "Max 5 photos total per activity. JPEG/PNG/HEIC only.\n400 MAX_PHOTOS_EXCEEDED if existing + new > 5."
+						"description": "Max 5 photos total per activity. JPEG/PNG/HEIC only.\n400 MAX_PHOTOS_EXCEEDED if existing + new > 5.\nPhotos are stored with parent_type='trip' so they also appear in GET /trips/:id/photos with activityId and activityTitle populated."
 					},
 					"response": []
 				},
@@ -1408,7 +1450,7 @@
 		},
 		{
 			"name": "10. Photos",
-			"description": "Trip-level gallery. 50 MB per file. JPEG/PNG/HEIC/MP4/MOV.",
+			"description": "Trip-level gallery. Includes all photos uploaded directly to the trip AND photos uploaded via any activity (activity photos appear here too with activityId + activityTitle fields). 50 MB per file. JPEG/PNG/HEIC/MP4/MOV.",
 			"item": [
 				{
 					"name": "Upload Trip Photos",
@@ -1427,7 +1469,8 @@
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/photos",
 							"host": ["{{base_url}}"],
 							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "photos"]
-						}
+						},
+						"description": "Upload photos directly to the trip gallery. Returns { photos[] } where each photo has: id, url, activityId (null for direct uploads), activityTitle (null), uploadedBy, mimeType, createdAt."
 					},
 					"response": []
 				},
@@ -1442,7 +1485,8 @@
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/photos",
 							"host": ["{{base_url}}"],
 							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "photos"]
-						}
+						},
+						"description": "Returns { photos[], total, page, limit }. Each photo includes: id, url, activityId (non-null if from an activity), activityTitle (activity name if from an activity, else null), uploadedBy, uploaderName, mimeType, createdAt. Supports ?page=&limit= (default 30, max 100)."
 					},
 					"response": []
 				},

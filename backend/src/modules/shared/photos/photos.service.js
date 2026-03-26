@@ -24,7 +24,8 @@ const uploadPhotos = async ({ parentType, parentId }, userId, files, { activityI
        RETURNING *`,
       [parentType, parentId, userId, fileUrl, s3Key, file.mimetype, activityId],
     );
-    uploaded.push(formatPhoto(result.rows[0]));
+    // activity_title not available on INSERT RETURNING — set null; GET endpoint joins it
+    uploaded.push(formatPhoto({ ...result.rows[0], activity_title: null }));
   }
 
   return uploaded;
@@ -35,9 +36,11 @@ const getPhotos = async ({ parentType, parentId }, { page = 1, limit = 30 } = {}
   const offset = (page - 1) * safLimit;
 
   const result = await db(
-    `SELECT ph.*, p.full_name AS uploader_name, COUNT(*) OVER()::int AS total_count
+    `SELECT ph.*, p.full_name AS uploader_name, ta.title AS activity_title,
+            COUNT(*) OVER()::int AS total_count
      FROM photos ph
      LEFT JOIN profiles p ON p.user_id = ph.uploaded_by
+     LEFT JOIN trip_activities ta ON ta.id = ph.activity_id
      WHERE ph.parent_type = $1 AND ph.parent_id = $2
      ORDER BY ph.created_at DESC
      LIMIT $3 OFFSET $4`,
@@ -77,9 +80,10 @@ const formatPhoto = (p) => ({
   parentType: p.parent_type,
   parentId: p.parent_id,
   activityId: p.activity_id || null,
+  activityTitle: p.activity_title || null,
   uploadedBy: p.uploaded_by,
   uploaderName: p.uploader_name || null,
-  fileUrl: p.file_url,
+  url: p.file_url,
   caption: p.caption,
   mimeType: p.mime_type,
   createdAt: p.created_at,

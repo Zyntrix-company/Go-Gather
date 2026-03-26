@@ -10,7 +10,12 @@
       "Bash(node -e \"const v = require\\(''validator''\\); [''8'',''9'',''a'',''b'',''0'',''1'',''c'',''d''].forEach\\(c => { const u = ''aaaa0001-0000-4000-''+c+''000-000000000001''; console.log\\(c + ''000 -> '' + v.isUUID\\(u\\)\\); }\\);\")",
       "Bash(node -e \":*)",
       "Bash(git push:*)",
-      "Bash(find /e/Demo -type f -name *trip* -o -name *Trip*)"
+      "Bash(find /e/Demo -type f -name *trip* -o -name *Trip*)",
+      "Bash(find '/e/Go Gather/backend/src/modules/trips/submodules' -maxdepth 3 -type f -name *.js)",
+      "Bash(find '/e/Go Gather/app/src' -type f -name *xpense* -o -type f -name *Expense*)",
+      "Bash(find '/e/Go Gather' -path *app/src/screens* -type f)",
+      "Bash(find '/e/Go Gather' -path *app/src/api* -type f)",
+      "Bash(xargs grep:*)"
     ]
   }
 }
