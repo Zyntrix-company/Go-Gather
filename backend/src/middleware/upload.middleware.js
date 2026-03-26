@@ -11,18 +11,39 @@ const DOC_ALLOWED_TYPES = [
   'image/jpeg',
   'image/png',
   'application/pdf',
+  // MS Office modern (OOXML / ZIP-based)
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',       // .xlsx
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+  // MS Office legacy (OLE2)
+  'application/msword',                 // .doc
+  'application/vnd.ms-excel',           // .xls
+  'application/vnd.ms-powerpoint',      // .ppt
+  // Plain text
+  'text/plain',  // .txt
+  'text/csv',    // .csv
 ];
 
-// Magic-bytes MIME validation — trusts buffer, not Content-Type header
+// Magic-bytes MIME validation — trusts buffer, not Content-Type header.
+// Types with no defined magic (text/plain, text/csv) skip byte-level check.
 const MIME_MAGIC = {
   'image/jpeg':      [0xFF, 0xD8, 0xFF],
   'image/png':       [0x89, 0x50, 0x4E, 0x47],
   'application/pdf': [0x25, 0x50, 0x44, 0x46], // %PDF
+  // OOXML formats are ZIP archives
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':  [0x50, 0x4B, 0x03, 0x04], // PK
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':        [0x50, 0x4B, 0x03, 0x04],
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation':[0x50, 0x4B, 0x03, 0x04],
+  // OLE2 legacy Office formats
+  'application/msword':           [0xD0, 0xCF, 0x11, 0xE0],
+  'application/vnd.ms-excel':     [0xD0, 0xCF, 0x11, 0xE0],
+  'application/vnd.ms-powerpoint':[0xD0, 0xCF, 0x11, 0xE0],
 };
 
 const validateMimeFromBuffer = (buffer, expectedMime) => {
   const magic = MIME_MAGIC[expectedMime];
-  if (!magic || !buffer || buffer.length < magic.length) return false;
+  if (!magic) return true; // no magic defined (e.g. text/plain, text/csv) — skip byte check
+  if (!buffer || buffer.length < magic.length) return false;
   return magic.every((byte, i) => buffer[i] === byte);
 };
 
@@ -33,7 +54,7 @@ const createDocUpload = () => multer({
     if (DOC_ALLOWED_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      const err = new Error('Docs must be JPEG, PNG, or PDF (max 15 MB)');
+      const err = new Error('Invalid file type. Allowed: JPEG, PNG, PDF, Word, Excel, PowerPoint, TXT, CSV (max 15 MB)');
       err.statusCode = 400;
       err.error = 'INVALID_FILE_TYPE';
       cb(err, false);

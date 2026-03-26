@@ -40,7 +40,7 @@ router.post('/', contactCors, async (req, res) => {
 
   try {
     await sendEmail({
-      to: 'Hello@GatherrGo.com',
+      to: process.env.CONTACT_EMAIL || 'Hello@GatherrGo.com',
       subject: `New Contact Form Submission — ${subject}`,
       html,
       text,

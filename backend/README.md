@@ -299,6 +299,7 @@ Runs all pending migrations in order:
 - `006` — adds `banner_image_url TEXT` to `trips` — optional banner image set on create or update
 - `007` — adds `archived_at TIMESTAMPTZ` to `trips` — null = active, timestamp = archived; indexed for fast filtering
 - `008` — creates `note_favorites (note_id, user_id)` — per-user note favorites; toggle via dedicated endpoint; favorited notes sorted to top of GET /notes
+- `009` — adds `activity_id UUID` (nullable FK) to `photos` table; activity photos now stored in shared `photos` table so they appear in the trip gallery; `trip_activity_photos` renamed to `_bak_`
 
 The runner tracks applied migrations in `_migrations` table — safe to re-run, skips already-applied files.
 
@@ -508,9 +509,9 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 | POST | `/trips/:id/activities` | Member | Create. Body: `{ title, date, time: {hour,minute}, locationName, description, expenseId }` |
 | PUT | `/trips/:id/activities/:actId` | Member | Partial update. Creator or admin only. |
 | DELETE | `/trips/:id/activities/:actId` | Member | Creator or admin only. |
-| POST | `/trips/:id/activities/:actId/photos` | Member | Upload up to 5 photos total per activity (multipart, field: `photos`) |
-| GET | `/trips/:id/activities/:actId/photos` | Member | Get all photos for an activity |
-| DELETE | `/trips/:id/activities/:actId/photos/:photoId` | Member | Uploader or admin only |
+| POST | `/trips/:id/activities/:actId/photos` | Member | Upload up to 5 photos per activity (multipart, field: `photos`). Photos stored in shared `photos` table — visible in trip gallery with `activityId` set. |
+| GET | `/trips/:id/activities/:actId/photos` | Member | Get photos for a specific activity. Each photo includes `activityId`. |
+| DELETE | `/trips/:id/activities/:actId/photos/:photoId` | Member | Uploader or admin only. |
 
 ### Trips — Docs (backed by shared `docs` table)
 | Method | Route | Auth | Description |
@@ -523,7 +524,7 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 | Method | Route | Auth | Description |
 |---|---|---|---|
 | POST | `/trips/:id/photos` | Member | Upload trip photos (multipart, field: `photos`, max 5 files, 50 MB each) |
-| GET | `/trips/:id/photos` | Member | List trip photos |
+| GET | `/trips/:id/photos` | Member | All trip photos — includes activity photos (`activityId` set) and standalone trip photos (`activityId: null`) |
 | DELETE | `/trips/:id/photos/:photoId` | Member | Uploader or admin only |
 
 ### Trips — Expenses (backed by shared `expenses` table)

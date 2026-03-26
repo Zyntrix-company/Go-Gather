@@ -6,9 +6,16 @@ const { v4: uuidv4 } = require('uuid');
 const MAX_DOCS = 50;
 
 const uploadDoc = async ({ parentType, parentId }, userId, file) => {
-  const validTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+  const validTypes = [
+    'image/jpeg', 'image/png', 'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/msword', 'application/vnd.ms-excel', 'application/vnd.ms-powerpoint',
+    'text/plain', 'text/csv',
+  ];
   if (!validTypes.includes(file.mimetype) || !validateMimeFromBuffer(file.buffer, file.mimetype)) {
-    const e = new Error('Invalid file type. Only JPEG, PNG, and PDF are allowed.');
+    const e = new Error('Invalid file type. Allowed: JPEG, PNG, PDF, Word, Excel, PowerPoint, TXT, CSV.');
     e.statusCode = 400; e.error = 'INVALID_FILE_TYPE'; throw e;
   }
 

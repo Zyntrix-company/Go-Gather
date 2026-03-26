@@ -729,7 +729,7 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.ctScrollContent}>
 
             {/* Banner Image */}
-            <Text style={styles.ctLabel}>Banner Image</Text>
+            <Text style={styles.ctLabel}>Banner Image <Text style={{ color: '#94a3b8', fontWeight: '400' }}>(optional — auto-assigned if skipped)</Text></Text>
             <TouchableOpacity
               style={{ width: '100%', height: 140, borderRadius: 12, backgroundColor: '#f1f5f9', overflow: 'hidden', marginBottom: 14, alignItems: 'center', justifyContent: 'center', borderWidth: bannerImageUri ? 0 : 1, borderColor: '#e2e8f0', borderStyle: 'dashed' }}
               onPress={() => launchImageLibrary({
@@ -763,7 +763,7 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
                     <Circle cx={8.5} cy={8.5} r={1.5} fill="#94a3b8" />
                     <Path d="M21 15l-5-5L5 21" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
-                  <Text style={{ color: '#94a3b8', fontSize: 13 }}>Tap to add banner photo</Text>
+                  <Text style={{ color: '#94a3b8', fontSize: 13 }}>Tap to add banner photo (auto-matched otherwise)</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -1741,8 +1741,8 @@ export default function HomeScreen({ navigation }: any) {
               emails: data.inviteEmail ? [data.inviteEmail] : undefined,
             });
             let newTrip = res.trip;
-            // Step 2: If banner image selected, upload it and update trip with CDN URL
-            if (data.bannerImageUrl && data.bannerImageUrl.startsWith('file')) {
+            // Step 2: If banner image selected (local file URI), upload it and update trip with CDN URL
+            if (data.bannerImageUrl && (data.bannerImageUrl.startsWith('file://') || data.bannerImageUrl.startsWith('content://'))) {
               try {
                 const photoRes = await uploadTripPhotos(newTrip.id, [{
                   uri: data.bannerImageUrl,

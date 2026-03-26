@@ -7,6 +7,45 @@ const { createInviteSmartLink } = require('../../utils/branch.util');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 
+// ─── Banner Auto-Assignment ────────────────────────────────────────────────────
+
+// Generic travel photo used when no category keyword matches.
+const FALLBACK_BANNER = 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1600&q=80';
+
+/**
+ * Match free-text against category keywords and return the best photo URL.
+ * Priority: user-supplied URL > keyword match > FALLBACK_BANNER
+ */
+const resolveBannerUrl = async (text) => {
+  try {
+    const result = await db(
+      "SELECT keywords, photo_urls FROM categories WHERE array_length(photo_urls, 1) > 0",
+    );
+    const categories = result.rows;
+    if (!categories.length) return FALLBACK_BANNER;
+
+    const lower = text.toLowerCase();
+    let bestScore = 0;
+    let bestUrl = null;
+
+    for (const cat of categories) {
+      const score = cat.keywords.reduce(
+        (acc, kw) => acc + (lower.includes(kw.toLowerCase()) ? 1 : 0),
+        0,
+      );
+      if (score > bestScore) {
+        bestScore = score;
+        bestUrl = cat.photo_urls[0];
+      }
+    }
+
+    return bestUrl || FALLBACK_BANNER;
+  } catch (err) {
+    logger.warn('resolveBannerUrl failed, using fallback', { error: err.message });
+    return FALLBACK_BANNER;
+  }
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const calcDaysToGo = (startDate) => {
@@ -45,6 +84,10 @@ const createTrip = async (userId, body) => {
     friendIds = [], emails = [], bannerImageUrl = null,
   } = body;
 
+  // Fallback chain: user upload → keyword match → generic travel photo
+  const resolvedBanner = bannerImageUrl
+    || await resolveBannerUrl([location.name, name].filter(Boolean).join(' '));
+
   const client = await getClient();
   try {
     await client.query('BEGIN');
@@ -54,7 +97,7 @@ const createTrip = async (userId, body) => {
       `INSERT INTO trips (name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [name, startDate, endDate, location.name || null, location.lat || null, location.lng || null, userId, bannerImageUrl],
+      [name, startDate, endDate, location.name || null, location.lat || null, location.lng || null, userId, resolvedBanner],
     );
     const trip = tripResult.rows[0];
 
@@ -342,13 +385,12 @@ const updateTrip = async (tripId, updates) => {
 
 const deleteTrip = async (tripId) => {
   const docsResult = await db("SELECT s3_key FROM docs WHERE parent_type = 'trip' AND parent_id = $1", [tripId]);
+  // photos table now includes activity photos (activity_id set) — single query covers all
   const photosResult = await db("SELECT s3_key FROM photos WHERE parent_type = 'trip' AND parent_id = $1", [tripId]);
-  const actPhotosResult = await db('SELECT s3_key FROM trip_activity_photos WHERE trip_id = $1', [tripId]);
 
   const s3Keys = [
     ...docsResult.rows.map((r) => r.s3_key),
     ...photosResult.rows.map((r) => r.s3_key),
-    ...actPhotosResult.rows.map((r) => r.s3_key),
   ];
 
   if (s3Keys.length > 0) await batchDeleteFromS3(s3Keys);
