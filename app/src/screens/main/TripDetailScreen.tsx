@@ -98,6 +98,61 @@ const NOTE_CATS = [
   { key: 'todo',      label: 'To-Do',      emoji: '✅' },
 ];
 
+// ─── Balance helpers (handle both old and new backend formats) ────────────────
+
+/** Enrich a flat debt array — fills in missing fromName/toName from members list */
+function normalizeDebtArray(
+  debts: any[],
+  currentUid: string,
+  membersList: { userId: string; fullName: string }[],
+): { from: string; to: string; fromName: string; toName: string; amount: number }[] {
+  return (debts ?? []).map((d: any) => ({
+    from: d.from,
+    to: d.to,
+    fromName: d.fromName || (d.from === currentUid ? 'You' : (membersList.find(m => m.userId === d.from)?.fullName || 'Member')),
+    toName:   d.toName   || (d.to   === currentUid ? 'You' : (membersList.find(m => m.userId === d.to)?.fullName   || 'Member')),
+    amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
+  }));
+}
+
+/**
+ * Parse getBalances response — handles both backend formats:
+ * - NEW: { debts: [{from,to,fromName,toName,amount}], myBalance, totalExpenses }
+ * - OLD: { summary: {netBalance, yoursTotal}, outstanding: [{userId,name,amount,direction}] }
+ */
+function parseBalanceResponse(
+  balRes: any,
+  currentUid: string,
+  membersList: { userId: string; fullName: string }[],
+) {
+  if (Array.isArray(balRes?.debts)) {
+    // New format
+    return {
+      debts: normalizeDebtArray(balRes.debts, currentUid, membersList),
+      myBalance: typeof balRes.myBalance === 'number' ? balRes.myBalance : 0,
+      totalExpenses: balRes.totalExpenses ?? '0',
+    };
+  }
+  // Old format
+  const debts = (balRes?.outstanding ?? []).map((o: any) => {
+    const otherId = o.userId;
+    const otherName = o.name || membersList.find(m => m.userId === otherId)?.fullName || 'Member';
+    const youOwe = o.direction === 'you_owe';
+    return {
+      from: youOwe ? currentUid : otherId,
+      to:   youOwe ? otherId : currentUid,
+      fromName: youOwe ? 'You' : otherName,
+      toName:   youOwe ? otherName : 'You',
+      amount: typeof o.amount === 'number' ? o.amount : parseFloat(o.amount ?? '0'),
+    };
+  });
+  return {
+    debts,
+    myBalance: typeof balRes?.summary?.netBalance === 'number' ? balRes.summary.netBalance : 0,
+    totalExpenses: String(balRes?.summary?.yoursTotal ?? 0),
+  };
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function daysUntilISO(iso: string): number {
@@ -362,10 +417,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
         setTrip((prev: any) => ({ ...prev, ...detailRes.trip, location: locStr }));
         setRole(detailRes.role);
         setMembers(membersRes.members);
-        // Balance — works with new enriched format { debts, myBalance, totalExpenses }
-        setBalances(balRes.debts ?? []);
-        setMyBalance(typeof balRes.myBalance === 'number' && !isNaN(balRes.myBalance) ? balRes.myBalance : 0);
-        setTotalExpenses(balRes.totalExpenses ?? '0.00');
+        // Balance — handles both old and new backend formats
+        const balParsed = parseBalanceResponse(balRes, currentUserId, membersRes.members);
+        setBalances(balParsed.debts);
+        setMyBalance(balParsed.myBalance);
+        setTotalExpenses(balParsed.totalExpenses);
         const mapActivity = (a: any, completed: boolean) => {
           const { hour, minute } = parseActivityTime(a.time);
           return { id: a.id, title: a.title, date: a.date ?? '', hour, minute, location: a.location, description: a.description, completed, createdBy: a.createdBy, linkedExpense: a.linkedExpense ?? null };
@@ -422,9 +478,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
             myAmount,
           };
         }));
-        setBalances(balRes.debts ?? []);
-        setMyBalance(typeof balRes.myBalance === 'number' && !isNaN(balRes.myBalance) ? balRes.myBalance : 0);
-        setTotalExpenses(balRes.totalExpenses ?? '0.00');
+        const { debts: parsedDebts, myBalance: parsedBal, totalExpenses: parsedTotal } = parseBalanceResponse(balRes, currentUserId, members);
+        setBalances(parsedDebts);
+        setMyBalance(parsedBal);
+        setTotalExpenses(parsedTotal);
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -639,7 +696,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
           createdBy: paidByStr,
           myAmount: mySplit572 ? parseFloat(mySplit572.amount ?? '0') : 0,
         }]);
-        if (expRes.balances) setBalances(expRes.balances);
+        if (expRes.balances) setBalances(normalizeDebtArray(expRes.balances, currentUserId, members));
       }
 
       if (editingActivityId) {
@@ -893,7 +950,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         }]);
       }
       if (res.balances) {
-        setBalances(res.balances);
+        setBalances(normalizeDebtArray(res.balances, currentUserId, members));
       }
       setExpDesc(''); setExpAmount(''); setExpCategory(EXPENSE_CATS[0]);
       setExpPaidBy('You'); setExpSplitType('equally'); setExpSplitAmong(['You']);
@@ -927,7 +984,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         try {
           const res = await deleteExpense(tripId, eid);
           setExpenses(p => p.filter(e => e.id !== eid));
-          if (res.balances) setBalances(res.balances);
+          if (res.balances) setBalances(normalizeDebtArray(res.balances, currentUserId, members));
         } catch (err) { handleApiError(err); }
       }},
     ]);
@@ -936,7 +993,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   async function handleSettleDebt(withUserId: string, amount: number) {
     try {
       const res = await settleDebt(tripId, { withUserId, amount });
-      setBalances(res.outstanding ?? []);
+      setBalances(normalizeDebtArray(res.outstanding ?? [], currentUserId, members));
       Toast.show({ type: 'success', text1: 'Settlement recorded!' });
     } catch (err) { handleApiError(err); }
   }
