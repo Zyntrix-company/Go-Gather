@@ -597,22 +597,39 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
   const savedTransY = useSharedValue(0);
 
   const pinchGesture = Gesture.Pinch()
-    .onUpdate((e) => { cropScale.value = Math.max(0.5, Math.min(savedScale.value * e.scale, 6)); })
-    .onEnd(() => { savedScale.value = cropScale.value; });
+    .onUpdate((e) => {
+      'worklet';
+      cropScale.value = Math.max(0.5, Math.min(savedScale.value * e.scale, 6));
+    })
+    .onEnd(() => {
+      'worklet';
+      savedScale.value = cropScale.value;
+    });
 
   const panGesture = Gesture.Pan()
-    .onUpdate((e) => { cropTransX.value = savedTransX.value + e.translationX; cropTransY.value = savedTransY.value + e.translationY; })
-    .onEnd(() => { savedTransX.value = cropTransX.value; savedTransY.value = cropTransY.value; });
+    .onUpdate((e) => {
+      'worklet';
+      cropTransX.value = savedTransX.value + e.translationX;
+      cropTransY.value = savedTransY.value + e.translationY;
+    })
+    .onEnd(() => {
+      'worklet';
+      savedTransX.value = cropTransX.value;
+      savedTransY.value = cropTransY.value;
+    });
 
   const cropComposed = Gesture.Simultaneous(pinchGesture, panGesture);
 
-  const cropImageStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: cropTransX.value },
-      { translateY: cropTransY.value },
-      { scale: cropScale.value },
-    ],
-  }));
+  const cropImageStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      transform: [
+        { translateX: cropTransX.value },
+        { translateY: cropTransY.value },
+        { scale: cropScale.value },
+      ],
+    };
+  });
 
   function formatDate(d: Date | undefined): string {
     if (!d) return '';
