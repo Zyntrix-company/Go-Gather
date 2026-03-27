@@ -16,7 +16,7 @@ const getMembers = async (tripId) => {
 
   const members = result.rows.map((m) => ({
     userId: m.user_id,
-    name: m.name,
+    fullName: m.name,
     email: m.email,
     avatarUrl: m.avatar_url,
     role: m.role,

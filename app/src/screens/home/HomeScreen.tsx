@@ -582,6 +582,8 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [bannerImageUri, setBannerImageUri] = useState<string | undefined>(undefined);
   const [bannerImageType, setBannerImageType] = useState<string>('image/jpeg');
+  const [cropPreviewUri, setCropPreviewUri] = useState<string | undefined>(undefined);
+  const [cropPreviewType, setCropPreviewType] = useState<string>('image/jpeg');
 
   function formatDate(d: Date | undefined): string {
     if (!d) return '';
@@ -744,8 +746,8 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
                 if (res.didCancel || res.errorCode) return;
                 const asset = res.assets?.[0];
                 if (asset?.uri) {
-                  setBannerImageUri(asset.uri);
-                  setBannerImageType(asset.type ?? 'image/jpeg');
+                  setCropPreviewUri(asset.uri);
+                  setCropPreviewType(asset.type ?? 'image/jpeg');
                 }
               })}
               activeOpacity={0.8}
@@ -1054,6 +1056,37 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
           </Modal>
         )}
       </View>
+
+      {/* Banner crop/preview modal */}
+      <Modal visible={!!cropPreviewUri} transparent={false} animationType="slide" onRequestClose={() => setCropPreviewUri(undefined)}>
+        <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'space-between' }}>
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            {cropPreviewUri && (
+              <>
+                <Image source={{ uri: cropPreviewUri }} style={{ width: '100%', height: '75%' }} resizeMode="contain" />
+                {/* 16:9 crop guide overlay */}
+                <View pointerEvents="none" style={{ position: 'absolute', width: '90%', aspectRatio: 16 / 9, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)', borderRadius: 6 }}>
+                  <View style={{ position: 'absolute', left: '33.3%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
+                  <View style={{ position: 'absolute', left: '66.6%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
+                  <View style={{ position: 'absolute', top: '33.3%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
+                  <View style={{ position: 'absolute', top: '66.6%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
+                </View>
+              </>
+            )}
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 40, paddingVertical: 32 }}>
+            <TouchableOpacity onPress={() => setCropPreviewUri(undefined)} activeOpacity={0.8}>
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '500' }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => {}} activeOpacity={0.8}>
+              <Text style={{ color: '#fff', fontSize: 28 }}>↺</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setBannerImageUri(cropPreviewUri); setBannerImageType(cropPreviewType); setCropPreviewUri(undefined); }} activeOpacity={0.8}>
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -1370,7 +1403,7 @@ export default function HomeScreen({ navigation }: any) {
       )}
 
       {/* No trips yet — friendly empty state */}
-      {trips.length === 0 && (
+      {!isLoadingTrips && trips.length === 0 && (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateTitle}>No trips yet</Text>
           <Text style={styles.emptyStateSubtitle}>Create your first trip and start planning with friends!</Text>

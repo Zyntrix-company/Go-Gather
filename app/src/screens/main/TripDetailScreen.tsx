@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import { WebView } from 'react-native-webview';
 // DocumentPicker loaded dynamically to avoid crash if native module not yet linked
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import BlobBackground from '../../components/common/BlobBackground';
@@ -266,6 +267,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [showPolls,    setShowPolls]    = useState(false);
   const [showNotes,    setShowNotes]    = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
+  const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
 
   // ── Add Activity form ──
   const [actTitle,          setActTitle]          = useState('');
@@ -410,7 +412,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
             myAmount,
           };
         }));
-        setBalances(balRes.debts);
+        setBalances(balRes.debts ?? []);
         setMyBalance(balRes.myBalance);
         setTotalExpenses(balRes.totalExpenses);
       } catch (err) {
@@ -911,7 +913,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   async function handleSettleDebt(withUserId: string, amount: number) {
     try {
       const res = await settleDebt(tripId, { withUserId, amount });
-      setBalances(res.outstanding);
+      setBalances(res.outstanding ?? []);
       Toast.show({ type: 'success', text1: 'Settlement recorded!' });
     } catch (err) { handleApiError(err); }
   }
@@ -1538,7 +1540,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </View>
                 ) : docs.map(doc => (
                   <TouchableOpacity key={doc.id} style={styles.docRow} activeOpacity={0.7}
-                    onPress={() => Linking.openURL(doc.uri).catch(() => Alert.alert('Error', 'Unable to open this document.'))}>
+                    onPress={() => doc.uri ? setDocPreviewUrl(doc.uri) : Alert.alert('Error', 'Document URL not available.')}>
                     <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
                       <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                       <Path d="M14 2v6h6M16 13H8M16 17H8" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -1785,6 +1787,26 @@ export default function TripDetailScreen({ route, navigation }: any) {
             </>
           )}
         </View>
+      </Modal>
+
+      {/* Document preview modal — in-app WebView */}
+      <Modal visible={!!docPreviewUrl} transparent={false} animationType="slide" onRequestClose={() => setDocPreviewUrl(null)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#1e293b' }}>
+            <TouchableOpacity onPress={() => setDocPreviewUrl(null)} activeOpacity={0.7} style={{ marginRight: 12 }}>
+              <Text style={{ color: '#5eead4', fontSize: 15, fontWeight: '600' }}>✕ Close</Text>
+            </TouchableOpacity>
+            <Text style={{ color: '#f1f5f9', fontSize: 14, fontWeight: '600', flex: 1 }} numberOfLines={1}>Document Preview</Text>
+          </View>
+          {docPreviewUrl && (
+            <WebView
+              source={{ uri: `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(docPreviewUrl)}` }}
+              style={{ flex: 1 }}
+              startInLoadingState
+              javaScriptEnabled
+            />
+          )}
+        </SafeAreaView>
       </Modal>
 
       {/* ═══════════════════════════════════════════════════
@@ -2372,7 +2394,7 @@ const styles = StyleSheet.create({
   splitTypeBtnActive: { backgroundColor: '#0d9488' },
   splitTypeTxt:       { fontSize: 12, color: '#64748b', fontWeight: '500' },
   splitTypeTxtActive: { color: '#fff', fontWeight: '700' },
-  splitRow:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0' },
+  splitRow:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', marginVertical: 4 },
   splitRowActive: { borderColor: '#0d9488', backgroundColor: '#f0fdfa' },
   splitCheck:       { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center' },
   splitCheckActive: { backgroundColor: '#0d9488', borderColor: '#0d9488' },
