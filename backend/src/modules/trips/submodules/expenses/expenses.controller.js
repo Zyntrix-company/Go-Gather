@@ -25,8 +25,8 @@ const getExpenses = async (req, res, next) => {
 const updateExpense = async (req, res, next) => {
   try {
     const result = await service.updateExpense(
-      req.params.eid,
       req.tripMember.tripId,
+      req.params.eid,
       req.user.id,
       req.tripMember.role,
       req.body,
@@ -41,8 +41,8 @@ const updateExpense = async (req, res, next) => {
 const deleteExpense = async (req, res, next) => {
   try {
     const balances = await service.deleteExpense(
-      req.params.eid,
       req.tripMember.tripId,
+      req.params.eid,
       req.user.id,
       req.tripMember.role,
     );

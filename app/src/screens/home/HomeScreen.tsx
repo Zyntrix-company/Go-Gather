@@ -23,6 +23,8 @@ import Geolocation from '@react-native-community/geolocation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { launchImageLibrary } from 'react-native-image-picker';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import ReAnimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
 import AppHeader from '../../components/common/AppHeader';
@@ -586,6 +588,32 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
   const [cropPreviewUri, setCropPreviewUri] = useState<string | undefined>(undefined);
   const [cropPreviewType, setCropPreviewType] = useState<string>('image/jpeg');
 
+  // Crop modal gesture state
+  const cropScale = useSharedValue(1);
+  const cropTransX = useSharedValue(0);
+  const cropTransY = useSharedValue(0);
+  const savedScale = useSharedValue(1);
+  const savedTransX = useSharedValue(0);
+  const savedTransY = useSharedValue(0);
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => { cropScale.value = Math.max(0.5, Math.min(savedScale.value * e.scale, 6)); })
+    .onEnd(() => { savedScale.value = cropScale.value; });
+
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => { cropTransX.value = savedTransX.value + e.translationX; cropTransY.value = savedTransY.value + e.translationY; })
+    .onEnd(() => { savedTransX.value = cropTransX.value; savedTransY.value = cropTransY.value; });
+
+  const cropComposed = Gesture.Simultaneous(pinchGesture, panGesture);
+
+  const cropImageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: cropTransX.value },
+      { translateY: cropTransY.value },
+      { scale: cropScale.value },
+    ],
+  }));
+
   function formatDate(d: Date | undefined): string {
     if (!d) return '';
     const dd = String(d.getDate()).padStart(2, '0');
@@ -1062,37 +1090,44 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
       </View>
 
       {/* Banner crop/preview modal */}
-      <Modal visible={!!cropPreviewUri} transparent={false} animationType="slide" onRequestClose={() => setCropPreviewUri(undefined)}>
-        <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'space-between' }}>
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            {cropPreviewUri && (
-              <>
-                <ScrollView
-                  style={{ width: '100%', height: '75%' }}
-                  maximumZoomScale={4}
-                  minimumZoomScale={0.5}
-                  showsHorizontalScrollIndicator={false}
-                  showsVerticalScrollIndicator={false}
-                  centerContent
-                >
-                  <Image source={{ uri: cropPreviewUri }} style={{ width: '100%', aspectRatio: 1 }} resizeMode="contain" />
-                </ScrollView>
-                {/* 16:9 crop guide overlay — non-interactive */}
-                <View pointerEvents="none" style={{ position: 'absolute', top: '12.5%', width: '90%', aspectRatio: 16 / 9, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.7)', borderRadius: 6 }}>
-                  <View style={{ position: 'absolute', left: '33.3%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
-                  <View style={{ position: 'absolute', left: '66.6%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
-                  <View style={{ position: 'absolute', top: '33.3%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
-                  <View style={{ position: 'absolute', top: '66.6%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
-                </View>
-              </>
-            )}
-          </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 40, paddingVertical: 32 }}>
+      <Modal
+        visible={!!cropPreviewUri}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => setCropPreviewUri(undefined)}
+        onShow={() => {
+          cropScale.value = 1; savedScale.value = 1;
+          cropTransX.value = 0; savedTransX.value = 0;
+          cropTransY.value = 0; savedTransY.value = 0;
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {/* Gesture area */}
+          <GestureDetector gesture={cropComposed}>
+            <View style={{ flex: 1, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' }}>
+              {cropPreviewUri && (
+                <ReAnimated.Image
+                  source={{ uri: cropPreviewUri }}
+                  style={[{ width: SCREEN_W, height: SCREEN_W }, cropImageStyle]}
+                  resizeMode="contain"
+                />
+              )}
+              {/* 16:9 crop guide overlay */}
+              <View pointerEvents="none" style={{ position: 'absolute', width: SCREEN_W * 0.9, aspectRatio: 16 / 9, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.7)', borderRadius: 6 }}>
+                <View style={{ position: 'absolute', left: '33.3%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
+                <View style={{ position: 'absolute', left: '66.6%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
+                <View style={{ position: 'absolute', top: '33.3%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
+                <View style={{ position: 'absolute', top: '66.6%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
+              </View>
+            </View>
+          </GestureDetector>
+          {/* Controls */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 40, paddingVertical: 32, backgroundColor: '#000' }}>
             <TouchableOpacity onPress={() => setCropPreviewUri(undefined)} activeOpacity={0.8}>
               <Text style={{ color: '#fff', fontSize: 17, fontWeight: '500' }}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => {}} activeOpacity={0.8}>
-              <Text style={{ color: '#fff', fontSize: 28 }}>↺</Text>
+            <TouchableOpacity onPress={() => { cropScale.value = withSpring(1); savedScale.value = 1; cropTransX.value = withSpring(0); savedTransX.value = 0; cropTransY.value = withSpring(0); savedTransY.value = 0; }} activeOpacity={0.8}>
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '500' }}>Reset</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { setBannerImageUri(cropPreviewUri); setBannerImageType(cropPreviewType); setCropPreviewUri(undefined); }} activeOpacity={0.8}>
               <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>Done</Text>

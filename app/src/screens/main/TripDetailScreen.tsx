@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
   TextInput, Alert, Animated, PanResponder, Image, Platform, Linking, NativeModules,
@@ -346,7 +347,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [showEndPicker,      setShowEndPicker]      = useState(false);
 
   // ── Initial fetch: trip detail + members + activities ──
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     if (!tripId) return;
     (async () => {
       try {
@@ -355,6 +356,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
           getTripMembers(tripId),
           getActivities(tripId),
         ]);
+        setTrip((prev: any) => ({ ...prev, ...detailRes.trip }));
         setRole(detailRes.role);
         setMembers(membersRes.members);
         const mapActivity = (a: any, completed: boolean) => {
@@ -371,7 +373,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         setIsLoadingInit(false);
       }
     })();
-  }, [tripId]);
+  }, [tripId]));
 
   // ── Load expenses + balances when expenses modal opens ──
   useEffect(() => {

@@ -83,6 +83,19 @@ const computeSimplifiedDebts = async (parentType, parentId) => {
   return simplifyDebts(buildTransactions(splitsResult.rows, settlementsResult.rows));
 };
 
+const enrichSimplifiedDebts = async (simplified, currentUserId = null) => {
+  const allIds = [];
+  for (const t of simplified) { allIds.push(t.from, t.to); }
+  const profiles = await fetchProfiles(allIds);
+  return simplified.map((t) => ({
+    from: t.from,
+    to: t.to,
+    fromName: currentUserId && t.from === currentUserId ? 'You' : (profiles[t.from]?.name || 'Member'),
+    toName:   currentUserId && t.to   === currentUserId ? 'You' : (profiles[t.to]?.name   || 'Member'),
+    amount: t.amount,
+  }));
+};
+
 // ─── Add Expense ──────────────────────────────────────────────────────────────
 
 const addExpense = async ({ parentType, parentId }, createdBy, body) => {
@@ -121,9 +134,10 @@ const addExpense = async ({ parentType, parentId }, createdBy, body) => {
     const profiles = await fetchProfiles(userIds);
 
     const simplified = await computeSimplifiedDebts(parentType, parentId);
+    const balances = await enrichSimplifiedDebts(simplified, createdBy);
     return {
       expense: formatExpense(expense, splits, profiles),
-      balances: simplified,
+      balances,
     };
   } catch (e) {
     await client.query('ROLLBACK');
@@ -267,7 +281,8 @@ const updateExpense = async ({ parentType, parentId }, expId, requesterId, reque
     const profiles = await fetchProfiles(userIds);
 
     const simplified = await computeSimplifiedDebts(parentType, parentId);
-    return { expense: formatExpense(updatedExp, splits, profiles), balances: simplified };
+    const balances = await enrichSimplifiedDebts(simplified, requesterId);
+    return { expense: formatExpense(updatedExp, splits, profiles), balances };
   } catch (e) {
     await client.query('ROLLBACK'); throw e;
   } finally {
@@ -293,7 +308,8 @@ const deleteExpense = async ({ parentType, parentId }, expId, requesterId, reque
   }
 
   await db('DELETE FROM expenses WHERE id = $1', [expId]);
-  return computeSimplifiedDebts(parentType, parentId);
+  const simplified = await computeSimplifiedDebts(parentType, parentId);
+  return enrichSimplifiedDebts(simplified, requesterId);
 };
 
 // ─── Get Balances ─────────────────────────────────────────────────────────────
@@ -324,37 +340,12 @@ const getBalances = async ({ parentType, parentId }, userId) => {
   const yoursTotal = parseFloat(totalResult.rows[0].total);
 
   const simplified = await computeSimplifiedDebts(parentType, parentId);
-
-  const involvedIds = [];
-  for (const t of simplified) {
-    if (t.from === userId) involvedIds.push(t.to);
-    else if (t.to === userId) involvedIds.push(t.from);
-  }
-
-  const profiles = await fetchProfiles(involvedIds);
-
-  const outstanding = simplified
-    .filter((t) => t.from === userId || t.to === userId)
-    .map((t) => {
-      const otherId = t.from === userId ? t.to : t.from;
-      const profile = profiles[otherId] || {};
-      return {
-        userId: otherId,
-        name: profile.name || null,
-        avatarUrl: profile.avatarUrl || null,
-        amount: t.amount,
-        direction: t.from === userId ? 'you_owe' : 'owes_you',
-      };
-    });
+  const debts = await enrichSimplifiedDebts(simplified, userId);
 
   return {
-    summary: {
-      yoursTotal,
-      youPaid,
-      yourShare,
-      netBalance: Math.round((youPaid - yourShare) * 100) / 100,
-    },
-    outstanding,
+    debts,
+    myBalance: Math.round((youPaid - yourShare) * 100) / 100,
+    totalExpenses: String(yoursTotal),
   };
 };
 
@@ -365,7 +356,8 @@ const settle = async ({ parentType, parentId }, payerId, { withUserId, amount })
     'INSERT INTO settlements (parent_type, parent_id, paid_by, paid_to, amount) VALUES ($1, $2, $3, $4, $5)',
     [parentType, parentId, payerId, withUserId, amount],
   );
-  return computeSimplifiedDebts(parentType, parentId);
+  const simplified = await computeSimplifiedDebts(parentType, parentId);
+  return enrichSimplifiedDebts(simplified, payerId);
 };
 
 // ─── Profile batch fetch helper ───────────────────────────────────────────────
