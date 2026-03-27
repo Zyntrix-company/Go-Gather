@@ -66,6 +66,7 @@ export type Trip = {
   endDate: string;
   location: TripLocation | string;
   coverPhotoUrl: string | null;
+  bannerImageUrl?: string | null;
   createdBy: string;
   daysToGo?: number;
   memberCount?: number;
@@ -260,6 +261,7 @@ export async function createActivity(tripId: string, body: {
   location?: string;
   locationName?: string;
   cost?: number;
+  expenseId?: string | null;
 }) {
   const res = await client.post(`/trips/${tripId}/activities`, body);
   return res.data as { activity: Activity };
@@ -321,6 +323,7 @@ export async function createExpense(tripId: string, body: {
   amount: number;
   currency?: string;
   category?: string;
+  paidBy?: string;
   splitType: 'equal' | 'amount' | 'percentage';
   splitAmong: SplitUser[];
 }) {
