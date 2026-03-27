@@ -291,6 +291,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [balances, setBalances] = useState<Debt[]>([]);
   const [myBalance, setMyBalance] = useState<number>(0);
   const [totalExpenses, setTotalExpenses] = useState<string>('0.00');
+  const [apiStats, setApiStats] = useState<{ memberCount: number; docCount: number; photoVideoCount: number; totalExpenseAmount: number } | null>(null);
 
   // ── Loading / submitting flags ──
   const [, setIsLoadingInit] = useState(true);
@@ -416,6 +417,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         const locStr = typeof loc === 'string' ? loc : (loc?.name ?? '');
         setTrip((prev: any) => ({ ...prev, ...detailRes.trip, location: locStr }));
         setRole(detailRes.role);
+        if ((detailRes as any).stats) setApiStats((detailRes as any).stats);
         setMembers(membersRes.members);
         // Balance — handles both old and new backend formats
         const balParsed = parseBalanceResponse(balRes, currentUserId, membersRes.members);
@@ -1228,15 +1230,15 @@ export default function TripDetailScreen({ route, navigation }: any) {
             </View>
             <View style={styles.statBadge}>
               <Svg width={13} height={13} viewBox="0 0 24 24" fill="none"><Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M14 2v6h6" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
-              <Text style={styles.statTxt}>{docs.length}</Text>
+              <Text style={styles.statTxt}>{docs.length > 0 ? docs.length : (apiStats?.docCount ?? 0)}</Text>
             </View>
             <View style={styles.statBadge}>
               <Svg width={13} height={13} viewBox="0 0 24 24" fill="none"><Rect x={3} y={3} width={18} height={18} rx={2} stroke="#334155" strokeWidth={2} /><Circle cx={8.5} cy={8.5} r={1.5} fill="#334155" /><Path d="M21 15l-5-5L5 21" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
-              <Text style={styles.statTxt}>{photos.length}</Text>
+              <Text style={styles.statTxt}>{photos.length > 0 ? photos.length : (apiStats?.photoVideoCount ?? 0)}</Text>
             </View>
             <View style={styles.statBadge}>
               <Text style={[styles.statTxt, { fontSize: 12, fontWeight: '700' }]}>₹</Text>
-              <Text style={styles.statTxt}>{totalExp > 0 ? totalExp.toFixed(0) : '0'}</Text>
+              <Text style={styles.statTxt}>{totalExp > 0 ? totalExp.toFixed(0) : (apiStats?.totalExpenseAmount ? apiStats.totalExpenseAmount.toFixed(0) : '0')}</Text>
             </View>
           </View>
         </LinearGradient>

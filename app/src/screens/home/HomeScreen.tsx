@@ -1277,6 +1277,7 @@ export default function HomeScreen({ navigation }: any) {
 
   const [insightIndex, setInsightIndex] = useState(0);
   const insightRef = useRef<FlatList>(null);
+  const [pressedArrow, setPressedArrow] = useState<'left' | 'right' | null>(null);
   const [avatarError, setAvatarError] = useState(false);
 
   // Refresh profile on mount so name/avatar are always up to date
@@ -1415,9 +1416,11 @@ export default function HomeScreen({ navigation }: any) {
       {/* Travel Insights — always visible */}
       <Text style={styles.sectionTitle}>Travel Insights</Text>
       <View style={styles.insightCarousel}>
-        {/* Left arrow — always same teal style */}
+        {/* Left arrow — teal only when user taps, grey otherwise */}
         <TouchableOpacity
-          style={[styles.insightArrowLeft, styles.insightArrowActive]}
+          style={[styles.insightArrowLeft, pressedArrow === 'left' ? styles.insightArrowActive : styles.insightArrowInactive]}
+          onPressIn={() => setPressedArrow('left')}
+          onPressOut={() => setPressedArrow(null)}
           onPress={() => {
             if (insightIndex > 0) {
               const next = insightIndex - 1;
@@ -1425,14 +1428,16 @@ export default function HomeScreen({ navigation }: any) {
               insightRef.current?.scrollToIndex({ index: next, animated: true });
             }
           }}
-          activeOpacity={0.8}>
+          activeOpacity={1}>
           <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-            <Path d="M15 18l-6-6 6-6" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+            <Path d="M15 18l-6-6 6-6" stroke={pressedArrow === 'left' ? '#fff' : '#64748b'} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
           </Svg>
         </TouchableOpacity>
-        {/* Right arrow — always same teal style */}
+        {/* Right arrow — teal only when user taps, grey otherwise */}
         <TouchableOpacity
-          style={[styles.insightArrowRight, styles.insightArrowActive]}
+          style={[styles.insightArrowRight, pressedArrow === 'right' ? styles.insightArrowActive : styles.insightArrowInactive]}
+          onPressIn={() => setPressedArrow('right')}
+          onPressOut={() => setPressedArrow(null)}
           onPress={() => {
             if (insightIndex < TRAVEL_INSIGHTS.length - 1) {
               const next = insightIndex + 1;
@@ -1440,9 +1445,9 @@ export default function HomeScreen({ navigation }: any) {
               insightRef.current?.scrollToIndex({ index: next, animated: true });
             }
           }}
-          activeOpacity={0.8}>
+          activeOpacity={1}>
           <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-            <Path d="M9 18l6-6-6-6" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+            <Path d="M9 18l6-6-6-6" stroke={pressedArrow === 'right' ? '#fff' : '#64748b'} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
           </Svg>
         </TouchableOpacity>
         <FlatList
