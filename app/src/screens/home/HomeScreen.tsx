@@ -17,6 +17,7 @@ import {
   Switch,
   Platform,
   PermissionsAndroid,
+  ActivityIndicator,
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -849,10 +850,13 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
             <View style={styles.ctLocationBox}>
               <TextInput style={{ flex: 1, fontSize: 13, color: '#0f172a' }} placeholder="Search or tap pin for GPS" placeholderTextColor="#94a3b8" value={location} onChangeText={setLocation} />
               <TouchableOpacity onPress={handleFetchLocation} activeOpacity={0.7} disabled={fetchingLocation}>
-                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                  <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke={fetchingLocation ? '#94a3b8' : '#0d9488'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  <Circle cx={12} cy={10} r={3} stroke={fetchingLocation ? '#94a3b8' : '#0d9488'} strokeWidth={2} />
-                </Svg>
+                {fetchingLocation
+                  ? <ActivityIndicator size="small" color="#0d9488" />
+                  : <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                      <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
+                    </Svg>
+                }
               </TouchableOpacity>
             </View>
 
@@ -1063,9 +1067,18 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             {cropPreviewUri && (
               <>
-                <Image source={{ uri: cropPreviewUri }} style={{ width: '100%', height: '75%' }} resizeMode="contain" />
-                {/* 16:9 crop guide overlay */}
-                <View pointerEvents="none" style={{ position: 'absolute', width: '90%', aspectRatio: 16 / 9, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)', borderRadius: 6 }}>
+                <ScrollView
+                  style={{ width: '100%', height: '75%' }}
+                  maximumZoomScale={4}
+                  minimumZoomScale={0.5}
+                  showsHorizontalScrollIndicator={false}
+                  showsVerticalScrollIndicator={false}
+                  centerContent
+                >
+                  <Image source={{ uri: cropPreviewUri }} style={{ width: '100%', aspectRatio: 1 }} resizeMode="contain" />
+                </ScrollView>
+                {/* 16:9 crop guide overlay — non-interactive */}
+                <View pointerEvents="none" style={{ position: 'absolute', top: '12.5%', width: '90%', aspectRatio: 16 / 9, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.7)', borderRadius: 6 }}>
                   <View style={{ position: 'absolute', left: '33.3%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
                   <View style={{ position: 'absolute', left: '66.6%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
                   <View style={{ position: 'absolute', top: '33.3%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
@@ -1506,12 +1519,7 @@ export default function HomeScreen({ navigation }: any) {
       )}
       {!isLoadingTrips && trips.length === 0 && (
         <View style={styles.emptyState}>
-          <View style={styles.emptyIconCircle}>
-            <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
-              <Path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
-          </View>
-          <Text style={styles.emptyStateTitle}>No trips yet</Text>
+        
           <Text style={styles.emptyStateSubtitle}>Tap "Create New Trip" to plan your first adventure!</Text>
         </View>
       )}

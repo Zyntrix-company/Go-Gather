@@ -59,7 +59,7 @@ type Activity = {
   location?: string; description?: string; completed?: boolean;
   linkedExpense?: { id: string; description: string; amount: number } | null;
 };
-type DocItem = { id: string; name: string; uri: string };
+type DocItem = { id: string; name: string; uri: string; mimeType?: string };
 type PhotoItem = { id: string; uri: string; localUri?: string; name: string; uploadedBy?: string; activityId?: string | null; activityTitle?: string | null };
 type Expense = {
   id: string; description: string; amount: number; category: string;
@@ -268,6 +268,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [showNotes,    setShowNotes]    = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
   const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
+  const [actDateError, setActDateError] = useState<string>('');
 
   // ── Add Activity form ──
   const [actTitle,          setActTitle]          = useState('');
@@ -413,8 +414,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
           };
         }));
         setBalances(balRes.debts ?? []);
-        setMyBalance(balRes.myBalance);
-        setTotalExpenses(balRes.totalExpenses);
+        setMyBalance(typeof balRes.myBalance === 'number' && !isNaN(balRes.myBalance) ? balRes.myBalance : 0);
+        setTotalExpenses(balRes.totalExpenses ?? '0.00');
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -430,7 +431,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       setIsLoadingDocs(true);
       try {
         const res = await getDocs(tripId);
-        setDocs(res.docs.map(d => ({ id: d.id, name: d.fileName, uri: (d as any).downloadUrl ?? d.fileUrl ?? '', uploadedBy: d.uploadedBy })));
+        setDocs(res.docs.map(d => ({ id: d.id, name: d.fileName, uri: (d as any).downloadUrl ?? d.fileUrl ?? '', uploadedBy: d.uploadedBy, mimeType: d.mimeType })));
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -560,6 +561,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
   async function handleAddActivity() {
     if (!actTitle.trim()) { Alert.alert('Error', 'Please enter a title'); return; }
     if (isSubmitting) return;
+    // Validate activity date is within trip date range
+    if (actDate) {
+      const tripStart = trip?.startDateISO ? new Date(trip.startDateISO) : null;
+      const tripEnd   = trip?.endDateISO   ? new Date(trip.endDateISO)   : null;
+      const actD = new Date(actDate.toISOString().split('T')[0]);
+      if (tripStart) tripStart.setHours(0,0,0,0);
+      if (tripEnd)   tripEnd.setHours(23,59,59,999);
+      if ((tripStart && actD < tripStart) || (tripEnd && actD > tripEnd)) {
+        setActDateError(`Date must be between ${trip?.startDate ?? ''} and ${trip?.endDate ?? ''}`);
+        return;
+      }
+    }
+    setActDateError('');
     setIsSubmitting(true);
     try {
       const timeHr = actTime ? actTime.getHours() : (actHour !== '' ? parseInt(actHour, 10) : null);
@@ -776,7 +790,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       const file: { uri: string; name: string; type: string } = await FilePicker.pick();
       if (!file?.uri) return;
       const data = await uploadDoc(tripId, { uri: file.uri, type: file.type ?? 'application/octet-stream', name: file.name ?? 'document' });
-      setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: (data.doc as any).downloadUrl ?? data.doc.fileUrl ?? '', uploadedBy: data.doc.uploadedBy }]);
+      setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: (data.doc as any).downloadUrl ?? data.doc.fileUrl ?? '', uploadedBy: data.doc.uploadedBy, mimeType: data.doc.mimeType }]);
     } catch (err: any) {
       if (err?.code === 'CANCELLED' || err?.message === 'User cancelled') return;
       handleApiError(err);
@@ -1230,7 +1244,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           <View style={{ flex: 1 }}>
                             <Text style={styles.actTitle}>{act.title}</Text>
                             {!!act.location && <Text style={styles.actMeta}>{act.location}</Text>}
-                            {!!act.linkedExpense && <Text style={styles.actMeta}>💰 ₹{act.linkedExpense.amount.toFixed(2)}</Text>}
                           </View>
                         </View>
                         <TouchableOpacity onPress={() => startEditActivity(act)} style={[styles.doneBtn, { marginLeft: 4 }]} activeOpacity={0.7}>
@@ -1302,11 +1315,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     </TouchableOpacity>
                     {showActDatePicker && (
                       <DateTimePicker value={actDate || new Date()} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={(e: DateTimePickerEvent, d?: Date) => { if (Platform.OS === 'android') setShowActDatePicker(false); if (e.type === 'set' && d) setActDate(d); else if (e.type === 'dismissed') setShowActDatePicker(false); }} />
+                        onChange={(e: DateTimePickerEvent, d?: Date) => { if (Platform.OS === 'android') setShowActDatePicker(false); if (e.type === 'set' && d) { setActDate(d); setActDateError(''); } else if (e.type === 'dismissed') setShowActDatePicker(false); }} />
                     )}
                     {showActDatePicker && Platform.OS === 'ios' && (
                       <TouchableOpacity style={[styles.tealBtnFull, { marginTop: 6 }]} onPress={() => setShowActDatePicker(false)}><Text style={styles.tealBtnTxt}>Done</Text></TouchableOpacity>
                     )}
+                    {!!actDateError && <Text style={{ fontSize: 11, color: '#ef4444', marginTop: 3 }}>{actDateError}</Text>}
                   </View>
                   <View style={{ flex: 2 }}>
                     <Text style={styles.fLabel}>Time</Text>
@@ -1798,14 +1812,18 @@ export default function TripDetailScreen({ route, navigation }: any) {
             </TouchableOpacity>
             <Text style={{ color: '#f1f5f9', fontSize: 14, fontWeight: '600', flex: 1 }} numberOfLines={1}>Document Preview</Text>
           </View>
-          {docPreviewUrl && (
-            <WebView
-              source={{ uri: `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(docPreviewUrl)}` }}
-              style={{ flex: 1 }}
-              startInLoadingState
-              javaScriptEnabled
-            />
-          )}
+          {docPreviewUrl && (() => {
+            const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|heic)(\?|$)/i.test(docPreviewUrl) ||
+              docs.find(d => d.uri === docPreviewUrl)?.mimeType?.startsWith('image/');
+            return isImage
+              ? <Image source={{ uri: docPreviewUrl }} style={{ flex: 1 }} resizeMode="contain" />
+              : <WebView
+                  source={{ uri: `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(docPreviewUrl)}` }}
+                  style={{ flex: 1 }}
+                  startInLoadingState
+                  javaScriptEnabled
+                />;
+          })()}
         </SafeAreaView>
       </Modal>
 
@@ -2007,7 +2025,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <View style={[styles.balCard, { backgroundColor: myBalance >= 0 ? '#f0fdf4' : '#fff1f2' }]}>
                       <Text style={styles.balLabel}>My Balance</Text>
                       <Text style={[styles.balValue, { color: myBalance >= 0 ? '#16a34a' : '#e11d48' }]}>
-                        {myBalance >= 0 ? '+' : ''}₹{Math.abs(myBalance).toFixed(0)}
+                        {myBalance >= 0 ? '+' : ''}₹{isNaN(myBalance) ? '0' : Math.abs(myBalance).toFixed(0)}
                       </Text>
                     </View>
                   </View>
@@ -2022,7 +2040,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   ) : balances.map((debt, i) => (
                     <View key={i} style={[styles.expRow, { alignItems: 'center' }]}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.expName}>{debt.fromName} owes {debt.toName}</Text>
+                        <Text style={styles.expName}>{debt.fromName || 'Someone'} owes {debt.toName || 'Someone'}</Text>
                         <Text style={styles.expMeta}>₹{debt.amount.toFixed(2)}</Text>
                       </View>
                       {debt.from === currentUserId && (
