@@ -48,7 +48,7 @@ export default function BlobBackground({ children }: Props) {
   const orangeLayers = makeBlobLayers(254, 215, 170, 180, 160, 'right', 'top', 320, 0.07);
 
   // Teal blob — moved slightly more towards horizontal center
-  const tealLayers = makeBlobLayers(153, 246, 228, 120, 140, 'left', 'bottom', 280, 0.07);
+  const tealLayers = makeBlobLayers(153, 246, 228, 120, 140, 'left', 'bottom', 280, 0.04);
 
   return (
     <View style={styles.root}>
@@ -59,7 +59,7 @@ export default function BlobBackground({ children }: Props) {
       <View style={styles.backgroundLayer}>
         {/* Exact Tailwind: from-slate-50 via-teal-50 to-cyan-50, diagonal */}
         <LinearGradient
-          colors={['#f8fafc', '#f0fdfa', '#ecfeff']}
+          colors={['#f8fafc', '#f7fdfb', '#f5feff']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFillObject}

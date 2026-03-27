@@ -214,6 +214,7 @@ export default function useAuth() {
     gender?: string;
     country?: string;
     bio?: string;
+    dob?: string;
   }) {
     setLoading(true);
     try {

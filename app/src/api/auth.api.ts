@@ -37,6 +37,7 @@ export type ProfilePayload = {
   gender?: string;
   country?: string;
   bio?: string;
+  dob?: string;
 };
 
 export type AuthTokens = {
@@ -80,6 +81,7 @@ function normalizeUser(raw: any): User {
     gender: raw.gender || profile.gender || raw.sex || '',
     country: raw.country || profile.country || (raw.locale ? raw.locale.split('-').pop().toUpperCase() : ''),
     bio: raw.bio || profile.bio || '',
+    dob: raw.dob || profile.dob || raw.birthday || profile.birthday || '',
     photoUrl: photo,
     avatarUrl: photo,
     profile: profile,

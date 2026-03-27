@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import Logo from '../../components/common/Logo';
 import BlobBackground from '../../components/common/BlobBackground';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -28,6 +29,7 @@ type FormData = {
   gender: string;
   country: string;
   bio?: string;
+  dob?: string;
 };
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
@@ -186,7 +188,33 @@ function deriveInitialState(user: ReturnType<typeof useAuthStore.getState>['user
   const g = user?.gender ? (GENDER_FROM_API[user.gender] ?? '') : '';
   const c = user?.country || '';
   const photo = user?.photoUrl || user?.avatarUrl || (user?.profile as any)?.avatarUrl || '';
-  return { g, c, photo };
+  const dob = user?.dob || '';
+  return { g, c, photo, dob };
+}
+
+function parseDobToDate(dob: string): Date | undefined {
+  if (!dob) return undefined;
+  const d = new Date(dob);
+  return isNaN(d.getTime()) ? undefined : d;
+}
+
+function formatDobDisplay(dob: string): string {
+  const d = parseDobToDate(dob);
+  if (!d) return '';
+  return d.toLocaleDateString('default', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function dateToIso(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function CalendarIcon() {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+      <Path stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+        d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" />
+    </Svg>
+  );
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -198,16 +226,16 @@ export default function CreateProfileScreen({ navigation }: any) {
   // Read user ONCE synchronously before any hook so we can seed initial state
   const user = useAuthStore((s) => s.user);
 
-  const { g: initialGender, c: initialCountry, photo: initialPhoto } = deriveInitialState(user);
+  const { g: initialGender, c: initialCountry, photo: initialPhoto, dob: initialDob } = deriveInitialState(user);
 
   const { control, handleSubmit, setValue, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(profileSchema),
-    // Seed form on first render — no flash of empty fields
     defaultValues: {
       fullName: user?.fullName || '',
       gender: initialGender,
       country: initialCountry,
       bio: user?.bio || '',
+      dob: initialDob,
     },
   });
 
@@ -218,8 +246,10 @@ export default function CreateProfileScreen({ navigation }: any) {
   const [photoUploadSuccess, setPhotoUploadSuccess] = useState(false);
   const [gender, setGender] = useState(initialGender);
   const [country, setCountry] = useState(initialCountry);
+  const [dob, setDob] = useState(initialDob);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [showDobPicker, setShowDobPicker] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   // Stores the device-local file URI from the last image pick.
@@ -238,20 +268,20 @@ export default function CreateProfileScreen({ navigation }: any) {
   }, []);
 
   // Effect A — Re-sync FORM FIELDS when core profile data arrives from the server
-  // (covers OAuth first-load: user.id stays the same but fullName/gender/etc. populate).
-  // Intentionally excludes photoUrl so a photo upload never wipes the user's draft edits.
   useEffect(() => {
     if (!user) return;
-    const { g, c } = deriveInitialState(user);
+    const { g, c, dob: d } = deriveInitialState(user);
     reset({
       fullName: user.fullName || '',
       gender: g,
       country: c,
       bio: user.bio || '',
+      dob: d,
     });
     setGender(g);
     setCountry(c);
-  }, [user?.id, user?.fullName, user?.gender, user?.country, user?.bio]); // eslint-disable-line react-hooks/exhaustive-deps
+    setDob(d);
+  }, [user?.id, user?.fullName, user?.gender, user?.country, user?.bio, user?.dob]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Effect B — Sync AVATAR ONLY when the stored photo URL changes (after upload or profile fetch).
   // Kept separate so it never triggers a form reset.
@@ -377,8 +407,7 @@ export default function CreateProfileScreen({ navigation }: any) {
         gender: GENDER_TO_API[gender] || undefined,
         country: country || undefined,
         bio: data.bio || undefined,
-        
-        
+        dob: dob || undefined,
       });
 
       console.log('[Save Success]: Profile updated for user.');
@@ -549,36 +578,69 @@ export default function CreateProfileScreen({ navigation }: any) {
               <ChevronDown />
             </TouchableOpacity>
 
-            <Controller
-              control={control}
-              name="bio"
-              render={({ field: { onChange, value } }) => (
-                <TextInput
-                  style={[
-                    styles.input,
-                    styles.bioInput,
-                    focusedField === 'bio' && styles.inputFocused,
-                    errors.bio && styles.inputError,
-                  ]}
-                  placeholder="Adventurer, foodie, or slow traveler? Tell us your story..."
-                  placeholderTextColor="#94a3b8"
-                  value={value}
-                  onFocus={() => setFocusedField('bio')}
-                  onBlur={() => setFocusedField(null)}
-                  multiline
-                  numberOfLines={4}
-                  maxLength={100}
-                  textAlignVertical="top"
-                  underlineColorAndroid="transparent"
-                  selectionColor="#0d9488"
-                  editable={!busy}
-                  onChangeText={(val) => {
-                    onChange(val);
-                    if (apiError) setApiError(null);
-                  }}
-                />
-              )}
-            />
+            {/* Date of Birth */}
+            <TouchableOpacity
+              style={[styles.dropdownBtn, showDobPicker && styles.inputFocused]}
+              onPress={() => setShowDobPicker(true)}
+              activeOpacity={0.8}
+              disabled={busy}>
+              <Text style={[styles.dropdownText, !dob && styles.dropdownPlaceholder]}>
+                {dob ? formatDobDisplay(dob) : 'Date of Birth (optional)'}
+              </Text>
+              <CalendarIcon />
+            </TouchableOpacity>
+
+            {showDobPicker && (
+              <DateTimePicker
+                value={parseDobToDate(dob) ?? new Date(2000, 0, 1)}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                maximumDate={new Date()}
+                minimumDate={new Date(1900, 0, 1)}
+                onChange={(_, selected) => {
+                  setShowDobPicker(Platform.OS === 'ios');
+                  if (selected) {
+                    const iso = dateToIso(selected);
+                    setDob(iso);
+                    setValue('dob', iso);
+                  }
+                }}
+              />
+            )}
+
+            {/* Bio — edit profile only */}
+            {isEditing && (
+              <Controller
+                control={control}
+                name="bio"
+                render={({ field: { onChange, value } }) => (
+                  <TextInput
+                    style={[
+                      styles.input,
+                      styles.bioInput,
+                      focusedField === 'bio' && styles.inputFocused,
+                      errors.bio && styles.inputError,
+                    ]}
+                    placeholder="Adventurer, foodie, or slow traveler? Tell us your story..."
+                    placeholderTextColor="#94a3b8"
+                    value={value}
+                    onFocus={() => setFocusedField('bio')}
+                    onBlur={() => setFocusedField(null)}
+                    multiline
+                    numberOfLines={4}
+                    maxLength={100}
+                    textAlignVertical="top"
+                    underlineColorAndroid="transparent"
+                    selectionColor="#0d9488"
+                    editable={!busy}
+                    onChangeText={(val) => {
+                      onChange(val);
+                      if (apiError) setApiError(null);
+                    }}
+                  />
+                )}
+              />
+            )}
 
             {/* API Error Message */}
             {apiError && (

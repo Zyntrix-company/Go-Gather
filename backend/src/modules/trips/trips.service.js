@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
 const { sendEmail } = require('../../utils/mailer');
 const { notifyUsers, sendFCMNotification } = require('../../utils/fcm.util');
-const { batchDeleteFromS3 } = require('../../utils/s3.util');
+const { batchDeleteFromS3, getPresignedDownloadUrl } = require('../../utils/s3.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
 const config = require('../../config');
 const logger = require('../../utils/logger');
@@ -58,6 +58,32 @@ const calcDaysToGo = (startDate) => {
 
 const toDateStr = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 
+// Returns true only for URLs that live in our own S3 bucket / CloudFront distribution
+const isOwnS3Url = (url) => {
+  if (!url) return false;
+  try {
+    const { hostname } = new URL(url);
+    if (config.s3.cloudfrontDomain && hostname === config.s3.cloudfrontDomain) return true;
+    if (config.s3.bucket && hostname.startsWith(config.s3.bucket)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+};
+
+// Generate a presigned URL for a banner that is stored in our S3 bucket.
+// External URLs (Unsplash, etc.) pass through unchanged.
+const resolvePresignedBannerUrl = async (rawUrl) => {
+  if (!rawUrl || !isOwnS3Url(rawUrl)) return rawUrl || null;
+  try {
+    const key = new URL(rawUrl).pathname.replace(/^\//, '');
+    if (!key) return rawUrl;
+    return await getPresignedDownloadUrl(key);
+  } catch {
+    return rawUrl;
+  }
+};
+
 const formatTrip = (t) => ({
   id: t.id,
   name: t.name,
@@ -75,6 +101,12 @@ const formatTrip = (t) => ({
   createdAt: t.created_at,
   updatedAt: t.updated_at,
 });
+
+// Async wrapper — resolves presigned banner URL then merges into formatted trip
+const enrichTrip = async (t) => {
+  const bannerImageUrl = await resolvePresignedBannerUrl(t.banner_image_url);
+  return { ...formatTrip(t), bannerImageUrl };
+};
 
 // ─── Create Trip ──────────────────────────────────────────────────────────────
 
@@ -195,7 +227,7 @@ const createTrip = async (userId, body) => {
     const countResult = await db('SELECT COUNT(*) FROM trip_members WHERE trip_id = $1', [trip.id]);
 
     return {
-      ...formatTrip(trip),
+      ...await enrichTrip(trip),
       memberCount: parseInt(countResult.rows[0].count, 10),
     };
   } catch (error) {
@@ -260,11 +292,11 @@ const getTrips = async (userId, { status, page = 1, limit = 20 } = {}) => {
   );
 
   const total = result.rows[0]?.total_count || 0;
-  const trips = result.rows.map((t) => ({
-    ...formatTrip(t),
+  const trips = await Promise.all(result.rows.map(async (t) => ({
+    ...await enrichTrip(t),
     memberCount: t.member_count,
     memberAvatars: t.member_avatars || [],
-  }));
+  })));
 
   return { trips, total, page, limit: safLimit };
 };
@@ -300,7 +332,7 @@ const getTripById = async (tripId) => {
 
   return {
     trip: {
-      ...formatTrip(t),
+      ...await enrichTrip(t),
       daysToGo: calcDaysToGo(t.start_date),
     },
     members: membersResult.rows.map((m) => ({
@@ -338,7 +370,7 @@ const updateTrip = async (tripId, updates) => {
 
   if (fields.length === 0) {
     const existing = await db('SELECT * FROM trips WHERE id = $1', [tripId]);
-    return formatTrip(existing.rows[0]);
+    return enrichTrip(existing.rows[0]);
   }
 
   values.push(tripId);
@@ -378,7 +410,7 @@ const updateTrip = async (tripId, updates) => {
     }
   }
 
-  return formatTrip(trip);
+  return enrichTrip(trip);
 };
 
 // ─── Delete Trip ──────────────────────────────────────────────────────────────
@@ -634,7 +666,7 @@ const archiveTrip = async (tripId) => {
   if (result.rowCount === 0) {
     const err = new Error('Trip not found'); err.statusCode = 404; err.error = 'NOT_FOUND'; throw err;
   }
-  return formatTrip(result.rows[0]);
+  return enrichTrip(result.rows[0]);
 };
 
 const unarchiveTrip = async (tripId) => {
@@ -645,7 +677,7 @@ const unarchiveTrip = async (tripId) => {
   if (result.rowCount === 0) {
     const err = new Error('Trip not found'); err.statusCode = 404; err.error = 'NOT_FOUND'; throw err;
   }
-  return formatTrip(result.rows[0]);
+  return enrichTrip(result.rows[0]);
 };
 
 // ─── Email template ───────────────────────────────────────────────────────────

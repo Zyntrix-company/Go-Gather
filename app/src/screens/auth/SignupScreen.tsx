@@ -322,6 +322,22 @@ export default function SignupScreen({ navigation }: any) {
       const idToken = result.data?.idToken;
       if (idToken) {
         const res = await googleLogin(idToken);
+        // Try extracting DOB from Google People API (best-effort, silent fail)
+        try {
+          const tokens = await GoogleSignin.getTokens();
+          if (tokens.accessToken) {
+            const peopleRes = await fetch(
+              'https://people.googleapis.com/v1/people/me?personFields=birthdays',
+              { headers: { Authorization: `Bearer ${tokens.accessToken}` } },
+            );
+            const peopleData = await peopleRes.json();
+            const bday = peopleData?.birthdays?.[0]?.date;
+            if (bday?.year && bday?.month && bday?.day) {
+              const dob = `${bday.year}-${String(bday.month).padStart(2, '0')}-${String(bday.day).padStart(2, '0')}`;
+              useAuthStore.getState().updateUser({ dob });
+            }
+          }
+        } catch { /* DOB is optional */ }
         console.log('[Google Login Success]:', res.user?.email);
         handleLoginNavigation(res.user);
       }
@@ -336,12 +352,27 @@ export default function SignupScreen({ navigation }: any) {
   async function onFacebookButtonPress() {
     try {
       setApiError(null);
-      const result = await LoginManager.logInWithPermissions(['public_profile', 'email']);
+      const result = await LoginManager.logInWithPermissions(['public_profile', 'email', 'user_birthday']);
       if (result.isCancelled) return;
 
       const data = await AccessToken.getCurrentAccessToken();
       if (data) {
         const res = await facebookLogin(data.accessToken);
+        // Try extracting DOB from Facebook Graph API (best-effort, silent fail)
+        try {
+          const fbRes = await fetch(
+            `https://graph.facebook.com/me?fields=birthday&access_token=${data.accessToken}`,
+          );
+          const fbData = await fbRes.json();
+          if (fbData?.birthday) {
+            // Facebook returns MM/DD/YYYY → convert to YYYY-MM-DD
+            const parts = fbData.birthday.split('/');
+            if (parts.length === 3) {
+              const dob = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+              useAuthStore.getState().updateUser({ dob });
+            }
+          }
+        } catch { /* DOB is optional */ }
         console.log('[Facebook Login Success]:', res.user?.email);
         handleLoginNavigation(res.user);
       }
@@ -636,15 +667,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 9,
-    paddingVertical: 9,
+    paddingVertical: 8,
     paddingHorizontal: 16,
   },
   socialBtnGap: { marginTop: 8 },
-  socialBtnText: { fontSize: 17, color: '#334155', fontWeight: '400' },
+  socialBtnText: { fontSize: 16, color: '#334155', fontWeight: '400' },
 
   divider: { flexDirection: 'row', alignItems: 'center', gap: 13, marginVertical: 8 },
   dividerLine: { flex: 1, height: 1, backgroundColor: '#e2e8f0' },
-  dividerText: { fontSize: 17, color: '#94a3b8' },
+  dividerText: { fontSize: 16, color: '#94a3b8' },
 
   // Inputs
   input: {
@@ -653,23 +684,23 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#e2e8f0',
     borderRadius: 9,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 17,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    fontSize: 16,
     color: '#0f172a',
     marginTop: 9,
   },
   inputFocused: { borderColor: '#0d9488' },
   inputError: { borderColor: '#ef4444' },
   errorText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#ef4444',
     marginTop: 4,
     marginBottom: 2,
     marginLeft: 2,
   },
   apiErrorText: {
-    fontSize: 14,
+    fontSize: 11,
     color: '#ef4444',
     textAlign: 'center',
     marginVertical: 10,
@@ -684,21 +715,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 9,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 9,
     gap: 4,
   },
-  countryFlag: { fontSize: 15 },
-  countryCodeText: { fontSize: 14, color: '#0f172a', fontWeight: '500' },
+  countryFlag: { fontSize: 14 },
+  countryCodeText: { fontSize: 13, color: '#0f172a', fontWeight: '500' },
   phoneInput: {
     flex: 1,
     backgroundColor: '#ffffff',
     borderWidth: 2,
     borderColor: '#e2e8f0',
     borderRadius: 9,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
-    fontSize: 17,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    fontSize: 16,
     color: '#0f172a',
   },
 
@@ -712,13 +743,13 @@ const styles = StyleSheet.create({
   },
   passwordField: {
     width: '100%',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
     paddingRight: 44,
-    fontSize: 17,
+    fontSize: 16,
     color: '#0f172a',
   },
-  eyeBtn: { position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center', padding: 2 },
+  eyeBtn: { position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center', padding: 1 },
 
   // Password strength indicator
   strengthContainer: { marginTop: 8, marginBottom: 4, paddingHorizontal: 2 },
@@ -732,7 +763,7 @@ const styles = StyleSheet.create({
   primaryBtn: {
     backgroundColor: '#0d9488',
     borderRadius: 8,
-    paddingVertical: 12,
+    paddingVertical: 11,
     alignItems: 'center',
     marginTop: 16,
     elevation: 2,

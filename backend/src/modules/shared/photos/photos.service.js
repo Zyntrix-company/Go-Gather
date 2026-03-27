@@ -1,5 +1,5 @@
 const { query: db } = require('../../../config/database');
-const { uploadToS3, deleteFromS3, sanitiseFilename } = require('../../../utils/s3.util');
+const { uploadToS3, deleteFromS3, sanitiseFilename, getPresignedDownloadUrl } = require('../../../utils/s3.util');
 const config = require('../../../config');
 const { v4: uuidv4 } = require('uuid');
 
@@ -24,8 +24,10 @@ const uploadPhotos = async ({ parentType, parentId }, userId, files, { activityI
        RETURNING *`,
       [parentType, parentId, userId, fileUrl, s3Key, file.mimetype, activityId],
     );
+    // Generate presigned URL (1hr) so the client can display the photo immediately
+    const presignedUrl = await getPresignedDownloadUrl(s3Key);
     // activity_title not available on INSERT RETURNING — set null; GET endpoint joins it
-    uploaded.push(formatPhoto({ ...result.rows[0], activity_title: null }));
+    uploaded.push(formatPhoto({ ...result.rows[0], activity_title: null }, presignedUrl));
   }
 
   return uploaded;
@@ -48,12 +50,13 @@ const getPhotos = async ({ parentType, parentId }, { page = 1, limit = 30 } = {}
   );
 
   const total = result.rows[0]?.total_count || 0;
-  return {
-    photos: result.rows.map(formatPhoto),
-    total,
-    page,
-    limit: safLimit,
-  };
+  const photos = await Promise.all(
+    result.rows.map(async (row) => {
+      const presignedUrl = await getPresignedDownloadUrl(row.s3_key);
+      return formatPhoto(row, presignedUrl);
+    }),
+  );
+  return { photos, total, page, limit: safLimit };
 };
 
 const deletePhoto = async ({ photoId, parentType, parentId, requesterId, requesterRole }) => {
@@ -75,7 +78,7 @@ const deletePhoto = async ({ photoId, parentType, parentId, requesterId, request
   await db('DELETE FROM photos WHERE id = $1', [photoId]);
 };
 
-const formatPhoto = (p) => ({
+const formatPhoto = (p, presignedUrl) => ({
   id: p.id,
   parentType: p.parent_type,
   parentId: p.parent_id,
@@ -83,7 +86,8 @@ const formatPhoto = (p) => ({
   activityTitle: p.activity_title || null,
   uploadedBy: p.uploaded_by,
   uploaderName: p.uploader_name || null,
-  url: p.file_url,
+  fileUrl: p.file_url,              // permanent CDN/S3 URL (use for storing in DB)
+  url: presignedUrl || p.file_url,  // presigned URL (1hr) preferred for display
   caption: p.caption,
   mimeType: p.mime_type,
   createdAt: p.created_at,

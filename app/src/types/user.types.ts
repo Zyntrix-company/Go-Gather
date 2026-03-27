@@ -8,6 +8,7 @@ export interface User {
   gender?: string;
   country?: string;
   bio?: string;
+  dob?: string;       // ISO date: YYYY-MM-DD
   avatarUri?: string;
   avatarUrl?: string;
   photoUrl?: string;

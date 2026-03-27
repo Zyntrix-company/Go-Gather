@@ -29,19 +29,6 @@ function ChevronLeft() {
   );
 }
 
-function MailIcon() {
-  return (
-    <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-      <Path
-        stroke="#0d9488"
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76"
-      />
-    </Svg>
-  );
-}
 
 export default function ForgotPasswordScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
@@ -94,27 +81,19 @@ export default function ForgotPasswordScreen({ navigation }: any) {
           </View>
 
           <View style={styles.form}>
-            {/* Mail icon */}
-            <View style={styles.iconWrap}>
-              <View style={styles.iconCircle}>
-                <MailIcon />
-              </View>
-            </View>
-
             <Text style={styles.title}>Forgot Password?</Text>
             <Text style={styles.subtitle}>
-              No worries! Enter your registered email and we'll send you a 6-digit reset code.
+              No worries! We will send you reset instructions.
             </Text>
 
             {/* Email input */}
-            <Text style={styles.fieldLabel}>Email Address</Text>
             <TextInput
               style={[
                 styles.input,
                 !!error && styles.inputError,
                 isFocused && styles.inputFocused,
               ]}
-              placeholder="Enter your email"
+              placeholder="Email"
               placeholderTextColor="#94a3b8"
               value={email}
               onChangeText={(t) => { setEmail(t); setError(''); }}
@@ -129,9 +108,6 @@ export default function ForgotPasswordScreen({ navigation }: any) {
             />
             {!!error && <Text style={styles.errorText}>{error}</Text>}
 
-            <Text style={styles.helperText}>
-              We'll send a 6-digit OTP to this email. Check your inbox and spam folder.
-            </Text>
 
             {/* Send OTP button */}
             <TouchableOpacity
@@ -142,7 +118,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
               {isLoading ? (
                 <ActivityIndicator color="#ffffff" size="small" />
               ) : (
-                <Text style={styles.primaryBtnText}>Send Reset Code</Text>
+                <Text style={styles.primaryBtnText}>Reset Password</Text>
               )}
             </TouchableOpacity>
 
@@ -168,23 +144,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 22,
     paddingBottom: 40,
+    justifyContent: 'space-between',
   },
-  logoRow: { marginBottom: 32, alignItems: 'flex-start' },
-  form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
-
-  iconWrap: { alignItems: 'center', marginBottom: 20 },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#ccfbf1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  logoRow: { marginBottom: 0, alignItems: 'flex-start' },
+  form: { maxWidth: 400, width: '100%', alignSelf: 'center', flex: 1, justifyContent: 'center', paddingBottom: 60 },
 
   title: {
-    fontSize: 26,
-    fontWeight: '500',
+    fontSize: 28,
+    fontWeight: '700',
     color: '#0f172a',
     textAlign: 'center',
     marginBottom: 10,
@@ -210,7 +177,7 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
     borderRadius: 9,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 11,
     fontSize: 16,
     color: '#0f172a',
   },
@@ -225,7 +192,7 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: 12,
     color: '#94a3b8',
-    marginTop: 8,
+    marginTop: 10,
     marginBottom: 20,
     lineHeight: 17,
   },
@@ -235,6 +202,7 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     paddingVertical: 13,
     alignItems: 'center',
+    marginTop: 16,
     marginBottom: 16,
     elevation: 2,
   },

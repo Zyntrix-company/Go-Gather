@@ -107,12 +107,27 @@ export default function LoginScreen({ navigation }: any) {
       const idToken = result.data?.idToken;
       if (idToken) {
         const res = await googleLogin(idToken);
+        // Try extracting DOB from Google People API (best-effort, silent fail)
+        try {
+          const tokens = await GoogleSignin.getTokens();
+          if (tokens.accessToken) {
+            const peopleRes = await fetch(
+              'https://people.googleapis.com/v1/people/me?personFields=birthdays',
+              { headers: { Authorization: `Bearer ${tokens.accessToken}` } },
+            );
+            const peopleData = await peopleRes.json();
+            const bday = peopleData?.birthdays?.[0]?.date;
+            if (bday?.year && bday?.month && bday?.day) {
+              const dob = `${bday.year}-${String(bday.month).padStart(2, '0')}-${String(bday.day).padStart(2, '0')}`;
+              useAuthStore.getState().updateUser({ dob });
+            }
+          }
+        } catch { /* DOB is optional */ }
         console.log('[Google Login Success]:', res.user?.email);
         handleLoginNavigation(res.user);
       }
     } catch (error: any) {
       console.error('[Google Login Error]:', error);
-      // Don't show error if user cancelled
       if (error.code !== 'SIGN_IN_CANCELLED') {
         setApiError('Google sign in failed.');
       }
@@ -122,12 +137,27 @@ export default function LoginScreen({ navigation }: any) {
   async function onFacebookButtonPress() {
     try {
       setApiError(null);
-      const result = await LoginManager.logInWithPermissions(['public_profile', 'email']);
+      const result = await LoginManager.logInWithPermissions(['public_profile', 'email', 'user_birthday']);
       if (result.isCancelled) return;
 
       const data = await AccessToken.getCurrentAccessToken();
       if (data) {
         const res = await facebookLogin(data.accessToken);
+        // Try extracting DOB from Facebook Graph API (best-effort, silent fail)
+        try {
+          const fbRes = await fetch(
+            `https://graph.facebook.com/me?fields=birthday&access_token=${data.accessToken}`,
+          );
+          const fbData = await fbRes.json();
+          if (fbData?.birthday) {
+            // Facebook returns MM/DD/YYYY → convert to YYYY-MM-DD
+            const parts = fbData.birthday.split('/');
+            if (parts.length === 3) {
+              const dob = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+              useAuthStore.getState().updateUser({ dob });
+            }
+          }
+        } catch { /* DOB is optional */ }
         console.log('[Facebook Login Success]:', res.user?.email);
         handleLoginNavigation(res.user);
       }
@@ -341,8 +371,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 9,
-    paddingVertical: 10,
-    paddingHorizontal: 17,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
   socialBtnGap: { marginTop: 8 },
   socialBtnText: { fontSize: 16, color: '#334155', fontWeight: '400' },
@@ -364,23 +394,23 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#e2e8f0',
     borderRadius: 9,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 17,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
+    fontSize: 16,
     color: '#0f172a',
     marginTop: 8,
   },
   inputFocused: { borderColor: '#0d9488' },
   inputError: { borderColor: '#ef4444' },
   errorText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#ef4444',
     marginTop: 4,
     marginBottom: 2,
     marginLeft: 2,
   },
   apiErrorText: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#ef4444',
     textAlign: 'center',
     marginTop: 12,
@@ -397,10 +427,10 @@ const styles = StyleSheet.create({
   },
   passwordField: {
     width: '100%',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
     paddingRight: 44,
-    fontSize: 17,
+    fontSize: 16,
     color: '#0f172a',
   },
   eyeBtn: {
@@ -409,14 +439,14 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     justifyContent: 'center',
-    padding: 2,
+    padding: 1,
   },
 
   // Primary button — rounded-lg (matches web rounded-lg)
   primaryBtn: {
     backgroundColor: '#0d9488',
     borderRadius: 9,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center',
     marginTop: 16,
     elevation: 2,
@@ -437,7 +467,7 @@ const styles = StyleSheet.create({
   },
   linkPlain: { fontSize: 14, color: '#515e70ff' }, // Increased from 12
   linkUnderline: {
-    fontSize: 17, // Increased from 12
+    fontSize: 16, // Increased from 12
     color: '#0d9488',
     fontWeight: '500',
     textDecorationLine: 'underline',

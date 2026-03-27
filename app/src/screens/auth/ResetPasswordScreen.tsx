@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
   passwordField: {
     width: '100%',
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: 11,
     paddingRight: 46,
     fontSize: 16,
     color: '#0f172a',
@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
   },
 
   errorText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#ef4444',
     marginTop: 4,
     marginBottom: 2,
@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0d9488',
     borderRadius: 10,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 11,
     alignItems: 'center',
     marginTop: 22,
     elevation: 2,
@@ -470,14 +470,14 @@ const styles = StyleSheet.create({
   primaryBtn: {
     backgroundColor: '#0d9488',
     borderRadius: 11,
-    paddingVertical: 12,
+    paddingVertical: 11,
     alignItems: 'center',
     marginTop: 24,
     elevation: 2,
   },
   primaryBtnText: {
     color: '#ffffff',
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.1,
   },

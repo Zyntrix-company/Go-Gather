@@ -66,7 +66,6 @@ export type Trip = {
   endDate: string;
   location: TripLocation | string;
   coverPhotoUrl: string | null;
-  bannerImageUrl: string | null;   // auto-assigned from category match if not manually uploaded
   createdBy: string;
   daysToGo?: number;
   memberCount?: number;
@@ -89,30 +88,32 @@ export type Activity = {
   title: string;
   description?: string;
   date?: string;
-  time?: string;
+  time?: string | { hour: number; minute: number };
   location?: string;
   cost?: string;
   createdBy: string;
   createdAt: string;
   photoCount?: number;
+  completed?: boolean;
   linkedExpense?: { id: string; description: string; amount: number } | null;
 };
 
 export type Photo = {
   id: string;
-  url: string;
+  fileUrl?: string;
+  url?: string;
   mimeType?: string;
   uploadedBy: string;
-  uploaderName?: string | null;
+  uploadedAt: string;
   activityId?: string | null;
   activityTitle?: string | null;
-  createdAt?: string;
 };
 
 export type Doc = {
   id: string;
   fileName: string;
-  fileUrl: string;
+  fileUrl?: string;
+  downloadUrl?: string;   // presigned S3 URL (1hr) — preferred for viewing
   fileSize: number;
   mimeType: string;
   uploadedBy: string;
@@ -248,17 +249,17 @@ export async function inviteToTrip(tripId: string, body: { friendIds?: string[];
 
 export async function getActivities(tripId: string) {
   const res = await client.get(`/trips/${tripId}/activities`);
-  return res.data as { activities: Activity[] };
+  return res.data as { activities?: Activity[]; upcoming?: Activity[]; completed?: Activity[] };
 }
 
 export async function createActivity(tripId: string, body: {
   title: string;
   description?: string;
   date?: string;
-  time?: string;
+  time?: string | { hour: number; minute: number };
   location?: string;
+  locationName?: string;
   cost?: number;
-  expenseId?: string;
 }) {
   const res = await client.post(`/trips/${tripId}/activities`, body);
   return res.data as { activity: Activity };
@@ -268,9 +269,11 @@ export async function updateActivity(tripId: string, actId: string, body: Partia
   title: string;
   description: string;
   date: string;
-  time: string;
+  time: string | { hour: number; minute: number };
   location: string;
+  locationName: string;
   cost: number;
+  isCompleted: boolean;
 }>) {
   const res = await client.put(`/trips/${tripId}/activities/${actId}`, body);
   return res.data as { activity: Activity };
@@ -318,7 +321,6 @@ export async function createExpense(tripId: string, body: {
   amount: number;
   currency?: string;
   category?: string;
-  paidBy: string;
   splitType: 'equal' | 'amount' | 'percentage';
   splitAmong: SplitUser[];
 }) {

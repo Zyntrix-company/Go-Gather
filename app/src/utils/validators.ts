@@ -64,4 +64,5 @@ export const profileSchema = z.object({
   gender: z.string().min(1, 'Gender is required'),
   country: z.string().min(1, 'Country is required'),
   bio: z.string().max(100, 'Bio must be under 100 characters').optional(),
+  dob: z.string().optional(),
 });

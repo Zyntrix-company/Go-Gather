@@ -38,6 +38,7 @@ function App() {
         webClientId: '444293164368-8rjq9b60t2kcbers0d77j4lic7oma5nl.apps.googleusercontent.com',
         iosClientId: '444293164368-62ticnka5jbe7phea60phv6otd69nkbe.apps.googleusercontent.com',
         offlineAccess: false,
+        scopes: ['https://www.googleapis.com/auth/user.birthday.read'],
       });
     } catch (e) {
       // noop during scaffold

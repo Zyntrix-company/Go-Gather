@@ -547,7 +547,7 @@ function mapApiTrip(t: any): Trip {
     fullEndDate: fmtFullDate(e),
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
-    members: [],
+    members: (t.memberAvatars || []).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
     extraMembers: Math.max(0, (t.memberCount ?? 1) - 1),
   };
 }
@@ -581,6 +581,7 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
   const [inviteEmail, setInviteEmail] = useState('');
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [bannerImageUri, setBannerImageUri] = useState<string | undefined>(undefined);
+  const [bannerImageType, setBannerImageType] = useState<string>('image/jpeg');
 
   function formatDate(d: Date | undefined): string {
     if (!d) return '';
@@ -597,6 +598,7 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
     setReminders(false); setUploadedDocs([]); setSelectedFriendIds([]);
     setFriendSearch(''); setInviteEmail('');
     setBannerImageUri(undefined);
+    setBannerImageType('image/jpeg');
   }
 
   async function handleSave() {
@@ -613,6 +615,7 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
         friendIds: selectedFriendIds,
         inviteEmail: inviteEmail.trim() || undefined,
         bannerImageUrl: bannerImageUri,
+        bannerImageType: bannerImageType,
       });
       reset();
       onClose();
@@ -739,8 +742,11 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
                 presentationStyle: 'fullScreen',
               }, res => {
                 if (res.didCancel || res.errorCode) return;
-                const uri = res.assets?.[0]?.uri;
-                if (uri) setBannerImageUri(uri);
+                const asset = res.assets?.[0];
+                if (asset?.uri) {
+                  setBannerImageUri(asset.uri);
+                  setBannerImageType(asset.type ?? 'image/jpeg');
+                }
               })}
               activeOpacity={0.8}
             >
@@ -1366,11 +1372,6 @@ export default function HomeScreen({ navigation }: any) {
       {/* No trips yet — friendly empty state */}
       {trips.length === 0 && (
         <View style={styles.emptyState}>
-          <View style={styles.emptyIconCircle}>
-            <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
-              <Path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
-          </View>
           <Text style={styles.emptyStateTitle}>No trips yet</Text>
           <Text style={styles.emptyStateSubtitle}>Create your first trip and start planning with friends!</Text>
         </View>
@@ -1731,7 +1732,8 @@ export default function HomeScreen({ navigation }: any) {
           visible={showCreateTrip}
           onClose={() => setShowCreateTrip(false)}
           onSave={async (data: any) => {
-            // Step 1: Create trip without bannerImageUrl (local URIs are rejected by API)
+            // Step 1: Create trip — backend auto-assigns bannerImageUrl from location/name
+            // (local URIs cannot be sent directly; CDN URL is set in step 2 if user picked one)
             const res = await apiCreateTrip({
               name: data.name,
               startDate: data.startDateISO ?? data.startDate ?? '',
@@ -1741,22 +1743,34 @@ export default function HomeScreen({ navigation }: any) {
               emails: data.inviteEmail ? [data.inviteEmail] : undefined,
             });
             let newTrip = res.trip;
-            // Step 2: If banner image selected (local file URI), upload it and update trip with CDN URL
-            if (data.bannerImageUrl && (data.bannerImageUrl.startsWith('file://') || data.bannerImageUrl.startsWith('content://'))) {
+            // Step 2: If user picked a banner image from their phone, upload it and replace the
+            // auto-assigned banner with the CDN URL of the uploaded photo.
+            const localUri: string | undefined = data.bannerImageUrl;
+            const isLocalUri = localUri && (localUri.startsWith('file://') || localUri.startsWith('content://') || localUri.startsWith('file:'));
+            if (isLocalUri) {
+              // Show the trip immediately with local URI so the card doesn't appear white
+              setTrips(p => [{ ...mapApiTrip(newTrip), bannerImageUrl: localUri! }, ...p]);
               try {
                 const photoRes = await uploadTripPhotos(newTrip.id, [{
-                  uri: data.bannerImageUrl,
-                  type: 'image/jpeg',
-                  name: 'banner.jpg',
+                  uri: localUri!,
+                  type: data.bannerImageType ?? 'image/jpeg',
+                  name: `banner.${(data.bannerImageType ?? 'image/jpeg').split('/')[1] ?? 'jpg'}`,
                 }]);
-                const cdnUrl = photoRes.photos?.[0]?.url;
-                if (cdnUrl) {
-                  const updated = await apiUpdateTrip(newTrip.id, { bannerImageUrl: cdnUrl });
+                const photo = photoRes.photos?.[0];
+                // Use permanent fileUrl for DB storage; presigned url for display
+                const permanentUrl = (photo as any)?.fileUrl ?? photo?.url;
+                const displayUrl = photo?.url ?? permanentUrl;
+                if (permanentUrl) {
+                  // Update the trip's bannerImageUrl to store the permanent CDN/S3 URL
+                  const updated = await apiUpdateTrip(newTrip.id, { bannerImageUrl: permanentUrl });
                   newTrip = updated.trip;
+                  // Show presigned (or presigned from updated trip) URL in state
+                  setTrips(p => p.map(t => t.id === newTrip.id ? { ...t, bannerImageUrl: newTrip.bannerImageUrl ?? displayUrl } : t));
                 }
-              } catch { /* banner upload failed — trip still created */ }
+              } catch { /* keep local URI shown */ }
+            } else {
+              setTrips(p => [mapApiTrip(newTrip), ...p]);
             }
-            setTrips(p => [mapApiTrip(newTrip), ...p]);
           }}
         />
       </SafeAreaView>
