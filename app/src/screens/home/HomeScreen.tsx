@@ -23,8 +23,6 @@ import Geolocation from '@react-native-community/geolocation';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { launchImageLibrary } from 'react-native-image-picker';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import ReAnimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
 import AppHeader from '../../components/common/AppHeader';
@@ -588,48 +586,65 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
   const [cropPreviewUri, setCropPreviewUri] = useState<string | undefined>(undefined);
   const [cropPreviewType, setCropPreviewType] = useState<string>('image/jpeg');
 
-  // Crop modal gesture state
-  const cropScale = useSharedValue(1);
-  const cropTransX = useSharedValue(0);
-  const cropTransY = useSharedValue(0);
-  const savedScale = useSharedValue(1);
-  const savedTransX = useSharedValue(0);
-  const savedTransY = useSharedValue(0);
+  // Crop modal gesture state (pure RN Animated — no Reanimated needed)
+  const cropScaleAnim  = useRef(new Animated.Value(1)).current;
+  const cropTransXAnim = useRef(new Animated.Value(0)).current;
+  const cropTransYAnim = useRef(new Animated.Value(0)).current;
+  const cropState = useRef({ scale: 1, x: 0, y: 0, lastDist: 0, lastMidX: 0, lastMidY: 0, isPinch: false });
 
-  const pinchGesture = Gesture.Pinch()
-    .onUpdate((e) => {
-      'worklet';
-      cropScale.value = Math.max(0.5, Math.min(savedScale.value * e.scale, 6));
-    })
-    .onEnd(() => {
-      'worklet';
-      savedScale.value = cropScale.value;
-    });
+  function cropTouchDist(touches: any[]) {
+    const dx = touches[0].pageX - touches[1].pageX;
+    const dy = touches[0].pageY - touches[1].pageY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
 
-  const panGesture = Gesture.Pan()
-    .onUpdate((e) => {
-      'worklet';
-      cropTransX.value = savedTransX.value + e.translationX;
-      cropTransY.value = savedTransY.value + e.translationY;
-    })
-    .onEnd(() => {
-      'worklet';
-      savedTransX.value = cropTransX.value;
-      savedTransY.value = cropTransY.value;
-    });
-
-  const cropComposed = Gesture.Simultaneous(pinchGesture, panGesture);
-
-  const cropImageStyle = useAnimatedStyle(() => {
-    'worklet';
-    return {
-      transform: [
-        { translateX: cropTransX.value },
-        { translateY: cropTransY.value },
-        { scale: cropScale.value },
-      ],
-    };
-  });
+  const cropPanResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (e) => {
+      const touches = e.nativeEvent.touches;
+      const s = cropState.current;
+      s.isPinch = touches.length >= 2;
+      if (s.isPinch) {
+        s.lastDist = cropTouchDist(touches);
+        s.lastMidX = (touches[0].pageX + touches[1].pageX) / 2;
+        s.lastMidY = (touches[0].pageY + touches[1].pageY) / 2;
+      }
+    },
+    onPanResponderMove: (e, gs) => {
+      const touches = e.nativeEvent.touches;
+      const s = cropState.current;
+      if (touches.length >= 2) {
+        s.isPinch = true;
+        const dist = cropTouchDist(touches);
+        const midX = (touches[0].pageX + touches[1].pageX) / 2;
+        const midY = (touches[0].pageY + touches[1].pageY) / 2;
+        if (s.lastDist > 0) {
+          s.scale = Math.max(0.5, Math.min(s.scale * (dist / s.lastDist), 6));
+          cropScaleAnim.setValue(s.scale);
+          s.x += midX - s.lastMidX;
+          s.y += midY - s.lastMidY;
+          cropTransXAnim.setValue(s.x);
+          cropTransYAnim.setValue(s.y);
+        }
+        s.lastDist = dist;
+        s.lastMidX = midX;
+        s.lastMidY = midY;
+      } else {
+        cropTransXAnim.setValue(s.x + gs.dx);
+        cropTransYAnim.setValue(s.y + gs.dy);
+      }
+    },
+    onPanResponderRelease: (_, gs) => {
+      const s = cropState.current;
+      if (!s.isPinch) {
+        s.x += gs.dx;
+        s.y += gs.dy;
+      }
+      s.lastDist = 0;
+      s.isPinch = false;
+    },
+  })).current;
 
   function formatDate(d: Date | undefined): string {
     if (!d) return '';
@@ -1113,37 +1128,51 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
         animationType="slide"
         onRequestClose={() => setCropPreviewUri(undefined)}
         onShow={() => {
-          cropScale.value = 1; savedScale.value = 1;
-          cropTransX.value = 0; savedTransX.value = 0;
-          cropTransY.value = 0; savedTransY.value = 0;
+          const s = cropState.current;
+          s.scale = 1; s.x = 0; s.y = 0; s.lastDist = 0;
+          cropScaleAnim.setValue(1);
+          cropTransXAnim.setValue(0);
+          cropTransYAnim.setValue(0);
         }}
       >
         <View style={{ flex: 1, backgroundColor: '#000' }}>
-          {/* Gesture area */}
-          <GestureDetector gesture={cropComposed}>
-            <View style={{ flex: 1, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' }}>
-              {cropPreviewUri && (
-                <ReAnimated.Image
-                  source={{ uri: cropPreviewUri }}
-                  style={[{ width: SCREEN_W, height: SCREEN_W }, cropImageStyle]}
-                  resizeMode="contain"
-                />
-              )}
-              {/* 16:9 crop guide overlay */}
-              <View pointerEvents="none" style={{ position: 'absolute', width: SCREEN_W * 0.9, aspectRatio: 16 / 9, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.7)', borderRadius: 6 }}>
-                <View style={{ position: 'absolute', left: '33.3%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
-                <View style={{ position: 'absolute', left: '66.6%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
-                <View style={{ position: 'absolute', top: '33.3%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
-                <View style={{ position: 'absolute', top: '66.6%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
-              </View>
+          {/* Gesture + image area */}
+          <View
+            style={{ flex: 1, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' }}
+            {...cropPanResponder.panHandlers}
+          >
+            {cropPreviewUri && (
+              <Animated.Image
+                source={{ uri: cropPreviewUri }}
+                style={[
+                  { width: SCREEN_W, height: SCREEN_W },
+                  { transform: [{ translateX: cropTransXAnim }, { translateY: cropTransYAnim }, { scale: cropScaleAnim }] },
+                ]}
+                resizeMode="contain"
+              />
+            )}
+            {/* 16:9 crop guide overlay */}
+            <View pointerEvents="none" style={{ position: 'absolute', width: SCREEN_W * 0.9, aspectRatio: 16 / 9, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.7)', borderRadius: 6 }}>
+              <View style={{ position: 'absolute', left: '33.3%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
+              <View style={{ position: 'absolute', left: '66.6%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
+              <View style={{ position: 'absolute', top: '33.3%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
+              <View style={{ position: 'absolute', top: '66.6%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
             </View>
-          </GestureDetector>
+          </View>
           {/* Controls */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 40, paddingVertical: 32, backgroundColor: '#000' }}>
             <TouchableOpacity onPress={() => setCropPreviewUri(undefined)} activeOpacity={0.8}>
               <Text style={{ color: '#fff', fontSize: 17, fontWeight: '500' }}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { cropScale.value = withSpring(1); savedScale.value = 1; cropTransX.value = withSpring(0); savedTransX.value = 0; cropTransY.value = withSpring(0); savedTransY.value = 0; }} activeOpacity={0.8}>
+            <TouchableOpacity onPress={() => {
+              const s = cropState.current;
+              s.scale = 1; s.x = 0; s.y = 0;
+              Animated.parallel([
+                Animated.spring(cropScaleAnim,  { toValue: 1, useNativeDriver: true }),
+                Animated.spring(cropTransXAnim, { toValue: 0, useNativeDriver: true }),
+                Animated.spring(cropTransYAnim, { toValue: 0, useNativeDriver: true }),
+              ]).start();
+            }} activeOpacity={0.8}>
               <Text style={{ color: '#fff', fontSize: 17, fontWeight: '500' }}>Reset</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { setBannerImageUri(cropPreviewUri); setBannerImageType(cropPreviewType); setCropPreviewUri(undefined); }} activeOpacity={0.8}>
