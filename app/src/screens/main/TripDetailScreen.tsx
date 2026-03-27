@@ -351,16 +351,21 @@ export default function TripDetailScreen({ route, navigation }: any) {
     if (!tripId) return;
     (async () => {
       try {
-        const [detailRes, membersRes, activitiesRes] = await Promise.all([
+        const [detailRes, membersRes, activitiesRes, balRes] = await Promise.all([
           getTripDetail(tripId),
           getTripMembers(tripId),
           getActivities(tripId),
+          getBalances(tripId),
         ]);
         const loc = detailRes.trip.location;
         const locStr = typeof loc === 'string' ? loc : (loc?.name ?? '');
         setTrip((prev: any) => ({ ...prev, ...detailRes.trip, location: locStr }));
         setRole(detailRes.role);
         setMembers(membersRes.members);
+        // Balance — works with new enriched format { debts, myBalance, totalExpenses }
+        setBalances(balRes.debts ?? []);
+        setMyBalance(typeof balRes.myBalance === 'number' && !isNaN(balRes.myBalance) ? balRes.myBalance : 0);
+        setTotalExpenses(balRes.totalExpenses ?? '0.00');
         const mapActivity = (a: any, completed: boolean) => {
           const { hour, minute } = parseActivityTime(a.time);
           return { id: a.id, title: a.title, date: a.date ?? '', hour, minute, location: a.location, description: a.description, completed, createdBy: a.createdBy, linkedExpense: a.linkedExpense ?? null };

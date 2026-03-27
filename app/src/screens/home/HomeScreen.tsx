@@ -585,6 +585,7 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
   const [bannerImageType, setBannerImageType] = useState<string>('image/jpeg');
   const [cropPreviewUri, setCropPreviewUri] = useState<string | undefined>(undefined);
   const [cropPreviewType, setCropPreviewType] = useState<string>('image/jpeg');
+  const [bannerCrop, setBannerCrop] = useState<{ scale: number; x: number; y: number } | null>(null);
 
   // Crop modal gesture state (pure RN Animated — no Reanimated needed)
   const cropScaleAnim  = useRef(new Animated.Value(1)).current;
@@ -662,6 +663,7 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
     setFriendSearch(''); setInviteEmail('');
     setBannerImageUri(undefined);
     setBannerImageType('image/jpeg');
+    setBannerCrop(null);
   }
 
   async function handleSave() {
@@ -815,10 +817,26 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
             >
               {bannerImageUri ? (
                 <>
-                  <Image source={{ uri: bannerImageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  {bannerCrop ? (() => {
+                    const previewH = 140;
+                    const overlayW = SCREEN_W * 0.9;
+                    const ratio = (SCREEN_W - 48) / overlayW;
+                    const imgSize = SCREEN_W * ratio * bannerCrop.scale;
+                    const imgLeft = ((SCREEN_W - 48) - imgSize) / 2 + bannerCrop.x * ratio;
+                    const imgTop  = (previewH - imgSize) / 2 + bannerCrop.y * ratio;
+                    return (
+                      <Image
+                        source={{ uri: bannerImageUri }}
+                        style={{ position: 'absolute', width: imgSize, height: imgSize, left: imgLeft, top: imgTop }}
+                        resizeMode="cover"
+                      />
+                    );
+                  })() : (
+                    <Image source={{ uri: bannerImageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  )}
                   <TouchableOpacity
                     style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4 }}
-                    onPress={() => setBannerImageUri(undefined)}
+                    onPress={() => { setBannerImageUri(undefined); setBannerCrop(null); }}
                   >
                     <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
                       <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
@@ -1175,7 +1193,13 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
             }} activeOpacity={0.8}>
               <Text style={{ color: '#fff', fontSize: 17, fontWeight: '500' }}>Reset</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setBannerImageUri(cropPreviewUri); setBannerImageType(cropPreviewType); setCropPreviewUri(undefined); }} activeOpacity={0.8}>
+            <TouchableOpacity onPress={() => {
+              const s = cropState.current;
+              setBannerImageUri(cropPreviewUri);
+              setBannerImageType(cropPreviewType);
+              setBannerCrop({ scale: s.scale, x: s.x, y: s.y });
+              setCropPreviewUri(undefined);
+            }} activeOpacity={0.8}>
               <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>Done</Text>
             </TouchableOpacity>
           </View>
@@ -1275,14 +1299,10 @@ export default function HomeScreen({ navigation }: any) {
 
   // Load trips on mount AND every time the screen comes back into focus
   // (so edits made in TripDetailScreen are reflected immediately)
-  useFocusEffect(
-    useCallback(() => {
-      loadTrips(1, true);
-    }, [])
-  );
+  const loadTripsRef = useRef<() => void>(() => {});
+  useFocusEffect(useCallback(() => { loadTripsRef.current(); }, []));
 
   async function loadTrips(page: number = 1, replace: boolean = false) {
-    if (isLoadingTrips) return;
     setIsLoadingTrips(true);
     try {
       const data = await getTrips({ page, limit: 50 });
@@ -1296,6 +1316,8 @@ export default function HomeScreen({ navigation }: any) {
       setIsLoadingTrips(false);
     }
   }
+  // Always keep the ref pointing at the latest loadTrips (so useFocusEffect always calls fresh version)
+  loadTripsRef.current = () => loadTrips(1, true);
 
   const user = rawUser ? {
     fullName: rawUser.fullName ?? rawUser.full_name ?? '',
