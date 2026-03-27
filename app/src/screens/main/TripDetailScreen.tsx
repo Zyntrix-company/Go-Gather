@@ -356,7 +356,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
           getTripMembers(tripId),
           getActivities(tripId),
         ]);
-        setTrip((prev: any) => ({ ...prev, ...detailRes.trip }));
+        const loc = detailRes.trip.location;
+        const locStr = typeof loc === 'string' ? loc : (loc?.name ?? '');
+        setTrip((prev: any) => ({ ...prev, ...detailRes.trip, location: locStr }));
         setRole(detailRes.role);
         setMembers(membersRes.members);
         const mapActivity = (a: any, completed: boolean) => {
@@ -1026,7 +1028,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   function openEditTrip() {
     setEditName(trip?.name || '');
-    setEditLocation(trip?.location || '');
+    const rawLoc = trip?.location;
+    setEditLocation(typeof rawLoc === 'string' ? rawLoc : (rawLoc?.name ?? ''));
     // Use ISO dates from trip (startDateISO / endDateISO) to build a real Date object
     const parseISO = (iso: string) => {
       if (!iso) return new Date();
@@ -1128,7 +1131,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
             <View style={{ flex: 1 }}>
               <Text style={styles.tripName}>{trip?.name ?? 'Trip'}</Text>
               <Text style={styles.tripDates}>{trip?.startDate ?? ''}{trip?.endDate ? ` - ${trip.endDate}` : ''}</Text>
-              {!!trip?.location && <Text style={styles.tripLocation}>{trip.location}</Text>}
+              {!!trip?.location && <Text style={styles.tripLocation}>{typeof trip.location === 'string' ? trip.location : trip.location?.name}</Text>}
             </View>
             {/* Right: days counter + edit/delete controls */}
             <View style={styles.daysArea}>
