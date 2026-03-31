@@ -2,7 +2,7 @@
 
 > Group travel planning — one shared space to organise trips and events, split expenses, store memories, connect with friends, and get AI-powered travel help.
 
-**Version:** v1 &nbsp;|&nbsp; **Prepared by:** Zyntrix &nbsp;|&nbsp; **Client:** Go Gather
+**Version:** v1 &nbsp;|&nbsp; **Prepared by:** Zyntrix &nbsp;|&nbsp; **Client:** GatherrGoAdd 
 
 ---
 

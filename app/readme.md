@@ -1,97 +1,213 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# GatherGo — Mobile App
 
-# Getting Started
+React Native mobile app for GatherGo. Single codebase for iOS and Android.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+---
 
-## Step 1: Start Metro
+## Folder Structure
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+```
+app/
+├── src/
+│   ├── api/              # Axios API clients
+│   │   ├── client.ts         # Base Axios instance (auth headers, token refresh)
+│   │   ├── auth.api.ts        # Auth endpoints
+│   │   └── trips.api.ts       # Trips endpoints
+│   ├── screens/
+│   │   ├── auth/             # Pre-login screens
+│   │   │   ├── SplashScreen.tsx
+│   │   │   ├── LoginScreen.tsx
+│   │   │   ├── SignupScreen.tsx
+│   │   │   ├── OtpVerificationScreen.tsx
+│   │   │   ├── ForgotPasswordScreen.tsx
+│   │   │   ├── ResetPasswordScreen.tsx
+│   │   │   └── CreateProfileScreen.tsx
+│   │   ├── home/             # Home dashboard
+│   │   │   └── HomeScreen.tsx
+│   │   └── main/             # Core app screens
+│   │       ├── TripDetailScreen.tsx
+│   │       ├── EventDetailScreen.tsx
+│   │       ├── ChatDetailScreen.tsx     # Swee AI chatbot
+│   │       ├── NotificationsScreen.tsx
+│   │       └── ArchivedTripsScreen.tsx
+│   ├── navigation/
+│   │   ├── RootNavigator.tsx    # Auth vs Main stack switch
+│   │   ├── AuthStack.tsx        # Unauthenticated flow
+│   │   └── MainStack.tsx        # Authenticated flow + bottom tabs
+│   ├── store/
+│   │   └── authStore.ts         # Zustand store — user session, tokens
+│   ├── hooks/
+│   │   └── useAuth.ts           # Auth actions + token refresh hook
+│   ├── components/
+│   │   └── common/              # Shared UI components
+│   └── theme/
+│       └── colors.ts            # Teal brand palette + design tokens
+├── android/                 # Android native project
+├── ios/                     # iOS native project
+├── App.tsx                  # Root component
+└── index.js                 # Entry point
+```
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+---
 
-```sh
-# Using npm
+## Tech Stack
+
+| Purpose | Library |
+|---------|---------|
+| Framework | React Native 0.84 |
+| Navigation | React Navigation v7 (native stack) |
+| State management | Zustand |
+| HTTP client | Axios |
+| Forms & validation | React Hook Form + Zod |
+| Styling | NativeWind v4 (Tailwind CSS for RN) |
+| Secure storage | react-native-keychain (JWT tokens) |
+| Google Sign-In | @react-native-google-signin/google-signin |
+| Facebook Sign-In | react-native-fbsdk-next |
+| Image picker | react-native-image-picker |
+| Animations | React Native Reanimated v4 |
+| Gestures | React Native Gesture Handler |
+| Icons | react-native-vector-icons |
+| Toast notifications | react-native-toast-message |
+
+---
+
+## Screens
+
+### Auth Flow
+| Screen | Description |
+|--------|-------------|
+| `SplashScreen` | App logo on teal background. Validates stored JWT — auto-navigates to Home if valid, Login if not. |
+| `LoginScreen` | Email/password + Google OAuth login. Forgot password link. |
+| `SignupScreen` | Email, phone (country code picker), password. |
+| `OtpVerificationScreen` | OTP entry after signup or password reset. |
+| `ForgotPasswordScreen` | Send OTP to email/phone for password reset. |
+| `ResetPasswordScreen` | Set new password after OTP verified. |
+| `CreateProfileScreen` | Name, DOB, gender, country, bio, profile photo. Runs once after first signup. |
+
+### Main App
+| Screen | Description |
+|--------|-------------|
+| `HomeScreen` | Personalised dashboard — upcoming trips, upcoming events, ongoing trip card, Swee AI shortcut. |
+| `TripDetailScreen` | Full trip view with tabbed sections: Activities, Docs, Members, Photos, Expenses, Polls, Notes. |
+| `EventDetailScreen` | Full event view — same tabs as Trip except no Activities tab. |
+| `ChatDetailScreen` | Swee AI travel assistant — streaming GPT-4o responses, trip/event context injection. |
+| `NotificationsScreen` | In-app notification feed — friend requests, trip invites, expense updates. |
+| `ArchivedTripsScreen` | List of archived trips (admin-only action). |
+
+---
+
+## Navigation Structure
+
+```
+RootNavigator
+├── AuthStack  (shown when not logged in)
+│   ├── Splash
+│   ├── Login
+│   ├── Signup
+│   ├── OtpVerification
+│   ├── ForgotPassword
+│   ├── ResetPassword
+│   └── CreateProfile
+└── MainStack  (shown when logged in)
+    ├── Bottom Tabs
+    │   ├── Home
+    │   ├── Trips
+    │   ├── Events
+    │   ├── Friends
+    │   └── Gallery
+    ├── TripDetail
+    ├── EventDetail
+    ├── ChatDetail  (Swee AI)
+    ├── Notifications
+    └── ArchivedTrips
+```
+
+---
+
+## State Management
+
+**Zustand** (`authStore.ts`) holds the global auth session:
+
+```ts
+{
+  user: User | null
+  accessToken: string | null
+  refreshToken: string | null
+  setAuth: (user, accessToken, refreshToken) => void
+  clearAuth: () => void
+}
+```
+
+Tokens are also persisted securely via **react-native-keychain** (iOS Keychain / Android Keystore).
+
+---
+
+## API Layer
+
+`src/api/client.ts` — base Axios instance with:
+- `Authorization: Bearer <accessToken>` header injected automatically
+- Interceptor that silently calls `POST /auth/refresh` on 401, retries the original request
+- On refresh failure: clears auth state and redirects to Login
+
+```
+src/api/
+├── client.ts       # Base instance + interceptors
+├── auth.api.ts     # signup, login, googleLogin, refresh, logout, forgotPassword, resetPassword
+└── trips.api.ts    # createTrip, getTrips, getTripDetail, expenses, members, ...
+```
+
+---
+
+## Local Setup
+
+### Prerequisites
+
+- Node.js 18+
+- React Native environment set up ([official guide](https://reactnative.dev/docs/set-up-your-environment))
+- Android Studio (for Android) or Xcode 14+ (for iOS)
+- CocoaPods (iOS only)
+
+### 1. Install dependencies
+
+```bash
+cd app
+npm install
+```
+
+### 2. iOS — install native dependencies
+
+```bash
+bundle install           # install CocoaPods itself (first time only)
+bundle exec pod install  # install iOS native pods
+```
+
+### 3. Configure environment
+
+Create a `.env` file (or update `src/api/client.ts`) with your backend base URL:
+
+```
+API_BASE_URL=http://localhost:3000
+```
+
+### 4. Run the app
+
+```bash
+# Start Metro bundler
 npm start
 
-# OR using Yarn
-yarn start
-```
-
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
+# Android (new terminal)
 npm run android
 
-# OR using Yarn
-yarn android
-```
-
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
+# iOS (new terminal)
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+---
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## Development Notes
 
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- **Styling:** uses NativeWind — write `className="..."` Tailwind classes directly on RN components. Theme colours are in `src/theme/colors.ts`.
+- **Forms:** all forms use React Hook Form with Zod schemas for validation.
+- **Deep links:** Branch.io smart links are handled via the native SDK. The `invites/claim/:token` API call is made after the Branch SDK fires on app open.
+- **Google Sign-In:** requires `GOOGLE_WEB_CLIENT_ID` set in the native config files (`google-services.json` for Android, `GoogleService-Info.plist` for iOS).
+- **Push notifications:** FCM token is captured at login and sent to the backend. Notification handling is set up in `index.js`.
