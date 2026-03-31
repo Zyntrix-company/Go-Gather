@@ -397,6 +397,22 @@ async function seed() {
       );
     }
 
+    // ── 11b. Note favorites ───────────────────────────────────────────────────
+    console.log('  Seeding note favorites…');
+    const noteFavorites = [
+      [IDS.note1, IDS.alice],
+      [IDS.note1, IDS.bob],
+      [IDS.note2, IDS.alice],
+    ];
+    for (const [noteId, userId] of noteFavorites) {
+      await client.query(
+        `INSERT INTO note_favorites (note_id, user_id)
+         VALUES ($1, $2)
+         ON CONFLICT (note_id, user_id) DO NOTHING`,
+        [noteId, userId],
+      );
+    }
+
     // ── 12. Polls (shared table — parent_type='trip') ─────────────────────────
     console.log('  Seeding polls…');
 
