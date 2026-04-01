@@ -2209,6 +2209,226 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "18. Email Doc Import",
+			"item": [
+				{
+					"name": "Connect Gmail",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }],
+						"url": {
+							"raw": "{{base_url}}/auth/email/gmail/connect",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "email", "gmail", "connect"]
+						},
+						"description": "Initiates Gmail OAuth flow. Redirects to Google consent screen. Must be opened in a browser (not axios). On success deep-links back to gathergo://email-connected?provider=gmail&success=true"
+					},
+					"response": []
+				},
+				{
+					"name": "Connect Outlook",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }],
+						"url": {
+							"raw": "{{base_url}}/auth/email/outlook/connect",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "email", "outlook", "connect"]
+						},
+						"description": "Initiates Outlook OAuth flow. Same behaviour as Gmail connect."
+					},
+					"response": []
+				},
+				{
+					"name": "OAuth Callback — Google (reference only)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/email/google/callback?code=OAUTH_CODE&state=STATE_PARAM",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "email", "google", "callback"],
+							"query": [
+								{ "key": "code",  "value": "OAUTH_CODE" },
+								{ "key": "state", "value": "STATE_PARAM" }
+							]
+						},
+						"description": "Called automatically by Google after consent. Do NOT call manually. Deep-links back to app on success."
+					},
+					"response": []
+				},
+				{
+					"name": "OAuth Callback — Microsoft (reference only)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/email/microsoft/callback?code=OAUTH_CODE&state=STATE_PARAM",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "email", "microsoft", "callback"],
+							"query": [
+								{ "key": "code",  "value": "OAUTH_CODE" },
+								{ "key": "state", "value": "STATE_PARAM" }
+							]
+						},
+						"description": "Called automatically by Microsoft after consent. Do NOT call manually."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Connection Status",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }],
+						"url": {
+							"raw": "{{base_url}}/email-docs/status",
+							"host": ["{{base_url}}"],
+							"path": ["email-docs", "status"]
+						},
+						"description": "Returns which email providers the authenticated user has connected."
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"body": "{\n  \"gmail\":   { \"connected\": true,  \"email\": \"user@gmail.com\" },\n  \"outlook\": { \"connected\": false, \"email\": null }\n}"
+						}
+					]
+				},
+				{
+					"name": "List Email Attachments",
+					"request": {
+						"method": "GET",
+						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }],
+						"url": {
+							"raw": "{{base_url}}/email-docs/attachments?provider=gmail&tripId={{trip_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["email-docs", "attachments"],
+							"query": [
+								{ "key": "provider", "value": "gmail",       "description": "gmail | outlook" },
+								{ "key": "tripId",   "value": "{{trip_id}}", "description": "Trip UUID" }
+							]
+						},
+						"description": "Fetches recent email attachments (last 30 days). Only PDF, JPEG, PNG ≤ 15 MB. Returns metadata only — no file bytes. Auto-refreshes OAuth token if expired."
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"body": "{\n  \"attachments\": [\n    {\n      \"attachmentId\": \"ANGjdJ8abc123\",\n      \"messageId\": \"18e1a2b3c4d5\",\n      \"fileName\": \"Flight_Booking.pdf\",\n      \"mimeType\": \"application/pdf\",\n      \"fileSizeBytes\": 204800,\n      \"emailSubject\": \"Your booking confirmation\",\n      \"emailFrom\": \"bookings@airline.com\",\n      \"emailDate\": \"2026-03-15T10:30:00Z\"\n    }\n  ],\n  \"total\": 1\n}"
+						},
+						{
+							"name": "401 Not Connected",
+							"status": "Unauthorized",
+							"code": 401,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"body": "{ \"error\": \"NOT_CONNECTED\", \"message\": \"No email account connected for this provider\", \"statusCode\": 401 }"
+						},
+						{
+							"name": "401 Reauth Required",
+							"status": "Unauthorized",
+							"code": 401,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"body": "{ \"error\": \"REAUTH_REQUIRED\", \"message\": \"Email authorization expired — please reconnect\", \"statusCode\": 401 }"
+						}
+					]
+				},
+				{
+					"name": "Import Selected Attachments",
+					"request": {
+						"method": "POST",
+						"header": [
+							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" },
+							{ "key": "Content-Type",  "value": "application/json",        "type": "text" }
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"tripId\": \"{{trip_id}}\",\n  \"provider\": \"gmail\",\n  \"attachments\": [\n    {\n      \"attachmentId\": \"ANGjdJ8abc123\",\n      \"messageId\": \"18e1a2b3c4d5\",\n      \"fileName\": \"Flight_Booking.pdf\",\n      \"provider\": \"gmail\"\n    }\n  ]\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{base_url}}/email-docs/import",
+							"host": ["{{base_url}}"],
+							"path": ["email-docs", "import"]
+						},
+						"description": "Downloads selected attachments, validates MIME from buffer bytes, uploads to S3 (trips/{tripId}/docs/), inserts into docs table. Sequential — failed files go into failed[] without aborting. User must be a trip member."
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"body": "{\n  \"imported\": [\n    { \"docId\": \"uuid\", \"fileName\": \"Flight_Booking.pdf\", \"fileUrl\": \"trips/trip-id/docs/uuid-flight_booking.pdf\" }\n  ],\n  \"failed\": []\n}"
+						},
+						{
+							"name": "422 Doc limit exceeded",
+							"status": "Unprocessable Entity",
+							"code": 422,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"body": "{ \"error\": \"LIMIT_EXCEEDED\", \"message\": \"Adding 3 more would exceed the 50 document limit.\", \"statusCode\": 422 }"
+						}
+					]
+				},
+				{
+					"name": "Disconnect Gmail",
+					"request": {
+						"method": "DELETE",
+						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }],
+						"url": {
+							"raw": "{{base_url}}/auth/email/gmail/disconnect",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "email", "gmail", "disconnect"]
+						},
+						"description": "Revokes Gmail token (best effort) and deletes stored tokens from DB."
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"body": "{ \"success\": true }"
+						}
+					]
+				},
+				{
+					"name": "Disconnect Outlook",
+					"request": {
+						"method": "DELETE",
+						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }],
+						"url": {
+							"raw": "{{base_url}}/auth/email/outlook/disconnect",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "email", "outlook", "disconnect"]
+						},
+						"description": "Deletes stored Outlook tokens. Microsoft has no standard revocation endpoint."
+					},
+					"response": [
+						{
+							"name": "200 OK",
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"body": "{ \"success\": true }"
+						}
+					]
+				}
+			]
 		}
 	],
 	"variable": [
