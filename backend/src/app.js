@@ -15,6 +15,7 @@ const tripsRoutes   = require('./modules/trips/trips.routes');
 const friendsRoutes = require('./modules/friends/friends.routes');
 const invitesRoutes = require('./modules/invites/invites.routes');
 const contactRoutes = require('./modules/contact/contact.routes');
+const { authRouter: emailAuthRoutes, emailDocsRouter } = require('./modules/emailDocs/emailDocs.routes');
 
 const app = express();
 
@@ -80,6 +81,8 @@ app.use('/trips',   tripsRoutes);
 app.use('/friends', friendsRoutes);
 app.use('/invites', invitesRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/auth',        emailAuthRoutes);
+app.use('/email-docs',  emailDocsRouter);
 
 /* ───────────────────────────────────────────
  * 404 Handler

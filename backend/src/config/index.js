@@ -55,9 +55,21 @@ module.exports = {
 
   // ─── Google OAuth ────────────────────────────
   google: {
-    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientId:     process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri:  process.env.GOOGLE_REDIRECT_URI,
   },
+
+  // ─── Microsoft / Outlook OAuth ───────────────
+  microsoft: {
+    clientId:     process.env.MICROSOFT_CLIENT_ID,
+    clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
+    redirectUri:  process.env.MICROSOFT_REDIRECT_URI,
+    tenantId:     process.env.MICROSOFT_TENANT_ID || 'common',
+  },
+
+  // ─── Token Encryption (AES-256-GCM) ──────────
+  tokenEncryptionKey: process.env.TOKEN_ENCRYPTION_KEY,
 
   // ─── Facebook OAuth ───────────────────────────
   facebook: {

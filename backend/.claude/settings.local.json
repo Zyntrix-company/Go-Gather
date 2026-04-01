@@ -3,7 +3,8 @@
     "allow": [
       "Bash(curl:*)",
       "Bash(npm run:*)",
-      "Bash(node seed.js)"
+      "Bash(node seed.js)",
+      "Bash(grep -h \"CREATE TABLE\" migrations/*.sql)"
     ]
   }
 }
