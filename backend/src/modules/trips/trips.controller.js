@@ -1,11 +1,44 @@
 const tripsService = require('./trips.service');
+const sharedPhotosService = require('../shared/photos/photos.service');
+const sharedDocsService = require('../shared/docs/docs.service');
 const logger = require('../../utils/logger');
 
 // ── POST /trips ───────────────────────────────────────────────
 const createTrip = async (req, res, next) => {
   try {
     const trip = await tripsService.createTrip(req.user.id, req.body);
-    res.status(201).json({ trip });
+
+    // Upload any photos/videos attached at creation time → photos table
+    const uploadedPhotos = [];
+    if (req.files?.photos?.length > 0) {
+      const photos = await sharedPhotosService.uploadPhotos(
+        { parentType: 'trip', parentId: trip.id },
+        req.user.id,
+        req.files.photos,
+      );
+      uploadedPhotos.push(...photos);
+    }
+
+    // Upload any documents attached at creation time → docs table
+    const uploadedDocs = [];
+    if (req.files?.docs?.length > 0) {
+      for (const file of req.files.docs) {
+        try {
+          const doc = await sharedDocsService.uploadDoc(
+            { parentType: 'trip', parentId: trip.id },
+            req.user.id,
+            file,
+          );
+          uploadedDocs.push(doc);
+        } catch (err) {
+          logger.warn('Failed to upload doc during trip creation', {
+            tripId: trip.id, file: file.originalname, error: err.message,
+          });
+        }
+      }
+    }
+
+    res.status(201).json({ trip, uploadedPhotos, uploadedDocs });
   } catch (error) {
     logger.error('POST /trips', { userId: req.user.id, error: error.message });
     next(error);

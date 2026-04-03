@@ -143,16 +143,49 @@ const createActivityPhotoUpload = () => multer({
   },
 });
 
+// ── Trip creation upload (photos + docs in one request) ───────
+// Accepts both media files (field: "photos") and documents (field: "docs").
+// Per-fieldname MIME validation — rejects unknown field names silently.
+const createTripFilesUpload = () => multer({
+  storage: memoryStorage,
+  limits: { fileSize: PHOTO_MAX_SIZE }, // 50 MB ceiling covers both photos and docs
+  fileFilter: (_req, file, cb) => {
+    if (file.fieldname === 'photos') {
+      if (PHOTO_ALLOWED_TYPES.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        const err = new Error('Photos must be JPEG, PNG, HEIC, MP4, or MOV (max 50 MB each)');
+        err.statusCode = 400;
+        err.error = 'INVALID_FILE_TYPE';
+        cb(err, false);
+      }
+    } else if (file.fieldname === 'docs') {
+      if (DOC_ALLOWED_TYPES.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        const err = new Error('Documents must be PDF, Word, Excel, PowerPoint, TXT, or CSV (max 15 MB)');
+        err.statusCode = 400;
+        err.error = 'INVALID_FILE_TYPE';
+        cb(err, false);
+      }
+    } else {
+      cb(null, false); // ignore unknown field names
+    }
+  },
+});
+
 const docUpload = createDocUpload();
 const photoUpload = createPhotoUpload();
 const avatarUpload = createAvatarUpload();
 const activityPhotoUpload = createActivityPhotoUpload();
+const tripFilesUpload = createTripFilesUpload();
 
 module.exports = {
   docUpload,
   photoUpload,
   avatarUpload,
   activityPhotoUpload,
+  tripFilesUpload,
   handleMulterError,
   validateMimeFromBuffer,
 };

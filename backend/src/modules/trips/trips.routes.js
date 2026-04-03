@@ -5,7 +5,7 @@ const authenticateJWT = require('../../middleware/authenticate');
 const tripMemberMW = require('../../middleware/tripMember.middleware');
 const tripAdminMW = require('../../middleware/tripAdmin.middleware');
 const validate = require('../../middleware/validate');
-const { docUpload, photoUpload, activityPhotoUpload, handleMulterError } = require('../../middleware/upload.middleware');
+const { docUpload, photoUpload, activityPhotoUpload, tripFilesUpload, handleMulterError } = require('../../middleware/upload.middleware');
 
 const tripsController = require('./trips.controller');
 const validators = require('./trips.validation');
@@ -35,8 +35,33 @@ router.post('/invite/:token/accept', authenticateJWT, validators.tokenParam, val
 // ─── All routes below require auth ───────────────────────────────────────────
 router.use(authenticateJWT);
 
+// Parse JSON-encoded string fields sent via multipart/form-data
+// (location, friendIds, emails arrive as strings; this converts them before validation)
+const parseMultipartJsonFields = (req, _res, next) => {
+  const fields = ['location', 'friendIds', 'emails'];
+  for (const field of fields) {
+    if (req.body[field] && typeof req.body[field] === 'string') {
+      try { req.body[field] = JSON.parse(req.body[field]); } catch (_) { /* leave as-is, validator will catch it */ }
+    }
+  }
+  next();
+};
+
 // ─── Trip CRUD ────────────────────────────────────────────────────────────────
-router.post('/', validators.createTripValidation, validate, tripsController.createTrip);
+router.post(
+  '/',
+  (req, res, next) => tripFilesUpload.fields([
+    { name: 'photos', maxCount: 10 },
+    { name: 'docs', maxCount: 10 },
+  ])(req, res, (err) => {
+    if (err) return handleMulterError(err, req, res, next);
+    next();
+  }),
+  parseMultipartJsonFields,
+  validators.createTripValidation,
+  validate,
+  tripsController.createTrip,
+);
 router.get('/', validators.getTripsQuery, validate, tripsController.getTrips);
 router.get('/:id', validators.tripIdParam, validate, tripMemberMW, tripsController.getTripById);
 router.put('/:id', validators.updateTripValidation, validate, tripMemberMW, tripAdminMW, tripsController.updateTrip);
