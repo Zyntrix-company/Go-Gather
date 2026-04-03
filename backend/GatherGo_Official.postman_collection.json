@@ -1,8 +1,8 @@
 {
 	"info": {
 		"_postman_id": "9a8b7c6d-5432-11ef-9876-0242ac120002",
-		"name": "GatherGo — Complete API (M1 + M2 + M4 + Prompt A + Migrations 005–010)",
-		"description": "Complete GatherGo collection — seeded test data pre-filled.\n\n⚡ START HERE: Run folder 2 → \"Login as Alice\" — access_token auto-saves.\nAll UUIDs match the seed output.\n\nSetup:\n  1. node seed.js          (from backend/ directory)\n  2. npm run dev\n  3. Run \"Login as Alice\" below\n\nSeed users (password: TestPass123!):\n  alice   → test@gathergo.com     (primary test user)\n  bob     → bob@gathergo.com      (accepted friend of alice)\n  charlie → charlie@gathergo.com  (accepted friend of alice)\n  diana   → diana@gathergo.com    (alice sent request → pending)\n  eve     → eve@gathergo.com      (eve sent request to alice → alice can accept/decline)\n\nSeeded trips:\n  UPCOMING  b0000000-0000-4000-8000-000000000001  Goa Trip 2027\n  ONGOING   b0000000-0000-4000-8000-000000000002  Manali Winter 2026\n  PAST      b0000000-0000-4000-8000-000000000003  Kerala Backwaters\n\nSeeded expenses (Goa trip):\n  c0000000-0000-4000-8000-000000000001  Hotel ₹9000    equal split   alice paid\n  c0000000-0000-4000-8000-000000000002  Scuba ₹4000    percentage    bob paid\n  c0000000-0000-4000-8000-000000000003  Dinner ₹3600   amount split  charlie paid\n\nSeeded invite tokens:\n  friend-invite-seed-token-001  (friend invite, created by alice)\n  trip-invite-seed-token-001    (Goa trip invite, created by alice)\n\nMigration 005: docs, photos, expenses, polls, and notes now use shared tables\nwith parent_type ('trip'|'event') + parent_id. All URLs are unchanged.\n\nMigration 006: trips.banner_image_url (TEXT) — optional banner image for a trip.\nMigration 007: trips.archived_at (TIMESTAMPTZ) — null = active, timestamp = archived.\n  Archived trips are hidden from upcoming/ongoing/past lists.\n  Use GET /trips?status=archived to retrieve them.\n  Archive/unarchive via POST /trips/:id/archive and POST /trips/:id/unarchive (admin only).\n\nMigration 008: note_favorites (note_id, user_id) — per-user note favorites.\n  Toggle via POST /trips/:id/notes/:noteId/favorite → { isFavorited: bool }\n  GET /notes returns isFavorited per note; favorited notes sorted to top.\n\nMigration 009: photos.activity_id (UUID, nullable FK → trip_activities).\n  Activity photos now stored in shared photos table.\n  GET /trips/:id/photos returns ALL photos — activityId=null for standalone, activityId=uuid for activity photos.\n  Enables full trip gallery in one call.\n\nMigration 010: categories table — 12 pre-seeded travel categories, each with keywords[] and photo_urls[].\n  Auto-banner assignment on trip creation (fallback chain):\n    1. User supplies bannerImageUrl → used as-is\n    2. No banner → location.name + trip name matched against category keywords → best photo URL used\n    3. No keyword match → generic fallback travel photo\n  GET /trips and GET /trips/:id always return bannerImageUrl (never null after migration 010).\n  bannerImageUrl is OPTIONAL in POST /trips body — omit it to trigger auto-assignment.",
+		"name": "GatherGo — Complete API (M1 + M2 + M4 + Prompt A + A2 Events)",
+		"description": "Complete GatherGo collection — seeded test data pre-filled.\n\n⚡ START HERE: Run folder 2 → \"Login as Alice\" — access_token auto-saves.\nAll UUIDs match the seed output.\n\nSetup:\n  1. node seed.js          (from backend/ directory)\n  2. npm run dev\n  3. Run \"Login as Alice\" below\n\nSeed users (password: TestPass123!):\n  alice   → test@gathergo.com     (primary test user)\n  bob     → bob@gathergo.com      (accepted friend of alice)\n  charlie → charlie@gathergo.com  (accepted friend of alice)\n  diana   → diana@gathergo.com    (alice sent request → pending)\n  eve     → eve@gathergo.com      (eve sent request to alice → alice can accept/decline)\n\nSeeded trips:\n  UPCOMING  b0000000-0000-4000-8000-000000000001  Goa Trip 2027\n  ONGOING   b0000000-0000-4000-8000-000000000002  Manali Winter 2026\n  PAST      b0000000-0000-4000-8000-000000000003  Kerala Backwaters\n\nSeeded expenses (Goa trip):\n  c0000000-0000-4000-8000-000000000001  Hotel ₹9000    equal split   alice paid\n  c0000000-0000-4000-8000-000000000002  Scuba ₹4000    percentage    bob paid\n  c0000000-0000-4000-8000-000000000003  Dinner ₹3600   amount split  charlie paid\n\nSeeded invite tokens:\n  friend-invite-seed-token-001  (friend invite, created by alice)\n  trip-invite-seed-token-001    (Goa trip invite, created by alice)\n\nMigration 005: docs, photos, expenses, polls, and notes now use shared tables\nwith parent_type ('trip'|'event') + parent_id. All URLs are unchanged.\n\nMigration 006: trips.banner_image_url (TEXT) — optional banner image for a trip.\nMigration 007: trips.archived_at (TIMESTAMPTZ) — null = active, timestamp = archived.\n  Archived trips are hidden from upcoming/ongoing/past lists.\n  Use GET /trips?status=archived to retrieve them.\n  Archive/unarchive via POST /trips/:id/archive and POST /trips/:id/unarchive (admin only).\n\nMigration 008: note_favorites (note_id, user_id) — per-user note favorites.\n  Toggle via POST /trips/:id/notes/:noteId/favorite → { isFavorited: bool }\n  GET /notes returns isFavorited per note; favorited notes sorted to top.\n\nMigration 009: photos.activity_id (UUID, nullable FK → trip_activities).\n  Activity photos now stored in shared photos table.\n  GET /trips/:id/photos returns ALL photos — activityId=null for standalone, activityId=uuid for activity photos.\n  Enables full trip gallery in one call.\n\nMigration 010: categories table — 12 pre-seeded travel categories, each with keywords[] and photo_urls[].\n  Auto-banner assignment on trip creation (fallback chain):\n    1. User supplies bannerImageUrl → used as-is\n    2. No banner → location.name + trip name matched against category keywords → best photo URL used\n    3. No keyword match → generic fallback travel photo\n  GET /trips and GET /trips/:id always return bannerImageUrl (never null after migration 010).\n  bannerImageUrl is OPTIONAL in POST /trips body — omit it to trigger auto-assignment.\n\nMigration 012: events, event_members, event_invites, event_reminders.\n  Full Events module — docs, photos, expenses, polls, notes use shared tables.\n  Events do NOT have activities.\n  Seeded event: e1000000-0000-4000-8000-000000000001 (Diwali Night 2026, alice admin, bob member)\n  Seeded event invite token: event-invite-seed-token-001",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -30,12 +30,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"email\": \"newuser@example.com\",\n    \"phone\": \"+919999999999\",\n    \"password\": \"TestPass123!\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/signup",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "signup"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"signup"
+							]
 						},
 						"description": "Register a new account. OTP sent to email."
 					},
@@ -67,12 +76,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"email\": \"newuser@example.com\",\n    \"otp\": \"123456\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/verify-email",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "verify-email"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"verify-email"
+							]
 						},
 						"description": "Submit OTP. Saves access_token + refresh_token automatically."
 					},
@@ -83,18 +101,31 @@
 					"request": {
 						"method": "PUT",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "formdata",
 							"formdata": [
-								{ "key": "photo", "type": "file", "src": [] }
+								{
+									"key": "photo",
+									"type": "file",
+									"src": []
+								}
 							]
 						},
 						"url": {
 							"raw": "{{base_url}}/users/photo",
-							"host": ["{{base_url}}"],
-							"path": ["users", "photo"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"photo"
+							]
 						},
 						"description": "Upload profile photo → S3 → CloudFront URL."
 					},
@@ -105,17 +136,30 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"fullName\": \"New User\",\n    \"dob\": \"2000-01-01\",\n    \"gender\": \"male\",\n    \"country\": \"India\",\n    \"bio\": \"Just joined GatherGo!\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/users/profile",
-							"host": ["{{base_url}}"],
-							"path": ["users", "profile"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"profile"
+							]
 						},
 						"description": "Save profile. Sets isProfileComplete = true."
 					},
@@ -129,12 +173,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"email\": \"newuser@example.com\",\n    \"purpose\": \"email-verification\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/resend-otp",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "resend-otp"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"resend-otp"
+							]
 						}
 					},
 					"response": []
@@ -172,12 +225,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"email\": \"test@gathergo.com\",\n    \"password\": \"TestPass123!\",\n    \"deviceToken\": \"fcm-test-token-alice\",\n    \"platform\": \"android\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/login",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "login"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
 						},
 						"description": "Logs in as Alice (primary seed user). auto-saves access_token, refresh_token, user_id."
 					},
@@ -208,12 +270,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"email\": \"bob@gathergo.com\",\n    \"password\": \"TestPass123!\",\n    \"deviceToken\": \"fcm-test-token-bob\",\n    \"platform\": \"android\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/login",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "login"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
 						},
 						"description": "Switch to Bob's session. Useful for testing accept/decline friend requests."
 					},
@@ -244,12 +315,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"email\": \"charlie@gathergo.com\",\n    \"password\": \"TestPass123!\",\n    \"deviceToken\": \"fcm-test-token-charlie\",\n    \"platform\": \"android\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/login",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "login"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
 						},
 						"description": "Switch to Charlie's session."
 					},
@@ -280,12 +360,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"email\": \"eve@gathergo.com\",\n    \"password\": \"TestPass123!\",\n    \"deviceToken\": \"fcm-test-token-eve\",\n    \"platform\": \"android\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/login",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "login"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
 						},
 						"description": "Eve sent a friend request to Alice. Log in as Alice to accept/decline it."
 					},
@@ -299,12 +388,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"idToken\": \"google_id_token_from_client\",\n    \"deviceToken\": \"fcm-test-token\",\n    \"platform\": \"android\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/google",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "google"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"google"
+							]
 						}
 					},
 					"response": []
@@ -333,12 +431,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/refresh",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "refresh"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"refresh"
+							]
 						},
 						"description": "Use when access_token expires (401). Saves new tokens automatically."
 					},
@@ -349,17 +456,30 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/logout",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "logout"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"logout"
+							]
 						}
 					},
 					"response": []
@@ -374,12 +494,21 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/auth/me",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "me"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
 						},
 						"description": "Validates JWT and returns logged-in user. Use on Splash Screen."
 					},
@@ -398,12 +527,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"email\": \"test@gathergo.com\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/forgot-password",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "forgot-password"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"forgot-password"
+							]
 						}
 					},
 					"response": []
@@ -416,12 +554,21 @@
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"email\": \"test@gathergo.com\",\n    \"otp\": \"123456\",\n    \"password\": \"TestPass123!\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/auth/reset-password",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "reset-password"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"reset-password"
+							]
 						}
 					},
 					"response": []
@@ -436,12 +583,20 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/home",
-							"host": ["{{base_url}}"],
-							"path": ["home"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"home"
+							]
 						},
 						"description": "Returns: upcomingTrips, ongoing trip, pendingFriendRequests count."
 					},
@@ -475,17 +630,29 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"name\": \"Goa Beach Getaway\",\n    \"startDate\": \"2027-06-01\",\n    \"endDate\": \"2027-06-05\",\n    \"location\": {\n        \"name\": \"Goa, Beach, Coastal\",\n        \"lat\": 15.2993,\n        \"lng\": 74.1240\n    },\n    \"reminders\": true\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips",
-							"host": ["{{base_url}}"],
-							"path": ["trips"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips"
+							]
 						},
 						"description": "No bannerImageUrl supplied → server keyword-matches location name against categories table → auto-assigns best photo URL.\nResponse will always contain a non-null bannerImageUrl.\n\nFallback chain:\n  1. bannerImageUrl in body → used as-is\n  2. keyword match in categories → matched photo URL\n  3. no match → generic travel fallback photo"
 					},
@@ -513,17 +680,29 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"name\": \"Mumbai City Trip\",\n    \"startDate\": \"2027-08-10\",\n    \"endDate\": \"2027-08-14\",\n    \"location\": {\n        \"name\": \"Mumbai, Maharashtra\",\n        \"lat\": 19.0760,\n        \"lng\": 72.8777\n    },\n    \"bannerImageUrl\": \"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=1600&q=80\",\n    \"reminders\": false\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips",
-							"host": ["{{base_url}}"],
-							"path": ["trips"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips"
+							]
 						},
 						"description": "Explicit bannerImageUrl supplied → used as-is, keyword matching skipped."
 					},
@@ -550,17 +729,29 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"name\": \"Rajasthan Road Trip\",\n    \"startDate\": \"2027-10-01\",\n    \"endDate\": \"2027-10-08\",\n    \"location\": {\n        \"name\": \"Jaipur Fort, Rajasthan\",\n        \"lat\": 26.9124,\n        \"lng\": 75.7873\n    },\n    \"reminders\": true,\n    \"friendIds\": [\n        \"a0000000-0000-4000-8000-000000000002\",\n        \"a0000000-0000-4000-8000-000000000003\"\n    ],\n    \"emails\": [\"outsider@example.com\"]\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips",
-							"host": ["{{base_url}}"],
-							"path": ["trips"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips"
+							]
 						},
 						"description": "friendIds: Bob + Charlie (accepted friends of Alice) → direct-add.\nemails: outsider@example.com gets Branch link via SES.\nNo bannerImageUrl → 'fort' keyword matches 'Historical & Heritage' category → auto-assigned banner."
 					},
@@ -571,13 +762,26 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips?status=upcoming",
-							"host": ["{{base_url}}"],
-							"path": ["trips"],
-							"query": [{ "key": "status", "value": "upcoming" }]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "upcoming"
+								}
+							]
 						}
 					},
 					"response": []
@@ -587,13 +791,26 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips?status=ongoing",
-							"host": ["{{base_url}}"],
-							"path": ["trips"],
-							"query": [{ "key": "status", "value": "ongoing" }]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "ongoing"
+								}
+							]
 						}
 					},
 					"response": []
@@ -603,13 +820,26 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips?status=past",
-							"host": ["{{base_url}}"],
-							"path": ["trips"],
-							"query": [{ "key": "status", "value": "past" }]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "past"
+								}
+							]
 						}
 					},
 					"response": []
@@ -619,12 +849,21 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/{{trip_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "{{trip_id}}"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"{{trip_id}}"
+							]
 						},
 						"description": "Returns trip stats via single SQL query:\nmemberCount, photoVideoCount, docCount, totalExpenseAmount,\nupcomingActivityCount, completedActivityCount"
 					},
@@ -635,12 +874,21 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000002",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000002"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000002"
+							]
 						}
 					},
 					"response": []
@@ -650,12 +898,21 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000003",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000003"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000003"
+							]
 						}
 					},
 					"response": []
@@ -665,17 +922,30 @@
 					"request": {
 						"method": "PUT",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"name\": \"Goa Trip 2027 — Updated\",\n    \"endDate\": \"2027-04-17\",\n    \"bannerImageUrl\": \"https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=1600&q=80\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/{{trip_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "{{trip_id}}"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"{{trip_id}}"
+							]
 						},
 						"description": "Override the auto-assigned banner by supplying a new bannerImageUrl.\nPass bannerImageUrl: null to clear it (falls back to auto-assigned on next fetch is not re-triggered — store null or re-create to re-trigger).\nAdmin only."
 					},
@@ -686,12 +956,21 @@
 					"request": {
 						"method": "DELETE",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/{{trip_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "{{trip_id}}"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"{{trip_id}}"
+							]
 						},
 						"description": "Cascade deletes all trip data + S3 files. Don't run on seeded trips unless you re-seed."
 					},
@@ -715,13 +994,26 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
-						"body": { "mode": "raw", "raw": "" },
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
 						"url": {
 							"raw": "{{base_url}}/trips/{{trip_id}}/archive",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "{{trip_id}}", "archive"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"{{trip_id}}",
+								"archive"
+							]
 						},
 						"description": "Archives the trip — sets archived_at = NOW().\nTrip disappears from upcoming/ongoing/past lists immediately.\nAdmin only. Returns the updated trip with archivedAt populated."
 					},
@@ -745,13 +1037,26 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
-						"body": { "mode": "raw", "raw": "" },
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
 						"url": {
 							"raw": "{{base_url}}/trips/{{trip_id}}/unarchive",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "{{trip_id}}", "unarchive"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"{{trip_id}}",
+								"unarchive"
+							]
 						},
 						"description": "Unarchives the trip — sets archived_at = NULL.\nTrip returns to its natural status bucket (upcoming/ongoing/past) based on its dates.\nAdmin only. Returns the updated trip with archivedAt = null."
 					},
@@ -762,13 +1067,26 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips?status=archived",
-							"host": ["{{base_url}}"],
-							"path": ["trips"],
-							"query": [{ "key": "status", "value": "archived" }]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "archived"
+								}
+							]
 						},
 						"description": "Returns all archived trips for the user, sorted by archived_at DESC.\nNon-archived trips are never included. Use archive/unarchive endpoints to move trips in or out."
 					},
@@ -779,17 +1097,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"friendIds\": [\n        \"a0000000-0000-4000-8000-000000000002\",\n        \"a0000000-0000-4000-8000-000000000003\"\n    ]\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/{{trip_id}}/invite",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "{{trip_id}}", "invite"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"{{trip_id}}",
+								"invite"
+							]
 						},
 						"description": "Path A: Bob + Charlie are accepted friends → direct-add to trip_members.\n400 NOT_A_FRIEND if not an accepted friend.\nResponse: { added[], invited[], skipped[] }"
 					},
@@ -800,17 +1132,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"friendIds\": [\n        \"a0000000-0000-4000-8000-000000000004\"\n    ]\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/{{trip_id}}/invite",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "{{trip_id}}", "invite"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"{{trip_id}}",
+								"invite"
+							]
 						},
 						"description": "Diana's request is still pending (not accepted) → should return 400 NOT_A_FRIEND."
 					},
@@ -821,17 +1167,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"emails\": [\"outsider@example.com\"]\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/{{trip_id}}/invite",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "{{trip_id}}", "invite"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"{{trip_id}}",
+								"invite"
+							]
 						},
 						"description": "Path B: outsider@example.com is not on GatherGo → Branch link generated + SES email."
 					},
@@ -842,17 +1202,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"phones\": [\"+919000000099\"]\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/{{trip_id}}/invite",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "{{trip_id}}", "invite"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"{{trip_id}}",
+								"invite"
+							]
 						}
 					},
 					"response": []
@@ -862,17 +1236,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"friendIds\": [\"a0000000-0000-4000-8000-000000000002\"],\n    \"emails\": [\"outsider@example.com\"],\n    \"phones\": [\"+919000000099\"]\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/{{trip_id}}/invite",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "{{trip_id}}", "invite"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"{{trip_id}}",
+								"invite"
+							]
 						},
 						"description": "Rate limited: 20 requests per 15 minutes."
 					},
@@ -885,8 +1273,14 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/trips/invite/{{invite_token}}",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "invite", "{{invite_token}}"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"invite",
+								"{{invite_token}}"
+							]
 						},
 						"description": "No auth. Uses seeded token: trip-invite-seed-token-001"
 					},
@@ -897,12 +1291,23 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/invite/{{invite_token}}/accept",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "invite", "{{invite_token}}", "accept"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"invite",
+								"{{invite_token}}",
+								"accept"
+							]
 						},
 						"description": "Legacy accept. For Branch invites use POST /invites/claim/:token instead."
 					},
@@ -913,12 +1318,22 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/members",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "members"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"members"
+							]
 						},
 						"description": "Returns { members[], total, adminCount }. Includes email per member."
 					},
@@ -929,12 +1344,23 @@
 					"request": {
 						"method": "DELETE",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/{{trip_id}}/members/a0000000-0000-4000-8000-000000000003",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "{{trip_id}}", "members", "a0000000-0000-4000-8000-000000000003"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"{{trip_id}}",
+								"members",
+								"a0000000-0000-4000-8000-000000000003"
+							]
 						},
 						"description": "Removes Charlie from the trip. 422 LAST_ADMIN if removing the only admin."
 					},
@@ -966,17 +1392,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"description\": \"Taxi to airport\",\n    \"amount\": 900.00,\n    \"category\": \"transportation\",\n    \"paidBy\": \"a0000000-0000-4000-8000-000000000001\",\n    \"splitType\": \"equal\",\n    \"splitAmong\": [\n        { \"userId\": \"a0000000-0000-4000-8000-000000000001\" },\n        { \"userId\": \"a0000000-0000-4000-8000-000000000002\" },\n        { \"userId\": \"a0000000-0000-4000-8000-000000000003\" }\n    ]\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/expenses",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "expenses"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"expenses"
+							]
 						},
 						"description": "Alice pays ₹900 taxi, split equally among alice+bob+charlie (₹300 each).\ncategory: general|transportation|accommodation|entertainment|shopping|food|other"
 					},
@@ -1002,17 +1442,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"description\": \"Beach shack lunch\",\n    \"amount\": 2000.00,\n    \"category\": \"food\",\n    \"paidBy\": \"a0000000-0000-4000-8000-000000000002\",\n    \"splitType\": \"percentage\",\n    \"splitAmong\": [\n        { \"userId\": \"a0000000-0000-4000-8000-000000000001\", \"percentage\": 40 },\n        { \"userId\": \"a0000000-0000-4000-8000-000000000002\", \"percentage\": 40 },\n        { \"userId\": \"a0000000-0000-4000-8000-000000000003\", \"percentage\": 20 }\n    ]\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/expenses",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "expenses"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"expenses"
+							]
 						},
 						"description": "Bob pays ₹2000. Split: alice 40%, bob 40%, charlie 20%. Sum must = 100."
 					},
@@ -1038,17 +1492,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"description\": \"Night market shopping\",\n    \"amount\": 3000.00,\n    \"category\": \"shopping\",\n    \"paidBy\": \"a0000000-0000-4000-8000-000000000003\",\n    \"splitType\": \"amount\",\n    \"splitAmong\": [\n        { \"userId\": \"a0000000-0000-4000-8000-000000000001\", \"amount\": 1500 },\n        { \"userId\": \"a0000000-0000-4000-8000-000000000002\", \"amount\": 1000 },\n        { \"userId\": \"a0000000-0000-4000-8000-000000000003\", \"amount\": 500 }\n    ]\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/expenses",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "expenses"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"expenses"
+							]
 						},
 						"description": "Charlie pays ₹3000. Custom amounts — must sum exactly to 3000."
 					},
@@ -1059,16 +1527,38 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/expenses",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "expenses"],
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"expenses"
+							],
 							"query": [
-								{ "key": "category", "value": "food", "disabled": true },
-								{ "key": "page", "value": "1", "disabled": true },
-								{ "key": "limit", "value": "20", "disabled": true }
+								{
+									"key": "category",
+									"value": "food",
+									"disabled": true
+								},
+								{
+									"key": "page",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"disabled": true
+								}
 							]
 						},
 						"description": "Returns { expenses[], total, grandTotal }. paidBy is an object with name+avatarUrl."
@@ -1080,13 +1570,28 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/expenses?category=accommodation",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "expenses"],
-							"query": [{ "key": "category", "value": "accommodation" }]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"expenses"
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "accommodation"
+								}
+							]
 						}
 					},
 					"response": []
@@ -1096,12 +1601,22 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/balances",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "balances"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"balances"
+							]
 						},
 						"description": "Returns:\n{\n  summary: { yoursTotal, youPaid, yourShare, netBalance },\n  outstanding: [{ userId, name, avatarUrl, amount, direction: 'owes_you'|'you_owe' }]\n}\nBob owes alice (hotel), charlie owes alice (dinner)."
 					},
@@ -1112,17 +1627,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"withUserId\": \"a0000000-0000-4000-8000-000000000002\",\n    \"amount\": 3000.00\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/settlements",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "settlements"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"settlements"
+							]
 						},
 						"description": "Records that current user (alice) received ₹3000 from Bob. Returns updated debt state."
 					},
@@ -1133,17 +1662,32 @@
 					"request": {
 						"method": "PUT",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"description\": \"Hotel Booking (3 nights) — updated\",\n    \"category\": \"accommodation\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/expenses/{{expense_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "expenses", "{{expense_id}}"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"expenses",
+								"{{expense_id}}"
+							]
 						},
 						"description": "Partial update. Creator or admin only."
 					},
@@ -1154,12 +1698,23 @@
 					"request": {
 						"method": "DELETE",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/expenses/{{expense_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "expenses", "{{expense_id}}"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"expenses",
+								"{{expense_id}}"
+							]
 						},
 						"description": "Creator or admin only."
 					},
@@ -1176,12 +1731,22 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/activities",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "activities"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"activities"
+							]
 						},
 						"description": "Returns { upcoming[], completed[] }.\nEach activity includes time: { hour, minute }, photoCount, linkedExpense."
 					},
@@ -1192,12 +1757,22 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000002/activities",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000002", "activities"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000002",
+								"activities"
+							]
 						},
 						"description": "Has 1 upcoming (Snow Trek) + 1 completed (Rohtang Pass)."
 					},
@@ -1223,17 +1798,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"title\": \"Jet Skiing\",\n    \"date\": \"2027-04-14\",\n    \"time\": { \"hour\": 11, \"minute\": 0 },\n    \"locationName\": \"Calangute Beach, Goa\",\n    \"description\": \"Book at the beach shack. ₹800 per person for 15 mins.\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/activities",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "activities"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"activities"
+							]
 						},
 						"description": "time: { hour: 0–23, minute: 0–59 }\ndescription: optional, max 500 chars\nexpenseId: optional UUID"
 					},
@@ -1259,17 +1848,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"title\": \"Dolphin Watching\",\n    \"date\": \"2027-04-15\",\n    \"time\": { \"hour\": 7, \"minute\": 30 },\n    \"locationName\": \"Sinquerim Beach, Goa\",\n    \"description\": \"Early morning. Bring a jacket.\",\n    \"expenseId\": \"c0000000-0000-4000-8000-000000000001\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/activities",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "activities"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"activities"
+							]
 						},
 						"description": "Links seeded expense1 (Hotel ₹9000). The expense must belong to this trip."
 					},
@@ -1280,17 +1883,32 @@
 					"request": {
 						"method": "PUT",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"description\": \"Updated: confirmed 11 AM slot, pre-paid.\",\n    \"time\": { \"hour\": 11, \"minute\": 30 }\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/activities/{{activity_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "activities", "{{activity_id}}"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"activities",
+								"{{activity_id}}"
+							]
 						}
 					},
 					"response": []
@@ -1300,17 +1918,32 @@
 					"request": {
 						"method": "PUT",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"isCompleted\": true\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/activities/e0000000-0000-4000-8000-000000000001",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "activities", "e0000000-0000-4000-8000-000000000001"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"activities",
+								"e0000000-0000-4000-8000-000000000001"
+							]
 						},
 						"description": "Marks seeded 'Beach Day' activity as completed."
 					},
@@ -1321,12 +1954,23 @@
 					"request": {
 						"method": "DELETE",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/activities/{{activity_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "activities", "{{activity_id}}"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"activities",
+								"{{activity_id}}"
+							]
 						},
 						"description": "Also deletes activity photos from S3."
 					},
@@ -1337,19 +1981,40 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "formdata",
 							"formdata": [
-								{ "key": "photos", "type": "file", "src": [] },
-								{ "key": "photos", "type": "file", "src": [], "disabled": true }
+								{
+									"key": "photos",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "photos",
+									"type": "file",
+									"src": [],
+									"disabled": true
+								}
 							]
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/activities/{{activity_id}}/photos",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "activities", "{{activity_id}}", "photos"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"activities",
+								"{{activity_id}}",
+								"photos"
+							]
 						},
 						"description": "Max 5 photos total per activity. JPEG/PNG/HEIC only.\n400 MAX_PHOTOS_EXCEEDED if existing + new > 5.\nPhotos are stored with parent_type='trip' so they also appear in GET /trips/:id/photos with activityId and activityTitle populated."
 					},
@@ -1360,12 +2025,24 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/activities/{{activity_id}}/photos",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "activities", "{{activity_id}}", "photos"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"activities",
+								"{{activity_id}}",
+								"photos"
+							]
 						}
 					},
 					"response": []
@@ -1375,12 +2052,25 @@
 					"request": {
 						"method": "DELETE",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/activities/{{activity_id}}/photos/REPLACE_WITH_PHOTO_UUID",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "activities", "{{activity_id}}", "photos", "REPLACE_WITH_PHOTO_UUID"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"activities",
+								"{{activity_id}}",
+								"photos",
+								"REPLACE_WITH_PHOTO_UUID"
+							]
 						},
 						"description": "Uploader or trip admin only."
 					},
@@ -1397,18 +2087,32 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "formdata",
 							"formdata": [
-								{ "key": "file", "type": "file", "src": [] }
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
 							]
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/docs",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "docs"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"docs"
+							]
 						},
 						"description": "Field name: 'file'. Max 15 MB. JPEG/PNG/PDF validated by magic bytes."
 					},
@@ -1419,12 +2123,22 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/docs",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "docs"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"docs"
+							]
 						},
 						"description": "Returns { docs[], total }. Each doc has uploadedBy: { userId, name, avatarUrl } + presigned downloadUrl (1hr)."
 					},
@@ -1435,12 +2149,23 @@
 					"request": {
 						"method": "DELETE",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/docs/REPLACE_WITH_DOC_UUID",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "docs", "REPLACE_WITH_DOC_UUID"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"docs",
+								"REPLACE_WITH_DOC_UUID"
+							]
 						},
 						"description": "Uploader or admin only."
 					},
@@ -1457,18 +2182,32 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "formdata",
 							"formdata": [
-								{ "key": "photos", "type": "file", "src": [] }
+								{
+									"key": "photos",
+									"type": "file",
+									"src": []
+								}
 							]
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/photos",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "photos"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"photos"
+							]
 						},
 						"description": "Upload photos directly to the trip gallery. Returns { photos[] } where each photo has: id, url, activityId (null for direct uploads), activityTitle (null), uploadedBy, mimeType, createdAt."
 					},
@@ -1479,12 +2218,22 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/photos",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "photos"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"photos"
+							]
 						},
 						"description": "Returns { photos[], total, page, limit }. Each photo includes: id, url, activityId (non-null if from an activity), activityTitle (activity name if from an activity, else null), uploadedBy, uploaderName, mimeType, createdAt. Supports ?page=&limit= (default 30, max 100)."
 					},
@@ -1495,12 +2244,23 @@
 					"request": {
 						"method": "DELETE",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/photos/REPLACE_WITH_PHOTO_UUID",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "photos", "REPLACE_WITH_PHOTO_UUID"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"photos",
+								"REPLACE_WITH_PHOTO_UUID"
+							]
 						}
 					},
 					"response": []
@@ -1516,12 +2276,22 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/polls",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "polls"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"polls"
+							]
 						},
 						"description": "Returns polls with voteCount, percentage, isMyVote per option."
 					},
@@ -1532,17 +2302,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"question\": \"Where should we have dinner on night 3?\",\n    \"options\": [\"Thalassa\", \"Gunpowder\", \"Sublime\", \"A Reverie\"]\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/polls",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "polls"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"polls"
+							]
 						},
 						"description": "Min 2 options, max 10."
 					},
@@ -1553,17 +2337,33 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"optionId\": \"REPLACE_WITH_OPTION_UUID\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/polls/d0000000-0000-4000-8000-000000000001/vote",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "polls", "d0000000-0000-4000-8000-000000000001", "vote"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"polls",
+								"d0000000-0000-4000-8000-000000000001",
+								"vote"
+							]
 						},
 						"description": "One vote per user. Calling again changes the vote (upsert). Get optionId from Get Polls response."
 					},
@@ -1580,12 +2380,22 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/notes",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "notes"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"notes"
+							]
 						},
 						"description": "Returns { notes[], total }. Ordered by updated_at DESC.\nEach note has createdBy: { userId, name, avatarUrl } and lastEditedBy."
 					},
@@ -1596,12 +2406,22 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000002/notes",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000002", "notes"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000002",
+								"notes"
+							]
 						}
 					},
 					"response": []
@@ -1626,17 +2446,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"title\": \"Flight Details\",\n    \"content\": \"IndiGo 6E-123, DEL→GOI, 10 Apr 06:00 AM. PNR: ABC123. Baggage: 15kg.\",\n    \"category\": \"important\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/notes",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "notes"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"notes"
+							]
 						},
 						"description": "title: required, max 255\ncontent: required, max 5000\ncategory: general | idea | important | todo"
 					},
@@ -1662,17 +2496,31 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"title\": \"Things to buy\",\n    \"content\": \"Sunscreen SPF50, waterproof pouch, travel adapter, cash ₹5000\",\n    \"category\": \"todo\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/notes",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "notes"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"notes"
+							]
 						}
 					},
 					"response": []
@@ -1682,17 +2530,32 @@
 					"request": {
 						"method": "PUT",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"content\": \"Sunscreen, passport, waterproof bag, cash ₹5000, trekking shoes.\",\n    \"category\": \"todo\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/notes/ac000000-0000-4000-8000-000000000001",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "notes", "ac000000-0000-4000-8000-000000000001"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"notes",
+								"ac000000-0000-4000-8000-000000000001"
+							]
 						},
 						"description": "Any trip member can edit. last_edited_by always updated."
 					},
@@ -1703,17 +2566,32 @@
 					"request": {
 						"method": "PUT",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"title\": \"Updated title\",\n    \"content\": \"Updated content goes here.\",\n    \"category\": \"idea\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/notes/{{note_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "notes", "{{note_id}}"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"notes",
+								"{{note_id}}"
+							]
 						}
 					},
 					"response": []
@@ -1723,12 +2601,23 @@
 					"request": {
 						"method": "DELETE",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/notes/{{note_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "notes", "{{note_id}}"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"notes",
+								"{{note_id}}"
+							]
 						},
 						"description": "Creator or trip admin only."
 					},
@@ -1753,13 +2642,28 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
-						"body": { "mode": "raw", "raw": "" },
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
 						"url": {
 							"raw": "{{base_url}}/trips/b0000000-0000-4000-8000-000000000001/notes/{{note_id}}/favorite",
-							"host": ["{{base_url}}"],
-							"path": ["trips", "b0000000-0000-4000-8000-000000000001", "notes", "{{note_id}}", "favorite"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"trips",
+								"b0000000-0000-4000-8000-000000000001",
+								"notes",
+								"{{note_id}}",
+								"favorite"
+							]
 						},
 						"description": "Toggles favorite for the calling user.\nCall once → { isFavorited: true }\nCall again → { isFavorited: false }\nFavorites are per-user — other members are unaffected.\nFavorited notes appear at the top of GET /notes responses."
 					},
@@ -1775,13 +2679,27 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/users/search?q=bob",
-							"host": ["{{base_url}}"],
-							"path": ["users", "search"],
-							"query": [{ "key": "q", "value": "bob" }]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"search"
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "bob"
+								}
+							]
 						},
 						"description": "Returns users with friendshipStatus: none|pending_sent|pending_received|accepted.\nBlocked users excluded."
 					},
@@ -1792,13 +2710,27 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/users/search?q=charlie@gathergo.com",
-							"host": ["{{base_url}}"],
-							"path": ["users", "search"],
-							"query": [{ "key": "q", "value": "charlie@gathergo.com" }]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"search"
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "charlie@gathergo.com"
+								}
+							]
 						}
 					},
 					"response": []
@@ -1808,12 +2740,22 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/users/a0000000-0000-4000-8000-000000000002/profile",
-							"host": ["{{base_url}}"],
-							"path": ["users", "a0000000-0000-4000-8000-000000000002", "profile"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"a0000000-0000-4000-8000-000000000002",
+								"profile"
+							]
 						},
 						"description": "Returns full profile + friendshipStatus (accepted for alice↔bob)."
 					},
@@ -1824,12 +2766,22 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/users/a0000000-0000-4000-8000-000000000004/profile",
-							"host": ["{{base_url}}"],
-							"path": ["users", "a0000000-0000-4000-8000-000000000004", "profile"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"a0000000-0000-4000-8000-000000000004",
+								"profile"
+							]
 						},
 						"description": "friendshipStatus: pending_sent (alice sent request to diana)."
 					},
@@ -1840,12 +2792,22 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/users/a0000000-0000-4000-8000-000000000002/gallery",
-							"host": ["{{base_url}}"],
-							"path": ["users", "a0000000-0000-4000-8000-000000000002", "gallery"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"a0000000-0000-4000-8000-000000000002",
+								"gallery"
+							]
 						},
 						"description": "Past trips only (end_date < today). Bob was on Kerala Backwaters (past)."
 					},
@@ -1856,17 +2818,30 @@
 					"request": {
 						"method": "PUT",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"bio\": \"Explorer & foodie. Always planning the next trip.\",\n    \"country\": \"India\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/users/profile",
-							"host": ["{{base_url}}"],
-							"path": ["users", "profile"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"profile"
+							]
 						}
 					},
 					"response": []
@@ -1882,12 +2857,20 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/friends",
-							"host": ["{{base_url}}"],
-							"path": ["friends"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"friends"
+							]
 						},
 						"description": "Returns accepted friends. Alice should see Bob + Charlie."
 					},
@@ -1898,13 +2881,26 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/friends?search=bob",
-							"host": ["{{base_url}}"],
-							"path": ["friends"],
-							"query": [{ "key": "search", "value": "bob" }]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"friends"
+							],
+							"query": [
+								{
+									"key": "search",
+									"value": "bob"
+								}
+							]
 						}
 					},
 					"response": []
@@ -1914,12 +2910,21 @@
 					"request": {
 						"method": "GET",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/friends/requests",
-							"host": ["{{base_url}}"],
-							"path": ["friends", "requests"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"friends",
+								"requests"
+							]
 						},
 						"description": "Returns { incoming: [Eve's request], outgoing: [Alice's request to Diana] }."
 					},
@@ -1930,17 +2935,31 @@
 					"request": {
 						"method": "PUT",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"action\": \"accept\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/friends/request/f0000000-0000-4000-8000-000000000004",
-							"host": ["{{base_url}}"],
-							"path": ["friends", "request", "f0000000-0000-4000-8000-000000000004"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"friends",
+								"request",
+								"f0000000-0000-4000-8000-000000000004"
+							]
 						},
 						"description": "Alice accepts Eve's pending request. FCM push sent to Eve."
 					},
@@ -1951,17 +2970,31 @@
 					"request": {
 						"method": "PUT",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"action\": \"decline\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/friends/request/f0000000-0000-4000-8000-000000000004",
-							"host": ["{{base_url}}"],
-							"path": ["friends", "request", "f0000000-0000-4000-8000-000000000004"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"friends",
+								"request",
+								"f0000000-0000-4000-8000-000000000004"
+							]
 						},
 						"description": "No notification sent on decline."
 					},
@@ -1987,17 +3020,30 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"toUserId\": \"a0000000-0000-4000-8000-000000000005\"\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/friends/request",
-							"host": ["{{base_url}}"],
-							"path": ["friends", "request"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"friends",
+								"request"
+							]
 						},
 						"description": "Note: Eve already sent one to Alice (seeded). Run 'Decline Eve's Request' first to reset, then send this.\nRate limited: 20/day."
 					},
@@ -2008,12 +3054,21 @@
 					"request": {
 						"method": "DELETE",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/friends/a0000000-0000-4000-8000-000000000002",
-							"host": ["{{base_url}}"],
-							"path": ["friends", "a0000000-0000-4000-8000-000000000002"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"friends",
+								"a0000000-0000-4000-8000-000000000002"
+							]
 						},
 						"description": "Removes alice↔bob friendship. Re-seed to restore."
 					},
@@ -2045,17 +3100,30 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"channels\": [\"share\"],\n    \"emails\": []\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/friends/invite",
-							"host": ["{{base_url}}"],
-							"path": ["friends", "invite"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"friends",
+								"invite"
+							]
 						},
 						"description": "Generates Branch smart link. Rate: 10/hour.\ninvite_token auto-saved for claim flow testing."
 					},
@@ -2066,17 +3134,30 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"channels\": [\"email\", \"share\"],\n    \"emails\": [\"friend@example.com\"]\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/friends/invite",
-							"host": ["{{base_url}}"],
-							"path": ["friends", "invite"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"friends",
+								"invite"
+							]
 						},
 						"description": "Sends invite email via SES (fire-and-forget)."
 					},
@@ -2095,8 +3176,14 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/invites/validate/friend-invite-seed-token-001",
-							"host": ["{{base_url}}"],
-							"path": ["invites", "validate", "friend-invite-seed-token-001"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"invites",
+								"validate",
+								"friend-invite-seed-token-001"
+							]
 						},
 						"description": "No auth. Returns { valid, type:'friend', invitedBy, installLinks }."
 					},
@@ -2109,8 +3196,14 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/invites/validate/trip-invite-seed-token-001",
-							"host": ["{{base_url}}"],
-							"path": ["invites", "validate", "trip-invite-seed-token-001"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"invites",
+								"validate",
+								"trip-invite-seed-token-001"
+							]
 						},
 						"description": "No auth. Returns { valid, type:'trip', context.tripName, invitedBy, installLinks }."
 					},
@@ -2121,12 +3214,22 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/invites/claim/friend-invite-seed-token-001",
-							"host": ["{{base_url}}"],
-							"path": ["invites", "claim", "friend-invite-seed-token-001"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"invites",
+								"claim",
+								"friend-invite-seed-token-001"
+							]
 						},
 						"description": "⚠️ Login as Bob first (Folder 2).\nAlice created this invite. Bob claiming it sends a friend request to Alice.\nReturns: { type:'friend', status:'pending', connectionId }\nIdempotent — safe to call twice."
 					},
@@ -2137,12 +3240,22 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/invites/claim/trip-invite-seed-token-001",
-							"host": ["{{base_url}}"],
-							"path": ["invites", "claim", "trip-invite-seed-token-001"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"invites",
+								"claim",
+								"trip-invite-seed-token-001"
+							]
 						},
 						"description": "Adds claimant to Goa trip as member.\nReturns: { type:'trip', tripId, tripName }\nFCM TRIP_INVITE_ACCEPTED sent to trip admin (Alice)."
 					},
@@ -2153,12 +3266,22 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
 						],
 						"url": {
 							"raw": "{{base_url}}/invites/claim/{{invite_token}}",
-							"host": ["{{base_url}}"],
-							"path": ["invites", "claim", "{{invite_token}}"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"invites",
+								"claim",
+								"{{invite_token}}"
+							]
 						},
 						"description": "Uses invite_token variable (auto-saved when you Generate Friend Invite Link)."
 					},
@@ -2176,8 +3299,13 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/.well-known/apple-app-site-association",
-							"host": ["{{base_url}}"],
-							"path": [".well-known", "apple-app-site-association"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								".well-known",
+								"apple-app-site-association"
+							]
 						}
 					},
 					"response": []
@@ -2189,8 +3317,13 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/.well-known/assetlinks.json",
-							"host": ["{{base_url}}"],
-							"path": [".well-known", "assetlinks.json"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								".well-known",
+								"assetlinks.json"
+							]
 						}
 					},
 					"response": []
@@ -2202,8 +3335,12 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/health",
-							"host": ["{{base_url}}"],
-							"path": ["health"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
 						}
 					},
 					"response": []
@@ -2211,17 +3348,1232 @@
 			]
 		},
 		{
-			"name": "18. Email Doc Import",
+			"name": "19. Events — Core + All Features",
+			"description": "All /events endpoints. Seeded event: e1000000-0000-4000-8000-000000000001 (Diwali Night 2026, alice=admin, bob=member). Events have NO /activities route.",
+			"item": [
+				{
+					"name": "Create Event",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"const json = pm.response.json();",
+									"if (json.event && json.event.id) { pm.collectionVariables.set(\"event_id\", json.event && json.event.id); console.log(\"event_id saved:\", json.event && json.event.id); }"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Diwali Night 2027\",\n    \"startDate\": \"2027-10-20\",\n    \"endDate\": \"2027-10-20\",\n    \"location\": {\n        \"name\": \"Mumbai, India\",\n        \"lat\": 19.076,\n        \"lng\": 72.8777\n    },\n    \"reminders\": true,\n    \"friendIds\": [\n        \"a0000000-0000-4000-8000-000000000002\"\n    ],\n    \"emails\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events"
+							]
+						},
+						"description": "Creates event. friendIds added directly + FCM EVENT_MEMBER_ADDED. reminders: event_start + 1_day_before only. event_id auto-saved."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Event — with email invite",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Holi Bash 2027\",\n    \"startDate\": \"2027-03-10\",\n    \"endDate\": \"2027-03-10\",\n    \"location\": {\n        \"name\": \"Delhi, India\",\n        \"lat\": 28.6139,\n        \"lng\": 77.209\n    },\n    \"reminders\": false,\n    \"friendIds\": [],\n    \"emails\": [\n        \"outsider@example.com\"\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events"
+							]
+						},
+						"description": "Email gets Branch smart link (type=event). SES email sent."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Events — Upcoming",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events?status=upcoming",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events"
+							]
+						},
+						"description": "Filter: upcoming | past | ongoing"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Events — Past",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events?status=past",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events"
+							]
+						},
+						"description": ""
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Events — Ongoing",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events?status=ongoing",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events"
+							]
+						},
+						"description": ""
+					},
+					"response": []
+				},
+				{
+					"name": "Get Event Detail (Diwali — seeded)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001"
+							]
+						},
+						"description": "stats: { memberCount, photoVideoCount, docCount, totalExpenseAmount }. No activityCounts."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Event Detail (variable event_id)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/{{event_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"{{event_id}}"
+							]
+						},
+						"description": ""
+					},
+					"response": []
+				},
+				{
+					"name": "Update Event (Admin only)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Diwali Night 2027 — Venue Confirmed\",\n    \"location\": {\n        \"name\": \"Navi Mumbai, India\",\n        \"lat\": 19.033,\n        \"lng\": 73.0297\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001"
+							]
+						},
+						"description": "Admin only. Updating startDate reschedules reminders (event_start + 1_day_before)."
+					},
+					"response": []
+				},
+				{
+					"name": "Invite — Friends (Path A: Bob direct add)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"friendIds\": [\n        \"a0000000-0000-4000-8000-000000000002\"\n    ],\n    \"emails\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/invite",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"invite"
+							]
+						},
+						"description": "Verified friend added directly to event_members. FCM: EVENT_MEMBER_ADDED."
+					},
+					"response": []
+				},
+				{
+					"name": "Invite — Email (Path B: Branch link)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"friendIds\": [],\n    \"emails\": [\n        \"newcomer@example.com\"\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/invite",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"invite"
+							]
+						},
+						"description": "Branch link type=event. SES email sent. Claim via POST /invites/claim/:token."
+					},
+					"response": []
+				},
+				{
+					"name": "Invite — NOT_A_FRIEND error (Diana)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"friendIds\": [\n        \"a0000000-0000-4000-8000-000000000004\"\n    ],\n    \"emails\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/invite",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"invite"
+							]
+						},
+						"description": "Expect 400 NOT_A_FRIEND. Diana is pending, not accepted."
+					},
+					"response": []
+				},
+				{
+					"name": "Validate Event Invite Token (Public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/events/invite/event-invite-seed-token-001",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"invite",
+								"event-invite-seed-token-001"
+							]
+						},
+						"description": "No auth. Returns eventName, inviterName, expiresAt."
+					},
+					"response": []
+				},
+				{
+					"name": "Accept Event Invite (token-based)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/invite/event-invite-seed-token-001/accept",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"invite",
+								"event-invite-seed-token-001",
+								"accept"
+							]
+						},
+						"description": "Claims token. Adds user to event_members. Idempotent."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Event Members",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/members",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"members"
+							]
+						},
+						"description": "Returns members[], total, adminCount."
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Event Member (Admin only)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/members/a0000000-0000-4000-8000-000000000002",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"members",
+								"a0000000-0000-4000-8000-000000000002"
+							]
+						},
+						"description": "Admin only. 422 LAST_ADMIN if removing last admin."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Docs (Diwali event)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/docs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"docs"
+							]
+						},
+						"description": "Returns docs[], total with presigned download URLs (1hr)."
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Doc (Diwali event)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"const json = pm.response.json();",
+									"if (json.doc && json.doc.id) { pm.collectionVariables.set(\"doc_id\", json.doc && json.doc.id); console.log(\"doc_id saved:\", json.doc && json.doc.id); }"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file",
+									"type": "file",
+									"src": [],
+									"description": "PDF, DOCX, XLSX, PPTX, TXT, CSV (max 15 MB)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/docs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"docs"
+							]
+						},
+						"description": "form-data, field: file. doc_id auto-saved."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Doc",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/docs/{{doc_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"docs",
+								"{{doc_id}}"
+							]
+						},
+						"description": "Uploader or admin. Removes from S3 + DB."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Photos (Diwali event)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/photos",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"photos"
+							]
+						},
+						"description": "Returns photos[], total, page, limit with presigned URLs."
+					},
+					"response": []
+				},
+				{
+					"name": "Upload Photos (Diwali event)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"const json = pm.response.json();",
+									"if (json.photos && json.photos[0] && json.photos[0].id) { pm.collectionVariables.set(\"photo_id\", json.photos && json.photos[0] && json.photos[0].id); console.log(\"photo_id saved:\", json.photos && json.photos[0] && json.photos[0].id); }"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "photos",
+									"type": "file",
+									"src": [],
+									"description": "JPEG, PNG, HEIC, MP4, MOV (max 50 MB each, up to 5 files)"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/photos",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"photos"
+							]
+						},
+						"description": "form-data, field: photos (array, max 5). photo_id auto-saved."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Photo",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/photos/{{photo_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"photos",
+								"{{photo_id}}"
+							]
+						},
+						"description": "Uploader or admin. S3 + DB."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Expense — Equal Split",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"const json = pm.response.json();",
+									"if (json.expense && json.expense.id) { pm.collectionVariables.set(\"expense_id\", json.expense && json.expense.id); console.log(\"expense_id saved:\", json.expense && json.expense.id); }"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"Venue Booking\",\n    \"amount\": 6000,\n    \"category\": \"general\",\n    \"paidBy\": \"a0000000-0000-4000-8000-000000000001\",\n    \"splitType\": \"equal\",\n    \"splitAmong\": [\n        {\n            \"userId\": \"a0000000-0000-4000-8000-000000000001\"\n        },\n        {\n            \"userId\": \"a0000000-0000-4000-8000-000000000002\"\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/expenses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"expenses"
+							]
+						},
+						"description": "Returns expense + updated balances. expense_id auto-saved."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Expense — Percentage Split",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"Catering\",\n    \"amount\": 10000,\n    \"category\": \"food\",\n    \"paidBy\": \"a0000000-0000-4000-8000-000000000001\",\n    \"splitType\": \"percentage\",\n    \"splitAmong\": [\n        {\n            \"userId\": \"a0000000-0000-4000-8000-000000000001\",\n            \"percentage\": 60\n        },\n        {\n            \"userId\": \"a0000000-0000-4000-8000-000000000002\",\n            \"percentage\": 40\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/expenses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"expenses"
+							]
+						},
+						"description": "Alice 60%, Bob 40%."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Expense — Amount Split",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"Decorations\",\n    \"amount\": 5000,\n    \"category\": \"general\",\n    \"paidBy\": \"a0000000-0000-4000-8000-000000000002\",\n    \"splitType\": \"amount\",\n    \"splitAmong\": [\n        {\n            \"userId\": \"a0000000-0000-4000-8000-000000000001\",\n            \"amount\": 3000\n        },\n        {\n            \"userId\": \"a0000000-0000-4000-8000-000000000002\",\n            \"amount\": 2000\n        }\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/expenses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"expenses"
+							]
+						},
+						"description": "Exact amounts must sum to total."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Expenses (Diwali event)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/expenses",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"expenses"
+							]
+						},
+						"description": "expenses[], total, grandTotal, page, limit."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Balances (Diwali — as Alice)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/balances",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"balances"
+							]
+						},
+						"description": "debts[] simplified, myBalance, totalExpenses."
+					},
+					"response": []
+				},
+				{
+					"name": "Settle Up (Bob pays Alice)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"withUserId\": \"a0000000-0000-4000-8000-000000000001\",\n    \"amount\": 2000\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/settlements",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"settlements"
+							]
+						},
+						"description": "Records settlement. Returns updated outstanding debts."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Expense",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"Venue Booking — Updated\",\n    \"amount\": 7000\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/expenses/{{expense_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"expenses",
+								"{{expense_id}}"
+							]
+						},
+						"description": "Creator or admin only."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Expense",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/expenses/{{expense_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"expenses",
+								"{{expense_id}}"
+							]
+						},
+						"description": "Creator or admin. Returns updated balances."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Polls (Diwali event)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/polls",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"polls"
+							]
+						},
+						"description": "polls[] with voteCount, percentage, isMyVote per option."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Poll",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"const json = pm.response.json();",
+									"if (json.poll && json.poll.id) { pm.collectionVariables.set(\"poll_id\", json.poll && json.poll.id); console.log(\"poll_id saved:\", json.poll && json.poll.id); }"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"question\": \"Which decoration theme?\",\n    \"options\": [\n        \"Bollywood\",\n        \"Traditional\",\n        \"Modern Glam\",\n        \"Minimal\"\n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/polls",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"polls"
+							]
+						},
+						"description": "Min 2, max 10 options. poll_id auto-saved."
+					},
+					"response": []
+				},
+				{
+					"name": "Vote on Poll",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"optionId\": \"{{poll_option_id}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/polls/{{poll_id}}/vote",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"polls",
+								"{{poll_id}}",
+								"vote"
+							]
+						},
+						"description": "One vote per user (upsert). Get optionId from GET /polls options[].id."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Notes (Diwali event)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/notes",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"notes"
+							]
+						},
+						"description": "Favorited notes sorted first."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Note",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+									"const json = pm.response.json();",
+									"if (json.note && json.note.id) { pm.collectionVariables.set(\"note_id\", json.note && json.note.id); console.log(\"note_id saved:\", json.note && json.note.id); }"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Guest List\",\n    \"content\": \"Alice, Bob, Charlie, Diana (TBC). RSVP by Oct 10.\",\n    \"category\": \"important\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/notes",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"notes"
+							]
+						},
+						"description": "category: general | idea | important | todo. note_id auto-saved."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Note",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Guest List — Final\",\n    \"content\": \"Alice, Bob, Charlie. Confirmed 3.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/notes/{{note_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"notes",
+								"{{note_id}}"
+							]
+						},
+						"description": "Any member can edit. Sets last_edited_by."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Note",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/notes/{{note_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"notes",
+								"{{note_id}}"
+							]
+						},
+						"description": "Creator or admin only."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Event (Admin only)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001"
+							]
+						},
+						"description": "DESTRUCTIVE. Removes S3 files + docs/photos/expenses/polls/notes rows + event row. Irreversible."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "20. Email Doc Import",
 			"item": [
 				{
 					"name": "Connect Gmail",
 					"request": {
 						"method": "GET",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }],
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
 						"url": {
 							"raw": "{{base_url}}/auth/email/gmail/connect",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "email", "gmail", "connect"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"email",
+								"gmail",
+								"connect"
+							]
 						},
 						"description": "Initiates Gmail OAuth flow. Redirects to Google consent screen. Must be opened in a browser (not axios). On success deep-links back to gathergo://email-connected?provider=gmail&success=true"
 					},
@@ -2231,11 +4583,24 @@
 					"name": "Connect Outlook",
 					"request": {
 						"method": "GET",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }],
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
 						"url": {
 							"raw": "{{base_url}}/auth/email/outlook/connect",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "email", "outlook", "connect"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"email",
+								"outlook",
+								"connect"
+							]
 						},
 						"description": "Initiates Outlook OAuth flow. Same behaviour as Gmail connect."
 					},
@@ -2248,11 +4613,24 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/auth/email/google/callback?code=OAUTH_CODE&state=STATE_PARAM",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "email", "google", "callback"],
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"email",
+								"google",
+								"callback"
+							],
 							"query": [
-								{ "key": "code",  "value": "OAUTH_CODE" },
-								{ "key": "state", "value": "STATE_PARAM" }
+								{
+									"key": "code",
+									"value": "OAUTH_CODE"
+								},
+								{
+									"key": "state",
+									"value": "STATE_PARAM"
+								}
 							]
 						},
 						"description": "Called automatically by Google after consent. Do NOT call manually. Deep-links back to app on success."
@@ -2266,11 +4644,24 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/auth/email/microsoft/callback?code=OAUTH_CODE&state=STATE_PARAM",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "email", "microsoft", "callback"],
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"email",
+								"microsoft",
+								"callback"
+							],
 							"query": [
-								{ "key": "code",  "value": "OAUTH_CODE" },
-								{ "key": "state", "value": "STATE_PARAM" }
+								{
+									"key": "code",
+									"value": "OAUTH_CODE"
+								},
+								{
+									"key": "state",
+									"value": "STATE_PARAM"
+								}
 							]
 						},
 						"description": "Called automatically by Microsoft after consent. Do NOT call manually."
@@ -2281,11 +4672,22 @@
 					"name": "Get Connection Status",
 					"request": {
 						"method": "GET",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }],
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
 						"url": {
 							"raw": "{{base_url}}/email-docs/status",
-							"host": ["{{base_url}}"],
-							"path": ["email-docs", "status"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"email-docs",
+								"status"
+							]
 						},
 						"description": "Returns which email providers the authenticated user has connected."
 					},
@@ -2304,14 +4706,33 @@
 					"name": "List Email Attachments",
 					"request": {
 						"method": "GET",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }],
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
 						"url": {
 							"raw": "{{base_url}}/email-docs/attachments?provider=gmail&tripId={{trip_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["email-docs", "attachments"],
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"email-docs",
+								"attachments"
+							],
 							"query": [
-								{ "key": "provider", "value": "gmail",       "description": "gmail | outlook" },
-								{ "key": "tripId",   "value": "{{trip_id}}", "description": "Trip UUID" }
+								{
+									"key": "provider",
+									"value": "gmail",
+									"description": "gmail | outlook"
+								},
+								{
+									"key": "tripId",
+									"value": "{{trip_id}}",
+									"description": "Trip UUID"
+								}
 							]
 						},
 						"description": "Fetches recent email attachments (last 30 days). Only PDF, JPEG, PNG ≤ 15 MB. Returns metadata only — no file bytes. Auto-refreshes OAuth token if expired."
@@ -2348,18 +4769,35 @@
 					"request": {
 						"method": "POST",
 						"header": [
-							{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" },
-							{ "key": "Content-Type",  "value": "application/json",        "type": "text" }
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
 						],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"tripId\": \"{{trip_id}}\",\n  \"provider\": \"gmail\",\n  \"attachments\": [\n    {\n      \"attachmentId\": \"ANGjdJ8abc123\",\n      \"messageId\": \"18e1a2b3c4d5\",\n      \"fileName\": \"Flight_Booking.pdf\",\n      \"provider\": \"gmail\"\n    }\n  ]\n}",
-							"options": { "raw": { "language": "json" } }
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/email-docs/import",
-							"host": ["{{base_url}}"],
-							"path": ["email-docs", "import"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"email-docs",
+								"import"
+							]
 						},
 						"description": "Downloads selected attachments, validates MIME from buffer bytes, uploads to S3 (trips/{tripId}/docs/), inserts into docs table. Sequential — failed files go into failed[] without aborting. User must be a trip member."
 					},
@@ -2386,11 +4824,24 @@
 					"name": "Disconnect Gmail",
 					"request": {
 						"method": "DELETE",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }],
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
 						"url": {
 							"raw": "{{base_url}}/auth/email/gmail/disconnect",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "email", "gmail", "disconnect"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"email",
+								"gmail",
+								"disconnect"
+							]
 						},
 						"description": "Revokes Gmail token (best effort) and deletes stored tokens from DB."
 					},
@@ -2409,11 +4860,24 @@
 					"name": "Disconnect Outlook",
 					"request": {
 						"method": "DELETE",
-						"header": [{ "key": "Authorization", "value": "Bearer {{access_token}}", "type": "text" }],
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
 						"url": {
 							"raw": "{{base_url}}/auth/email/outlook/disconnect",
-							"host": ["{{base_url}}"],
-							"path": ["auth", "email", "outlook", "disconnect"]
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"email",
+								"outlook",
+								"disconnect"
+							]
 						},
 						"description": "Deletes stored Outlook tokens. Microsoft has no standard revocation endpoint."
 					},
@@ -2432,16 +4896,80 @@
 		}
 	],
 	"variable": [
-		{ "key": "base_url",       "value": "http://localhost:3000", "type": "string" },
-		{ "key": "access_token",   "value": "", "type": "string" },
-		{ "key": "refresh_token",  "value": "", "type": "string" },
-		{ "key": "user_id",        "value": "a0000000-0000-4000-8000-000000000001", "type": "string" },
-		{ "key": "trip_id",        "value": "b0000000-0000-4000-8000-000000000001", "type": "string" },
-		{ "key": "activity_id",    "value": "e0000000-0000-4000-8000-000000000001", "type": "string" },
-		{ "key": "expense_id",     "value": "c0000000-0000-4000-8000-000000000001", "type": "string" },
-		{ "key": "note_id",        "value": "ac000000-0000-4000-8000-000000000001", "type": "string" },
-		{ "key": "connection_id",  "value": "f0000000-0000-4000-8000-000000000004", "type": "string" },
-		{ "key": "invite_token",   "value": "friend-invite-seed-token-001", "type": "string" },
-		{ "key": "target_user_id", "value": "a0000000-0000-4000-8000-000000000002", "type": "string" }
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "a0000000-0000-4000-8000-000000000001",
+			"type": "string"
+		},
+		{
+			"key": "trip_id",
+			"value": "b0000000-0000-4000-8000-000000000001",
+			"type": "string"
+		},
+		{
+			"key": "activity_id",
+			"value": "e0000000-0000-4000-8000-000000000001",
+			"type": "string"
+		},
+		{
+			"key": "expense_id",
+			"value": "c0000000-0000-4000-8000-000000000001",
+			"type": "string"
+		},
+		{
+			"key": "note_id",
+			"value": "ac000000-0000-4000-8000-000000000001",
+			"type": "string"
+		},
+		{
+			"key": "connection_id",
+			"value": "f0000000-0000-4000-8000-000000000004",
+			"type": "string"
+		},
+		{
+			"key": "invite_token",
+			"value": "friend-invite-seed-token-001",
+			"type": "string"
+		},
+		{
+			"key": "target_user_id",
+			"value": "a0000000-0000-4000-8000-000000000002",
+			"type": "string"
+		},
+		{
+			"key": "event_id",
+			"value": "e1000000-0000-4000-8000-000000000001",
+			"type": "string"
+		},
+		{
+			"key": "poll_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "doc_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "photo_id",
+			"value": "",
+			"type": "string"
+		}
 	]
 }

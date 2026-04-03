@@ -46,6 +46,22 @@ const findInviteByToken = async (token) => {
     return { row: tripResult.rows[0], type: 'trip' };
   }
 
+  // Event invite
+  const eventResult = await db(
+    `SELECT ei.id, ei.invited_by, ei.expires_at, ei.accepted_at AS claimed_at,
+            ei.user_id AS claimed_by, ei.event_id,
+            e.name AS context_name,
+            p.full_name AS inviter_name, p.avatar_url AS inviter_avatar
+     FROM event_invites ei
+     LEFT JOIN events e ON e.id = ei.event_id
+     LEFT JOIN profiles p ON p.user_id = ei.invited_by
+     WHERE ei.token = $1`,
+    [token],
+  );
+  if (eventResult.rows.length > 0) {
+    return { row: eventResult.rows[0], type: 'event' };
+  }
+
   return null;
 };
 
@@ -78,8 +94,8 @@ const validateInvite = async (token) => {
       avatarUrl: row.inviter_avatar || null,
     },
     context: {
-      tripName:  row.context_name || null,
-      eventName: null,
+      tripName:  type === 'trip'  ? (row.context_name || null) : null,
+      eventName: type === 'event' ? (row.context_name || null) : null,
     },
     installLinks: getInstallLinks(),
   };
@@ -106,6 +122,10 @@ const claimInvite = async (token, claimantId) => {
 
   if (type === 'trip') {
     return claimTripInvite(token, claimantId, found.row);
+  }
+
+  if (type === 'event') {
+    return claimEventInvite(token, claimantId, found.row);
   }
 
   const err = new Error('Unknown invite type');
@@ -338,6 +358,97 @@ const claimTripInvite = async (token, claimantId, preloaded) => {
     }
 
     return { type: 'trip', tripId: invite.trip_id, tripName: preloaded.context_name || null };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+// ── Claim Event Invite ────────────────────────────────────────────────────────
+
+const claimEventInvite = async (token, claimantId, preloaded) => {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    // Lock the invite row
+    const lockResult = await client.query(
+      `SELECT id, event_id, invited_by, accepted_at, user_id
+       FROM event_invites
+       WHERE token = $1 AND expires_at > NOW() AND accepted_at IS NULL
+       FOR UPDATE`,
+      [token],
+    );
+
+    if (lockResult.rows.length === 0) {
+      // Idempotent check
+      const idempotentCheck = await client.query(
+        'SELECT event_id, user_id FROM event_invites WHERE token = $1',
+        [token],
+      );
+      await client.query('ROLLBACK');
+
+      if (idempotentCheck.rows[0]?.user_id === claimantId) {
+        return { type: 'event', eventId: idempotentCheck.rows[0].event_id };
+      }
+
+      const err = new Error('Invite is invalid, expired, or already claimed');
+      err.statusCode = 404;
+      err.error = 'INVALID_INVITE';
+      throw err;
+    }
+
+    const invite = lockResult.rows[0];
+
+    // Add user to event_members (ignore if already a member)
+    await client.query(
+      `INSERT INTO event_members (event_id, user_id, role)
+       VALUES ($1, $2, 'member')
+       ON CONFLICT (event_id, user_id) DO NOTHING`,
+      [invite.event_id, claimantId],
+    );
+
+    // Mark invite accepted
+    await client.query(
+      `UPDATE event_invites SET accepted_at = NOW(), user_id = $1 WHERE token = $2`,
+      [claimantId, token],
+    );
+
+    await client.query('COMMIT');
+
+    // FCM push to event admin (fire-and-forget)
+    const [adminResult, claimantProfile] = await Promise.all([
+      db(
+        `SELECT u.fcm_token
+         FROM event_members em JOIN users u ON u.id = em.user_id
+         WHERE em.event_id = $1 AND em.role = 'admin'
+         LIMIT 1`,
+        [invite.event_id],
+      ),
+      db('SELECT full_name FROM profiles WHERE user_id = $1', [claimantId]),
+    ]);
+    const adminFcm     = adminResult.rows[0]?.fcm_token;
+    const claimantName = claimantProfile.rows[0]?.full_name || 'Someone';
+
+    if (adminFcm) {
+      sendFCMNotification(
+        adminFcm,
+        {
+          title: `${claimantName} accepted your event invite`,
+          body: 'Tap to see event members',
+        },
+        {
+          type:        'EVENT_INVITE_ACCEPTED',
+          eventId:     invite.event_id,
+          newMemberId: claimantId,
+          screen:      'events',
+        },
+      ).catch((err) => logger.error('FCM push failed', { err: err.message }));
+    }
+
+    return { type: 'event', eventId: invite.event_id, eventName: preloaded.context_name || null };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;

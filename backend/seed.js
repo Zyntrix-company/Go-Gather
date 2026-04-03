@@ -21,6 +21,12 @@
  *   PAST      — "Kerala Backwaters"    end 2024-03-20, admin alice, member bob
  *   ARCHIVED  — "Kasol Trekking 2025"  end 2025-09-07, admin alice, member bob, archived_at set
  *
+ * ─── Events ─────────────────────────────────────────────────────────────────
+ *   UPCOMING  — "Diwali Night 2026"    2026-10-20, admin alice, member bob
+ *                                       id: e1000000-0000-4000-8000-000000000001
+ *   PAST      — "Holi 2024"            2024-03-25, admin alice, member charlie
+ *                                       id: e1000000-0000-4000-8000-000000000002
+ *
  * All passwords: TestPass123!
  */
 
@@ -84,6 +90,20 @@ const IDS = {
   note1: 'ac000000-0000-4000-8000-000000000001',
   note2: 'ac000000-0000-4000-8000-000000000002',
   note3: 'ac000000-0000-4000-8000-000000000003',
+
+  // Events
+  upcomingEvent: 'e1000000-0000-4000-8000-000000000001',
+  pastEvent:     'e1000000-0000-4000-8000-000000000002',
+
+  // Event expenses
+  eventExpense1: 'e2000000-0000-4000-8000-000000000001', // Venue, equal, alice paid
+  eventExpense2: 'e2000000-0000-4000-8000-000000000002', // Catering, percentage, alice paid
+
+  // Event polls
+  eventPoll1: 'e3000000-0000-4000-8000-000000000001',
+
+  // Event notes
+  eventNote1: 'e4000000-0000-4000-8000-000000000001',
 };
 
 const PASSWORD = 'TestPass123!';
@@ -467,7 +487,135 @@ async function seed() {
       [IDS.poll2],
     );
 
-    // ── 13. Trip reminders (upcoming trip) ────────────────────────────────────
+    // ── 13. Events ───────────────────────────────────────────────────────────
+    console.log('  Seeding events…');
+
+    // UPCOMING event
+    await client.query(
+      `INSERT INTO events (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by)
+       VALUES ($1, 'Diwali Night 2026', '2026-10-20', '2026-10-20',
+               'Mumbai, India', 19.0760, 72.8777, $2)
+       ON CONFLICT (id) DO NOTHING`,
+      [IDS.upcomingEvent, IDS.alice],
+    );
+
+    // PAST event
+    await client.query(
+      `INSERT INTO events (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by)
+       VALUES ($1, 'Holi 2024', '2024-03-25', '2024-03-25',
+               'Delhi, India', 28.6139, 77.2090, $2)
+       ON CONFLICT (id) DO NOTHING`,
+      [IDS.pastEvent, IDS.alice],
+    );
+
+    // ── 13a. Event members ────────────────────────────────────────────────────
+    console.log('  Seeding event members…');
+    const eventMembers = [
+      [IDS.upcomingEvent, IDS.alice,   'admin'],
+      [IDS.upcomingEvent, IDS.bob,     'member'],
+      [IDS.pastEvent,     IDS.alice,   'admin'],
+      [IDS.pastEvent,     IDS.charlie, 'member'],
+    ];
+    for (const [eventId, userId, role] of eventMembers) {
+      await client.query(
+        `INSERT INTO event_members (event_id, user_id, role)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (event_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
+        [eventId, userId, role],
+      );
+    }
+
+    // ── 13b. Event invite token (pending — for claim flow testing) ────────────
+    console.log('  Seeding event invite token…');
+    await client.query(
+      `INSERT INTO event_invites (id, event_id, invited_by, email, token, expires_at)
+       VALUES ('ea000000-0000-4000-8000-000000000001',
+               $1, $2, 'outsider@example.com',
+               'event-invite-seed-token-001', NOW() + INTERVAL '7 days')
+       ON CONFLICT (id) DO NOTHING`,
+      [IDS.upcomingEvent, IDS.alice],
+    );
+
+    // ── 13c. Event reminders (upcoming event) ─────────────────────────────────
+    console.log('  Seeding event reminders…');
+    await client.query(
+      `INSERT INTO event_reminders (event_id, reminder_type, scheduled_at)
+       VALUES ($1, 'event_start',  '2026-10-20T03:30:00Z'),
+              ($1, '1_day_before', '2026-10-19T03:30:00Z')`,
+      [IDS.upcomingEvent],
+    );
+
+    // ── 13d. Event expenses ───────────────────────────────────────────────────
+    console.log('  Seeding event expenses…');
+
+    // Venue Booking — equal split, alice paid, ₹6000
+    await client.query(
+      `INSERT INTO expenses (id, parent_type, parent_id, description, amount, category, paid_by, split_type, created_by)
+       VALUES ($1, 'event', $2, 'Venue Booking', 6000.00, 'general', $3, 'equal', $3)
+       ON CONFLICT (id) DO NOTHING`,
+      [IDS.eventExpense1, IDS.upcomingEvent, IDS.alice],
+    );
+    for (const [uid, amt] of [[IDS.alice, 3000], [IDS.bob, 3000]]) {
+      await client.query(
+        `INSERT INTO expense_splits (expense_id, user_id, amount)
+         VALUES ($1, $2, $3) ON CONFLICT (expense_id, user_id) DO NOTHING`,
+        [IDS.eventExpense1, uid, amt],
+      );
+    }
+
+    // Catering — percentage split, alice paid, ₹10000
+    await client.query(
+      `INSERT INTO expenses (id, parent_type, parent_id, description, amount, category, paid_by, split_type, created_by)
+       VALUES ($1, 'event', $2, 'Catering', 10000.00, 'food', $3, 'percentage', $3)
+       ON CONFLICT (id) DO NOTHING`,
+      [IDS.eventExpense2, IDS.upcomingEvent, IDS.alice],
+    );
+    for (const [uid, amt, pct] of [[IDS.alice, 6000, 60], [IDS.bob, 4000, 40]]) {
+      await client.query(
+        `INSERT INTO expense_splits (expense_id, user_id, amount, percentage)
+         VALUES ($1, $2, $3, $4) ON CONFLICT (expense_id, user_id) DO NOTHING`,
+        [IDS.eventExpense2, uid, amt, pct],
+      );
+    }
+
+    // ── 13e. Event poll ───────────────────────────────────────────────────────
+    console.log('  Seeding event poll…');
+    await client.query(
+      `INSERT INTO polls (id, parent_type, parent_id, created_by, question)
+       VALUES ($1, 'event', $2, $3, 'Which decoration theme should we go with?')
+       ON CONFLICT (id) DO NOTHING`,
+      [IDS.eventPoll1, IDS.upcomingEvent, IDS.alice],
+    );
+    const eventPollOpts = await client.query(
+      `INSERT INTO poll_options (poll_id, option_text, display_order)
+       VALUES ($1, 'Bollywood', 1), ($1, 'Traditional', 2), ($1, 'Modern Glam', 3)
+       ON CONFLICT DO NOTHING
+       RETURNING id, option_text`,
+      [IDS.eventPoll1],
+    );
+    if (eventPollOpts.rows.length > 0) {
+      const bollywood = eventPollOpts.rows.find((r) => r.option_text === 'Bollywood')?.id;
+      if (bollywood) {
+        await client.query(
+          `INSERT INTO poll_votes (poll_id, option_id, user_id)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (poll_id, user_id) DO NOTHING`,
+          [IDS.eventPoll1, bollywood, IDS.alice],
+        );
+      }
+    }
+
+    // ── 13f. Event note ───────────────────────────────────────────────────────
+    console.log('  Seeding event note…');
+    await client.query(
+      `INSERT INTO notes (id, parent_type, parent_id, created_by, title, content, category)
+       VALUES ($1, 'event', $2, $3, 'Guest List',
+               'Alice, Bob, Charlie, Diana (TBC). RSVP by Oct 10.', 'important')
+       ON CONFLICT (id) DO NOTHING`,
+      [IDS.eventNote1, IDS.upcomingEvent, IDS.alice],
+    );
+
+    // ── 14. Trip reminders (upcoming trip) ────────────────────────────────────
     console.log('  Seeding trip reminders…');
     const reminders = [
       [IDS.upcomingTrip, 'trip_start',    '2027-04-10T03:30:00Z'],
@@ -505,24 +653,33 @@ async function seed() {
     console.log(`  PAST      Kerala Backwaters     ${IDS.pastTrip}  (bannerImageUrl set)`);
     console.log(`  ARCHIVED  Kasol Trekking 2025   ${IDS.archivedTrip}  (archived_at set, hidden from normal lists)`);
     console.log('\n══════════════════════════════════════════════════════════');
+    console.log('  EVENTS');
+    console.log('══════════════════════════════════════════════════════════');
+    console.log(`  UPCOMING  Diwali Night 2026      ${IDS.upcomingEvent}  (alice admin, bob member)`);
+    console.log(`  PAST      Holi 2024              ${IDS.pastEvent}  (alice admin, charlie member)`);
+    console.log('\n══════════════════════════════════════════════════════════');
     console.log('  KEY IDs FOR POSTMAN');
     console.log('══════════════════════════════════════════════════════════');
-    console.log(`  user_id (alice)   : ${IDS.alice}`);
-    console.log(`  trip_id (upcoming): ${IDS.upcomingTrip}`);
-    console.log(`  trip_id (archived): ${IDS.archivedTrip}`);
-    console.log(`  expense_id        : ${IDS.expense1}`);
-    console.log(`  activity_id       : ${IDS.actUpcoming1}`);
-    console.log(`  note_id           : ${IDS.note1}`);
-    console.log(`  connection_id     : ${IDS.connAliceBob}   (alice↔bob, accepted)`);
-    console.log(`  connection_id     : ${IDS.connEveAlice}   (eve→alice, PENDING — alice can accept)`);
-    console.log(`  invite_token      : friend-invite-seed-token-001  (friend invite)`);
-    console.log(`  invite_token      : trip-invite-seed-token-001    (trip invite)`);
-    console.log(`  target_user_id    : ${IDS.bob}   (bob's profile)`);
+    console.log(`  user_id (alice)    : ${IDS.alice}`);
+    console.log(`  trip_id (upcoming) : ${IDS.upcomingTrip}`);
+    console.log(`  trip_id (archived) : ${IDS.archivedTrip}`);
+    console.log(`  event_id (upcoming): ${IDS.upcomingEvent}`);
+    console.log(`  expense_id (trip)  : ${IDS.expense1}`);
+    console.log(`  expense_id (event) : ${IDS.eventExpense1}`);
+    console.log(`  activity_id        : ${IDS.actUpcoming1}`);
+    console.log(`  note_id (trip)     : ${IDS.note1}`);
+    console.log(`  note_id (event)    : ${IDS.eventNote1}`);
+    console.log(`  connection_id      : ${IDS.connAliceBob}   (alice↔bob, accepted)`);
+    console.log(`  connection_id      : ${IDS.connEveAlice}   (eve→alice, PENDING — alice can accept)`);
+    console.log(`  invite_token       : friend-invite-seed-token-001   (friend invite)`);
+    console.log(`  invite_token       : trip-invite-seed-token-001     (trip invite)`);
+    console.log(`  invite_token       : event-invite-seed-token-001    (event invite)`);
+    console.log(`  target_user_id     : ${IDS.bob}   (bob's profile)`);
     console.log('\n══════════════════════════════════════════════════════════');
     console.log('  FRIEND STATES (as alice)');
     console.log('══════════════════════════════════════════════════════════');
-    console.log(`  bob     → accepted   (can invite to trip via friendIds)`);
-    console.log(`  charlie → accepted   (can invite to trip via friendIds)`);
+    console.log(`  bob     → accepted   (can invite to trip/event via friendIds)`);
+    console.log(`  charlie → accepted   (can invite to trip/event via friendIds)`);
     console.log(`  diana   → pending    (alice sent — can test outgoing)`);
     console.log(`  eve     → pending    (eve sent  — alice can accept/decline)`);
     console.log('══════════════════════════════════════════════════════════\n');
