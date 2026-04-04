@@ -11,7 +11,8 @@ const authRouter = Router();
 authRouter.get('/email/google/callback',    controller.googleCallback);    // PUBLIC — no JWT
 authRouter.get('/email/microsoft/callback', controller.microsoftCallback); // PUBLIC — no JWT
 
-authRouter.get('/email/:provider/connect',      authenticateJWT, controller.connectEmail);
+authRouter.get('/email/:provider/connect',     authenticateJWT, controller.connectEmail);
+authRouter.get('/email/:provider/connect-url', authenticateJWT, controller.getConnectUrl);
 authRouter.delete('/email/:provider/disconnect', authenticateJWT, controller.disconnect);
 
 // ── Email docs routes — mounted at /email-docs in app.js ──────────────────

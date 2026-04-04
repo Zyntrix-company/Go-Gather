@@ -13,14 +13,29 @@ function handleError(err, res, next) {
   next(err);
 }
 
+// GET /auth/email/:provider/connect  — redirect flow (browser-based, not for mobile WebView)
 const connectEmail = async (req, res, next) => {
   try {
     const { provider } = req.params;
-    // resolveProvider will throw 400 for unknown providers; let service handle it
     const { getAuthUrl } = require(`./providers/${provider === 'gmail' ? 'gmail' : 'outlook'}.provider`);
     const state = service.generateState(req.user.id);
     const authUrl = getAuthUrl(state);
     res.redirect(authUrl);
+  } catch (err) {
+    handleError(err, res, next);
+  }
+};
+
+// GET /auth/email/:provider/connect-url  — returns { url } JSON for mobile app
+// Mobile calls this via axios (JWT in header), then opens the URL with Linking.openURL()
+// This avoids the disallowed_useragent error Google throws inside WebViews.
+const getConnectUrl = async (req, res, next) => {
+  try {
+    const { provider } = req.params;
+    const { getAuthUrl } = require(`./providers/${provider === 'gmail' ? 'gmail' : 'outlook'}.provider`);
+    const state = service.generateState(req.user.id);
+    const url = getAuthUrl(state);
+    res.json({ url });
   } catch (err) {
     handleError(err, res, next);
   }
@@ -97,4 +112,4 @@ const disconnect = async (req, res, next) => {
   }
 };
 
-module.exports = { connectEmail, googleCallback, microsoftCallback, getStatus, listAttachments, importAttachments, disconnect };
+module.exports = { connectEmail, getConnectUrl, googleCallback, microsoftCallback, getStatus, listAttachments, importAttachments, disconnect };
