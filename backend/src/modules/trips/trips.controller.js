@@ -10,19 +10,32 @@ const createTrip = async (req, res, next) => {
 
     // Upload any photos/videos attached at creation time → photos table
     const uploadedPhotos = [];
-    if (req.files?.photos?.length > 0) {
-      const photos = await sharedPhotosService.uploadPhotos(
-        { parentType: 'trip', parentId: trip.id },
-        req.user.id,
-        req.files.photos,
-      );
-      uploadedPhotos.push(...photos);
+    const photoFiles = req.files?.photos;
+    if (photoFiles?.length > 0) {
+      logger.info('Uploading photos during trip creation', { tripId: trip.id, count: photoFiles.length });
+      try {
+        const photos = await sharedPhotosService.uploadPhotos(
+          { parentType: 'trip', parentId: trip.id },
+          req.user.id,
+          photoFiles,
+        );
+        uploadedPhotos.push(...photos);
+      } catch (err) {
+        logger.error('Failed to upload photos during trip creation', {
+          tripId: trip.id, error: err.message,
+        });
+      }
+    } else if (!req.files) {
+      // Request was sent as application/json — files can only be uploaded via multipart/form-data
+      logger.warn('Trip created without files: request was not multipart/form-data', { tripId: trip.id });
     }
 
     // Upload any documents attached at creation time → docs table
     const uploadedDocs = [];
-    if (req.files?.docs?.length > 0) {
-      for (const file of req.files.docs) {
+    const docFiles = req.files?.docs;
+    if (docFiles?.length > 0) {
+      logger.info('Uploading docs during trip creation', { tripId: trip.id, count: docFiles.length });
+      for (const file of docFiles) {
         try {
           const doc = await sharedDocsService.uploadDoc(
             { parentType: 'trip', parentId: trip.id },

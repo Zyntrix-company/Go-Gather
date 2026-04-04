@@ -35,14 +35,26 @@ router.post('/invite/:token/accept', authenticateJWT, validators.tokenParam, val
 // ─── All routes below require auth ───────────────────────────────────────────
 router.use(authenticateJWT);
 
-// Parse JSON-encoded string fields sent via multipart/form-data
-// (location, friendIds, emails arrive as strings; this converts them before validation)
+// Parse JSON-encoded string fields sent via multipart/form-data.
+// Handles two common patterns from HTTP clients:
+//   1. JSON string:        location='{"name":"Paris","lat":48.8}'
+//   2. Bracket notation:   location[name]=Paris  location[lat]=48.8
 const parseMultipartJsonFields = (req, _res, next) => {
-  const fields = ['location', 'friendIds', 'emails'];
-  for (const field of fields) {
+  // Pattern 1 — JSON string fields
+  const jsonFields = ['location', 'friendIds', 'emails'];
+  for (const field of jsonFields) {
     if (req.body[field] && typeof req.body[field] === 'string') {
       try { req.body[field] = JSON.parse(req.body[field]); } catch (_) { /* leave as-is, validator will catch it */ }
     }
+  }
+
+  // Pattern 2 — bracket notation location (multer does not auto-nest these)
+  if (!req.body.location && req.body['location[name]']) {
+    req.body.location = {
+      name: req.body['location[name]'] || null,
+      lat:  req.body['location[lat]']  || null,
+      lng:  req.body['location[lng]']  || null,
+    };
   }
   next();
 };
