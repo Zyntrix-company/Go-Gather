@@ -1,27 +1,29 @@
 # Email Doc Import — Frontend Implementation Guide
 
 Feature: **Extract docs from email** (Gmail & Outlook)
-Module built: `emailDocs` — backend already complete, endpoints live.
+Backend: fully built and live at `https://api.gatherrgo.com`
 
 ---
 
 ## How it works (user flow)
 
-1. Inside the trip's **Docs** modal, user taps "Extract docs from email"
+1. Inside the trip's **Docs** modal, user taps "Extract from Email"
 2. App shows a sheet: **Gmail** or **Outlook**
-3. User taps a provider → backend generates an OAuth URL → app opens it in the in-app browser (`Linking.openURL` or `InAppBrowser`)
-4. User authenticates on Google/Microsoft consent screen
-5. Provider redirects to `https://api.gathergo.app/auth/email/google/callback` (handled by backend)
+3. User taps a provider → app calls `GET /auth/email/:provider/connect-url` via axios → gets back `{ url }`
+4. App opens that URL with `Linking.openURL(url)` — **native browser, never WebView**
+5. User authenticates on Google/Microsoft consent screen
 6. Backend saves tokens, redirects to deep link: `gathergo://email-connected?provider=gmail&success=true`
-7. App catches the deep link via `Linking.addEventListener` → closes browser → shows attachment picker
-8. User selects which attachments to import → `POST /email-docs/import`
+7. App catches the deep link → shows attachment picker
+8. User selects attachments → `POST /email-docs/import`
 9. Imported docs appear in the docs list immediately
+
+> **Critical:** Always use `Linking.openURL()` to open the OAuth URL. Never a `WebView` — Google blocks it with `Error 403: disallowed_useragent`.
 
 ---
 
-## API Functions to add to `trips.api.ts`
+## Step 1 — API functions to add in `trips.api.ts`
 
-Add these after the existing `deleteDoc` function (after line 384):
+Add after the existing `deleteDoc` function:
 
 ```typescript
 // ─── 5b. Email Doc Import ─────────────────────────────────────────────────────
@@ -44,22 +46,19 @@ export type EmailConnectionStatus = {
   outlook: { connected: boolean; email: string | null };
 };
 
+/** Call via axios (JWT injected automatically), then open the returned URL with Linking.openURL() */
+export async function getEmailConnectUrl(provider: EmailProvider) {
+  const res = await client.get(`/auth/email/${provider}/connect-url`);
+  return res.data as { url: string };
+}
+
 export async function getEmailStatus() {
   const res = await client.get('/email-docs/status');
   return res.data as EmailConnectionStatus;
 }
 
-export async function getEmailConnectUrl(provider: EmailProvider): Promise<string> {
-  // Returns the OAuth consent URL — open this in a browser/InAppBrowser
-  // The backend redirects there directly, so we build the URL client-side
-  // using the backend base URL. The backend will redirect us to the provider.
-  return `${client.defaults.baseURL}/auth/email/${provider}/connect`;
-}
-
 export async function listEmailAttachments(provider: EmailProvider, tripId: string) {
-  const res = await client.get('/email-docs/attachments', {
-    params: { provider, tripId },
-  });
+  const res = await client.get('/email-docs/attachments', { params: { provider, tripId } });
   return res.data as { attachments: EmailAttachment[]; total: number };
 }
 
@@ -87,46 +86,46 @@ export async function disconnectEmailProvider(provider: EmailProvider) {
 
 ---
 
-## State to add in `TripDetailScreen.tsx`
-
-Add these alongside the existing modal/data state declarations (around line 320):
-
-```typescript
-// ── Email doc import state ──
-const [showEmailProviderSheet, setShowEmailProviderSheet] = useState(false);
-const [showEmailAttachments,   setShowEmailAttachments]   = useState(false);
-const [emailProvider,          setEmailProvider]          = useState<'gmail' | 'outlook' | null>(null);
-const [emailAttachments,       setEmailAttachments]       = useState<EmailAttachment[]>([]);
-const [selectedEmailAttachments, setSelectedEmailAttachments] = useState<Set<string>>(new Set());
-const [isLoadingEmailAtts,     setIsLoadingEmailAtts]     = useState(false);
-const [isImportingEmail,       setIsImportingEmail]       = useState(false);
-```
-
----
-
-## Imports to add in `TripDetailScreen.tsx`
+## Step 2 — Imports to add in `TripDetailScreen.tsx`
 
 ```typescript
 import {
-  // ... existing imports ...
+  // ...existing imports...
+  getEmailConnectUrl,
   getEmailStatus,
   listEmailAttachments,
   importEmailAttachments,
-  disconnectEmailProvider,
 } from '../../api/trips.api';
 import type { EmailAttachment, EmailProvider } from '../../api/trips.api';
 ```
 
 ---
 
-## Deep link handler
+## Step 3 — State to add in `TripDetailScreen.tsx`
 
-Add this `useEffect` near the other effects (e.g. after the docs load effect):
+Around line 320, alongside the other modal state:
 
 ```typescript
-// ── Handle OAuth deep link callback ──
+// ── Email doc import ──
+const [showEmailProviderSheet,   setShowEmailProviderSheet]   = useState(false);
+const [showEmailAttachments,     setShowEmailAttachments]     = useState(false);
+const [emailProvider,            setEmailProvider]            = useState<EmailProvider | null>(null);
+const [emailAttachments,         setEmailAttachments]         = useState<EmailAttachment[]>([]);
+const [selectedEmailAttachments, setSelectedEmailAttachments] = useState<Set<string>>(new Set());
+const [isLoadingEmailAtts,       setIsLoadingEmailAtts]       = useState(false);
+const [isImportingEmail,         setIsImportingEmail]         = useState(false);
+```
+
+---
+
+## Step 4 — Deep link listener
+
+Add this `useEffect` near the other effects:
+
+```typescript
+// ── Handle OAuth callback deep link ──
 useEffect(() => {
-  const sub = Linking.addEventlistener('url', ({ url }) => {
+  const sub = Linking.addEventListener('url', ({ url }) => {
     if (!url.startsWith('gathergo://email-connected')) return;
     const params = new URLSearchParams(url.split('?')[1]);
     const provider = params.get('provider') as EmailProvider;
@@ -134,63 +133,58 @@ useEffect(() => {
 
     if (success && provider) {
       setEmailProvider(provider);
-      // Immediately fetch attachments now that OAuth is done
       fetchEmailAttachments(provider);
     } else {
       Toast.show({ type: 'error', text1: 'Connection failed', text2: params.get('error') ?? 'Could not connect email' });
     }
   });
+
+  // iOS: handle case where app was closed when deep link arrived
+  Linking.getInitialURL().then(url => {
+    if (!url?.startsWith('gathergo://email-connected')) return;
+    const params = new URLSearchParams(url.split('?')[1]);
+    const provider = params.get('provider') as EmailProvider;
+    if (params.get('success') === 'true' && provider) {
+      setEmailProvider(provider);
+      fetchEmailAttachments(provider);
+    }
+  });
+
   return () => sub.remove();
 }, [tripId]);
 ```
 
-**Note:** For iOS you also need to handle the initial URL (if the app was closed):
-```typescript
-Linking.getInitialURL().then(url => {
-  if (url?.startsWith('gathergo://email-connected')) { /* same logic */ }
-});
-```
-
 ---
 
-## Handler functions
+## Step 5 — Handler functions
 
-Add these after `handleDeleteDoc` (around line 877):
+Add after `handleDeleteDoc` (around line 877):
 
 ```typescript
 // ── Email doc import handlers ──
 
-async function handleEmailProviderSelect(provider: 'gmail' | 'outlook') {
+async function handleEmailProviderSelect(provider: EmailProvider) {
   setShowEmailProviderSheet(false);
   setEmailProvider(provider);
-
-  // Check if already connected
   try {
+    // If already connected, skip OAuth and go straight to attachments
     const status = await getEmailStatus();
     if (status[provider].connected) {
-      // Already connected — go straight to attachment picker
       await fetchEmailAttachments(provider);
       return;
     }
   } catch {}
 
-  // Not connected — open OAuth flow
-  // The backend /auth/email/:provider/connect endpoint redirects to the provider.
-  // We pass the JWT in the request via axios interceptor, but since we're opening
-  // a URL in an external browser, we must pass the token as a query param OR
-  // use an in-app browser that shares cookies. Simplest approach:
-  //
-  // Option A (recommended): Use the axios instance to hit the connect endpoint
-  // and get back a redirect URL, then open that URL.
-  //
-  // Option B: Open the connect URL directly — requires passing the JWT manually.
-  //
-  // The backend /connect endpoint is behind authenticateJWT. Since we can't inject
-  // Authorization headers into Linking.openURL, use the WebView approach below.
-  setShowDocsOAuthWebView(true); // see WebView section below
+  // Not connected — get the OAuth URL from the backend and open in native browser
+  try {
+    const { url } = await getEmailConnectUrl(provider);
+    Linking.openURL(url); // ✅ native browser — Google accepts this
+  } catch (err) {
+    handleApiError(err);
+  }
 }
 
-async function fetchEmailAttachments(provider: 'gmail' | 'outlook') {
+async function fetchEmailAttachments(provider: EmailProvider) {
   setIsLoadingEmailAtts(true);
   setShowEmailAttachments(true);
   setSelectedEmailAttachments(new Set());
@@ -222,7 +216,6 @@ async function handleImportSelectedAttachments() {
     const res = await importEmailAttachments(tripId, emailProvider, toImport);
 
     if (res.imported.length > 0) {
-      // Reload the docs list to show newly imported docs
       const docsRes = await getDocs(tripId);
       setDocs(docsRes.docs.map(d => ({
         id: d.id,
@@ -249,47 +242,12 @@ async function handleImportSelectedAttachments() {
 
 ---
 
-## OAuth WebView approach (recommended for JWT passing)
+## Step 6 — JSX: "Extract from Email" button
 
-Since `GET /auth/email/:provider/connect` requires a JWT Bearer token and `Linking.openURL` can't inject headers, use a WebView modal. Add this state variable:
-
-```typescript
-const [showDocsOAuthWebView, setShowDocsOAuthWebView] = useState(false);
-const [oauthWebViewUrl,      setOauthWebViewUrl]      = useState('');
-```
-
-In `handleEmailProviderSelect`, instead of `Linking.openURL`:
-
-```typescript
-// Get JWT from secure storage (same pattern as client.ts interceptor)
-import { getTokens } from '../../utils/storage'; // or Keychain directly
-
-const { accessToken } = await getTokens();
-const baseUrl = client.defaults.baseURL;
-// Open a WebView that passes the JWT via query param — backend reads it
-// OR: set up a custom scheme in the WebView and catch the redirect
-setOauthWebViewUrl(`${baseUrl}/auth/email/${provider}/connect?token=${accessToken}`);
-setShowDocsOAuthWebView(true);
-```
-
-**Note for backend team:** The `/auth/email/:provider/connect` endpoint currently uses `authenticateJWT` middleware which reads the `Authorization` header. To support WebView flow, add a fallback that also reads `?token=` query param — OR create a short-lived connect-token endpoint that the mobile app calls with its JWT to get a one-time URL it can open.
-
-**Simplest alternative:** Have the backend return the OAuth URL as JSON instead of redirecting, then the app opens it via `Linking.openURL`. This avoids the JWT-in-browser problem entirely:
-
-```
-GET /auth/email/:provider/connect-url   ← new endpoint, returns { url: string }
-```
-
-The app then: `Linking.openURL(res.url)` — the OAuth flow runs in the native browser, and the deep link brings the user back.
-
----
-
-## JSX to add in the Docs modal
-
-Insert this **after** the "Upload Documents" button (after line 1614) and before the `{docs.length === 0 ?` check:
+Insert **after** the "Upload Documents" button (after line 1614), before the `{docs.length === 0 ?` check:
 
 ```tsx
-{/* Import from email */}
+{/* Extract from Email */}
 <TouchableOpacity
   style={[styles.tealBtnFull, { backgroundColor: '#1e40af', marginTop: 8 }]}
   onPress={() => setShowEmailProviderSheet(true)}
@@ -305,17 +263,17 @@ Insert this **after** the "Upload Documents" button (after line 1614) and before
 
 ---
 
-## Additional Modals to add
+## Step 7 — New Modals
 
-Add these modals alongside the existing doc-related modals (after line 1643):
+Add both modals after the existing Documents modal (after line 1643):
 
-### Provider picker sheet
+### Provider picker
 
 ```tsx
 {/* ── Email provider picker ── */}
 <Modal visible={showEmailProviderSheet} transparent animationType="slide" onRequestClose={() => setShowEmailProviderSheet(false)}>
   <View style={styles.overlay}>
-    <View style={[styles.dialog]}>
+    <View style={styles.dialog}>
       <DHeader title="Import from Email" onClose={() => setShowEmailProviderSheet(false)} />
       <View style={styles.dBody}>
         <TouchableOpacity style={[styles.tealBtnFull, { backgroundColor: '#ea4335' }]}
@@ -411,32 +369,20 @@ Add these modals alongside the existing doc-related modals (after line 1643):
 
 ## Deep link registration
 
-### iOS — `Info.plist`
-Already registered for invite links. Verify `gathergo` scheme is in `CFBundleURLSchemes`. No changes needed if invites already work.
+No changes needed if invite deep links already work — both use the `gathergo://` scheme.
 
-### Android — `AndroidManifest.xml`
-Same — verify `gathergo://` intent filter exists.
+- **iOS `Info.plist`** — verify `gathergo` is in `CFBundleURLSchemes`
+- **Android `AndroidManifest.xml`** — verify `gathergo://` intent filter exists
 
 ---
 
-## Error codes from the backend to handle
+## Error codes
 
-| `error` code | What it means | What to show |
+| Code | Meaning | Show |
 |---|---|---|
-| `NOT_CONNECTED` | No OAuth token for this provider | Show provider picker again |
-| `REAUTH_REQUIRED` | Refresh token revoked by user | "Your Gmail connection expired — reconnect" |
-| `INVALID_PROVIDER` | Bad provider value | Shouldn't happen — guard in the UI |
-| `LIMIT_EXCEEDED` | Trip already has 50 docs | "This trip is at the 50 document limit" |
-| `INVALID_FILE_TYPE` | File is not PDF/JPEG/PNG | Show in `failed[]` per-file |
-| `FILE_TOO_LARGE` | Over 15 MB | Show in `failed[]` per-file |
-| `STATE_EXPIRED` | User took >10 min on consent screen | "Session expired — try again" |
-
----
-
-## Open questions for the mobile team
-
-1. **OAuth browser approach** — `Linking.openURL` vs `react-native-inappbrowser-reborn` vs a WebView modal? The backend `/connect` endpoint requires a JWT. Recommend adding a `/auth/email/:provider/connect-url` endpoint that returns `{ url }` JSON so the app can use `Linking.openURL` with no JWT-in-browser issues.
-
-2. **Deep link already set up?** Confirm `gathergo://email-connected` is handled in the root navigator or `App.tsx`. If invite deep links already work, the scheme is registered — just add a listener for this path.
-
-3. **Token from storage** — use the same `getTokens()` / Keychain call that `client.ts` interceptor uses. Don't read from Zustand store directly for the OAuth URL construction since it may be stale.
+| `NOT_CONNECTED` | No token stored | Trigger OAuth again |
+| `REAUTH_REQUIRED` | Refresh token revoked | "Gmail connection expired — reconnect" |
+| `LIMIT_EXCEEDED` | Trip at 50 doc cap | "Trip is at the 50 document limit" |
+| `INVALID_FILE_TYPE` | Not PDF/JPEG/PNG | Shown in `failed[]` per file |
+| `FILE_TOO_LARGE` | Over 15 MB | Shown in `failed[]` per file |
+| `STATE_EXPIRED` | >10 min on consent screen | "Session expired — try again" |
