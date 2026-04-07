@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "299537061791",
+    "project_id": "gatherrgo",
+    "storage_bucket": "gatherrgo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:299537061791:android:1158831994b797cc8acfaa",
+        "android_client_info": {
+          "package_name": "com.gathergo.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBhSeb15dbD60ZieJ7qEDX4EFVhR5ov5ps"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

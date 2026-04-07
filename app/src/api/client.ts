@@ -9,7 +9,7 @@ import Toast from 'react-native-toast-message';
 import storage from '../utils/storage';
 
 // ─── Base URL ────────────────────────────────────────────────────────────────
-const REAL_BASE_URL = 'http://3.110.179.217:3000';
+const REAL_BASE_URL = 'https://api.gatherrgo.com';
 export const API_BASE = REAL_BASE_URL;
 
 // ─── Public routes that do NOT have / need auth tokens ───────────────────────

@@ -1,8 +1,21 @@
+import messaging from '@react-native-firebase/messaging';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { LoginManager } from 'react-native-fbsdk-next';
+import { Platform, PermissionsAndroid } from 'react-native';
 import useAuthStore from '../store/authStore';
 import authApi from '../api/auth.api';
 import storage from '../utils/storage';
+
+async function getFcmTokenForLogin(): Promise<string | undefined> {
+  try {
+    if (Platform.OS === 'android') {
+      await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    }
+    return await messaging().getToken();
+  } catch {
+    return undefined;
+  }
+}
 
 
 export default function useAuth() {
@@ -46,10 +59,12 @@ export default function useAuth() {
    * After setting tokens, fetches full profile from /auth/me so the store
    * always has complete name/photo data regardless of what the login response returns.
    */
-  async function login(email: string, password: string, deviceToken?: string) {
+  async function login(email: string, password: string) {
     setLoading(true);
     try {
-      const res = await authApi.login({ email, password, deviceToken });
+      const deviceToken = await getFcmTokenForLogin();
+      const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+      const res = await authApi.login({ email, password, deviceToken, platform });
       await storage.setToken(res.accessToken);
       await storage.setRefreshToken(res.refreshToken);
       setAuth(res.user, res.accessToken, res.refreshToken);
@@ -67,7 +82,8 @@ export default function useAuth() {
   async function googleLogin(idToken: string) {
     setLoading(true);
     try {
-      const res = await authApi.googleLogin(idToken);
+      const deviceToken = await getFcmTokenForLogin();
+      const res = await authApi.googleLogin(idToken, deviceToken);
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
       setAuth(res.user, res.accessToken, res.refreshToken);
@@ -85,7 +101,8 @@ export default function useAuth() {
   async function facebookLogin(accessToken: string) {
     setLoading(true);
     try {
-      const res = await authApi.facebookLogin(accessToken);
+      const deviceToken = await getFcmTokenForLogin();
+      const res = await authApi.facebookLogin(accessToken, deviceToken);
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
       setAuth(res.user, res.accessToken, res.refreshToken);
