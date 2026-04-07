@@ -14,8 +14,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import Logo from '../../components/common/Logo';
+import DobPicker from '../../components/common/DobPicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useForm, Controller } from 'react-hook-form';
@@ -29,7 +29,7 @@ type FormData = {
   gender: string;
   country: string;
   bio?: string;
-  dob?: string;
+  dob: string;
 };
 
 // ─── SVG Icons ────────────────────────────────────────────────────────────────
@@ -192,37 +192,12 @@ function deriveInitialState(user: ReturnType<typeof useAuthStore.getState>['user
   return { g, c, photo, dob };
 }
 
-function parseDobToDate(dob: string): Date | undefined {
-  if (!dob) return undefined;
-  const d = new Date(dob);
-  return isNaN(d.getTime()) ? undefined : d;
-}
-
-function formatDobDisplay(dob: string): string {
-  const d = parseDobToDate(dob);
-  if (!d) return '';
-  return d.toLocaleDateString('default', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-function dateToIso(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function CalendarIcon() {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-      <Path stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
-        d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" />
-    </Svg>
-  );
-}
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function CreateProfileScreen({ navigation }: any) {
   const { uploadPhoto, saveProfile, refreshProfile } = useAuth();
   const isLoading = useAuthStore((s) => s.isLoading);
   const setPendingProfileSetup = useAuthStore((s) => s.setPendingProfileSetup);
-  const pendingProfileSetup = useAuthStore((s) => s.pendingProfileSetup);
   // Read user ONCE synchronously before any hook so we can seed initial state
   const user = useAuthStore((s) => s.user);
 
@@ -249,15 +224,15 @@ export default function CreateProfileScreen({ navigation }: any) {
   const [dob, setDob] = useState(initialDob);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [showDobPicker, setShowDobPicker] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   // Stores the device-local file URI from the last image pick.
   // Used as fallback when the CDN URL fails to load (CloudFront access issue).
   const localPreviewUriRef = useRef<string>('');
 
-  const isEditing = !!(user && user.isProfileComplete);
-
+  // Never show "Edit Profile" mode while the user is going through the initial
+  // profile setup flow — even after saveProfile() sets isProfileComplete=true on
+  // the server, we stay in "Create Profile" mode until the navigator transitions.
   // On mount, fetch fresh profile data from the server.
   // This covers the OAuth case where the backend response may not include all
   // profile fields — refreshProfile() will populate them and trigger the
@@ -410,12 +385,10 @@ export default function CreateProfileScreen({ navigation }: any) {
         dob: dob || undefined,
       });
 
-      console.log('[Save Success]: Profile updated for user.');
-      if (pendingProfileSetup) {
-        setPendingProfileSetup(false); // RootNavigator switches to MainStack
-      } else {
-        navigation.replace('Home');
-      }
+      console.log('[Save Success]: Profile created for user.');
+      // Clear the pending flag. RootNavigator switches to MainStack automatically
+      // because saveProfile → refreshProfile already set isProfileComplete=true in the store.
+      setPendingProfileSetup(false);
     } catch (err: any) {
       console.error('[Save Profile Error]:', err);
       const msg = err.response?.data?.message || err.response?.data?.error || 'Something went wrong. Please try again.';
@@ -465,10 +438,8 @@ export default function CreateProfileScreen({ navigation }: any) {
 
           {/* Form */}
           <View style={styles.form}>
-            <Text style={styles.title}>{isEditing ? 'Edit Profile' : 'Create Profile'}</Text>
-            <Text style={styles.subtitle}>
-              {isEditing ? 'Update your personal information' : 'Fill in your details to continue'}
-            </Text>
+            <Text style={styles.title}>Create Profile</Text>
+            <Text style={styles.subtitle}>Fill in your details to continue</Text>
 
             {/* Avatar — Step A */}
             <View style={styles.avatarSection}>
@@ -579,68 +550,13 @@ export default function CreateProfileScreen({ navigation }: any) {
             </TouchableOpacity>
 
             {/* Date of Birth */}
-            <TouchableOpacity
-              style={[styles.dropdownBtn, showDobPicker && styles.inputFocused]}
-              onPress={() => setShowDobPicker(true)}
-              activeOpacity={0.8}
-              disabled={busy}>
-              <Text style={[styles.dropdownText, !dob && styles.dropdownPlaceholder]}>
-                {dob ? formatDobDisplay(dob) : 'Date of Birth (optional)'}
-              </Text>
-              <CalendarIcon />
-            </TouchableOpacity>
+            <DobPicker
+              value={dob}
+              onChange={(iso) => { setDob(iso); setValue('dob', iso, { shouldValidate: true }); }}
+              error={errors.dob?.message}
+              disabled={busy}
+            />
 
-            {showDobPicker && (
-              <DateTimePicker
-                value={parseDobToDate(dob) ?? new Date(2000, 0, 1)}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                maximumDate={new Date()}
-                minimumDate={new Date(1900, 0, 1)}
-                onChange={(_, selected) => {
-                  setShowDobPicker(Platform.OS === 'ios');
-                  if (selected) {
-                    const iso = dateToIso(selected);
-                    setDob(iso);
-                    setValue('dob', iso);
-                  }
-                }}
-              />
-            )}
-
-            {/* Bio — edit profile only */}
-            {isEditing && (
-              <Controller
-                control={control}
-                name="bio"
-                render={({ field: { onChange, value } }) => (
-                  <TextInput
-                    style={[
-                      styles.input,
-                      styles.bioInput,
-                      focusedField === 'bio' && styles.inputFocused,
-                      errors.bio && styles.inputError,
-                    ]}
-                    placeholder="Adventurer, foodie, or slow traveler? Tell us your story..."
-                    placeholderTextColor="#94a3b8"
-                    value={value}
-                    onFocus={() => setFocusedField('bio')}
-                    onBlur={() => setFocusedField(null)}
-                    multiline
-                    numberOfLines={4}
-                    maxLength={100}
-                    textAlignVertical="top"
-                    underlineColorAndroid="transparent"
-                    selectionColor="#0d9488"
-                    editable={!busy}
-                    onChangeText={(val) => {
-                      onChange(val);
-                      if (apiError) setApiError(null);
-                    }}
-                  />
-                )}
-              />
-            )}
 
             {/* API Error Message */}
             {apiError && (
@@ -655,7 +571,7 @@ export default function CreateProfileScreen({ navigation }: any) {
               disabled={busy}>
               {isLoading
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.primaryBtnText}>{isEditing ? 'Save Changes' : 'Save & Continue'}</Text>}
+                : <Text style={styles.primaryBtnText}>Save & Continue</Text>}
             </TouchableOpacity>
           </View>
         </ScrollView>

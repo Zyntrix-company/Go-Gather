@@ -5,8 +5,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   FlatList,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
 
@@ -278,26 +278,19 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 32,
   },
   notifCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
+    paddingVertical: 14,
     gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e2e8f0',
   },
   notifCardUnread: {
-    borderLeftWidth: 3,
-    borderLeftColor: '#0d9488',
+    // highlight unread via the dot only — no border or background
   },
   notifIconWrap: {
     width: 40,

@@ -1,33 +1,30 @@
 import React from 'react';
-import { Image } from 'react-native';
+import { Image, StyleSheet } from 'react-native';
+import { s } from '../../utils/responsive';
 
 type LogoProps = {
   size?: 'small' | 'default' | 'large';
-  iconOnly?: boolean;
 };
 
-export function Logo({ size = 'default', iconOnly = false }: LogoProps) {
-  if (iconOnly) {
-    const iconSize = size === 'small' ? 36 : size === 'large' ? 56 : 44;
-    return (
-      <Image
-        source={require('../../../assets/icon_only.png')}
-        style={{ width: iconSize, height: iconSize }}
-        resizeMode="contain"
-      />
-    );
-  }
+const SIZE_MAP = {
+  small:   { w: s(120), h: s(48)  },
+  default: { w: s(160), h: s(64)  },
+  large:   { w: s(200), h: s(80)  },
+};
 
-  const width = size === 'small' ? 120 : size === 'large' ? 240 : 180;
-  const height = Math.round(width * 0.4);
-
+export function Logo({ size = 'default' }: LogoProps) {
+  const { w, h } = SIZE_MAP[size];
   return (
     <Image
       source={require('../../../assets/Complete Logo Teal w_o BG.png')}
-      style={{ width, height }}
+      style={[styles.logo, { width: w, height: h }]}
       resizeMode="contain"
     />
   );
 }
+
+const styles = StyleSheet.create({
+  logo: {},
+});
 
 export default Logo;

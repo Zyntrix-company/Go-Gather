@@ -18,9 +18,13 @@ function ProfileSetupNavigator() {
 export default function RootNavigator() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const pendingProfileSetup = useAuthStore((s) => s.pendingProfileSetup);
+  const user = useAuthStore((s) => s.user);
 
   if (!isAuthenticated) return <AuthStack />;
-  if (pendingProfileSetup) return <ProfileSetupNavigator />;
+  // Show profile setup if explicitly pending OR if user exists but profile isn't complete.
+  // Checking isProfileComplete directly prevents the Main screen flash that occurs
+  // when setAuth() fires before setPendingProfileSetup(true) in the signup/social flows.
+  if (pendingProfileSetup || (user && user.isProfileComplete === false)) return <ProfileSetupNavigator />;
 
   return <MainStack />;
 }

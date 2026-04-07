@@ -196,6 +196,13 @@ export default function useAuth() {
       const token = (await storage.getToken()) || useAuthStore.getState().accessToken;
       if (!token) return null;
       const user = await authApi.getMe();
+      // Preserve a locally-extracted DOB (e.g. from Google People API or Facebook
+      // Graph API) if the server hasn't stored one yet. Without this, the server
+      // response would overwrite the dob set via updateUser() in the login flow.
+      const storedDob = useAuthStore.getState().user?.dob;
+      if (!user.dob && storedDob) {
+        user.dob = storedDob;
+      }
       const refreshToken = (await storage.getRefreshToken()) || useAuthStore.getState().refreshToken;
       setAuth(user, token, refreshToken);
       return user;
@@ -226,17 +233,34 @@ export default function useAuth() {
     }
   }
 
-  return { 
-    signup, 
-    verifyOtp, 
-    login, 
-    googleLogin, 
-    facebookLogin, 
-    logout, 
-    loadFromToken, 
+  async function editProfile(payload: {
+    fullName?: string;
+    gender?: string;
+    country?: string;
+    bio?: string;
+    dob?: string;
+  }) {
+    setLoading(true);
+    try {
+      await authApi.updateProfile(payload);
+      await refreshProfile();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return {
+    signup,
+    verifyOtp,
+    login,
+    googleLogin,
+    facebookLogin,
+    logout,
+    loadFromToken,
     refreshProfile,
-    resendOtp, 
-    uploadPhoto, 
-    saveProfile 
+    resendOtp,
+    uploadPhoto,
+    saveProfile,
+    editProfile,
   };
 }

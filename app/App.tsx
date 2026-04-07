@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { StatusBar, Platform, PermissionsAndroid } from 'react-native';
+import { StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import RootNavigator from './src/navigation/RootNavigator';
@@ -17,21 +17,8 @@ import Toast from 'react-native-toast-message';
 // Configure geolocation to use native Android location provider
 Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLevel: 'whenInUse' });
 
-async function requestAppPermissions() {
-  if (Platform.OS !== 'android') return;
-  try {
-    await PermissionsAndroid.requestMultiple([
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-    ]);
-  } catch {
-    // Silently handle — permissions can be requested again contextually
-  }
-}
-
 function App() {
   useEffect(() => {
-    requestAppPermissions();
     // TODO: replace with actual webClientId from Google Cloud console
     try {
       GoogleSignin.configure({

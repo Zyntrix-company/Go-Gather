@@ -293,6 +293,20 @@ const authApi = {
     const { data } = await client.post('/users/profile', payload);
     return data;
   },
+
+  /**
+   * PUT /users/profile
+   * Updates mutable profile fields for an already-complete profile.
+   */
+  updateProfile: async (payload: {
+    fullName?: string;
+    gender?: string;
+    country?: string;
+    bio?: string;
+    dob?: string;
+  }): Promise<void> => {
+    await client.put('/users/profile', payload);
+  },
 };
 
 export default authApi;

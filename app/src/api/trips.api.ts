@@ -383,6 +383,68 @@ export async function deleteDoc(tripId: string, docId: string) {
   return res.data as { success: boolean };
 }
 
+// ─── 5b. Email Doc Import ─────────────────────────────────────────────────────
+
+export type EmailProvider = 'gmail' | 'outlook';
+
+export type EmailAttachment = {
+  attachmentId: string;
+  messageId: string;
+  fileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  emailSubject: string | null;
+  emailFrom: string | null;
+  emailDate: string | null;
+};
+
+export type EmailConnectionStatus = {
+  gmail:   { connected: boolean; email: string | null };
+  outlook: { connected: boolean; email: string | null };
+};
+
+export async function getEmailConnectUrl(provider: EmailProvider) {
+  const res = await client.get(`/auth/email/${provider}/connect-url`);
+  return res.data as { url: string };
+}
+
+export async function getEmailStatus() {
+  const res = await client.get('/email-docs/status');
+  return res.data as {
+    gmail:   { connected: boolean; email: string | null };
+    outlook: { connected: boolean; email: string | null };
+  };
+}
+
+// tripId is optional here — in the Create Trip flow it may not exist yet
+export async function listEmailAttachments(provider: EmailProvider, tripId?: string) {
+  const res = await client.get('/email-docs/attachments', {
+    params: { provider, ...(tripId ? { tripId } : {}) },
+  });
+  return res.data as { attachments: EmailAttachment[]; total: number };
+}
+
+export async function importEmailAttachments(
+  tripId: string,
+  provider: EmailProvider,
+  attachments: Pick<EmailAttachment, 'attachmentId' | 'messageId' | 'fileName'>[],
+) {
+  const res = await client.post('/email-docs/import', {
+    tripId,
+    provider,
+    attachments: attachments.map(a => ({ ...a, provider })),
+  });
+  return res.data as {
+    imported: { docId: string; fileName: string; fileUrl: string }[];
+    failed:   { fileName: string; reason: string }[];
+  };
+}
+
+export async function disconnectEmailProvider(provider: EmailProvider) {
+  const res = await client.delete(`/auth/email/${provider}/disconnect`);
+  return res.data as { success: boolean };
+}
+
 // ─── 6. Photos ────────────────────────────────────────────────────────────────
 
 export async function getTripPhotos(tripId: string) {

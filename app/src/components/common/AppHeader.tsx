@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Image, TouchableOpacity, StyleSheet, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
 type AppHeaderProps = {
@@ -38,8 +39,9 @@ function HamburgerIcon() {
 }
 
 export default function AppHeader({ notificationCount = 0, onLogoPress, onBellPress, onMenuPress }: AppHeaderProps) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
       <TouchableOpacity onPress={onLogoPress} activeOpacity={0.8} disabled={!onLogoPress}>
         <Image
           source={require('../../../assets/icon_only.png')}
@@ -72,12 +74,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingBottom: 8,
     backgroundColor: 'transparent',
   },
   logo: {
-    width: 40,
-    height: 40,
+    width: 26,
+    height: 26,
   },
   rightSection: {
     flexDirection: 'row',

@@ -290,10 +290,7 @@ export default function SignupScreen({ navigation }: any) {
     if (user.isVerified === false) {
       return navigation.replace('OtpVerification', { email: user.email });
     }
-    if (user.isProfileComplete === false) {
-      return navigation.replace('CreateProfile');
-    }
-    // RootNavigator will take care of Home navigation
+    // RootNavigator handles routing to ProfileSetupNavigator when isProfileComplete===false
   }
 
   async function onSubmit(data: FormData) {
