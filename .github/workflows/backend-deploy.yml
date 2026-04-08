@@ -51,14 +51,13 @@ jobs:
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
           # Login to ECR from EC2
-          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 092201262561.dkr.ecr.ap-south-1.amazonaws.com
+          aws ecr get-login-password --region ap-south-1 | sudo docker login --username AWS --password-stdin 092201262561.dkr.ecr.ap-south-1.amazonaws.com
           cd /home/ubuntu/Go-Gather/backend
           # Pull latest image
-          docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
-    
-          # Stop and remove old container
-          sudo docker stop gathergo-container || true
-          sudo docker rm gathergo-container || true
+          sudo docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
+
+          # Force remove old container (kills + removes in one step)
+          sudo docker rm -f gathergo-container || true
 
           # Run new container
           sudo docker run -d \
