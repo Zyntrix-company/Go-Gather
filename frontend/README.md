@@ -1,5 +1,5 @@
 
-  # GatherrGo Frontend
+  # GatherrGo 
 
   This is a code bundle for GatherrGo. The original project is available at https://www.figma.com/design/2xmI17hMKkO25OYEgMmERH/GatherrGo.
 
