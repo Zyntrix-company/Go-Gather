@@ -48,7 +48,7 @@ export default function Privacy() {
             At GatherrGo, we are committed to protecting your personal data and respecting your privacy. In order to provide you with access to the Services, we have to collect and otherwise process certain data about you. This Policy explains how we process and use personal data about you.
           </p>
           <p>
-            Please note that unless specifically defined in this Policy, capitalised terms shall have the same meaning ascribed to them in our Terms and Conditions, available in the App or at [yourwebsite.com/terms] ("Terms"). Please read this Policy in consonance with the Terms.
+            Please note that unless specifically defined in this Policy, capitalised terms shall have the same meaning ascribed to them in our Terms and Conditions, available in the App or at <a href="https://www.gatherrgo.com/terms" className="text-teal-600 hover:text-teal-700 transition-colors">https://www.gatherrgo.com/terms</a> ("Terms"). Please read this Policy in consonance with the Terms.
           </p>
           <p>
             By using the Services, you confirm that you have read and agree to be bound by this Policy and consent to the processing activities described under this Policy. Please refer to Section 1 to understand how the terms of this Policy apply to you.
@@ -209,7 +209,7 @@ export default function Privacy() {
             <h2 className="text-2xl md:text-3xl font-bold text-slate-900">7. Your Rights in Relation to Your Personal Data</h2>
           </div>
           <div className="space-y-4 text-base text-slate-600 font-normal pl-4 border-l-2 border-teal-100">
-            <p><strong className="text-slate-900 font-semibold">(a) Access and Updating your Personal Data:</strong> You hereby warrant that all personal data that you provide us with is accurate, up-to-date, and true. When you use our Services, we make best efforts to provide you with the ability to access and correct inaccurate or deficient data, subject to any legal requirements. You can request GatherrGo for a copy of your personal data by sending an email to Hello@GatherrGo.com. GatherrGo may take up to 30 days to respond to such a request.</p>
+            <p><strong className="text-slate-900 font-semibold">(a) Access and Updating your Personal Data:</strong> You hereby warrant that all personal data that you provide us with is accurate, up-to-date, and true. When you use our Services, we make best efforts to provide you with the ability to access and correct inaccurate or deficient data, subject to any legal requirements. You can request GatherrGo for a copy of your personal data by sending an email to Support@GatherrGo.com. GatherrGo may take up to 30 days to respond to such a request.</p>
             <p><strong className="text-slate-900 font-semibold">(b) Opting-out of Marketing and Promotional Communications:</strong> When we send you marketing and promotional content through push notification or email, we make best efforts to provide you with the ability to opt-out of such communications by using the opt-out instructions provided in such communications. You understand and acknowledge that it may take us up to 10 business days to give effect to your opt-out request. Please note that we may still send you emails about your user account or any Services you have requested or received from us.</p>
           </div>
         </section>
@@ -223,7 +223,7 @@ export default function Privacy() {
             <h2 className="text-2xl md:text-3xl font-bold text-slate-900">8. Deletion of Account and Personal Data</h2>
           </div>
           <div className="space-y-4 text-base text-slate-600 font-normal pl-4 border-l-2 border-teal-100">
-            <p><strong className="text-slate-900 font-semibold">(a)</strong> Notwithstanding anything contained in the Terms, you may delete your account as well as your personal data stored with GatherrGo by sending an email to Hello@GatherrGo.com. GatherrGo may take up to 30 days to process your request. Once your account is deleted, you will lose access to all Services. For avoidance of doubt, it is hereby clarified that all data with respect to transactions performed by you on the Platform will be retained in accordance with applicable law.</p>
+            <p><strong className="text-slate-900 font-semibold">(a)</strong> Notwithstanding anything contained in the Terms, you may delete your account as well as your personal data stored with GatherrGo by sending an email to Support@GatherrGo.com. GatherrGo may take up to 30 days to process your request. Once your account is deleted, you will lose access to all Services. For avoidance of doubt, it is hereby clarified that all data with respect to transactions performed by you on the Platform will be retained in accordance with applicable law.</p>
           </div>
         </section>
 
@@ -318,11 +318,11 @@ export default function Privacy() {
             <h2 className="text-2xl md:text-3xl font-bold text-slate-900">15. Grievance Officer</h2>
           </div>
           <div className="space-y-4 text-base text-slate-600 font-normal pl-4 border-l-2 border-teal-100">
-            <p>If you have any questions about this Policy, how we process or handle your personal data, or otherwise, you may reach out to us, with your queries, grievances, feedback, and comments at Hello@GatherrGo.com or contact our grievance officer whose contact details are provided below:</p>
+            <p>If you have any questions about this Policy, how we process or handle your personal data, or otherwise, you may reach out to us, with your queries, grievances, feedback, and comments at Support@GatherrGo.com or contact our grievance officer whose contact details are provided below:</p>
             <div className="mt-4 p-6 bg-teal-50/50 rounded-2xl border border-teal-100">
               <h3 className="font-bold text-slate-900 mb-2">Grievance Officer</h3>
               <p>Name: Ankan Nandi</p>
-              <p>Email: <a href="mailto:Hello@GatherrGo.com" className="text-teal-600 hover:text-teal-700 transition-colors">Hello@GatherrGo.com</a></p>
+              <p>Email: <a href="mailto:Support@GatherrGo.com" className="text-teal-600 hover:text-teal-700 transition-colors">Support@GatherrGo.com</a></p>
             </div>
           </div>
         </section>

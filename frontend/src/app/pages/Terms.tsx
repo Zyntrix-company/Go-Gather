@@ -48,7 +48,7 @@ export default function Terms() {
             By downloading, installing, accessing, or using the App, you agree to be bound by these Terms. If you do not agree, you must not use the App or Services.
           </p>
           <p>
-            Please read these Terms carefully together with our Privacy Policy (available in the App or at [yourwebsite.com/privacy]).
+            Please read these Terms carefully together with our Privacy Policy (available in the App or at <a href="https://www.gatherrgo.com/privacy" className="text-teal-600 hover:text-teal-700 transition-colors">https://www.gatherrgo.com/privacy</a>).
           </p>
         </div>
 
@@ -242,7 +242,7 @@ export default function Terms() {
           <div className="space-y-4 text-base text-slate-600 font-normal pl-4 border-l-2 border-teal-100">
             <p>For questions or support, you can reach out to us at:</p>
             <div className="mt-4 p-6 bg-teal-50/50 rounded-2xl border border-teal-100">
-              <p>Email: <a href="mailto:Hello@GatherrGo.com" className="text-teal-600 hover:text-teal-700 transition-colors">Hello@GatherrGo.com</a></p>
+              <p>Email: <a href="mailto:Support@GatherrGo.com" className="text-teal-600 hover:text-teal-700 transition-colors">Support@GatherrGo.com</a></p>
             </div>
           </div>
         </section>

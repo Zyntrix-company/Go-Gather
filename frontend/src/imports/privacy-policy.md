@@ -2,7 +2,7 @@ Last updated: 11 March 2026
 Welcome to GatherGo’s privacy policy (“Privacy Policy” or “Policy”).
 GatherGo (the “App” or “we”, “us”, “our”) is a mobile application that enables users to collaboratively plan group trips, events, expenses, reminders, photos, and memories in one private or shared space. This Policy outlines our practices in relation to the collection, storage, usage, processing, and disclosure of personal data that you have consented to share with us when you access, use, or otherwise interact with our mobile application ‘GatherGo’ (the “Platform”) or avail products or services that GatherGo offers you on or through the Platform (collectively, the “Services”).
 At GatherGo, we are committed to protecting your personal data and respecting your privacy. In order to provide you with access to the Services, we have to collect and otherwise process certain data about you. This Policy explains how we process and use personal data about you.
-Please note that unless specifically defined in this Policy, capitalised terms shall have the same meaning ascribed to them in our Terms and Conditions, available in the App or at [yourwebsite.com/terms] (“Terms”). Please read this Policy in consonance with the Terms.
+Please note that unless specifically defined in this Policy, capitalised terms shall have the same meaning ascribed to them in our Terms and Conditions, available in the App or at https://www.gatherrgo.com/terms (“Terms”). Please read this Policy in consonance with the Terms.
 By using the Services, you confirm that you have read and agree to be bound by this Policy and consent to the processing activities described under this Policy. Please refer to Section 1 to understand how the terms of this Policy apply to you.
 1. Background and Key Information
 (a) How this Policy applies:
@@ -92,7 +92,7 @@ We invite you to post content on our Platform, including your comments, feedback
 (a) We may occasionally update this Policy. If we make changes to this Policy, we will upload the revised policy on the Platform or share it with you through other means, such as email or in-app notification. To the extent permitted under applicable law, by using our Platform after such notice, you consent to updates made to this Policy.
 (b) We encourage you to periodically review this Policy for the latest information on our privacy practices.
 15. Grievance Officer
-If you have any questions about this Policy, how we process or handle your personal data, or otherwise, you may reach out to us, with your queries, grievances, feedback, and comments at hello@gathergo.app or contact our grievance officer whose contact details are provided below:
+If you have any questions about this Policy, how we process or handle your personal data, or otherwise, you may reach out to us, with your queries, grievances, feedback, and comments at Support@GatherrGo.com or contact our grievance officer whose contact details are provided below:
 Grievance Officer
 Name: Ankan Nandi
-Email: hello@gathergo.app
+Email: Support@GatherrGo.com

@@ -61,7 +61,7 @@ export default function Contact() {
     <div className="pt-8 md:pt-28 pb-20 px-6 min-h-[calc(100vh-4rem)] flex flex-col justify-start">
       <SEO
         title="Contact GatherrGo — Get in Touch"
-        description="Have a question or feedback? Reach out to the GatherrGo team at Hello@GatherrGo.com. We're here to help you get the most out of group travel planning."
+        description="Have a question or feedback? Reach out to the GatherrGo team at Support@GatherrGo.com. We're here to help you get the most out of group travel planning."
         canonical="/contact"
       />
       <div className="max-w-3xl mx-auto w-full">
@@ -240,8 +240,8 @@ export default function Contact() {
         >
           <p className="text-slate-500 font-normal">
             Prefer to email us directly? Reach out at{' '}
-            <a href="mailto:Hello@GatherrGo.com" className="text-teal-600 hover:text-teal-700 transition-colors underline decoration-teal-600/30 underline-offset-4 font-normal">
-              Hello@GatherrGo.com
+            <a href="mailto:Support@GatherrGo.com" className="text-teal-600 hover:text-teal-700 transition-colors underline decoration-teal-600/30 underline-offset-4 font-normal">
+              Support@GatherrGo.com
             </a>
           </p>
         </motion.div>

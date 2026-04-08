@@ -2,7 +2,7 @@ Last updated: 11 March 2026
 Welcome to GatherGo’s Terms and Conditions (“Terms” or “Agreement”).
 GatherGo (the “App” or “we”, “us”, “our”) is a mobile application that enables users to collaboratively plan group trips, events, expenses, reminders, photos, and memories in one private or shared space. These Terms govern your access to and use of the App and any services provided through it (“Services”).
 By downloading, installing, accessing, or using the App, you agree to be bound by these Terms. If you do not agree, you must not use the App or Services.
-Please read these Terms carefully together with our Privacy Policy (available in the App or at [yourwebsite.com/privacy]).
+Please read these Terms carefully together with our Privacy Policy (available in the App or at https://www.gatherrgo.com/privacy).
 1. Acceptance of Terms
 By using the Services, you confirm that you have read, understood, and agree to be bound by these Terms and consent to the practices described herein. If you are using the App on behalf of an entity, you represent that you have authority to bind that entity.
 2. Eligibility
@@ -36,5 +36,5 @@ These Terms are governed by the laws of India. Any disputes shall be subject to 
 11. Changes to Terms
 We may update these Terms. We will notify you of material changes via in-app notice or email. Continued use after changes constitutes acceptance.
 12. Contact
-For questions or support: hello@GatherrGo.com
+For questions or support: Support@GatherrGo.com
 
