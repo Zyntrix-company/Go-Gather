@@ -57,11 +57,11 @@ jobs:
           docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
     
           # Stop and remove old container
-          docker stop gathergo-container || true
-          docker rm gathergo-container || true
-    
+          sudo docker stop gathergo-container || true
+          sudo docker rm gathergo-container || true
+
           # Run new container
-          docker run -d \
+          sudo docker run -d \
           --name gathergo-container \
           -p 3000:3000 \
           --env-file .env \
