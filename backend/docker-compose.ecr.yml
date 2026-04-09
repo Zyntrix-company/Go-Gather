@@ -1,0 +1,30 @@
+# ─── ECR Production Deployment ─────────────────────────────────────────────────
+# Used by CI/CD — image is pulled from ECR, not built locally.
+# The BACKEND_IMAGE env var is set by the GitHub Actions workflow.
+#
+# Usage (manual):
+#   BACKEND_IMAGE=092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:<sha> \
+#   docker compose -f docker-compose.ecr.yml --env-file .env up -d
+
+version: '3.9'
+
+services:
+  api:
+    image: ${BACKEND_IMAGE}
+    container_name: gathergo-container
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/health | grep -q "ok" || exit 1']
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'

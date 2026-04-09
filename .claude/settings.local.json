@@ -43,7 +43,8 @@
       "Bash(aws sns:*)",
       "Bash(aws ses:*)",
       "Bash(curl -sI https://gatherrgo.com --max-time 10)",
-      "Bash(curl -sI https://www.gatherrgo.com --max-time 10)"
+      "Bash(curl -sI https://www.gatherrgo.com --max-time 10)",
+      "Bash(aws configure:*)"
     ]
   }
 }

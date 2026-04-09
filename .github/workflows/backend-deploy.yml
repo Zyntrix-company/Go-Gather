@@ -10,7 +10,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # 🎯 Context for monorepo
     defaults:
       run:
         working-directory: ./backend
@@ -29,16 +28,21 @@ jobs:
     - name: Login to Amazon ECR
       uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Build Docker image
-      run: docker build -t backend-api .
-
-    - name: Tag Docker image
+    - name: Build and push Docker image to ECR
       run: |
+        docker build -t backend-api .
         docker tag backend-api:latest 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
-
-    - name: Push Docker image to ECR
-      run: |
         docker push 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
+
+    - name: Copy compose file to EC2
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        source: backend/docker-compose.ecr.yml
+        target: /home/ubuntu/Go-Gather
+        strip_components: 1
 
     - name: Deploy to EC2 via SSH
       uses: appleboy/ssh-action@v1.0.3
@@ -46,27 +50,22 @@ jobs:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
+        request_pty: true
         script: |
-          # Login to ECR from EC2
-          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 092201262561.dkr.ecr.ap-south-1.amazonaws.com
+          set -e
+
+          # Login to ECR
+          aws ecr get-login-password --region ap-south-1 \
+            | docker login --username AWS --password-stdin 092201262561.dkr.ecr.ap-south-1.amazonaws.com
+
           cd /home/ubuntu/Go-Gather/backend
-          # Pull latest image
+
+          # Pull the new image
           docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
-          # Stop and remove old container (sudo handles root-owned containers)
-          sudo docker stop gathergo-container 2>/dev/null || true
-          sudo docker rm -f gathergo-container 2>/dev/null || docker rm -f gathergo-container 2>/dev/null || true
+          # Deploy — docker compose handles stop/remove/start atomically
+          BACKEND_IMAGE=092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }} \
+          docker compose -f docker-compose.ecr.yml up -d --remove-orphans
 
-          # Verify container is gone before proceeding
-          if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^gathergo-container$'; then
-            echo "ERROR: Failed to remove existing container" >&2
-            exit 1
-          fi
-
-          # Run new container
-          docker run -d \
-          --name gathergo-container \
-          --restart unless-stopped \
-          -p 3000:3000 \
-          --env-file .env \
-            092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
+          # Verify the container is running
+          docker ps --filter name=gathergo-container --format "table {{.Names}}\t{{.Status}}"
