@@ -14,8 +14,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import BlobBackground from '../../components/common/BlobBackground';
 import DetailDialogHeader from '../../components/details/DetailDialogHeader';
 import DetailTabBar from '../../components/details/DetailTabBar';
-import DetailHeroCard from '../../components/details/DetailHeroCard';
-import DetailStatsBar from '../../components/details/DetailStatsBar';
+import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import SweeFab from '../../components/details/SweeFab';
 import {
   BackIcon, PencilIcon, TrashIcon, CheckIcon,
@@ -380,34 +379,31 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-          {/* Hero Card */}
-          <DetailHeroCard
+          {/* Hero Card — with stats row inside */}
+          <SharedDetailHeroCard
             name={event.name}
             dateLine={event.dateLine}
             location={event.location}
             dayCount={Math.abs(event.dayCount)}
             dayLabel={dayLabel}
-            typeBadge={event.type}
-            typeBadgeColor={event.typeColor}
-            onEdit={openEditEvent}
-            gradientColors={['#ccfbf1', '#cffafe']}
-          />
-
-          {/* Stats Row */}
-          <DetailStatsBar
             memberCount={memberCount}
             docCount={docs.length}
             photoCount={photos.length}
             totalExpenses={totalExp}
+            typeBadge={event.type}
+            typeBadgeColor={event.typeColor}
+            onEdit={openEditEvent}
           />
 
-          {/* ── Action Buttons ── */}
+          {/* ── Action Buttons: 4 top row, 2 bottom aligned under Docs & Members ── */}
           <View style={styles.actionsWrap}>
+            {/* Row 1: Docs | Members | Photos | Expenses */}
             <View style={styles.actionsRow}>
               {[
-                { label: 'Docs',    bg: '#cffafe', ic: '#0e7490', p: 'docs',    fn: () => setShowDocs(true) },
-                { label: 'Members', bg: '#ede9fe', ic: '#6d28d9', p: 'members', fn: () => setShowMembers(true) },
-                { label: 'Photos',  bg: '#ffe4e6', ic: '#be123c', p: 'photos',  fn: () => setShowPhotos(true) },
+                { label: 'Docs',     bg: '#cffafe', ic: '#0e7490', p: 'docs',     fn: () => setShowDocs(true) },
+                { label: 'Members',  bg: '#ede9fe', ic: '#6d28d9', p: 'members',  fn: () => setShowMembers(true) },
+                { label: 'Photos',   bg: '#ffe4e6', ic: '#be123c', p: 'photos',   fn: () => setShowPhotos(true) },
+                { label: 'Expenses', bg: '#ffedd5', ic: '#c2410c', p: 'expenses', fn: () => setShowExpenses(true) },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
                   <View style={[styles.actionCircle, { backgroundColor: btn.bg }]}><ActionIcon path={btn.p} color={btn.ic} /></View>
@@ -415,17 +411,19 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 </TouchableOpacity>
               ))}
             </View>
+            {/* Row 2: Polls under Docs (col 0), Notes under Members (col 1), rest empty */}
             <View style={styles.actionsRow}>
-              {[
-                { label: 'Expenses', bg: '#ffedd5', ic: '#c2410c', p: 'expenses', fn: () => setShowExpenses(true) },
-                { label: 'Polls',    bg: '#e0e7ff', ic: '#4338ca', p: 'polls',    fn: () => setShowPolls(true) },
-                { label: 'Notes',    bg: '#d1fae5', ic: '#065f46', p: 'notes',    fn: () => setShowNotes(true) },
-              ].map(btn => (
-                <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
-                  <View style={[styles.actionCircle, { backgroundColor: btn.bg }]}><ActionIcon path={btn.p} color={btn.ic} /></View>
-                  <Text style={styles.actionLabel}>{btn.label}</Text>
-                </TouchableOpacity>
-              ))}
+              <TouchableOpacity style={styles.actionBtn} onPress={() => setShowPolls(true)} activeOpacity={0.8}>
+                <View style={[styles.actionCircle, { backgroundColor: '#e0e7ff' }]}><ActionIcon path="polls" color="#4338ca" /></View>
+                <Text style={styles.actionLabel}>Polls</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => setShowNotes(true)} activeOpacity={0.8}>
+                <View style={[styles.actionCircle, { backgroundColor: '#d1fae5' }]}><ActionIcon path="notes" color="#065f46" /></View>
+                <Text style={styles.actionLabel}>Notes</Text>
+              </TouchableOpacity>
+              {/* Spacers to keep alignment with 4-col grid */}
+              <View style={styles.actionBtn} />
+              <View style={styles.actionBtn} />
             </View>
           </View>
 
@@ -452,7 +450,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   multiline
                   autoFocus
                   placeholderTextColor="#94a3b8"
-                  placeholder="Describe your event..."
+                  placeholder="Add a description for your event — what's it about, what to expect, dress code, agenda..."
                 />
                 <View style={styles.descEditFooter}>
                   <Text style={[styles.descWordCount, countWords(descDraft) >= 100 && { color: '#ef4444' }]}>
@@ -475,9 +473,15 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 </View>
               </View>
             ) : (
-              <View style={styles.descCard}>
-                <Text style={styles.descText}>{event.description}</Text>
-              </View>
+              <TouchableOpacity
+                style={styles.descCard}
+                onPress={() => { setDescDraft(event.description); setEditingDesc(true); }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.descText, !event.description && { color: '#94a3b8', fontStyle: 'italic' }]}>
+                  {event.description || 'Add a description for your event — what\'s it about, what to expect, dress code, agenda...'}
+                </Text>
+              </TouchableOpacity>
             )}
           </View>
 

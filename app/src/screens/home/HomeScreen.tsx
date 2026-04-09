@@ -527,6 +527,7 @@ export default function HomeScreen({ navigation }: any) {
   const [showTripMenu, setShowTripMenu] = useState<string | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isLoadingTrips, setIsLoadingTrips] = useState(false);
+  const [archivedEventsList, setArchivedEventsList] = useState<any[]>([]);
 
   const [insightIndex, setInsightIndex] = useState(0);
   const insightRef = useRef<FlatList>(null);
@@ -924,12 +925,7 @@ export default function HomeScreen({ navigation }: any) {
           <UserMenuIcon />
           <Text style={styles.dropdownItemText}>Account</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); navigation.navigate('Notifications'); }}>
-          <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-            <Path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-          <Text style={styles.dropdownItemText}>Notifications</Text>
-        </TouchableOpacity>
+      
         <TouchableOpacity style={styles.dropdownItem} onPress={() => setShowProfileMenu(false)}>
           <SettingsIcon />
           <Text style={styles.dropdownItemText}>Settings</Text>
@@ -939,6 +935,12 @@ export default function HomeScreen({ navigation }: any) {
             <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
           </Svg>
           <Text style={styles.dropdownItemText}>Archived Trips</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); navigation.navigate('ArchivedEvents', { archivedEvents: archivedEventsList }); }}>
+          <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+            <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          </Svg>
+          <Text style={styles.dropdownItemText}>Archived Events</Text>
         </TouchableOpacity>
         <View style={styles.dropdownDivider} />
         <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); logout(); }}>
@@ -965,7 +967,10 @@ export default function HomeScreen({ navigation }: any) {
 
         {activeTab === 'home' && renderHomeTab()}
         {activeTab === 'trips' && <TripsScreen />}
-        {activeTab === 'events' && <EventsScreen />}
+        {/* Keep EventsScreen mounted to preserve local state across tab switches */}
+        <View style={{ flex: 1, display: activeTab === 'events' ? 'flex' : 'none' }}>
+          <EventsScreen onArchivedEventsChange={setArchivedEventsList} />
+        </View>
         {activeTab === 'friends' && renderFriendsTab()}
         {activeTab === 'chat' && renderChatTab()}
         {activeTab === 'gallery' && renderGalleryTab()}
@@ -1406,7 +1411,7 @@ const styles = StyleSheet.create({
   // ── Profile Dropdown ──
   dropdownOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000 },
   dropdownBackdrop: { flex: 1 },
-  profileDropdown: { position: 'absolute', top: 70, right: 20, width: 240, backgroundColor: '#fff', borderRadius: 16, padding: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 8, borderWidth: 1, borderColor: '#f1f5f9' },
+  profileDropdown: { position: 'absolute', top: 70, right: 20, width: 240, maxHeight: 420, backgroundColor: '#fff', borderRadius: 16, padding: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 8, borderWidth: 1, borderColor: '#f1f5f9' },
   dropdownHeader: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
   dropdownAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#f1f5f9' },
   dropdownUserText: { flex: 1 },

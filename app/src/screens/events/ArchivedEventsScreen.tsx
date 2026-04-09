@@ -100,7 +100,7 @@ export default function ArchivedEventsScreen() {
                 style={styles.restoreBtn}
                 onPress={() => handleUnarchive(event)}
                 activeOpacity={0.8}>
-                <Text style={styles.restoreBtnText}>Restore</Text>
+                <Text style={styles.restoreBtnText}>Move to Events</Text>
               </TouchableOpacity>
             </View>
           </View>

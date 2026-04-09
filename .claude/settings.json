@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//tmp/**)",
+      "Bash(node -e ':*)"
+    ],
+    "additionalDirectories": [
+      "e:\\Demo\\app\\src\\screens\\main"
+    ]
+  }
+}

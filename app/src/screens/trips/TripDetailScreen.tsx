@@ -12,6 +12,7 @@ import { WebView } from 'react-native-webview';
 // DocumentPicker loaded dynamically to avoid crash if native module not yet linked
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import BlobBackground from '../../components/common/BlobBackground';
+import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import useAuthStore from '../../store/authStore';
 import Toast from 'react-native-toast-message';
 import {
@@ -1189,59 +1190,32 @@ export default function TripDetailScreen({ route, navigation }: any) {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
         {/* ── Header Card ── */}
-        <LinearGradient colors={['#ccfbf1', '#cffafe']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.headerCard}>
-          <View style={styles.cardRow}>
-            {/* Left */}
-            <View style={{ flex: 1 }}>
-              <Text style={styles.tripName}>{trip?.name ?? 'Trip'}</Text>
-              <Text style={styles.tripDates}>{trip?.startDate ?? ''}{trip?.endDate ? ` - ${trip.endDate}` : ''}</Text>
-              {!!trip?.location && <Text style={styles.tripLocation}>{typeof trip.location === 'string' ? trip.location : trip.location?.name}</Text>}
-            </View>
-            {/* Right: days counter + edit/delete controls */}
-            <View style={styles.daysArea}>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-                <Text style={styles.daysNumber}>{Math.abs(days)}</Text>
-                <TouchableOpacity onPress={openEditTrip} style={styles.pencilBtn} activeOpacity={0.7}>
-                  <PencilIcon />
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.daysLabel}>{days > 0 ? 'Days to go' : days === 0 ? 'Today!' : 'Days ago'}</Text>
-              {role === 'admin' && (
-                <TouchableOpacity
-                  onPress={() => Alert.alert('Delete Trip', 'This will permanently delete the trip and all its data.', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: async () => {
-                      try { await apiDeleteTrip(tripId); navigation.goBack(); }
-                      catch (err) { handleApiError(err); }
-                    }},
-                  ])}
-                  style={{ marginTop: 4 }} activeOpacity={0.7}>
-                  <Text style={{ fontSize: 11, color: '#ef4444', fontWeight: '600' }}>Delete Trip</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-
-          {/* Stats row */}
-          <View style={styles.statsRow}>
-            <View style={styles.statBadge}>
-              <Svg width={13} height={13} viewBox="0 0 24 24" fill="none"><Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
-              <Text style={styles.statTxt}>{memberCount}</Text>
-            </View>
-            <View style={styles.statBadge}>
-              <Svg width={13} height={13} viewBox="0 0 24 24" fill="none"><Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M14 2v6h6" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
-              <Text style={styles.statTxt}>{docs.length > 0 ? docs.length : (apiStats?.docCount ?? 0)}</Text>
-            </View>
-            <View style={styles.statBadge}>
-              <Svg width={13} height={13} viewBox="0 0 24 24" fill="none"><Rect x={3} y={3} width={18} height={18} rx={2} stroke="#334155" strokeWidth={2} /><Circle cx={8.5} cy={8.5} r={1.5} fill="#334155" /><Path d="M21 15l-5-5L5 21" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
-              <Text style={styles.statTxt}>{photos.length > 0 ? photos.length : (apiStats?.photoVideoCount ?? 0)}</Text>
-            </View>
-            <View style={styles.statBadge}>
-              <Text style={[styles.statTxt, { fontSize: 12, fontWeight: '700' }]}>₹</Text>
-              <Text style={styles.statTxt}>{totalExp > 0 ? totalExp.toFixed(0) : (apiStats?.totalExpenseAmount ? apiStats.totalExpenseAmount.toFixed(0) : '0')}</Text>
-            </View>
-          </View>
-        </LinearGradient>
+        <SharedDetailHeroCard
+          name={trip?.name ?? 'Trip'}
+          dateLine={`${trip?.startDate ?? ''}${trip?.endDate ? ` - ${trip.endDate}` : ''}`}
+          location={typeof trip?.location === 'string' ? trip.location : trip?.location?.name ?? ''}
+          dayCount={Math.abs(days)}
+          dayLabel={days > 0 ? 'Days to go' : days === 0 ? 'Today!' : 'Days ago'}
+          memberCount={memberCount}
+          docCount={docs.length > 0 ? docs.length : (apiStats?.docCount ?? 0)}
+          photoCount={photos.length > 0 ? photos.length : (apiStats?.photoVideoCount ?? 0)}
+          totalExpenses={totalExp > 0 ? totalExp : (apiStats?.totalExpenseAmount ?? 0)}
+          onEdit={openEditTrip}
+        />
+        {role === 'admin' && (
+          <TouchableOpacity
+            onPress={() => Alert.alert('Delete Trip', 'This will permanently delete the trip and all its data.', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Delete', style: 'destructive', onPress: async () => {
+                try { await apiDeleteTrip(tripId); navigation.goBack(); }
+                catch (err) { handleApiError(err); }
+              }},
+            ])}
+            style={{ alignSelf: 'flex-end', marginRight: 16, marginBottom: 4, marginTop: -2 }}
+            activeOpacity={0.7}>
+            <Text style={{ fontSize: 11, color: '#ef4444', fontWeight: '600' }}>Delete Trip</Text>
+          </TouchableOpacity>
+        )}
 
         {/* ── Action Buttons ── */}
         <View style={styles.actionsWrap}>
