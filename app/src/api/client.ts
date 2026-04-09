@@ -153,6 +153,9 @@ client.interceptors.response.use(
       console.error(`[API Error ${error.response.status}]:`, error.response.data);
     } else if (error.request) {
       console.error('[Network Error]: No response received from server.');
+      console.error('[Network Error] URL:', error.config?.baseURL, error.config?.url);
+      console.error('[Network Error] Code:', (error as any).code);
+      console.error('[Network Error] Message:', error.message);
     } else {
       console.error('[Client Error]:', error.message);
     }

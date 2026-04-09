@@ -1,0 +1,234 @@
+/**
+ * DetailHeroCard — shared hero card for Trip & Event detail screens.
+ *
+ * Gradient card (mint/cyan) matching TripDetailScreen style:
+ *   - Optional type badge (top-left)
+ *   - Name (bold), date line, location text (left column)
+ *   - Days counter + edit pencil button (right column)
+ *   - Stats row inside the card: members | docs | photos | ₹expenses
+ */
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
+import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { PencilIcon } from './Icons';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface DetailHeroCardProps {
+  name: string;
+  /** e.g. "15 Apr 2026" or "May 15 - May 20" */
+  dateLine: string;
+  location: string;
+  dayCount: number;
+  /** e.g. "Days to go" | "Today!" | "Days ago" */
+  dayLabel: string;
+  memberCount: number;
+  docCount: number;
+  photoCount: number;
+  totalExpenses: number;
+  /** Optional tag badge text (e.g. event type) */
+  typeBadge?: string;
+  /** Background color for the type badge pill */
+  typeBadgeColor?: string;
+  onEdit?: () => void;
+  /** Gradient colors — defaults to trip-style mint/cyan */
+  gradientColors?: [string, string, ...string[]];
+}
+
+// ─── Stat Icon Helpers ───────────────────────────────────────────────────────
+
+function MembersIcon() {
+  return (
+    <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+      <Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+function DocsIcon() {
+  return (
+    <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+      <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M14 2v6h6" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+function PhotosIcon() {
+  return (
+    <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+      <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#334155" strokeWidth={2} />
+      <Circle cx={8.5} cy={8.5} r={1.5} fill="#334155" />
+      <Path d="M21 15l-5-5L5 21" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
+export default function DetailHeroCard({
+  name,
+  dateLine,
+  location,
+  dayCount,
+  dayLabel,
+  memberCount,
+  docCount,
+  photoCount,
+  totalExpenses,
+  typeBadge,
+  typeBadgeColor = '#fef3c7',
+  onEdit,
+  gradientColors = ['#ccfbf1', '#cffafe'],
+}: DetailHeroCardProps) {
+  return (
+    <LinearGradient
+      colors={gradientColors}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.card}
+    >
+      {/* Optional type badge */}
+      {!!typeBadge && (
+        <View style={[styles.typeBadge, { backgroundColor: typeBadgeColor }]}>
+          <Text style={styles.typeBadgeText}>{typeBadge.toUpperCase()}</Text>
+        </View>
+      )}
+
+      {/* Main row: info left, days right */}
+      <View style={styles.cardRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.name} numberOfLines={2}>{name}</Text>
+          <Text style={styles.dateLine}>{dateLine}</Text>
+          {!!location && <Text style={styles.location} numberOfLines={1}>{location}</Text>}
+        </View>
+
+        <View style={styles.daysArea}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <Text style={styles.daysNumber}>{dayCount}</Text>
+            {onEdit && (
+              <TouchableOpacity onPress={onEdit} style={styles.pencilBtn} activeOpacity={0.7}>
+                <PencilIcon color="#0d9488" size={14} />
+              </TouchableOpacity>
+            )}
+          </View>
+          <Text style={styles.daysLabel}>{dayLabel.toUpperCase()}</Text>
+        </View>
+      </View>
+
+      {/* Stats row — inside the card */}
+      <View style={styles.statsRow}>
+        <View style={styles.statBadge}>
+          <MembersIcon />
+          <Text style={styles.statTxt}>{memberCount}</Text>
+        </View>
+        <View style={styles.statBadge}>
+          <DocsIcon />
+          <Text style={styles.statTxt}>{docCount}</Text>
+        </View>
+        <View style={styles.statBadge}>
+          <PhotosIcon />
+          <Text style={styles.statTxt}>{photoCount}</Text>
+        </View>
+        <View style={styles.statBadge}>
+          <Text style={[styles.statTxt, { fontSize: 12, fontWeight: '700' }]}>₹</Text>
+          <Text style={styles.statTxt}>{totalExpenses > 0 ? totalExpenses.toFixed(0) : '0'}</Text>
+        </View>
+      </View>
+    </LinearGradient>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  card: {
+    marginHorizontal: 16,
+    marginBottom: 6,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#99f6e4',
+    padding: 16,
+  },
+  typeBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginBottom: 10,
+  },
+  typeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0d9488',
+    letterSpacing: 0.5,
+  },
+  cardRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  name: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 3,
+  },
+  dateLine: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  location: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  daysArea: {
+    alignItems: 'flex-end',
+    paddingLeft: 8,
+  },
+  daysNumber: {
+    fontSize: 40,
+    fontWeight: '800',
+    color: '#0f172a',
+    lineHeight: 44,
+  },
+  daysLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '500',
+    textAlign: 'right',
+  },
+  pencilBtn: {
+    marginTop: 4,
+    marginLeft: 4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#99f6e4',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  statBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  statTxt: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+});
