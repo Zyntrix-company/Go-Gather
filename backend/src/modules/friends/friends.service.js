@@ -3,7 +3,7 @@ const { query: db, getClient } = require('../../config/database');
 const { sendFCMNotification } = require('../../utils/fcm.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
 const { generateInviteShareText } = require('../../utils/shareText.util');
-const { sendEmail } = require('../../utils/mailer');
+const { sendEmail, wrapEmail } = require('../../utils/mailer');
 const logger = require('../../utils/logger');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -365,7 +365,34 @@ const createFriendInvite = async (inviterId, { channels, emails = [] }) => {
       sendEmail({
         to: email,
         subject: `${inviterName} invited you to GatherGo`,
-        html: `<p>${shareText.replace(/\n/g, '<br>')}</p>`,
+        html: wrapEmail(`
+          <h2 style="margin:0 0 12px 0; font-size:22px; font-weight:700; color:#134E4A;">
+            You&rsquo;re invited to GatherGo!
+          </h2>
+          <p style="margin:0 0 28px 0; font-size:16px; color:#374151; line-height:1.6;">
+            <strong>${inviterName}</strong> wants to connect with you on GatherGo —
+            the app for planning trips and gatherings with the people who matter most.
+          </p>
+
+          <!-- Bulletproof CTA button -->
+          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 28px auto;">
+            <tr>
+              <td style="border-radius:8px; background-color:#0D9488;">
+                <a href="${branchUrl}"
+                   style="display:block; padding:14px 40px; color:#ffffff; text-decoration:none;
+                          font-size:16px; font-weight:700; border-radius:8px; text-align:center;
+                          font-family:'Segoe UI',Arial,sans-serif;">
+                  Join GatherGo
+                </a>
+              </td>
+            </tr>
+          </table>
+
+          <p style="margin:0; font-size:13px; color:#6B7280; text-align:center;">
+            Or copy this link: <a href="${branchUrl}" style="color:#0D9488;">${branchUrl}</a>
+          </p>
+        `),
+        text: shareText,
       }).catch((err) =>
         logger.error('Invite email send failed', { err: err.message, email }),
       );

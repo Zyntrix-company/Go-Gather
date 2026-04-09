@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
-const { sendEmail } = require('../../utils/mailer');
+const { sendEmail, wrapEmail } = require('../../utils/mailer');
 const { sendFCMNotification, notifyUsers } = require('../../utils/fcm.util');
 const { batchDeleteFromS3 } = require('../../utils/s3.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
@@ -594,35 +594,34 @@ const removeEventMember = async (eventId, targetUserId) => {
 
 // ─── Email template ───────────────────────────────────────────────────────────
 
-const buildInviteEmail = ({ inviterName, eventName, deepLink, expiresAt }) => `
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
-<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="text-align: center; margin-bottom: 30px;">
-    <h1 style="color: #4F46E5;">GatherGo</h1>
-  </div>
-  <h2 style="color: #2D3748;">You're invited!</h2>
-  <p style="color: #4A5568; font-size: 16px;">
-    <strong>${inviterName}</strong> has invited you to join <strong>"${eventName}"</strong> on GatherGo.
-  </p>
-  <div style="text-align: center; margin: 30px 0;">
-    <a href="${deepLink}"
-       style="background-color: #4F46E5; color: white; padding: 14px 32px; text-decoration: none;
-              border-radius: 8px; font-size: 16px; font-weight: bold;">
-      Accept Invite
-    </a>
-  </div>
-  <p style="color: #718096; font-size: 14px; text-align: center;">
-    This invite expires on <strong>${new Date(expiresAt).toLocaleDateString()}</strong>.
-  </p>
-  <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
-  <p style="color: #A0AEC0; font-size: 12px; text-align: center;">
-    &copy; ${new Date().getFullYear()} GatherGo. All rights reserved.
-  </p>
-</body>
-</html>
-`;
+const buildInviteEmail = ({ inviterName, eventName, deepLink, expiresAt }) =>
+  wrapEmail(`
+    <h2 style="margin:0 0 12px 0; font-size:22px; font-weight:700; color:#134E4A;">
+      You&rsquo;re invited!
+    </h2>
+    <p style="margin:0 0 28px 0; font-size:16px; color:#374151; line-height:1.6;">
+      <strong>${inviterName}</strong> has invited you to join
+      <strong>&ldquo;${eventName}&rdquo;</strong> on GatherGo.
+    </p>
+
+    <!-- Bulletproof CTA button -->
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 28px auto;">
+      <tr>
+        <td style="border-radius:8px; background-color:#0D9488;">
+          <a href="${deepLink}"
+             style="display:block; padding:14px 40px; color:#ffffff; text-decoration:none;
+                    font-size:16px; font-weight:700; border-radius:8px; text-align:center;
+                    font-family:'Segoe UI',Arial,sans-serif;">
+            Accept Invite
+          </a>
+        </td>
+      </tr>
+    </table>
+
+    <p style="margin:0; font-size:14px; color:#6B7280; text-align:center;">
+      This invite expires on <strong>${new Date(expiresAt).toLocaleDateString()}</strong>.
+    </p>
+  `);
 
 module.exports = {
   createEvent,

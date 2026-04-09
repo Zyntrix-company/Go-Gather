@@ -43,6 +43,7 @@ module.exports = {
   // ─── AWS SES ─────────────────────────────────
   ses: {
     fromEmail: process.env.AWS_SES_FROM_EMAIL,
+    supportEmail: process.env.SUPPORT_EMAIL,
     accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY,
   },

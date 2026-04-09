@@ -161,7 +161,7 @@
 								"profile"
 							]
 						},
-						"description": "Save profile. Sets isProfileComplete = true."
+						"description": "Save profile. Sets isProfileComplete = true.\n\n**username / handle is NOT accepted here.** It is automatically derived from fullName (e.g. \"New User\" → `newuser`) and persisted on the users table. The generated username is returned in the response. To change the handle later, use PUT /users/profile."
 					},
 					"response": []
 				},
@@ -2826,7 +2826,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"bio\": \"Explorer & foodie. Always planning the next trip.\",\n    \"country\": \"India\"\n}",
+							"raw": "{\n    \"bio\": \"Explorer & foodie. Always planning the next trip.\",\n    \"country\": \"India\",\n    \"username\": \"alice_explorer\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2842,7 +2842,8 @@
 								"users",
 								"profile"
 							]
-						}
+						},
+						"description": "Update profile fields. All fields are optional — only send what you want to change.\n\n**username** (optional) — the only way to change your handle after signup. Format: `^[a-z0-9_]{3,20}$`. Returns 409 if already taken."
 					},
 					"response": []
 				}

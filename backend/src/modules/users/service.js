@@ -4,9 +4,38 @@ const logger = require('../../utils/logger');
 const { sendWelcomeEmail } = require('../../utils/mailer');
 
 /**
+ * Derive a URL-safe slug from a full name and find a DB-unique variant.
+ * Pattern must satisfy /^[a-z0-9_]{3,20}$/.
+ * @param {string} fullName
+ * @param {object} dbClient  — pg client or pool (must support .query())
+ */
+const generateUniqueUsername = async (fullName, dbClient) => {
+  const parts = fullName.trim().split(/\s+/);
+  // join all name parts, keep only [a-z0-9_], truncate to 15 to leave room for numeric suffix
+  const raw = parts.join('').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 15);
+  // guarantee minimum length of 3
+  const base = raw.length >= 3 ? raw : (raw + 'user').slice(0, 20);
+
+  let candidate = base;
+  let suffix = 1;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { rows } = await dbClient.query(
+      'SELECT id FROM users WHERE username = $1',
+      [candidate],
+    );
+    if (rows.length === 0) break;
+    candidate = `${base.slice(0, 15)}${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+};
+
+/**
  * POST /users/profile — Save/create the user profile after signup.
  */
 const saveProfile = async (userId, profileData) => {
+  // username is intentionally excluded — handle is auto-generated, not user-supplied
   const { fullName, dob, gender, country, bio } = profileData;
 
   const client = await db.getClient();
@@ -29,17 +58,30 @@ const saveProfile = async (userId, profileData) => {
       [userId, fullName, dob || null, gender || null, country || null, bio || null],
     );
 
-    // Mark profile as complete
-    await client.query(
-      'UPDATE users SET is_profile_complete = true, updated_at = NOW() WHERE id = $1',
+    // Auto-generate username from full name if the user doesn't have one yet
+    const userRow = await client.query(
+      'SELECT username FROM users WHERE id = $1',
       [userId],
     );
+    if (!userRow.rows[0]?.username) {
+      const generatedUsername = await generateUniqueUsername(fullName, client);
+      await client.query(
+        'UPDATE users SET username = $1, is_profile_complete = true, updated_at = NOW() WHERE id = $2',
+        [generatedUsername, userId],
+      );
+    } else {
+      // Mark profile as complete
+      await client.query(
+        'UPDATE users SET is_profile_complete = true, updated_at = NOW() WHERE id = $1',
+        [userId],
+      );
+    }
 
     await client.query('COMMIT');
 
     // Return the updated profile
     const result = await db.query(
-      `SELECT u.id, u.email, u.phone, u.is_profile_complete,
+      `SELECT u.id, u.email, u.phone, u.username, u.is_profile_complete,
               p.full_name, p.dob, p.gender, p.country, p.bio, p.avatar_url,
               p.created_at, p.updated_at
        FROM users u
@@ -59,6 +101,7 @@ const saveProfile = async (userId, profileData) => {
       id: row.id,
       email: row.email,
       phone: row.phone,
+      username: row.username,
       isProfileComplete: row.is_profile_complete,
       profile: {
         fullName: row.full_name,
