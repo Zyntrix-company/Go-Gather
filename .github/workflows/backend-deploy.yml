@@ -56,7 +56,8 @@ jobs:
           # Pull latest image
           sudo docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
-          # Force remove old container (kills + removes in one step)
+          # Force remove old container
+          sudo docker kill --signal=SIGKILL gathergo-container || true
           sudo docker rm -f gathergo-container || true
 
           # Run new container
