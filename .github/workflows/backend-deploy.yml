@@ -53,10 +53,17 @@ jobs:
           # Pull latest image
           docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
-          # Remove old container - try without sudo first, fall back to sudo
-          docker rm -f gathergo-container 2>/dev/null || sudo docker rm -f gathergo-container 2>/dev/null || true
+          # Stop and remove old container (sudo handles root-owned containers)
+          sudo docker stop gathergo-container 2>/dev/null || true
+          sudo docker rm -f gathergo-container 2>/dev/null || docker rm -f gathergo-container 2>/dev/null || true
 
-          # Run new container (always as ubuntu user so future deploys can remove it)
+          # Verify container is gone before proceeding
+          if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^gathergo-container$'; then
+            echo "ERROR: Failed to remove existing container" >&2
+            exit 1
+          fi
+
+          # Run new container
           docker run -d \
           --name gathergo-container \
           --restart unless-stopped \
