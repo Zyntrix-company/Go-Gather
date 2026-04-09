@@ -4,9 +4,8 @@ on:
   push:
     branches:
       - main
-    # 🎯 Only trigger if files in the backend folder change
-    # paths:
-    #   - 'backend/**'
+    paths:
+      - 'backend/**'
 
 jobs:
   deploy:
@@ -31,9 +30,7 @@ jobs:
       uses: aws-actions/amazon-ecr-login@v1
 
     - name: Build Docker image
-      run: |
-        ls 
-        docker build -t backend-api .
+      run: docker build -t backend-api .
 
     - name: Tag Docker image
       run: |
@@ -63,6 +60,7 @@ jobs:
           # Run new container
           sudo docker run -d \
           --name gathergo-container \
+          --restart unless-stopped \
           -p 3000:3000 \
           --env-file .env \
             092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
