@@ -41,6 +41,16 @@ const { width: SCREEN_W } = Dimensions.get('window');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+// How the image is positioned/scaled relative to the card crop box.
+// All values are fractions of the target display dimensions so rendering
+// is fully resolution-independent.
+type BannerCropFraction = {
+  imgFracX: number; // image left / targetWidth
+  imgFracY: number; // image top  / targetHeight
+  imgFracW: number; // image width  / targetWidth
+  imgFracH: number; // image height / targetHeight
+};
+
 type Trip = {
   id: string;
   name: string;
@@ -53,6 +63,7 @@ type Trip = {
   fullEndDate: string;
   image: any;
   bannerImageUrl?: string | null;
+  bannerCropFraction?: BannerCropFraction | null;
   members: { id: string; uri: string }[];
   extraMembers: number;
 };
@@ -229,6 +240,39 @@ const TrashIcon = () => (
   </Svg>
 );
 
+// ─── Banner image renderer (respects crop fraction if present) ────────────────
+
+function BannerImage({
+  uri, fallback, crop, style, resizeMode = 'cover',
+}: {
+  uri?: string | null;
+  fallback?: any;
+  crop?: BannerCropFraction | null;
+  style: any;
+  resizeMode?: 'cover' | 'stretch' | 'contain';
+}) {
+  if (uri && crop) {
+    // Render inside an overflow:hidden container with precise positioning
+    return (
+      <View style={[style, { overflow: 'hidden' }]}>
+        <Image
+          source={{ uri }}
+          style={{
+            position: 'absolute',
+            width: `${crop.imgFracW * 100}%`,
+            height: `${crop.imgFracH * 100}%`,
+            left: `${crop.imgFracX * 100}%`,
+            top: `${crop.imgFracY * 100}%`,
+          }}
+          resizeMode="stretch"
+        />
+      </View>
+    );
+  }
+  if (uri) return <Image source={{ uri }} style={style} resizeMode={resizeMode} />;
+  return <Image source={fallback} style={style} resizeMode={resizeMode} />;
+}
+
 // ─── Trip Card (Upcoming / Ongoing) ──────────────────────────────────────────
 
 function TripCardFullLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, onDelete }: {
@@ -243,10 +287,12 @@ function TripCardFullLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
     <View style={{ marginBottom: 18, zIndex: showMenu ? 100 : 1 }}>
       <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
         <View style={styles.cardMedia}>
-          {trip.bannerImageUrl
-            ? <Image source={{ uri: trip.bannerImageUrl }} style={styles.cardImage as any} resizeMode="cover" />
-            : <Image source={trip.image} style={styles.cardImage as any} resizeMode="cover" />
-          }
+          <BannerImage
+            uri={trip.bannerImageUrl}
+            fallback={trip.image}
+            crop={trip.bannerCropFraction}
+            style={styles.cardImage as any}
+          />
           {isOngoing && (
             <View style={styles.ongoingBadge}>
               <Text style={styles.ongoingBadgeText}>Ongoing</Text>
@@ -314,10 +360,12 @@ function TripCardPastLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
   return (
     <View style={{ marginBottom: 10, zIndex: showMenu ? 100 : 1 }}>
       <TouchableOpacity style={styles.pastCard} onPress={onPress} activeOpacity={0.85}>
-        {trip.bannerImageUrl
-          ? <Image source={{ uri: trip.bannerImageUrl }} style={styles.pastCardImage as any} resizeMode="cover" />
-          : <Image source={trip.image} style={styles.pastCardImage as any} resizeMode="cover" />
-        }
+        <BannerImage
+          uri={trip.bannerImageUrl}
+          fallback={trip.image}
+          crop={trip.bannerCropFraction}
+          style={styles.pastCardImage as any}
+        />
         <View style={styles.pastCardInfo}>
           <Text style={styles.pastCardTitle} numberOfLines={1}>{trip.name}</Text>
           <View style={styles.infoItem}>
@@ -382,9 +430,17 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [bannerImageUri, setBannerImageUri] = useState<string | undefined>(undefined);
   const [bannerImageType, setBannerImageType] = useState<string>('image/jpeg');
+  const [bannerCropFraction, setBannerCropFraction] = useState<BannerCropFraction | null>(null);
   const [cropPreviewUri, setCropPreviewUri] = useState<string | undefined>(undefined);
   const [cropPreviewType, setCropPreviewType] = useState<string>('image/jpeg');
-  const [bannerCrop, setBannerCrop] = useState<{ scale: number; x: number; y: number } | null>(null);
+  // Original pixel dimensions of picked image (from image-picker response)
+  const [pickedOrigSize, setPickedOrigSize] = useState({ w: 1, h: 1 });
+  // Actual layout dimensions of the crop canvas (set via onLayout)
+  const [cropAreaSize, setCropAreaSize] = useState({ w: SCREEN_W, h: SCREEN_W });
+
+  // Card banner dimensions — crop box must match these proportions exactly
+  const CARD_BANNER_W = SCREEN_W - 40; // scrollContent paddingHorizontal 20 each side
+  const CARD_BANNER_H = 144;
 
   const cropScaleAnim  = useRef(new Animated.Value(1)).current;
   const cropTransXAnim = useRef(new Animated.Value(0)).current;
@@ -461,7 +517,9 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
     setFriendSearch(''); setInviteEmail('');
     setBannerImageUri(undefined);
     setBannerImageType('image/jpeg');
-    setBannerCrop(null);
+    setBannerCropFraction(null);
+    setPickedOrigSize({ w: 1, h: 1 });
+    setCropAreaSize({ w: SCREEN_W, h: SCREEN_W });
   }
 
   async function handleSave() {
@@ -601,8 +659,10 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
                 if (res.didCancel || res.errorCode) return;
                 const asset = res.assets?.[0];
                 if (asset?.uri) {
+                  setPickedOrigSize({ w: asset.width ?? 1, h: asset.height ?? 1 });
                   setCropPreviewUri(asset.uri);
                   setCropPreviewType(asset.type ?? 'image/jpeg');
+                  setBannerCropFraction(null); // reset previous crop when new image picked
                 }
               })}
               activeOpacity={0.8}
