@@ -44,20 +44,37 @@ jobs:
         script: |
           set -e
 
-          # Login to ECR
+          # ── 1. ECR Login ───────────────────────────────────────────────────────
           aws ecr get-login-password --region ap-south-1 \
             | docker login --username AWS --password-stdin 092201262561.dkr.ecr.ap-south-1.amazonaws.com
 
-          cd /home/ubuntu/Go-Gather/backend
-
-          # Pull the new image first
+          # ── 2. Pull new image ──────────────────────────────────────────────────
           docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
-          # Stop and remove old container (request_pty: true makes sudo work here)
-          sudo docker stop gathergo-container 2>/dev/null || true
-          sudo docker rm   gathergo-container 2>/dev/null || true
+          # ── 3. Remove old container ────────────────────────────────────────────
+          # First attempt: graceful stop then remove (works when user owns the socket)
+          docker stop gathergo-container 2>/dev/null || true
+          docker rm   gathergo-container 2>/dev/null || true
 
-          # Start new container
+          # Second attempt: if container is stuck/zombie, restart the Docker daemon.
+          # --restart=unless-stopped containers do NOT restart after an explicit stop,
+          # so restarting the daemon is safe here — it clears stuck removal states.
+          if docker ps -a --format '{{.Names}}' | grep -q '^gathergo-container$'; then
+            echo "Container still present — restarting Docker daemon to clear stuck state..."
+            sudo systemctl restart docker
+            sleep 5
+            docker rm gathergo-container 2>/dev/null || true
+          fi
+
+          # ── 4. Verify clean slate ──────────────────────────────────────────────
+          if docker ps -a --format '{{.Names}}' | grep -q '^gathergo-container$'; then
+            echo "=== FATAL: container could not be removed ==="
+            docker inspect gathergo-container --format 'Status={{.State.Status}} Pid={{.State.Pid}}' || true
+            exit 1
+          fi
+
+          # ── 5. Start new container ─────────────────────────────────────────────
+          cd /home/ubuntu/Go-Gather/backend
           docker run -d \
             --name gathergo-container \
             --restart unless-stopped \
@@ -65,5 +82,5 @@ jobs:
             --env-file .env \
             092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
-          # Confirm it's running
-          docker ps --filter name=gathergo-container --format "table {{.Names}}\t{{.Status}}"
+          # ── 6. Confirm running ─────────────────────────────────────────────────
+          docker ps --filter name=gathergo-container --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
