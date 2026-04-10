@@ -52,10 +52,14 @@ jobs:
           docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
           # ── 3. Remove old container ────────────────────────────────────────────
-          # NOTE: docker stop/kill are broken on kernel 6.17 + cgroup v2 + Docker 28.
-          # The only working approach is to kill the container process directly,
-          # then let docker rm clean up the metadata.
+          # docker stop/kill are broken on kernel 6.17 + cgroup v2 + Docker 28.
+          # Workaround:
+          #   1. Disable restart policy FIRST (so Docker won't revive it after kill)
+          #   2. Kill the process directly with sudo kill -9
+          #   3. docker rm cleans up the metadata
           if docker ps -a --format '{{.Names}}' | grep -q '^gathergo-container$'; then
+            echo "Disabling restart policy..."
+            docker update --restart=no gathergo-container || true
             CPID=$(docker inspect --format '{{.State.Pid}}' gathergo-container 2>/dev/null || echo "0")
             if [ -n "$CPID" ] && [ "$CPID" != "0" ]; then
               echo "Killing container process PID=$CPID"
