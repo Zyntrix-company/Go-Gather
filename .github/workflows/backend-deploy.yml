@@ -52,30 +52,22 @@ jobs:
           docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
           # ── 3. Remove old container ────────────────────────────────────────────
-          # Attempt 1: force-remove with sudo (request_pty:true makes sudo work)
-          sudo docker rm -f gathergo-container 2>/dev/null || true
-
-          # Attempt 2: if still present (e.g. stuck in removal-in-progress state),
-          # kill the container process directly then clean up the metadata.
+          # NOTE: docker stop/kill are broken on kernel 6.17 + cgroup v2 + Docker 28.
+          # The only working approach is to kill the container process directly,
+          # then let docker rm clean up the metadata.
           if docker ps -a --format '{{.Names}}' | grep -q '^gathergo-container$'; then
-            echo "Force-remove failed — killing container process directly..."
             CPID=$(docker inspect --format '{{.State.Pid}}' gathergo-container 2>/dev/null || echo "0")
-            if [ "$CPID" != "0" ] && [ -n "$CPID" ]; then
-              sudo kill -9 "$CPID" 2>/dev/null || true
-              sleep 2
+            if [ -n "$CPID" ] && [ "$CPID" != "0" ]; then
+              echo "Killing container process PID=$CPID"
+              sudo kill -9 "$CPID" || true
+              sleep 3
             fi
-            # Now stop the daemon so the dead container doesn't auto-restart,
-            # remove it, then bring the daemon back up.
-            sudo systemctl stop docker
-            sleep 3
-            sudo docker rm gathergo-container 2>/dev/null || true
-            sudo systemctl start docker
-            sleep 3
+            docker rm gathergo-container 2>/dev/null || true
           fi
 
           # ── 4. Verify clean slate ──────────────────────────────────────────────
           if docker ps -a --format '{{.Names}}' | grep -q '^gathergo-container$'; then
-            echo "=== FATAL: container could not be removed ==="
+            echo "ERROR: container still exists after cleanup"
             docker inspect gathergo-container --format 'Status={{.State.Status}} Pid={{.State.Pid}}' || true
             exit 1
           fi
@@ -90,4 +82,5 @@ jobs:
             092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
           # ── 6. Confirm running ─────────────────────────────────────────────────
+          sleep 3
           docker ps --filter name=gathergo-container --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
