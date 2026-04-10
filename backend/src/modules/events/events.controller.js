@@ -65,6 +65,58 @@ const deleteEvent = async (req, res, next) => {
   }
 };
 
+// ── POST /events/:eventId/description ────────────────────────
+const setDescription = async (req, res, next) => {
+  try {
+    const event = await eventsService.setEventDescription(req.params.eventId, req.body.description ?? null);
+    res.status(200).json({ event });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.error, message: error.message, statusCode: error.statusCode });
+    }
+    next(error);
+  }
+};
+
+// ── PUT /events/:eventId/description ─────────────────────────
+const updateDescription = async (req, res, next) => {
+  try {
+    const event = await eventsService.setEventDescription(req.params.eventId, req.body.description ?? null);
+    res.status(200).json({ event });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.error, message: error.message, statusCode: error.statusCode });
+    }
+    next(error);
+  }
+};
+
+// ── POST /events/:eventId/archive ─────────────────────────────
+const archiveEvent = async (req, res, next) => {
+  try {
+    const event = await eventsService.archiveEvent(req.params.eventId);
+    res.status(200).json({ event });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.error, message: error.message, statusCode: error.statusCode });
+    }
+    next(error);
+  }
+};
+
+// ── POST /events/:eventId/unarchive ───────────────────────────
+const unarchiveEvent = async (req, res, next) => {
+  try {
+    const event = await eventsService.unarchiveEvent(req.params.eventId);
+    res.status(200).json({ event });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.error, message: error.message, statusCode: error.statusCode });
+    }
+    next(error);
+  }
+};
+
 // ── POST /events/:eventId/invite ──────────────────────────────
 const inviteMembers = async (req, res, next) => {
   try {
@@ -452,6 +504,12 @@ module.exports = {
   getEventById,
   updateEvent,
   deleteEvent,
+  // Description
+  setDescription,
+  updateDescription,
+  // Archive
+  archiveEvent,
+  unarchiveEvent,
   // Invites
   inviteMembers,
   getInvite,

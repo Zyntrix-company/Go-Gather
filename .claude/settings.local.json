@@ -50,7 +50,8 @@
       "Bash(ls:*)",
       "Bash(ssh-keygen -t ed25519 -f /tmp/gogather_temp -N \"\" -q)",
       "Bash(identify \"E:/Go Gather/app/assets/Complete Logo Teal w_o BG.png\")",
-      "Bash(python3 -c \"from PIL import Image; img=Image.open\\('E:/Go Gather/app/assets/Complete Logo Teal w_o BG.png'\\); print\\(img.size, img.mode\\)\")"
+      "Bash(python3 -c \"from PIL import Image; img=Image.open\\('E:/Go Gather/app/assets/Complete Logo Teal w_o BG.png'\\); print\\(img.size, img.mode\\)\")",
+      "Bash(curl:*)"
     ]
   }
 }

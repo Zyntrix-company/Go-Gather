@@ -5,18 +5,22 @@ const logger = require('./logger');
 
 // ─── Logo URL ─────────────────────────────────────────────────────────────────
 //
-// Priority:
-//   1. CloudFront CDN  → https://<AWS_CLOUDFRONT_DOMAIN>/brand/logo.png
-//   2. Website origin  → https://www.gatherrgo.com/logo.png  (logo.png lives in
-//                         frontend/public/ and is served as a static asset)
+// The logo (1042×212 teal-on-transparent PNG) is uploaded to S3 at brand/logo.png.
+// CloudFront is NOT used here — the distribution's behavior restricts the brand/
+// prefix to direct S3 access only (confirmed via HTTP probe).
 //
-// The logo is the teal-on-transparent PNG (1042×212 px).
-// It is placed on a WHITE header background so the teal colour is visible.
+// Priority:
+//   1. S3 direct  → https://<bucket>.s3.<region>.amazonaws.com/brand/logo.png
+//      (public bucket, always accessible, no CDN cache issues)
+//   2. Website     → https://www.gatherrgo.com/logo.png
+//      (logo.png copied to frontend/public/ — serves once deployed)
+//
+// The image is placed on a WHITE header background so the teal logo is visible.
 // alt="Gatherrgo" is the semantic fallback for clients that block images.
 
 const _getLogoUrl = () => {
-  if (config.s3.cloudfrontDomain) {
-    return `https://${config.s3.cloudfrontDomain}/brand/logo.png`;
+  if (config.s3.bucket && config.aws.region) {
+    return `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/brand/logo.png`;
   }
   return `${config.websiteUrl}/logo.png`;
 };

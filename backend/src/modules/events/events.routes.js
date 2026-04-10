@@ -38,6 +38,14 @@ router.get('/:eventId', validators.eventIdParam, validate, eventMemberMW, ctrl.g
 router.put('/:eventId', validators.updateEventValidation, validate, eventMemberMW, eventAdminMW, ctrl.updateEvent);
 router.delete('/:eventId', validators.eventIdParam, validate, eventMemberMW, eventAdminMW, ctrl.deleteEvent);
 
+// ─── Description ──────────────────────────────────────────────────────────────
+router.post('/:eventId/description', validators.descriptionValidation, validate, eventMemberMW, eventAdminMW, ctrl.setDescription);
+router.put('/:eventId/description', validators.descriptionValidation, validate, eventMemberMW, eventAdminMW, ctrl.updateDescription);
+
+// ─── Archive ──────────────────────────────────────────────────────────────────
+router.post('/:eventId/archive', validators.eventIdParam, validate, eventMemberMW, eventAdminMW, ctrl.archiveEvent);
+router.post('/:eventId/unarchive', validators.eventIdParam, validate, eventMemberMW, eventAdminMW, ctrl.unarchiveEvent);
+
 // ─── Invites ──────────────────────────────────────────────────────────────────
 router.post(
   '/:eventId/invite',
