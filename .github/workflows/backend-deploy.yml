@@ -52,18 +52,25 @@ jobs:
           docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
           # ── 3. Remove old container ────────────────────────────────────────────
-          # First attempt: graceful stop then remove (works when user owns the socket)
-          docker stop gathergo-container 2>/dev/null || true
-          docker rm   gathergo-container 2>/dev/null || true
+          # Attempt 1: force-remove with sudo (request_pty:true makes sudo work)
+          sudo docker rm -f gathergo-container 2>/dev/null || true
 
-          # Second attempt: if container is stuck/zombie, restart the Docker daemon.
-          # --restart=unless-stopped containers do NOT restart after an explicit stop,
-          # so restarting the daemon is safe here — it clears stuck removal states.
+          # Attempt 2: if still present (e.g. stuck in removal-in-progress state),
+          # kill the container process directly then clean up the metadata.
           if docker ps -a --format '{{.Names}}' | grep -q '^gathergo-container$'; then
-            echo "Container still present — restarting Docker daemon to clear stuck state..."
-            sudo systemctl restart docker
-            sleep 5
-            docker rm gathergo-container 2>/dev/null || true
+            echo "Force-remove failed — killing container process directly..."
+            CPID=$(docker inspect --format '{{.State.Pid}}' gathergo-container 2>/dev/null || echo "0")
+            if [ "$CPID" != "0" ] && [ -n "$CPID" ]; then
+              sudo kill -9 "$CPID" 2>/dev/null || true
+              sleep 2
+            fi
+            # Now stop the daemon so the dead container doesn't auto-restart,
+            # remove it, then bring the daemon back up.
+            sudo systemctl stop docker
+            sleep 3
+            sudo docker rm gathergo-container 2>/dev/null || true
+            sudo systemctl start docker
+            sleep 3
           fi
 
           # ── 4. Verify clean slate ──────────────────────────────────────────────
