@@ -97,11 +97,11 @@ function ActionIcon({ path, color }: { path: string; color: string }) {
   }
 }
 
-const DHeader = DetailDialogHeader;
-const TabBar   = DetailTabBar;
-
 const { width: SCREEN_W } = Dimensions.get('window');
 const isSmall = SCREEN_W < 360;
+
+const DHeader = DetailDialogHeader;
+const TabBar   = DetailTabBar;
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
