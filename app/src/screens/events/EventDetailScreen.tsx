@@ -4,9 +4,6 @@ import {
   TextInput, Alert, Image, Platform, NativeModules, Dimensions,
   ActivityIndicator,
 } from 'react-native';
-
-const { width: SCREEN_W } = Dimensions.get('window');
-const isSmall = SCREEN_W < 360;
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -102,6 +99,9 @@ function ActionIcon({ path, color }: { path: string; color: string }) {
 
 const DHeader = DetailDialogHeader;
 const TabBar   = DetailTabBar;
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const isSmall = SCREEN_W < 360;
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
