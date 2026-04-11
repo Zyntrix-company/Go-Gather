@@ -122,23 +122,17 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   const currentUserId = useAuthStore(s => s.user?.id ?? '');
 
-  // ── Load-once guards (prevent re-fetch from wiping locally-added items) ──
-  const hasLoadedDocs     = React.useRef(false);
-  const hasLoadedPhotos   = React.useRef(false);
-  const hasLoadedExpenses = React.useRef(false);
-  const hasLoadedPolls    = React.useRef(false);
-  const hasLoadedNotes    = React.useRef(false);
 
-  // Reset hasLoaded flags whenever screen regains focus (so coming back refreshes all data)
-  useFocusEffect(
-    useCallback(() => {
-      hasLoadedDocs.current = false;
-      hasLoadedPhotos.current = false;
-      hasLoadedExpenses.current = false;
-      hasLoadedPolls.current = false;
-      hasLoadedNotes.current = false;
-    }, [])
-  );
+  // ── Modal visibility (declared before hooks that reference them) ──
+  const [showDocs,       setShowDocs]       = useState(false);
+  const [showMembers,    setShowMembers]    = useState(false);
+  const [showPhotos,     setShowPhotos]     = useState(false);
+  const [showExpenses,   setShowExpenses]   = useState(false);
+  const [showPolls,      setShowPolls]      = useState(false);
+  const [showNotes,      setShowNotes]      = useState(false);
+  const [showEditEvent,  setShowEditEvent]  = useState(false);
+  const [previewPhoto,   setPreviewPhoto]   = useState<PhotoItem | null>(null);
+  const [docPreviewUrl,  setDocPreviewUrl]  = useState<string | null>(null);
 
   // ── Data state ──
   const [loadingDetail, setLoadingDetail] = useState(true);
@@ -152,32 +146,125 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [polls,    setPolls]    = useState<PollLocal[]>([]);
   const [notes,    setNotes]    = useState<NoteLocal[]>([]);
 
-  // ── Load event detail from API on mount ──
-  useEffect(() => {
-    if (!event.id) return;
-    setLoadingDetail(true);
-    getEventDetail(event.id)
-      .then(data => {
-        setEvent(prev => ({
-          ...prev,
-          name:        data.event.name,
-          location:    data.event.location?.name ?? prev.location,
-          dateLine:    data.event.eventDate
-            ? new Date(data.event.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-            : prev.dateLine,
-          type:        data.event.eventType ?? prev.type,
-          description: data.event.description ?? prev.description,
-        }));
-        setMembers(data.members.map(m => ({
-          userId:    m.userId,
-          fullName:  m.fullName ?? (m as any).name ?? 'Member',
-          avatarUrl: m.avatarUrl ?? undefined,
-          role:      m.role,
-        })));
-      })
-      .catch(handleApiError)
-      .finally(() => setLoadingDetail(false));
-  }, [event.id]);
+  // ── Load event detail and all modules from API on every focus ──
+  useFocusEffect(
+    useCallback(() => {
+      if (!event.id) return;
+      setLoadingDetail(true);
+
+      const loadAllData = async () => {
+        try {
+          // Load event detail first
+          const eventData = await getEventDetail(event.id);
+          setEvent(prev => ({
+            ...prev,
+            name:        eventData.event.name,
+            location:    eventData.event.location?.name ?? prev.location,
+            dateLine:    eventData.event.eventDate
+              ? new Date(eventData.event.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+              : prev.dateLine,
+            type:        eventData.event.eventType ?? prev.type,
+            description: eventData.event.description ?? prev.description,
+          }));
+          setMembers(eventData.members.map(m => ({
+            userId:    m.userId,
+            fullName:  m.fullName ?? (m as any).name ?? 'Member',
+            avatarUrl: m.avatarUrl ?? undefined,
+            role:      m.role,
+          })));
+
+          // Load all module data in parallel
+          try {
+            const [docsData, photosData, expData, balData, pollsData, notesData] = await Promise.all([
+              getEventDocs(event.id),
+              getEventPhotos(event.id),
+              getEventExpenses(event.id),
+              getEventBalances(event.id),
+              getEventPolls(event.id),
+              getEventNotes(event.id),
+            ]);
+
+            // Update docs
+            setDocs(docsData.docs.map(d => ({ id: d.id, name: d.fileName, uri: d.downloadUrl ?? d.fileUrl ?? '', mimeType: d.mimeType })));
+
+            // Update photos
+            setPhotos(docsData => {
+              const cache: Record<string, string> = {};
+              docsData.forEach(p => { if ((p as any).localUri) cache[p.id] = (p as any).localUri; });
+              return photosData.photos.map(p => ({
+                id: p.id,
+                uri: p.url ?? p.fileUrl ?? '',
+                localUri: cache[p.id],
+                name: 'photo.jpg',
+              }));
+            });
+
+            // Update expenses and balances
+            const resolvePaidBy = (paidByRaw: any): string => {
+              if (typeof paidByRaw === 'object' && paidByRaw !== null) {
+                const uid = paidByRaw.userId ?? paidByRaw.id ?? '';
+                if (uid === currentUserId) return 'You';
+                return paidByRaw.name ?? paidByRaw.fullName ?? uid ?? 'Unknown';
+              }
+              const uid = String(paidByRaw ?? '');
+              if (uid === currentUserId) return 'You';
+              const member = eventData.members.find((m: any) => m.userId === uid);
+              return member?.fullName ?? uid ?? 'Unknown';
+            };
+            setExpenses((expData.expenses ?? []).map(e => {
+              const paidByStr = resolvePaidBy(e.paidBy);
+              const splits = e.splits ?? [];
+              const mySplit = splits.find((s: any) => s.userId === currentUserId);
+              const myAmount = mySplit ? parseFloat(mySplit.amount ?? '0') : 0;
+              return {
+                id: e.id,
+                description: e.description,
+                amount: parseFloat(e.amount),
+                category: e.category ?? 'General',
+                paidBy: paidByStr,
+                splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
+                splitAmong: splits.map((s: any) => s.userId),
+                date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
+                myAmount,
+              };
+            }));
+            setBalances((balData.debts ?? []).map((d: any) => ({
+              from: d.from, to: d.to,
+              fromName: d.fromName ?? 'Member', toName: d.toName ?? 'Member',
+              amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
+            })));
+            setMyBalance(balData.myBalance ?? 0);
+
+            // Update polls
+            setPolls(pollsData.polls.map(p => ({
+              id: p.id,
+              question: p.question,
+              options: p.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount, votedByMe: o.votedByMe })),
+              myVoteOptionId: p.myVoteOptionId,
+            })));
+
+            // Update notes
+            setNotes(notesData.notes.map(n => ({
+              id: n.id,
+              title: n.title,
+              body: n.content,
+              category: (n.category ?? 'general') as NoteLocal['category'],
+              date: new Date(n.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
+              pinned: n.pinned ?? false,
+            })));
+          } catch (moduleErr) {
+            handleApiError(moduleErr);
+          }
+        } catch (err) {
+          handleApiError(err);
+        } finally {
+          setLoadingDetail(false);
+        }
+      };
+
+      loadAllData();
+    }, [event.id, currentUserId])
+  );
 
   // Load friends when Members modal opens
   useEffect(() => {
@@ -190,91 +277,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
       })));
     }).catch(() => {});
   }, [showMembers]);
-
-  // Lazy-load sub-resources when modals open (only once per screen mount)
-  useEffect(() => {
-    if (!showDocs || hasLoadedDocs.current) return;
-    hasLoadedDocs.current = true;
-    getEventDocs(event.id)
-      .then(data => setDocs(data.docs.map(d => ({ id: d.id, name: d.fileName, uri: d.downloadUrl ?? d.fileUrl ?? '', mimeType: d.mimeType }))))
-      .catch(handleApiError);
-  }, [showDocs]);
-
-  useEffect(() => {
-    if (!showPhotos || hasLoadedPhotos.current) return;
-    hasLoadedPhotos.current = true;
-    getEventPhotos(event.id)
-      .then(data => setPhotos(data.photos.map(p => ({ id: p.id, uri: p.fileUrl ?? p.url ?? '', name: 'photo.jpg' }))))
-      .catch(handleApiError);
-  }, [showPhotos]);
-
-  useEffect(() => {
-    if (!showExpenses || hasLoadedExpenses.current) return;
-    hasLoadedExpenses.current = true;
-    Promise.all([
-      getEventExpenses(event.id),
-      getEventBalances(event.id),
-    ]).then(([expData, balData]) => {
-      setExpenses(expData.expenses.map(e => ({
-        id: e.id,
-        description: e.description,
-        amount: parseFloat(e.amount),
-        category: e.category ?? 'General',
-        paidBy: (e as any).paidByName ?? e.paidBy,
-        splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
-        splitAmong: e.splits.map(s => s.userId),
-        date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
-        myAmount: e.splits.find(s => s.userId === currentUserId)
-          ? parseFloat(e.splits.find(s => s.userId === currentUserId)!.amount)
-          : undefined,
-      })));
-      setBalances(balData.debts.map(d => ({
-        from: d.from, to: d.to,
-        fromName: d.fromName, toName: d.toName,
-        amount: d.amount,
-      })));
-      setMyBalance(balData.myBalance);
-    }).catch(handleApiError);
-  }, [showExpenses]);
-
-  useEffect(() => {
-    if (!showPolls || hasLoadedPolls.current) return;
-    hasLoadedPolls.current = true;
-    getEventPolls(event.id)
-      .then(data => setPolls(data.polls.map(p => ({
-        id: p.id,
-        question: p.question,
-        options: p.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount, votedByMe: o.votedByMe })),
-        myVoteOptionId: p.myVoteOptionId,
-      }))))
-      .catch(handleApiError);
-  }, [showPolls]);
-
-  useEffect(() => {
-    if (!showNotes || hasLoadedNotes.current) return;
-    hasLoadedNotes.current = true;
-    getEventNotes(event.id)
-      .then(data => setNotes(data.notes.map(n => ({
-        id: n.id,
-        title: n.title,
-        body: n.content,
-        category: (n.category ?? 'general') as NoteLocal['category'],
-        date: new Date(n.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
-        pinned: false,
-      }))))
-      .catch(handleApiError);
-  }, [showNotes]);
-
-  // ── Modal visibility ──
-  const [showDocs,       setShowDocs]       = useState(false);
-  const [showMembers,    setShowMembers]    = useState(false);
-  const [showPhotos,     setShowPhotos]     = useState(false);
-  const [showExpenses,   setShowExpenses]   = useState(false);
-  const [showPolls,      setShowPolls]      = useState(false);
-  const [showNotes,      setShowNotes]      = useState(false);
-  const [showEditEvent,  setShowEditEvent]  = useState(false);
-  const [previewPhoto,   setPreviewPhoto]   = useState<PhotoItem | null>(null);
-  const [docPreviewUrl,  setDocPreviewUrl]  = useState<string | null>(null);
 
   // ── Members modal ──
   const [memberTab,       setMemberTab]       = useState<'From Friends' | 'Invite New'>('From Friends');
@@ -366,11 +368,28 @@ export default function EventDetailScreen({ route, navigation }: any) {
       if (res.didCancel || res.errorCode) return;
       const assets = (res.assets || []).filter(a => a.uri);
       if (!assets.length) return;
+
+      // Optimistic: add temp photos with local URIs so they display immediately
+      const tempIds = assets.map((_, i) => `temp-${Date.now()}-${i}`);
+      const tempPhotos = assets.map((a, i) => ({ id: tempIds[i], uri: a.uri!, localUri: a.uri!, name: a.fileName ?? 'photo.jpg' }));
+      setPhotos(prev => [...prev, ...tempPhotos]);
+
       try {
         const result = await uploadEventPhotos(event.id, assets.map(a => ({ uri: a.uri!, type: a.type, name: a.fileName ?? 'photo.jpg' })));
-        const newPhotos = result.photos.map(p => ({ id: p.id, uri: p.fileUrl ?? p.url ?? '', name: 'photo.jpg' }));
-        setPhotos(prev => [...prev, ...newPhotos]);
+        // Replace temp entries with real CDN-backed ones (keep localUri as fallback)
+        setPhotos(prev => {
+          const withoutTemps = prev.filter(ph => !tempIds.includes(ph.id));
+          const newPhotos = result.photos.map((ph, i) => ({
+            id: ph.id,
+            uri: ph.url ?? ph.fileUrl ?? assets[i]?.uri ?? '',
+            localUri: assets[i]?.uri,
+            name: 'photo.jpg',
+          }));
+          return [...withoutTemps, ...newPhotos];
+        });
       } catch (err) {
+        // Remove temp entries on failure
+        setPhotos(prev => prev.filter(ph => !tempIds.includes(ph.id)));
         handleApiError(err);
       }
     });
@@ -383,6 +402,14 @@ export default function EventDetailScreen({ route, navigation }: any) {
     // Map local "You" placeholder to real user ID
     const resolveId = (id: string) => id === 'You' ? currentUserId : id;
     const splitAmongIds = expSplitAmong.map(resolveId);
+
+    // Validate that splitAmong doesn't have duplicate IDs
+    const uniqueIds = new Set(splitAmongIds);
+    if (uniqueIds.size !== splitAmongIds.length) {
+      Alert.alert('Error', 'Cannot split expense among same person twice');
+      return;
+    }
+
     const apiSplitType = expSplitType === 'equally' ? 'equal' : expSplitType === 'percent' ? 'percentage' : 'amount';
 
     const splitAmong = splitAmongIds.map(uid => {
@@ -404,6 +431,14 @@ export default function EventDetailScreen({ route, navigation }: any) {
         setExpenses(p => p.map(e => e.id === editingExpenseId
           ? { ...e, description: expDesc, amount, category: expCategory.label, paidBy: expPaidBy, splitType: expSplitType, splitAmong: expSplitAmong }
           : e));
+        // Refresh balances after updating expense
+        const balData = await getEventBalances(event.id);
+        setBalances((balData.debts ?? []).map((d: any) => ({
+          from: d.from, to: d.to,
+          fromName: d.fromName ?? 'Member', toName: d.toName ?? 'Member',
+          amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
+        })));
+        setMyBalance(balData.myBalance ?? 0);
         setEditingExpenseId(null);
       } else {
         const res = await createEventExpense(event.id, {
@@ -420,17 +455,27 @@ export default function EventDetailScreen({ route, navigation }: any) {
           myAmount: myAmt ? parseFloat(myAmt.amount) : undefined,
         }]);
         setBalances(res.balances.map(d => ({ from: d.from, to: d.to, fromName: d.fromName, toName: d.toName, amount: d.amount })));
+        // Refresh myBalance after creating expense
+        const balData = await getEventBalances(event.id);
+        setMyBalance(balData.myBalance ?? 0);
       }
     } catch (err) {
-      handleApiError(err);
+      // Improved error handling for duplicate key errors
+      const errorMsg = err?.message?.toLowerCase() || '';
+      if (errorMsg.includes('duplicate') || errorMsg.includes('unique')) {
+        Alert.alert('Duplicate Expense', 'This expense already exists. Please check your entries and try again.');
+      } else {
+        handleApiError(err);
+      }
     }
     setExpDesc(''); setExpAmount(''); setExpCategory(EXPENSE_CATS[0]);
     setExpPaidBy('You'); setExpSplitType('equally');
     setExpSplitAmong(['You']); setExpSplitDetails({});
+    setEditingExpenseId(null);
     setShowAddExpense(false);
   }
 
-  function startEditExpense(exp: Expense) {
+  function startEditExpense(exp: ExpenseLocal) {
     setExpDesc(exp.description);
     setExpAmount(String(exp.amount));
     setExpCategory(EXPENSE_CATS.find(c => c.label === exp.category) || EXPENSE_CATS[0]);
@@ -448,6 +493,14 @@ export default function EventDetailScreen({ route, navigation }: any) {
         try {
           await deleteEventExpense(event.id, eid);
           setExpenses(p => p.filter(e => e.id !== eid));
+          // Refresh balances after deleting expense
+          const balData = await getEventBalances(event.id);
+          setBalances((balData.debts ?? []).map((d: any) => ({
+            from: d.from, to: d.to,
+            fromName: d.fromName ?? 'Member', toName: d.toName ?? 'Member',
+            amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
+          })));
+          setMyBalance(balData.myBalance ?? 0);
         } catch (err) { handleApiError(err); }
       }},
     ]);
@@ -457,7 +510,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
     if (!noteTitle.trim()) { Alert.alert('Error', 'Please enter a title'); return; }
     try {
       if (editingNoteId) {
-        await updateEventNote(event.id, editingNoteId, { title: noteTitle, content: noteBody, category: noteCategory });
+        const existingNote = notes.find(n => n.id === editingNoteId);
+        await updateEventNote(event.id, editingNoteId, { title: noteTitle, content: noteBody, category: noteCategory, pinned: existingNote?.pinned ?? false });
         setNotes(p => p.map(n => n.id === editingNoteId ? { ...n, title: noteTitle, body: noteBody, category: noteCategory } : n));
         setEditingNoteId(null);
       } else {
@@ -473,9 +527,23 @@ export default function EventDetailScreen({ route, navigation }: any) {
     setNoteTitle(''); setNoteBody(''); setNoteCategory('general');
   }
 
-  function startEditNote(note: Note) {
+  function startEditNote(note: NoteLocal) {
     setNoteTitle(note.title); setNoteBody(note.body); setNoteCategory(note.category);
     setEditingNoteId(note.id); setShowNoteCatDrop(false);
+  }
+
+  async function handleTogglePinNote(note: NoteLocal) {
+    const newPinnedStatus = !note.pinned;
+    // Optimistic update
+    setNotes(p => p.map(n => n.id === note.id ? { ...n, pinned: newPinnedStatus } : n));
+    try {
+      // Persist to backend
+      await updateEventNote(event.id, note.id, { title: note.title, content: note.body, category: note.category, pinned: newPinnedStatus });
+    } catch (err) {
+      // Revert on error
+      setNotes(p => p.map(n => n.id === note.id ? { ...n, pinned: !newPinnedStatus } : n));
+      handleApiError(err);
+    }
   }
 
   async function handleAddMembersFromFriends() {
@@ -546,9 +614,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   async function handleSaveEvent() {
     if (!editName.trim()) { Alert.alert('Error', 'Event name is required'); return; }
-    const newDateLine = editDateObj
-      ? editDateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-      : event.dateLine;
     try {
       await apiUpdateEvent(event.id, {
         name: editName.trim(),
@@ -556,12 +621,17 @@ export default function EventDetailScreen({ route, navigation }: any) {
         ...(editType ? { eventType: editType } : {}),
         ...(editDateObj ? { eventDate: editDateObj.toISOString().split('T')[0] } : {}),
       });
+      // Immediately fetch fresh event data to ensure consistency
+      const freshData = await getEventDetail(event.id);
       setEvent(prev => ({
         ...prev,
-        name: editName.trim(),
-        location: editLocation || prev.location,
-        type: editType || prev.type,
-        dateLine: newDateLine,
+        name:        freshData.event.name,
+        location:    freshData.event.location?.name ?? prev.location,
+        dateLine:    freshData.event.eventDate
+          ? new Date(freshData.event.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+          : prev.dateLine,
+        type:        freshData.event.eventType ?? prev.type,
+        description: freshData.event.description ?? prev.description,
       }));
     } catch (err) { handleApiError(err); }
     setShowEditEvent(false);
@@ -580,6 +650,13 @@ export default function EventDetailScreen({ route, navigation }: any) {
   function countWords(text: string) {
     return text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
   }
+
+  // Create composite highlights from photos, docs, and polls
+  const highlights = [
+    ...photos.slice(0, 4).map(p => ({ type: 'photo', id: p.id, item: p })),
+    ...docs.slice(0, 1).map(d => ({ type: 'doc', id: d.id, item: d })),
+    ...polls.slice(0, 1).map(p => ({ type: 'poll', id: p.id, item: p })),
+  ].slice(0, 6);
 
   return (
     <BlobBackground>
@@ -710,44 +787,70 @@ export default function EventDetailScreen({ route, navigation }: any) {
             )}
           </View>
 
-          {/* ── Highlights (Photo grid) ── */}
+          {/* ── Highlights (Composite: Photos + Docs + Polls) ── */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Highlights</Text>
-              {photos.length > 0 && (
+              {highlights.length > 0 && (
                 <TouchableOpacity onPress={() => setShowPhotos(true)} activeOpacity={0.7}>
                   <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '600' }}>See all</Text>
                 </TouchableOpacity>
               )}
             </View>
-            {photos.length === 0 ? (
-              <TouchableOpacity style={styles.emptyBox} onPress={() => setShowPhotos(true)} activeOpacity={0.8}>
+            {highlights.length === 0 ? (
+              <View style={styles.emptyBox}>
                 <Svg width={36} height={36} viewBox="0 0 24 24" fill="none">
                   <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
                   <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
                   <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
                 <Text style={styles.emptyTitle}>No highlights yet</Text>
-                <Text style={styles.emptySub}>Tap to add event photos</Text>
-              </TouchableOpacity>
+                <Text style={styles.emptySub}>Add photos, documents, or create polls to see them here!</Text>
+              </View>
             ) : (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {photos.slice(0, 6).map(ph => (
-                  <TouchableOpacity key={ph.id} onPress={() => setPreviewPhoto(ph)} activeOpacity={0.85}>
-                    <Image
-                      source={{ uri: ph.localUri ?? ph.uri }}
-                      style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: '#e2e8f0' }}
-                      resizeMode="cover"
-                    />
+                {highlights.map(h => (
+                  <TouchableOpacity
+                    key={h.id}
+                    onPress={() => {
+                      if (h.type === 'photo') setPreviewPhoto(h.item);
+                      else if (h.type === 'doc') setDocPreviewUrl(h.item.uri);
+                      else if (h.type === 'poll') setShowPolls(true);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    {h.type === 'photo' && (
+                      <Image
+                        source={{ uri: h.item.localUri ?? h.item.uri }}
+                        style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: '#e2e8f0' }}
+                        resizeMode="cover"
+                        onError={() => {}}
+                      />
+                    )}
+                    {h.type === 'doc' && (
+                      <View style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center' }}>
+                        <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+                          <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#6d28d9" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                          <Path d="M14 2v6h6M16 13H8M16 17H8" stroke="#6d28d9" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                        </Svg>
+                      </View>
+                    )}
+                    {h.type === 'poll' && (
+                      <View style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: '#e0e7ff', alignItems: 'center', justifyContent: 'center' }}>
+                        <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+                          <Path d="M18 20V10M12 20V4M6 20v-6" stroke="#4338ca" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                        </Svg>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 ))}
-                {photos.length > 6 && (
+                {highlights.length > 6 && (
                   <TouchableOpacity
                     onPress={() => setShowPhotos(true)}
                     activeOpacity={0.85}
                     style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}
                   >
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#64748b' }}>+{photos.length - 6}</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#64748b' }}>+{highlights.length - 6}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -929,7 +1032,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       {photos.map(ph => (
                         <View key={ph.id} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
                           <TouchableOpacity onPress={() => setPreviewPhoto(ph)} activeOpacity={0.85} style={{ width: 80, height: 80 }}>
-                            <Image source={{ uri: ph.localUri ?? ph.uri }} style={{ width: 80, height: 80, borderRadius: 8 }} resizeMode="cover" />
+                            <Image source={{ uri: ph.localUri ?? ph.uri }} style={{ width: 80, height: 80, borderRadius: 8 }} resizeMode="cover" onError={() => {}} />
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={async () => {
@@ -1291,7 +1394,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                                 </Text>
                               </View>
                               <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                                <TouchableOpacity onPress={() => setNotes(p => p.map(n => n.id === note.id ? { ...n, pinned: !n.pinned } : n))} activeOpacity={0.7} style={{ padding: 4 }}>
+                                <TouchableOpacity onPress={() => handleTogglePinNote(note)} activeOpacity={0.7} style={{ padding: 4 }}>
                                   <Svg width={16} height={16} viewBox="0 0 24 24" fill={note.pinned ? '#0d9488' : 'none'}>
                                     <Path d="M12 2l3 6.5 7 1-5 4.8 1.2 7L12 18l-6.2 3.3L7 14.3 2 9.5l7-1z" stroke={note.pinned ? '#0d9488' : '#94a3b8'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
                                   </Svg>

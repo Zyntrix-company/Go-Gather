@@ -19,6 +19,7 @@ import {
   Platform,
   PermissionsAndroid,
   ActivityIndicator,
+  NativeModules,
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -33,6 +34,7 @@ import {
   deleteTrip as apiDeleteTrip,
   archiveTrip as archiveTripApi,
   uploadTripPhotos,
+  uploadDoc as uploadTripDoc,
   getFriends,
   handleApiError,
 } from '../../api/trips.api';
@@ -445,7 +447,7 @@ function CreateTripModal({
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [reminders, setReminders] = useState(false);
-  const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
+  const [uploadedDocs, setUploadedDocs] = useState<{ uri: string; name: string; type: string }[]>([]);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -578,6 +580,7 @@ function CreateTripModal({
         bannerImageUrl: bannerImageUri,
         bannerImageType: bannerImageType,
         bannerCropFraction: bannerCropFraction,
+        uploadedDocs,
       });
       reset();
       onClose();
@@ -586,15 +589,20 @@ function CreateTripModal({
     }
   }
 
-  function handleUploadDocs() {
-    launchImageLibrary(
-      { mediaType: 'mixed', selectionLimit: 0 },
-      (response) => {
-        if (response.didCancel || response.errorCode) return;
-        const names = (response.assets || []).map(a => a.fileName || `File_${Date.now()}.pdf`);
-        setUploadedDocs(p => [...p, ...names]);
+  async function handleUploadDocs() {
+    try {
+      const FilePicker = NativeModules.FilePicker;
+      if (!FilePicker) {
+        Alert.alert('Not Available', 'File picker requires a fresh build.');
+        return;
       }
-    );
+      const file: { uri: string; name: string; type: string } = await FilePicker.pick();
+      if (!file?.uri) return;
+      setUploadedDocs(p => [...p, { uri: file.uri, name: file.name ?? `file_${Date.now()}`, type: file.type ?? 'application/octet-stream' }]);
+    } catch (err: any) {
+      if (err?.code === 'CANCELLED' || err?.message === 'User cancelled') return;
+      Alert.alert('Error', 'Could not open file picker.');
+    }
   }
 
   async function handleFetchLocation() {
@@ -882,7 +890,7 @@ function CreateTripModal({
                   <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   <Path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
-                <Text style={styles.ctDocChipText} numberOfLines={1}>{doc}</Text>
+                <Text style={styles.ctDocChipText} numberOfLines={1}>{doc.name}</Text>
                 <TouchableOpacity onPress={() => setUploadedDocs(p => p.filter((_, j) => j !== i))}>
                   <View style={styles.ctDocRemove}>
                     <Svg width={9} height={9} viewBox="0 0 24 24" fill="none">
@@ -1469,11 +1477,29 @@ export default function TripsScreen() {
                 newTrip = updated.trip;
                 setTrips(p => p.map(t => t.id === newTrip.id ? { ...t, bannerImageUrl: newTrip.bannerImageUrl ?? displayUrl } : t));
               }
-            } catch { /* keep local URI shown */ }
+            } catch (e) { console.warn('Banner upload failed:', e); }
           } else {
             setTrips(p => [mapApiTrip(newTrip), ...p]);
           }
-          // Bug 3 fix: clear banner only after the trip is successfully created
+          // Upload docs/photos attached during creation
+          const extMime: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', txt: 'text/plain', csv: 'text/csv' };
+          const docs = (data.uploadedDocs as { uri: string; name: string; type: string }[] | undefined) ?? [];
+          for (const file of docs) {
+            const ext = (file.name.split('.').pop() ?? file.uri.split('.').pop() ?? '').toLowerCase();
+            const resolvedType = file.type && file.type !== 'application/octet-stream' ? file.type : (extMime[ext] ?? 'application/octet-stream');
+            const isImage = /^image\//i.test(resolvedType);
+            try {
+              if (isImage) {
+                await uploadTripPhotos(newTrip.id, [{ uri: file.uri, type: resolvedType, name: file.name }]);
+              } else {
+                await uploadTripDoc(newTrip.id, { uri: file.uri, type: resolvedType, name: file.name });
+              }
+            } catch (e: any) {
+              console.warn('Doc/photo upload failed:', e);
+              Alert.alert('Upload Failed', `Could not upload "${file.name}": ${e?.message ?? 'Unknown error'}`);
+            }
+          }
+          // Clear banner only after the trip is successfully created
           setBannerImageUri(undefined);
           setBannerImageType('image/jpeg');
           setBannerCropFraction(null);

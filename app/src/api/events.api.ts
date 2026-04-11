@@ -2,8 +2,35 @@
  * GatherGo Events API
  * Covers: Events CRUD, Members, Expenses, Docs, Photos, Notes, Polls, Invites, Archive
  */
-import client from './client';
+import client, { API_BASE } from './client';
+import storage from '../utils/storage';
 import { parseError, handleApiError, ApiError, Doc, Photo, Expense, SplitUser, Debt, Note, Poll, TripMember } from './trips.api';
+
+// ─── Multipart upload helper ──────────────────────────────────────────────────
+async function uploadMultipart(path: string, formData: FormData): Promise<any> {
+  let token = await storage.getToken();
+  if (!token) {
+    const { default: useAuthStore } = await import('../store/authStore');
+    token = useAuthStore.getState().accessToken;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+      signal: controller.signal,
+    });
+    const text = await res.text();
+    let json: any;
+    try { json = JSON.parse(text); } catch { json = { message: text }; }
+    if (!res.ok) throw Object.assign(new Error(json?.message ?? 'Upload failed'), { response: { status: res.status, data: json } });
+    return json;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export { parseError, handleApiError };
 export type { ApiError };
@@ -136,15 +163,8 @@ export async function getEventDocs(eventId: string) {
 
 export async function uploadEventDoc(eventId: string, asset: { uri: string; type?: string; name?: string }) {
   const formData = new FormData();
-  formData.append('file', {
-    uri: asset.uri,
-    type: asset.type ?? 'application/octet-stream',
-    name: asset.name ?? 'document',
-  } as any);
-  const res = await client.post(`/events/${eventId}/docs`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return res.data as { doc: Doc };
+  formData.append('file', { uri: asset.uri, type: asset.type ?? 'application/octet-stream', name: asset.name ?? 'document' } as any);
+  return uploadMultipart(`/events/${eventId}/docs`, formData) as Promise<{ doc: Doc }>;
 }
 
 export async function deleteEventDoc(eventId: string, docId: string) {
@@ -162,16 +182,9 @@ export async function getEventPhotos(eventId: string) {
 export async function uploadEventPhotos(eventId: string, assets: Array<{ uri: string; type?: string; name?: string }>) {
   const formData = new FormData();
   assets.forEach(asset => {
-    formData.append('photos', {
-      uri: asset.uri,
-      type: asset.type ?? 'image/jpeg',
-      name: asset.name ?? 'photo.jpg',
-    } as any);
+    formData.append('photos', { uri: asset.uri, type: asset.type ?? 'image/jpeg', name: asset.name ?? 'photo.jpg' } as any);
   });
-  const res = await client.post(`/events/${eventId}/photos`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return res.data as { photos: Photo[] };
+  return uploadMultipart(`/events/${eventId}/photos`, formData) as Promise<{ photos: Photo[] }>;
 }
 
 export async function deleteEventPhoto(eventId: string, photoId: string) {
@@ -246,6 +259,7 @@ export async function updateEventNote(eventId: string, noteId: string, body: Par
   title: string;
   content: string;
   category: 'general' | 'idea' | 'important' | 'todo';
+  pinned: boolean;
 }>) {
   const res = await client.put(`/events/${eventId}/notes/${noteId}`, body);
   return res.data as { note: Note };

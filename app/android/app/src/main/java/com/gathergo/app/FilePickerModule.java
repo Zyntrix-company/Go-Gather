@@ -15,6 +15,11 @@ import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.Arguments;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+
 public class FilePickerModule extends ReactContextBaseJavaModule {
 
     private static final int FILE_PICKER_REQUEST = 71237;
@@ -62,7 +67,6 @@ public class FilePickerModule extends ReactContextBaseJavaModule {
             if (resultCode == Activity.RESULT_OK && data != null) {
                 Uri uri = data.getData();
                 if (uri != null) {
-                    // Take persistable permission so the URI stays accessible
                     try {
                         activity.getContentResolver().takePersistableUriPermission(
                             uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -74,15 +78,39 @@ public class FilePickerModule extends ReactContextBaseJavaModule {
                     try (Cursor cursor = activity.getContentResolver().query(uri, null, null, null, null)) {
                         if (cursor != null && cursor.moveToFirst()) {
                             int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                            if (nameIndex >= 0) fileName = cursor.getString(nameIndex);
+                            if (nameIndex >= 0) {
+                                String name = cursor.getString(nameIndex);
+                                if (name != null && !name.isEmpty()) fileName = name;
+                            }
                         }
                     } catch (Exception ignored) {}
 
-                    WritableMap result = Arguments.createMap();
-                    result.putString("uri", uri.toString());
-                    result.putString("name", fileName);
-                    result.putString("type", mimeType != null ? mimeType : "application/octet-stream");
-                    pendingPromise.resolve(result);
+                    // Copy content:// → file:// so React Native fetch/FormData can read it
+                    try {
+                        File cacheDir = getReactApplicationContext().getCacheDir();
+                        File destFile = new File(cacheDir, "filepicker_" + System.currentTimeMillis() + "_" + fileName);
+                        try (InputStream in = activity.getContentResolver().openInputStream(uri);
+                             OutputStream out = new FileOutputStream(destFile)) {
+                            if (in == null) throw new Exception("Cannot open input stream");
+                            byte[] buf = new byte[8192];
+                            int len;
+                            while ((len = in.read(buf)) > 0) {
+                                out.write(buf, 0, len);
+                            }
+                        }
+                        WritableMap result = Arguments.createMap();
+                        result.putString("uri", "file://" + destFile.getAbsolutePath());
+                        result.putString("name", fileName);
+                        result.putString("type", mimeType != null ? mimeType : "application/octet-stream");
+                        pendingPromise.resolve(result);
+                    } catch (Exception e) {
+                        // Fallback: return original content:// URI (may still work on some devices)
+                        WritableMap result = Arguments.createMap();
+                        result.putString("uri", uri.toString());
+                        result.putString("name", fileName);
+                        result.putString("type", mimeType != null ? mimeType : "application/octet-stream");
+                        pendingPromise.resolve(result);
+                    }
                 } else {
                     pendingPromise.reject("NO_URI", "No file selected");
                 }

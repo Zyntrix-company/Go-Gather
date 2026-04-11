@@ -49,8 +49,19 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Skip JSON/urlencoded parsing for multipart requests — multer handles those at route level
+app.use((req, _res, next) => {
+  if (req.headers['content-type'] && req.headers['content-type'].startsWith('multipart/form-data')) {
+    return next();
+  }
+  express.json({ limit: '50mb' })(req, _res, next);
+});
+app.use((req, _res, next) => {
+  if (req.headers['content-type'] && req.headers['content-type'].startsWith('multipart/form-data')) {
+    return next();
+  }
+  express.urlencoded({ extended: true, limit: '50mb' })(req, _res, next);
+});
 
 // HTTP request logging via morgan → winston
 const morganStream = {

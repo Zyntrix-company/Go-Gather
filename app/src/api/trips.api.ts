@@ -2,8 +2,35 @@
  * GatherGo Trips API — M2 + M4
  * Covers: Trips CRUD, Members, Activities, Expenses, Docs, Photos, Notes, Polls, Invites
  */
-import client from './client';
+import client, { API_BASE } from './client';
+import storage from '../utils/storage';
 import Toast from 'react-native-toast-message';
+
+// ─── Multipart upload helper (bypasses axios so RN networking sets the boundary) ──
+async function uploadMultipart(path: string, formData: FormData): Promise<any> {
+  let token = await storage.getToken();
+  if (!token) {
+    const { default: useAuthStore } = await import('../store/authStore');
+    token = useAuthStore.getState().accessToken;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000); // 60 s for file uploads
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+      signal: controller.signal,
+    });
+    const text = await res.text();
+    let json: any;
+    try { json = JSON.parse(text); } catch { json = { message: text }; }
+    if (!res.ok) throw Object.assign(new Error(json?.message ?? 'Upload failed'), { response: { status: res.status, data: json } });
+    return json;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // ─── Shared error parser ───────────────────────────────────────────────────────
 
@@ -153,6 +180,7 @@ export type Note = {
   title: string;
   content: string;
   category?: 'general' | 'idea' | 'important' | 'todo';
+  pinned?: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -289,16 +317,9 @@ export async function deleteActivity(tripId: string, actId: string) {
 export async function uploadActivityPhotos(tripId: string, actId: string, assets: Array<{ uri: string; type?: string; name?: string }>) {
   const formData = new FormData();
   assets.forEach(asset => {
-    formData.append('photos', {
-      uri: asset.uri,
-      type: asset.type ?? 'image/jpeg',
-      name: asset.name ?? 'photo.jpg',
-    } as any);
+    formData.append('photos', { uri: asset.uri, type: asset.type ?? 'image/jpeg', name: asset.name ?? 'photo.jpg' } as any);
   });
-  const res = await client.post(`/trips/${tripId}/activities/${actId}/photos`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return res.data as { photos: Photo[] };
+  return uploadMultipart(`/trips/${tripId}/activities/${actId}/photos`, formData) as Promise<{ photos: Photo[] }>;
 }
 
 export async function getActivityPhotos(tripId: string, actId: string) {
@@ -367,15 +388,8 @@ export async function getDocs(tripId: string) {
 
 export async function uploadDoc(tripId: string, asset: { uri: string; type?: string; name?: string }) {
   const formData = new FormData();
-  formData.append('file', {
-    uri: asset.uri,
-    type: asset.type ?? 'application/octet-stream',
-    name: asset.name ?? 'document',
-  } as any);
-  const res = await client.post(`/trips/${tripId}/docs`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return res.data as { doc: Doc };
+  formData.append('file', { uri: asset.uri, type: asset.type ?? 'application/octet-stream', name: asset.name ?? 'document' } as any);
+  return uploadMultipart(`/trips/${tripId}/docs`, formData) as Promise<{ doc: Doc }>;
 }
 
 export async function deleteDoc(tripId: string, docId: string) {
@@ -455,16 +469,9 @@ export async function getTripPhotos(tripId: string) {
 export async function uploadTripPhotos(tripId: string, assets: Array<{ uri: string; type?: string; name?: string }>) {
   const formData = new FormData();
   assets.forEach(asset => {
-    formData.append('photos', {
-      uri: asset.uri,
-      type: asset.type ?? 'image/jpeg',
-      name: asset.name ?? 'photo.jpg',
-    } as any);
+    formData.append('photos', { uri: asset.uri, type: asset.type ?? 'image/jpeg', name: asset.name ?? 'photo.jpg' } as any);
   });
-  const res = await client.post(`/trips/${tripId}/photos`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return res.data as { photos: Photo[] };
+  return uploadMultipart(`/trips/${tripId}/photos`, formData) as Promise<{ photos: Photo[] }>;
 }
 
 export async function deleteTripPhoto(tripId: string, photoId: string) {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
   Modal, TextInput, Platform, PermissionsAndroid, ActivityIndicator, Image,
-  RefreshControl,
+  RefreshControl, NativeModules,
 } from 'react-native';
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -19,6 +19,8 @@ import {
   deleteEvent as apiDeleteEvent,
   handleApiError,
   Event as ApiEvent,
+  uploadEventDoc,
+  uploadEventPhotos,
 } from '../../api/events.api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -116,7 +118,7 @@ function CreateEventModal({ visible, onClose, onSave }: {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [location, setLocation] = useState('');
   const [fetchingLocation, setFetchingLocation] = useState(false);
-  const [uploadedDocs, setUploadedDocs] = useState<string[]>([]);
+  const [uploadedDocs, setUploadedDocs] = useState<{ uri: string; name: string; type: string }[]>([]);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
   const [apiFriends, setApiFriends] = useState(CT_FRIENDS);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -181,6 +183,32 @@ function CreateEventModal({ visible, onClose, onSave }: {
         memberAvatars: [],
         description: result.event.description ?? '',
       };
+      // Upload banner image → photos module (events have no banner_image_url column)
+      if (bannerImageUri) {
+        try {
+          const ext = bannerImageUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+          const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', heic: 'image/heic', webp: 'image/webp' };
+          await uploadEventPhotos(newEvent.id, [{ uri: bannerImageUri, type: mimeMap[ext] ?? 'image/jpeg', name: `banner.${ext}` }]);
+        } catch (e) { console.warn('Banner upload failed:', e); }
+      }
+      // Upload docs — images → photos module, everything else → docs module
+      const extMime: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', txt: 'text/plain', csv: 'text/csv' };
+      const docs = [...uploadedDocs];
+      for (const file of docs) {
+        const ext = (file.name.split('.').pop() ?? file.uri.split('.').pop() ?? '').toLowerCase();
+        const resolvedType = file.type && file.type !== 'application/octet-stream' ? file.type : (extMime[ext] ?? 'application/octet-stream');
+        const isImage = /^image\//i.test(resolvedType);
+        try {
+          if (isImage) {
+            await uploadEventPhotos(newEvent.id, [{ uri: file.uri, type: resolvedType, name: file.name }]);
+          } else {
+            await uploadEventDoc(newEvent.id, { uri: file.uri, type: resolvedType, name: file.name });
+          }
+        } catch (e: any) {
+          console.warn('Doc upload failed:', e);
+          Alert.alert('Upload Failed', `Could not upload "${file.name}": ${e?.message ?? 'Unknown error'}`);
+        }
+      }
       onSave(newEvent);
       reset();
       onClose();
@@ -191,12 +219,17 @@ function CreateEventModal({ visible, onClose, onSave }: {
     }
   }
 
-  function handleUploadDocs() {
-    launchImageLibrary({ mediaType: 'mixed', selectionLimit: 0 }, (response) => {
-      if (response.didCancel || response.errorCode) return;
-      const names = (response.assets || []).map(a => a.fileName || `File_${Date.now()}.pdf`);
-      setUploadedDocs(p => [...p, ...names]);
-    });
+  async function handleUploadDocs() {
+    try {
+      const FilePicker = NativeModules.FilePicker;
+      if (!FilePicker) { Alert.alert('Not Available', 'File picker requires a fresh build.'); return; }
+      const file: { uri: string; name: string; type: string } = await FilePicker.pick();
+      if (!file?.uri) return;
+      setUploadedDocs(p => [...p, { uri: file.uri, name: file.name ?? `file_${Date.now()}`, type: file.type ?? 'application/octet-stream' }]);
+    } catch (err: any) {
+      if (err?.code === 'CANCELLED' || err?.message === 'User cancelled') return;
+      Alert.alert('Error', 'Could not open file picker.');
+    }
   }
 
   async function handleFetchLocation() {
@@ -374,7 +407,7 @@ function CreateEventModal({ visible, onClose, onSave }: {
                   <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   <Path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
-                <Text style={modal.ctDocChipText} numberOfLines={1}>{doc}</Text>
+                <Text style={modal.ctDocChipText} numberOfLines={1}>{doc.name}</Text>
                 <TouchableOpacity onPress={() => setUploadedDocs(p => p.filter((_, j) => j !== i))}>
                   <View style={modal.ctDocRemove}>
                     <Svg width={9} height={9} viewBox="0 0 24 24" fill="none">

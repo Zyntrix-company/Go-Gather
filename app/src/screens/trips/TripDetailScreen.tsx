@@ -955,6 +955,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
       if (res.balances) {
         setBalances(normalizeDebtArray(res.balances, currentUserId, members));
       }
+      // Refresh myBalance after expense changes
+      const balData = await getBalances(tripId);
+      setMyBalance(balData.myBalance ?? 0);
+      setTotalExpenses(balData.totalExpenses ?? '0');
       setExpDesc(''); setExpAmount(''); setExpCategory(EXPENSE_CATS[0]);
       setExpPaidBy('You'); setExpSplitType('equally'); setExpSplitAmong(['You']);
       setExpSplitDetails({}); setShowAddExpense(false);
@@ -988,6 +992,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
           const res = await deleteExpense(tripId, eid);
           setExpenses(p => p.filter(e => e.id !== eid));
           if (res.balances) setBalances(normalizeDebtArray(res.balances, currentUserId, members));
+          // Refresh myBalance after deleting expense
+          const balData = await getBalances(tripId);
+          setMyBalance(balData.myBalance ?? 0);
+          setTotalExpenses(balData.totalExpenses ?? '0');
         } catch (err) { handleApiError(err); }
       }},
     ]);
