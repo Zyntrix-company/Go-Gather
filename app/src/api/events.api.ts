@@ -7,29 +7,32 @@ import storage from '../utils/storage';
 import { parseError, handleApiError, ApiError, Doc, Photo, Expense, SplitUser, Debt, Note, Poll, TripMember } from './trips.api';
 
 // ─── Multipart upload helper ──────────────────────────────────────────────────
-async function uploadMultipart(path: string, formData: FormData): Promise<any> {
-  let token = await storage.getToken();
-  if (!token) {
-    const { default: useAuthStore } = await import('../store/authStore');
-    token = useAuthStore.getState().accessToken;
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60000);
-  try {
-    const res = await fetch(`${API_BASE}${path}`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-      signal: controller.signal,
-    });
-    const text = await res.text();
-    let json: any;
-    try { json = JSON.parse(text); } catch { json = { message: text }; }
-    if (!res.ok) throw Object.assign(new Error(json?.message ?? 'Upload failed'), { response: { status: res.status, data: json } });
-    return json;
-  } finally {
-    clearTimeout(timer);
-  }
+// Uses XMLHttpRequest — RN's XHR resolves content:// and file:// URIs in
+// FormData on Android correctly, whereas fetch cannot read content:// URIs.
+function uploadMultipart(path: string, formData: FormData): Promise<any> {
+  return new Promise(async (resolve, reject) => {
+    let token = await storage.getToken();
+    if (!token) {
+      const { default: useAuthStore } = await import('../store/authStore');
+      token = useAuthStore.getState().accessToken;
+    }
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_BASE}${path}`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.timeout = 60000;
+    xhr.onload = () => {
+      let json: any;
+      try { json = JSON.parse(xhr.responseText); } catch { json = { message: xhr.responseText }; }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(json);
+      } else {
+        reject(Object.assign(new Error(json?.message ?? 'Upload failed'), { response: { status: xhr.status, data: json } }));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.ontimeout = () => reject(new Error('Upload timed out'));
+    xhr.send(formData);
+  });
 }
 
 export { parseError, handleApiError };
