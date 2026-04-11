@@ -366,30 +366,33 @@ const createFriendInvite = async (inviterId, { channels, emails = [] }) => {
         to: email,
         subject: `${inviterName} invited you to GatherGo`,
         html: wrapEmail(`
-          <h2 style="margin:0 0 12px 0; font-size:22px; font-weight:700; color:#134E4A;">
-            You&rsquo;re invited to GatherGo!
+          <h2 style="margin:0 0 10px 0; font-size:22px; font-weight:700; color:#111827;">
+            You&rsquo;re invited to Gatherrgo!
           </h2>
-          <p style="margin:0 0 28px 0; font-size:16px; color:#374151; line-height:1.6;">
-            <strong>${inviterName}</strong> wants to connect with you on GatherGo —
+          <p style="margin:0 0 28px 0; font-size:15px; color:#374151; line-height:1.65;">
+            <strong>${inviterName}</strong> wants to connect with you on Gatherrgo —
             the app for planning trips and gatherings with the people who matter most.
           </p>
 
-          <!-- Bulletproof CTA button -->
-          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 28px auto;">
+          <!-- Bulletproof full-width-on-mobile CTA -->
+          <table role="presentation" cellpadding="0" cellspacing="0" class="cta-table"
+                 style="margin:0 auto 28px auto; width:100%; max-width:280px;">
             <tr>
-              <td style="border-radius:8px; background-color:#0D9488;">
-                <a href="${branchUrl}"
-                   style="display:block; padding:14px 40px; color:#ffffff; text-decoration:none;
-                          font-size:16px; font-weight:700; border-radius:8px; text-align:center;
+              <td class="cta-td" style="border-radius:8px; background-color:#0D9488;">
+                <a href="${branchUrl}" class="cta-link"
+                   style="display:block; padding:14px 32px; color:#ffffff;
+                          text-decoration:none; font-size:16px; font-weight:700;
+                          border-radius:8px; text-align:center;
                           font-family:'Segoe UI',Arial,sans-serif;">
-                  Join GatherGo
+                  Join Gatherrgo
                 </a>
               </td>
             </tr>
           </table>
 
           <p style="margin:0; font-size:13px; color:#6B7280; text-align:center;">
-            Or copy this link: <a href="${branchUrl}" style="color:#0D9488;">${branchUrl}</a>
+            Or copy this link:
+            <a href="${branchUrl}" style="color:#0D9488; word-break:break-all;">${branchUrl}</a>
           </p>
         `),
         text: shareText,

@@ -684,21 +684,23 @@ const unarchiveTrip = async (tripId) => {
 
 const buildInviteEmail = ({ inviterName, tripName, deepLink, expiresAt }) =>
   wrapEmail(`
-    <h2 style="margin:0 0 12px 0; font-size:22px; font-weight:700; color:#134E4A;">
+    <h2 style="margin:0 0 10px 0; font-size:22px; font-weight:700; color:#111827;">
       You&rsquo;re invited!
     </h2>
-    <p style="margin:0 0 28px 0; font-size:16px; color:#374151; line-height:1.6;">
+    <p style="margin:0 0 28px 0; font-size:15px; color:#374151; line-height:1.65;">
       <strong>${inviterName}</strong> has invited you to join
-      <strong>&ldquo;${tripName}&rdquo;</strong> on GatherGo.
+      <strong>&ldquo;${tripName}&rdquo;</strong> on Gatherrgo.
     </p>
 
-    <!-- Bulletproof CTA button -->
-    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 28px auto;">
+    <!-- Bulletproof full-width-on-mobile CTA -->
+    <table role="presentation" cellpadding="0" cellspacing="0" class="cta-table"
+           style="margin:0 auto 28px auto; width:100%; max-width:280px;">
       <tr>
-        <td style="border-radius:8px; background-color:#0D9488;">
-          <a href="${deepLink}"
-             style="display:block; padding:14px 40px; color:#ffffff; text-decoration:none;
-                    font-size:16px; font-weight:700; border-radius:8px; text-align:center;
+        <td class="cta-td" style="border-radius:8px; background-color:#0D9488;">
+          <a href="${deepLink}" class="cta-link"
+             style="display:block; padding:14px 32px; color:#ffffff;
+                    text-decoration:none; font-size:16px; font-weight:700;
+                    border-radius:8px; text-align:center;
                     font-family:'Segoe UI',Arial,sans-serif;">
             Accept Invite
           </a>
@@ -706,7 +708,7 @@ const buildInviteEmail = ({ inviterName, tripName, deepLink, expiresAt }) =>
       </tr>
     </table>
 
-    <p style="margin:0; font-size:14px; color:#6B7280; text-align:center;">
+    <p style="margin:0; font-size:13px; color:#6B7280; text-align:center;">
       This invite expires on <strong>${new Date(expiresAt).toLocaleDateString()}</strong>.
     </p>
   `);

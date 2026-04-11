@@ -3378,7 +3378,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Diwali Night 2027\",\n    \"startDate\": \"2027-10-20\",\n    \"endDate\": \"2027-10-20\",\n    \"location\": {\n        \"name\": \"Mumbai, India\",\n        \"lat\": 19.076,\n        \"lng\": 72.8777\n    },\n    \"reminders\": true,\n    \"friendIds\": [\n        \"a0000000-0000-4000-8000-000000000002\"\n    ],\n    \"emails\": []\n}",
+							"raw": "{\n    \"name\": \"Diwali Night 2027\",\n    \"eventDate\": \"2027-10-20\",\n    \"eventType\": \"Festival\",\n    \"description\": \"Annual Diwali celebration with fireworks and dinner.\",\n    \"location\": {\n        \"name\": \"Mumbai, India\",\n        \"lat\": 19.076,\n        \"lng\": 72.8777\n    },\n    \"reminders\": true,\n    \"friendIds\": [\n        \"a0000000-0000-4000-8000-000000000002\"\n    ],\n    \"emails\": []\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -3411,7 +3411,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Holi Bash 2027\",\n    \"startDate\": \"2027-03-10\",\n    \"endDate\": \"2027-03-10\",\n    \"location\": {\n        \"name\": \"Delhi, India\",\n        \"lat\": 28.6139,\n        \"lng\": 77.209\n    },\n    \"reminders\": false,\n    \"friendIds\": [],\n    \"emails\": [\n        \"outsider@example.com\"\n    ]\n}",
+							"raw": "{\n    \"name\": \"Holi Bash 2027\",\n    \"eventDate\": \"2027-03-10\",\n    \"eventType\": \"Festival\",\n    \"description\": null,\n    \"location\": {\n        \"name\": \"Delhi, India\",\n        \"lat\": 28.6139,\n        \"lng\": 77.209\n    },\n    \"reminders\": false,\n    \"friendIds\": [],\n    \"emails\": [\n        \"outsider@example.com\"\n    ]\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -3566,7 +3566,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Diwali Night 2027 — Venue Confirmed\",\n    \"location\": {\n        \"name\": \"Navi Mumbai, India\",\n        \"lat\": 19.033,\n        \"lng\": 73.0297\n    }\n}",
+							"raw": "{\n    \"name\": \"Diwali Night 2027 — Venue Confirmed\",\n    \"eventDate\": \"2027-10-21\",\n    \"eventType\": \"Festival\",\n    \"description\": \"Updated: venue confirmed at Navi Mumbai!\",\n    \"location\": {\n        \"name\": \"Navi Mumbai, India\",\n        \"lat\": 19.033,\n        \"lng\": 73.0297\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -3583,7 +3583,7 @@
 								"e1000000-0000-4000-8000-000000000001"
 							]
 						},
-						"description": "Admin only. Updating startDate reschedules reminders (event_start + 1_day_before)."
+						"description": "Admin only. Updating eventDate reschedules reminders (event_start + 1_day_before)."
 					},
 					"response": []
 				},
@@ -3798,6 +3798,146 @@
 							]
 						},
 						"description": "Admin only. 422 LAST_ADMIN if removing last admin."
+					},
+					"response": []
+				},
+				{
+					"name": "Set Event Description (POST)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"This is the event description set for the first time.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/description",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"description"
+							]
+						},
+						"description": "Admin only. Sets the event description. Pass null to clear it."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Event Description (PUT)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"description\": \"Updated description with new details about the event.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/description",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"description"
+							]
+						},
+						"description": "Admin only. Edits the existing event description. Pass null to clear it."
+					},
+					"response": []
+				},
+				{
+					"name": "Archive Event (Admin only)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/archive",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"archive"
+							]
+						},
+						"description": "Admin only. Sets archived_at. Returns 409 if already archived."
+					},
+					"response": []
+				},
+				{
+					"name": "Unarchive Event (Admin only)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/events/e1000000-0000-4000-8000-000000000001/unarchive",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"events",
+								"e1000000-0000-4000-8000-000000000001",
+								"unarchive"
+							]
+						},
+						"description": "Admin only. Clears archived_at. Returns 409 if event is not archived."
 					},
 					"response": []
 				},

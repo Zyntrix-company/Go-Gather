@@ -80,6 +80,7 @@ module.exports = {
 
   // ─── App URLs ────────────────────────────────
   clientUrl: process.env.CLIENT_URL || 'http://localhost:3001',
+  websiteUrl: process.env.WEBSITE_URL || 'https://www.gatherrgo.com',
   passwordResetUrl: process.env.PASSWORD_RESET_URL || 'http://localhost:3001/reset-password',
   appDeepLinkBaseUrl: process.env.APP_DEEP_LINK_BASE_URL || 'https://gathergo.app',
 

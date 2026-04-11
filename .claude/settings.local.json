@@ -43,7 +43,15 @@
       "Bash(aws sns:*)",
       "Bash(aws ses:*)",
       "Bash(curl -sI https://gatherrgo.com --max-time 10)",
-      "Bash(curl -sI https://www.gatherrgo.com --max-time 10)"
+      "Bash(curl -sI https://www.gatherrgo.com --max-time 10)",
+      "Bash(aws configure:*)",
+      "Bash(ssh-keygen -t rsa -b 2048 -f /tmp/ec2_temp_key -N \"\" -q)",
+      "Bash(aws ec2-instance-connect send-ssh-public-key:*)",
+      "Bash(ls:*)",
+      "Bash(ssh-keygen -t ed25519 -f /tmp/gogather_temp -N \"\" -q)",
+      "Bash(identify \"E:/Go Gather/app/assets/Complete Logo Teal w_o BG.png\")",
+      "Bash(python3 -c \"from PIL import Image; img=Image.open\\('E:/Go Gather/app/assets/Complete Logo Teal w_o BG.png'\\); print\\(img.size, img.mode\\)\")",
+      "Bash(curl:*)"
     ]
   }
 }

@@ -14,13 +14,15 @@ const toDateStr = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 const formatEvent = (e) => ({
   id: e.id,
   name: e.name,
-  startDate: toDateStr(e.start_date),
-  endDate: toDateStr(e.end_date),
+  eventDate: toDateStr(e.event_date),
+  eventType: e.event_type || null,
+  description: e.description || null,
   location: {
     name: e.location_name || null,
     lat: e.location_lat ? parseFloat(e.location_lat) : null,
     lng: e.location_lng ? parseFloat(e.location_lng) : null,
   },
+  archivedAt: e.archived_at || null,
   createdBy: e.created_by,
   createdAt: e.created_at,
   updatedAt: e.updated_at,
@@ -30,7 +32,7 @@ const formatEvent = (e) => ({
 
 const createEvent = async (userId, body) => {
   const {
-    name, startDate, endDate, location = {}, reminders,
+    name, eventDate, eventType, description, location = {}, reminders,
     friendIds = [], emails = [],
   } = body;
 
@@ -39,10 +41,10 @@ const createEvent = async (userId, body) => {
     await client.query('BEGIN');
 
     const eventResult = await client.query(
-      `INSERT INTO events (name, start_date, end_date, location_name, location_lat, location_lng, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO events (name, event_date, event_type, description, location_name, location_lat, location_lng, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [name, startDate, endDate, location.name || null, location.lat || null, location.lng || null, userId],
+      [name, eventDate, eventType || null, description || null, location.name || null, location.lat || null, location.lng || null, userId],
     );
     const event = eventResult.rows[0];
 
@@ -54,7 +56,7 @@ const createEvent = async (userId, body) => {
 
     // Schedule reminders (09:00 IST = 03:30 UTC) — event_start and 1_day_before only
     if (reminders) {
-      const start = new Date(startDate);
+      const start = new Date(eventDate);
       start.setUTCHours(3, 30, 0, 0);
 
       const remindersToCreate = [
@@ -102,8 +104,8 @@ const createEvent = async (userId, body) => {
       );
       notifyUsers(usersResult.rows, {
         title: `${name} — ${inviterName} added you!`,
-        body: 'Open GatherGo to see the event',
-      }, { type: 'EVENT_MEMBER_ADDED', eventId: event.id, screen: 'events' });
+          body: 'Open GatherGo to see the event',
+        }, { type: 'EVENT_MEMBER_ADDED', eventId: event.id, screen: 'events' });
     }
 
     // Send Branch-linked email invites
@@ -158,17 +160,17 @@ const getEvents = async (userId, { status, page = 1, limit = 20 } = {}) => {
   const safLimit = Math.min(limit, 100);
 
   let dateFilter = '';
-  let orderBy = 'ORDER BY e.start_date ASC';
+  let orderBy = 'ORDER BY e.event_date ASC';
 
   if (status === 'upcoming') {
-    dateFilter = 'AND e.start_date > CURRENT_DATE';
-    orderBy = 'ORDER BY e.start_date ASC';
+    dateFilter = 'AND e.event_date > CURRENT_DATE';
+    orderBy = 'ORDER BY e.event_date ASC';
   } else if (status === 'past') {
-    dateFilter = 'AND e.end_date < CURRENT_DATE';
-    orderBy = 'ORDER BY e.end_date DESC';
+    dateFilter = 'AND e.event_date < CURRENT_DATE';
+    orderBy = 'ORDER BY e.event_date DESC';
   } else if (status === 'ongoing') {
-    dateFilter = 'AND e.start_date <= CURRENT_DATE AND e.end_date >= CURRENT_DATE';
-    orderBy = 'ORDER BY e.start_date ASC';
+    dateFilter = 'AND e.event_date = CURRENT_DATE';
+    orderBy = 'ORDER BY e.event_date ASC';
   }
 
   const result = await db(
@@ -264,8 +266,9 @@ const updateEvent = async (eventId, updates) => {
   let idx = 1;
 
   if (updates.name !== undefined)             { fields.push(`name = $${idx++}`);          values.push(updates.name); }
-  if (updates.startDate !== undefined)        { fields.push(`start_date = $${idx++}`);    values.push(updates.startDate); }
-  if (updates.endDate !== undefined)          { fields.push(`end_date = $${idx++}`);      values.push(updates.endDate); }
+  if (updates.eventDate !== undefined)        { fields.push(`event_date = $${idx++}`);    values.push(updates.eventDate); }
+  if (updates.eventType !== undefined)        { fields.push(`event_type = $${idx++}`);    values.push(updates.eventType); }
+  if (updates.description !== undefined)      { fields.push(`description = $${idx++}`);   values.push(updates.description); }
   if (updates.location?.name !== undefined)   { fields.push(`location_name = $${idx++}`); values.push(updates.location.name); }
   if (updates.location?.lat !== undefined)    { fields.push(`location_lat = $${idx++}`);  values.push(updates.location.lat); }
   if (updates.location?.lng !== undefined)    { fields.push(`location_lng = $${idx++}`);  values.push(updates.location.lng); }
@@ -283,13 +286,13 @@ const updateEvent = async (eventId, updates) => {
 
   const event = result.rows[0];
 
-  // Reschedule reminders if startDate changed
-  if (updates.startDate) {
+  // Reschedule reminders if eventDate changed
+  if (updates.eventDate) {
     const client = await getClient();
     try {
       await client.query('BEGIN');
       await client.query('DELETE FROM event_reminders WHERE event_id = $1 AND sent_at IS NULL', [eventId]);
-      const start = new Date(updates.startDate);
+      const start = new Date(updates.eventDate);
       start.setUTCHours(3, 30, 0, 0);
       const remindersToCreate = [
         { type: 'event_start',  date: new Date(start) },
@@ -592,25 +595,72 @@ const removeEventMember = async (eventId, targetUserId) => {
   );
 };
 
+// ─── Description ─────────────────────────────────────────────────────────────
+
+const setEventDescription = async (eventId, description) => {
+  const result = await db(
+    `UPDATE events SET description = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+    [description ?? null, eventId],
+  );
+  if (result.rowCount === 0) {
+    const e = new Error('Event not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
+  }
+  return formatEvent(result.rows[0]);
+};
+
+// ─── Archive ──────────────────────────────────────────────────────────────────
+
+const archiveEvent = async (eventId) => {
+  const result = await db(
+    `UPDATE events SET archived_at = NOW(), updated_at = NOW() WHERE id = $1 AND archived_at IS NULL RETURNING *`,
+    [eventId],
+  );
+  if (result.rowCount === 0) {
+    const existing = await db('SELECT archived_at FROM events WHERE id = $1', [eventId]);
+    if (existing.rowCount === 0) {
+      const e = new Error('Event not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
+    }
+    const e = new Error('Event is already archived'); e.statusCode = 409; e.error = 'CONFLICT'; throw e;
+  }
+  return formatEvent(result.rows[0]);
+};
+
+const unarchiveEvent = async (eventId) => {
+  const result = await db(
+    `UPDATE events SET archived_at = NULL, updated_at = NOW() WHERE id = $1 AND archived_at IS NOT NULL RETURNING *`,
+    [eventId],
+  );
+  if (result.rowCount === 0) {
+    const existing = await db('SELECT archived_at FROM events WHERE id = $1', [eventId]);
+    if (existing.rowCount === 0) {
+      const e = new Error('Event not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
+    }
+    const e = new Error('Event is not archived'); e.statusCode = 409; e.error = 'CONFLICT'; throw e;
+  }
+  return formatEvent(result.rows[0]);
+};
+
 // ─── Email template ───────────────────────────────────────────────────────────
 
 const buildInviteEmail = ({ inviterName, eventName, deepLink, expiresAt }) =>
   wrapEmail(`
-    <h2 style="margin:0 0 12px 0; font-size:22px; font-weight:700; color:#134E4A;">
+    <h2 style="margin:0 0 10px 0; font-size:22px; font-weight:700; color:#111827;">
       You&rsquo;re invited!
     </h2>
-    <p style="margin:0 0 28px 0; font-size:16px; color:#374151; line-height:1.6;">
+    <p style="margin:0 0 28px 0; font-size:15px; color:#374151; line-height:1.65;">
       <strong>${inviterName}</strong> has invited you to join
-      <strong>&ldquo;${eventName}&rdquo;</strong> on GatherGo.
+      <strong>&ldquo;${eventName}&rdquo;</strong> on Gatherrgo.
     </p>
 
-    <!-- Bulletproof CTA button -->
-    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 28px auto;">
+    <!-- Bulletproof full-width-on-mobile CTA -->
+    <table role="presentation" cellpadding="0" cellspacing="0" class="cta-table"
+           style="margin:0 auto 28px auto; width:100%; max-width:280px;">
       <tr>
-        <td style="border-radius:8px; background-color:#0D9488;">
-          <a href="${deepLink}"
-             style="display:block; padding:14px 40px; color:#ffffff; text-decoration:none;
-                    font-size:16px; font-weight:700; border-radius:8px; text-align:center;
+        <td class="cta-td" style="border-radius:8px; background-color:#0D9488;">
+          <a href="${deepLink}" class="cta-link"
+             style="display:block; padding:14px 32px; color:#ffffff;
+                    text-decoration:none; font-size:16px; font-weight:700;
+                    border-radius:8px; text-align:center;
                     font-family:'Segoe UI',Arial,sans-serif;">
             Accept Invite
           </a>
@@ -618,7 +668,7 @@ const buildInviteEmail = ({ inviterName, eventName, deepLink, expiresAt }) =>
       </tr>
     </table>
 
-    <p style="margin:0; font-size:14px; color:#6B7280; text-align:center;">
+    <p style="margin:0; font-size:13px; color:#6B7280; text-align:center;">
       This invite expires on <strong>${new Date(expiresAt).toLocaleDateString()}</strong>.
     </p>
   `);
@@ -629,6 +679,9 @@ module.exports = {
   getEventById,
   updateEvent,
   deleteEvent,
+  setEventDescription,
+  archiveEvent,
+  unarchiveEvent,
   inviteToEvent,
   getEventInviteByToken,
   acceptEventInvite,

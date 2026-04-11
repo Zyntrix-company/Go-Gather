@@ -10,7 +10,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # 🎯 Context for monorepo
     defaults:
       run:
         working-directory: ./backend
@@ -29,15 +28,10 @@ jobs:
     - name: Login to Amazon ECR
       uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Build Docker image
-      run: docker build -t backend-api .
-
-    - name: Tag Docker image
+    - name: Build and push Docker image to ECR
       run: |
+        docker build -t backend-api .
         docker tag backend-api:latest 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
-
-    - name: Push Docker image to ECR
-      run: |
         docker push 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
     - name: Deploy to EC2 via SSH
@@ -46,27 +40,51 @@ jobs:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
+        request_pty: true
         script: |
-          # Login to ECR from EC2
-          aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 092201262561.dkr.ecr.ap-south-1.amazonaws.com
-          cd /home/ubuntu/Go-Gather/backend
-          # Pull latest image
+          set -e
+
+          # ── 1. ECR Login ───────────────────────────────────────────────────────
+          aws ecr get-login-password --region ap-south-1 \
+            | docker login --username AWS --password-stdin 092201262561.dkr.ecr.ap-south-1.amazonaws.com
+
+          # ── 2. Pull new image ──────────────────────────────────────────────────
           docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
-          # Stop and remove old container (sudo handles root-owned containers)
-          sudo docker stop gathergo-container 2>/dev/null || true
-          sudo docker rm -f gathergo-container 2>/dev/null || docker rm -f gathergo-container 2>/dev/null || true
+          # ── 3. Remove old container ────────────────────────────────────────────
+          # docker stop/kill are broken on kernel 6.17 + cgroup v2 + Docker 28.
+          # Workaround:
+          #   1. Disable restart policy FIRST (so Docker won't revive it after kill)
+          #   2. Kill the process directly with sudo kill -9
+          #   3. docker rm cleans up the metadata
+          if docker ps -a --format '{{.Names}}' | grep -q '^gathergo-container$'; then
+            echo "Disabling restart policy..."
+            docker update --restart=no gathergo-container || true
+            CPID=$(docker inspect --format '{{.State.Pid}}' gathergo-container 2>/dev/null || echo "0")
+            if [ -n "$CPID" ] && [ "$CPID" != "0" ]; then
+              echo "Killing container process PID=$CPID"
+              sudo kill -9 "$CPID" || true
+              sleep 3
+            fi
+            docker rm gathergo-container 2>/dev/null || true
+          fi
 
-          # Verify container is gone before proceeding
-          if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^gathergo-container$'; then
-            echo "ERROR: Failed to remove existing container" >&2
+          # ── 4. Verify clean slate ──────────────────────────────────────────────
+          if docker ps -a --format '{{.Names}}' | grep -q '^gathergo-container$'; then
+            echo "ERROR: container still exists after cleanup"
+            docker inspect gathergo-container --format 'Status={{.State.Status}} Pid={{.State.Pid}}' || true
             exit 1
           fi
 
-          # Run new container
+          # ── 5. Start new container ─────────────────────────────────────────────
+          cd /home/ubuntu/Go-Gather/backend
           docker run -d \
-          --name gathergo-container \
-          --restart unless-stopped \
-          -p 3000:3000 \
-          --env-file .env \
+            --name gathergo-container \
+            --restart unless-stopped \
+            -p 3000:3000 \
+            --env-file .env \
             092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
+
+          # ── 6. Confirm running ─────────────────────────────────────────────────
+          sleep 3
+          docker ps --filter name=gathergo-container --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"

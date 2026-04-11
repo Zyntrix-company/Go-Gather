@@ -6,15 +6,9 @@ const isUUID = (value) =>
 // ── Event CRUD ────────────────────────────────────────────────
 const createEventValidation = [
   body('name').trim().notEmpty().withMessage('Event name is required').isLength({ min: 2, max: 255 }),
-  body('startDate').isISO8601().withMessage('startDate must be a valid ISO 8601 date (YYYY-MM-DD)'),
-  body('endDate')
-    .isISO8601().withMessage('endDate must be a valid ISO 8601 date')
-    .custom((val, { req }) => {
-      if (new Date(val) < new Date(req.body.startDate)) {
-        throw new Error('endDate must be on or after startDate');
-      }
-      return true;
-    }),
+  body('eventDate').isISO8601().withMessage('eventDate must be a valid ISO 8601 date (YYYY-MM-DD)'),
+  body('eventType').optional().isString().isLength({ max: 100 }).withMessage('eventType must be a string (max 100 chars)'),
+  body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }).withMessage('description must be a string (max 5000 chars)'),
   body('location').notEmpty().withMessage('location is required').isObject().withMessage('location must be an object'),
   body('location.name').notEmpty().withMessage('location.name is required').isString().isLength({ max: 500 }),
   body('location.lat').optional().isFloat({ min: -90, max: 90 }).withMessage('location.lat must be a valid latitude'),
@@ -32,12 +26,18 @@ const createEventValidation = [
 const updateEventValidation = [
   param('eventId').isUUID().withMessage('Event ID must be a valid UUID'),
   body('name').optional().trim().notEmpty().isLength({ max: 255 }),
-  body('startDate').optional().isISO8601(),
-  body('endDate').optional().isISO8601(),
+  body('eventDate').optional().isISO8601(),
+  body('eventType').optional({ nullable: true }).isString().isLength({ max: 100 }),
+  body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }),
   body('location').optional().isObject(),
   body('location.name').optional().isString().isLength({ max: 500 }),
   body('location.lat').optional().isFloat({ min: -90, max: 90 }),
   body('location.lng').optional().isFloat({ min: -180, max: 180 }),
+];
+
+const descriptionValidation = [
+  param('eventId').isUUID().withMessage('Event ID must be a valid UUID'),
+  body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }).withMessage('description must be a string (max 5000 chars)'),
 ];
 
 const eventIdParam = [
@@ -72,6 +72,7 @@ const tokenParam = [
 module.exports = {
   createEventValidation,
   updateEventValidation,
+  descriptionValidation,
   eventIdParam,
   getEventsQuery,
   inviteValidation,
