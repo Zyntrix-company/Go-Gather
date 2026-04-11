@@ -492,8 +492,9 @@ async function seed() {
 
     // UPCOMING event
     await client.query(
-      `INSERT INTO events (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by)
-       VALUES ($1, 'Diwali Night 2026', '2026-10-20', '2026-10-20',
+      `INSERT INTO events (id, name, event_date, event_type, description, location_name, location_lat, location_lng, created_by)
+       VALUES ($1, 'Diwali Night 2026', '2026-10-20', 'Festival',
+               'Annual Diwali celebration with fireworks and dinner.',
                'Mumbai, India', 19.0760, 72.8777, $2)
        ON CONFLICT (id) DO NOTHING`,
       [IDS.upcomingEvent, IDS.alice],
@@ -501,8 +502,9 @@ async function seed() {
 
     // PAST event
     await client.query(
-      `INSERT INTO events (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by)
-       VALUES ($1, 'Holi 2024', '2024-03-25', '2024-03-25',
+      `INSERT INTO events (id, name, event_date, event_type, description, location_name, location_lat, location_lng, created_by)
+       VALUES ($1, 'Holi 2024', '2024-03-25', 'Festival',
+               NULL,
                'Delhi, India', 28.6139, 77.2090, $2)
        ON CONFLICT (id) DO NOTHING`,
       [IDS.pastEvent, IDS.alice],
