@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { WebView } from 'react-native-webview';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import DetailDialogHeader from '../../components/details/DetailDialogHeader';
@@ -127,6 +128,17 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const hasLoadedExpenses = React.useRef(false);
   const hasLoadedPolls    = React.useRef(false);
   const hasLoadedNotes    = React.useRef(false);
+
+  // Reset hasLoaded flags whenever screen regains focus (so coming back refreshes all data)
+  useFocusEffect(
+    useCallback(() => {
+      hasLoadedDocs.current = false;
+      hasLoadedPhotos.current = false;
+      hasLoadedExpenses.current = false;
+      hasLoadedPolls.current = false;
+      hasLoadedNotes.current = false;
+    }, [])
+  );
 
   // ── Data state ──
   const [loadingDetail, setLoadingDetail] = useState(true);
