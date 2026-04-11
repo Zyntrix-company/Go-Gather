@@ -160,6 +160,7 @@ const getEvents = async (userId, { status, page = 1, limit = 20 } = {}) => {
   const safLimit = Math.min(limit, 100);
 
   let dateFilter = '';
+  let archivedFilter = 'AND e.archived_at IS NULL';
   let orderBy = 'ORDER BY e.event_date ASC';
 
   if (status === 'upcoming') {
@@ -171,6 +172,9 @@ const getEvents = async (userId, { status, page = 1, limit = 20 } = {}) => {
   } else if (status === 'ongoing') {
     dateFilter = 'AND e.event_date = CURRENT_DATE';
     orderBy = 'ORDER BY e.event_date ASC';
+  } else if (status === 'archived') {
+    archivedFilter = 'AND e.archived_at IS NOT NULL';
+    orderBy = 'ORDER BY e.archived_at DESC';
   }
 
   const result = await db(
@@ -194,7 +198,7 @@ const getEvents = async (userId, { status, page = 1, limit = 20 } = {}) => {
      FROM events e
      JOIN event_members em ON em.event_id = e.id AND em.user_id = $1
      LEFT JOIN event_members em2 ON em2.event_id = e.id
-     WHERE 1=1 ${dateFilter}
+     WHERE 1=1 ${archivedFilter} ${dateFilter}
      GROUP BY e.id
      ${orderBy}
      LIMIT $2 OFFSET $3`,

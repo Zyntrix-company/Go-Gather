@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
   TextInput, Alert, Image, Platform, NativeModules, Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -19,26 +20,47 @@ import SweeFab from '../../components/details/SweeFab';
 import {
   BackIcon, PencilIcon, TrashIcon, CheckIcon,
 } from '../../components/common/Icons';
+import {
+  getEventDetail,
+  updateEvent as apiUpdateEvent,
+  getEventMembers,
+  inviteToEvent,
+  removeEventMember,
+  getEventDocs,
+  uploadEventDoc,
+  deleteEventDoc,
+  getEventPhotos,
+  uploadEventPhotos,
+  deleteEventPhoto,
+  getEventExpenses,
+  createEventExpense,
+  updateEventExpense,
+  deleteEventExpense,
+  getEventBalances,
+  settleEventDebt,
+  getEventNotes,
+  createEventNote,
+  updateEventNote,
+  deleteEventNote,
+  getEventPolls,
+  createEventPoll,
+  voteOnEventPoll,
+  handleApiError,
+} from '../../api/events.api';
+import { getFriends } from '../../api/trips.api';
+import useAuthStore from '../../store/authStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type DocItem    = { id: string; name: string; uri: string; mimeType?: string };
 type PhotoItem  = { id: string; uri: string; localUri?: string; name: string };
-type EventMember= { userId: string; fullName: string; avatarUrl?: string; role: 'admin' | 'member' };
-type Expense    = { id: string; description: string; amount: number; category: string; paidBy: string; splitType: 'equally' | 'amount' | 'percent'; splitAmong: string[]; date: string; myAmount?: number };
-type Poll       = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null };
-type Note       = { id: string; title: string; body: string; category: 'general' | 'idea' | 'important' | 'todo'; date: string; pinned?: boolean };
-type Debt       = { from: string; to: string; fromName: string; toName: string; amount: number };
+type EventMemberLocal = { userId: string; fullName: string; avatarUrl?: string; role: 'admin' | 'member' };
+type ExpenseLocal = { id: string; description: string; amount: number; category: string; paidBy: string; splitType: 'equally' | 'amount' | 'percent'; splitAmong: string[]; date: string; myAmount?: number };
+type PollLocal  = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null };
+type NoteLocal  = { id: string; title: string; body: string; category: 'general' | 'idea' | 'important' | 'todo'; date: string; pinned?: boolean };
+type DebtLocal  = { from: string; to: string; fromName: string; toName: string; amount: number };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const FRIENDS = [
-  { id: '1', name: 'Yuki Tanaka',      avatar: 'https://i.pravatar.cc/150?img=32' },
-  { id: '2', name: 'Amara Okafor',     avatar: 'https://i.pravatar.cc/150?img=38' },
-  { id: '3', name: 'Marcus Johnson',   avatar: 'https://i.pravatar.cc/150?img=13' },
-  { id: '4', name: 'Priya Sharma',     avatar: 'https://i.pravatar.cc/150?img=45' },
-  { id: '5', name: 'Carlos Rodriguez', avatar: 'https://i.pravatar.cc/150?img=12' },
-];
 
 const EXPENSE_CATS = [
   { label: 'General',       emoji: '📦' },
@@ -57,11 +79,6 @@ const NOTE_CATS = [
   { key: 'todo',      label: 'To-Do',      emoji: '✅' },
 ];
 
-const MOCK_MEMBERS: EventMember[] = [
-  { userId: '1', fullName: 'Yuki Tanaka',    avatarUrl: 'https://i.pravatar.cc/150?img=32', role: 'admin' },
-  { userId: '2', fullName: 'Amara Okafor',   avatarUrl: 'https://i.pravatar.cc/150?img=38', role: 'member' },
-  { userId: '3', fullName: 'Marcus Johnson', avatarUrl: 'https://i.pravatar.cc/150?img=13', role: 'member' },
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -102,17 +119,139 @@ export default function EventDetailScreen({ route, navigation }: any) {
     description: rawEvent?.description ?? 'Join us for the annual Spring Music Festival in the heart of Central Park. Experience live performances from local and international artists across multiple stages.',
   });
 
-  const currentUserId = '1'; // mock — "You" are user id '1' (admin)
+  const currentUserId = useAuthStore(s => s.user?.id ?? '');
+
+  // ── Load-once guards (prevent re-fetch from wiping locally-added items) ──
+  const hasLoadedDocs     = React.useRef(false);
+  const hasLoadedPhotos   = React.useRef(false);
+  const hasLoadedExpenses = React.useRef(false);
+  const hasLoadedPolls    = React.useRef(false);
+  const hasLoadedNotes    = React.useRef(false);
 
   // ── Data state ──
-  const [members,  setMembers]  = useState<EventMember[]>(MOCK_MEMBERS);
+  const [loadingDetail, setLoadingDetail] = useState(true);
+  const [members,  setMembers]  = useState<EventMemberLocal[]>([]);
+  const [apiFriends, setApiFriends] = useState<{ id: string; name: string; avatar: string }[]>([]);
   const [docs,     setDocs]     = useState<DocItem[]>([]);
   const [photos,   setPhotos]   = useState<PhotoItem[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [balances, setBalances] = useState<Debt[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseLocal[]>([]);
+  const [balances, setBalances] = useState<DebtLocal[]>([]);
   const [myBalance,setMyBalance]= useState(0);
-  const [polls,    setPolls]    = useState<Poll[]>([]);
-  const [notes,    setNotes]    = useState<Note[]>([]);
+  const [polls,    setPolls]    = useState<PollLocal[]>([]);
+  const [notes,    setNotes]    = useState<NoteLocal[]>([]);
+
+  // ── Load event detail from API on mount ──
+  useEffect(() => {
+    if (!event.id) return;
+    setLoadingDetail(true);
+    getEventDetail(event.id)
+      .then(data => {
+        setEvent(prev => ({
+          ...prev,
+          name:        data.event.name,
+          location:    data.event.location?.name ?? prev.location,
+          dateLine:    data.event.eventDate
+            ? new Date(data.event.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+            : prev.dateLine,
+          type:        data.event.eventType ?? prev.type,
+          description: data.event.description ?? prev.description,
+        }));
+        setMembers(data.members.map(m => ({
+          userId:    m.userId,
+          fullName:  m.fullName ?? (m as any).name ?? 'Member',
+          avatarUrl: m.avatarUrl ?? undefined,
+          role:      m.role,
+        })));
+      })
+      .catch(handleApiError)
+      .finally(() => setLoadingDetail(false));
+  }, [event.id]);
+
+  // Load friends when Members modal opens
+  useEffect(() => {
+    if (!showMembers) return;
+    getFriends().then(data => {
+      setApiFriends(data.friends.map(f => ({
+        id: f.user.id,
+        name: f.user.name,
+        avatar: f.user.avatarUrl ?? '',
+      })));
+    }).catch(() => {});
+  }, [showMembers]);
+
+  // Lazy-load sub-resources when modals open (only once per screen mount)
+  useEffect(() => {
+    if (!showDocs || hasLoadedDocs.current) return;
+    hasLoadedDocs.current = true;
+    getEventDocs(event.id)
+      .then(data => setDocs(data.docs.map(d => ({ id: d.id, name: d.fileName, uri: d.downloadUrl ?? d.fileUrl ?? '', mimeType: d.mimeType }))))
+      .catch(handleApiError);
+  }, [showDocs]);
+
+  useEffect(() => {
+    if (!showPhotos || hasLoadedPhotos.current) return;
+    hasLoadedPhotos.current = true;
+    getEventPhotos(event.id)
+      .then(data => setPhotos(data.photos.map(p => ({ id: p.id, uri: p.fileUrl ?? p.url ?? '', name: 'photo.jpg' }))))
+      .catch(handleApiError);
+  }, [showPhotos]);
+
+  useEffect(() => {
+    if (!showExpenses || hasLoadedExpenses.current) return;
+    hasLoadedExpenses.current = true;
+    Promise.all([
+      getEventExpenses(event.id),
+      getEventBalances(event.id),
+    ]).then(([expData, balData]) => {
+      setExpenses(expData.expenses.map(e => ({
+        id: e.id,
+        description: e.description,
+        amount: parseFloat(e.amount),
+        category: e.category ?? 'General',
+        paidBy: (e as any).paidByName ?? e.paidBy,
+        splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
+        splitAmong: e.splits.map(s => s.userId),
+        date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
+        myAmount: e.splits.find(s => s.userId === currentUserId)
+          ? parseFloat(e.splits.find(s => s.userId === currentUserId)!.amount)
+          : undefined,
+      })));
+      setBalances(balData.debts.map(d => ({
+        from: d.from, to: d.to,
+        fromName: d.fromName, toName: d.toName,
+        amount: d.amount,
+      })));
+      setMyBalance(balData.myBalance);
+    }).catch(handleApiError);
+  }, [showExpenses]);
+
+  useEffect(() => {
+    if (!showPolls || hasLoadedPolls.current) return;
+    hasLoadedPolls.current = true;
+    getEventPolls(event.id)
+      .then(data => setPolls(data.polls.map(p => ({
+        id: p.id,
+        question: p.question,
+        options: p.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount, votedByMe: o.votedByMe })),
+        myVoteOptionId: p.myVoteOptionId,
+      }))))
+      .catch(handleApiError);
+  }, [showPolls]);
+
+  useEffect(() => {
+    if (!showNotes || hasLoadedNotes.current) return;
+    hasLoadedNotes.current = true;
+    getEventNotes(event.id)
+      .then(data => setNotes(data.notes.map(n => ({
+        id: n.id,
+        title: n.title,
+        body: n.content,
+        category: (n.category ?? 'general') as NoteLocal['category'],
+        date: new Date(n.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
+        pinned: false,
+      }))))
+      .catch(handleApiError);
+  }, [showNotes]);
 
   // ── Modal visibility ──
   const [showDocs,       setShowDocs]       = useState(false);
@@ -177,73 +316,101 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const totalExp     = expenses.reduce((s, e) => s + e.amount, 0);
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
   const memberIdSet  = new Set(members.map(m => m.userId));
-  const filteredFriends = FRIENDS
+  const filteredFriends = apiFriends
     .filter(f => !memberIdSet.has(f.id) && f.name.toLowerCase().includes(memberSearch.toLowerCase()));
   const dayLabel = event.dayCount > 0 ? 'Days to go' : event.dayCount === 0 ? 'Today!' : 'Days ago';
 
   // ── Handlers ──
 
-  function handleUploadDoc() {
-    const FilePicker = NativeModules.FilePicker;
-    if (!FilePicker) {
-      Alert.alert('Not Available', 'File picker requires a native build.');
-      return;
-    }
-    FilePicker.pick().then((file: any) => {
+  async function handleUploadDoc() {
+    try {
+      const FilePicker = NativeModules.FilePicker;
+      if (!FilePicker) {
+        // Fallback: use image picker for images only if native FilePicker not available
+        launchImageLibrary({ mediaType: 'mixed', selectionLimit: 1, includeBase64: false }, async res => {
+          if (res.didCancel || res.errorCode) return;
+          const asset = res.assets?.[0];
+          if (!asset?.uri) return;
+          try {
+            const result = await uploadEventDoc(event.id, { uri: asset.uri, type: asset.type, name: asset.fileName ?? 'document' });
+            setDocs(p => [...p, { id: result.doc.id, name: result.doc.fileName, uri: result.doc.downloadUrl ?? result.doc.fileUrl ?? '', mimeType: result.doc.mimeType }]);
+          } catch (err) { handleApiError(err); }
+        });
+        return;
+      }
+      const file: { uri: string; name: string; type: string } = await FilePicker.pick();
       if (!file?.uri) return;
-      setDocs(p => [...p, { id: `doc_${Date.now()}`, name: file.name ?? 'document', uri: file.uri, mimeType: file.type }]);
-    }).catch((err: any) => {
+      const result = await uploadEventDoc(event.id, { uri: file.uri, type: file.type ?? 'application/octet-stream', name: file.name ?? 'document' });
+      setDocs(p => [...p, { id: result.doc.id, name: result.doc.fileName, uri: result.doc.downloadUrl ?? result.doc.fileUrl ?? '', mimeType: result.doc.mimeType }]);
+    } catch (err: any) {
       if (err?.code === 'CANCELLED' || err?.message === 'User cancelled') return;
-      Alert.alert('Error', 'Could not pick file');
-    });
+      handleApiError(err);
+    }
   }
 
   function handlePickPhoto(cam: boolean) {
     const fn = cam ? launchCamera : launchImageLibrary;
-    fn({ mediaType: 'mixed', selectionLimit: 5 }, res => {
+    fn({ mediaType: 'photo', selectionLimit: 5, maxWidth: 1280, maxHeight: 1280, quality: 0.7 }, async res => {
       if (res.didCancel || res.errorCode) return;
-      const assets = (res.assets || []).map((a, i) => ({
-        id: `ph_${Date.now()}_${i}`,
-        uri: a.uri ?? '',
-        localUri: a.uri,
-        name: a.fileName ?? 'photo.jpg',
-      })).filter(a => a.uri);
-      setPhotos(p => [...p, ...assets]);
+      const assets = (res.assets || []).filter(a => a.uri);
+      if (!assets.length) return;
+      try {
+        const result = await uploadEventPhotos(event.id, assets.map(a => ({ uri: a.uri!, type: a.type, name: a.fileName ?? 'photo.jpg' })));
+        const newPhotos = result.photos.map(p => ({ id: p.id, uri: p.fileUrl ?? p.url ?? '', name: 'photo.jpg' }));
+        setPhotos(prev => [...prev, ...newPhotos]);
+      } catch (err) {
+        handleApiError(err);
+      }
     });
   }
 
-  function handleAddExpense() {
+  async function handleAddExpense() {
     if (!expDesc.trim() || !expAmount) { Alert.alert('Error', 'Please fill description and amount'); return; }
     const amount = parseFloat(expAmount) || 0;
-    const myAmt  = expSplitType === 'equally' ? amount / Math.max(expSplitAmong.length, 1) : 0;
 
-    if (editingExpenseId) {
-      setExpenses(p => p.map(e => e.id === editingExpenseId
-        ? { ...e, description: expDesc, amount, category: expCategory.label, paidBy: expPaidBy, splitType: expSplitType, splitAmong: expSplitAmong }
-        : e));
-      setEditingExpenseId(null);
-    } else {
-      const newExp: Expense = {
-        id: `exp_${Date.now()}`,
-        description: expDesc,
-        amount,
-        category: expCategory.label,
-        paidBy: expPaidBy,
-        splitType: expSplitType,
-        splitAmong: expSplitAmong,
-        date: new Date().toLocaleDateString('default', { day: 'numeric', month: 'short' }),
-        myAmount: expPaidBy === 'You' ? myAmt : amount / Math.max(expSplitAmong.length, 1),
-      };
-      setExpenses(p => [...p, newExp]);
-      // Simple local balance update
-      if (expPaidBy === 'You' && expSplitAmong.length > 1) {
-        const others = expSplitAmong.filter(x => x !== 'You');
-        const share  = amount / expSplitAmong.length;
-        others.forEach(uid => {
-          const m = members.find(x => x.userId === uid);
-          setBalances(prev => [...prev, { from: uid, to: currentUserId, fromName: m?.fullName ?? uid, toName: 'You', amount: share }]);
+    // Map local "You" placeholder to real user ID
+    const resolveId = (id: string) => id === 'You' ? currentUserId : id;
+    const splitAmongIds = expSplitAmong.map(resolveId);
+    const apiSplitType = expSplitType === 'equally' ? 'equal' : expSplitType === 'percent' ? 'percentage' : 'amount';
+
+    const splitAmong = splitAmongIds.map(uid => {
+      if (apiSplitType === 'equal') return { userId: uid };
+      const raw = expSplitDetails[uid === currentUserId ? 'You' : uid] ?? '0';
+      if (apiSplitType === 'percentage') return { userId: uid, percentage: parseFloat(raw) || 0 };
+      return { userId: uid, amount: parseFloat(raw) || 0 };
+    });
+
+    const paidByUserId = expPaidBy === 'You' ? currentUserId
+      : members.find(m => m.fullName === expPaidBy)?.userId ?? currentUserId;
+
+    try {
+      if (editingExpenseId) {
+        const res = await updateEventExpense(event.id, editingExpenseId, {
+          description: expDesc, amount, category: expCategory.label.toLowerCase(),
+          splitType: apiSplitType, splitAmong,
         });
+        setExpenses(p => p.map(e => e.id === editingExpenseId
+          ? { ...e, description: expDesc, amount, category: expCategory.label, paidBy: expPaidBy, splitType: expSplitType, splitAmong: expSplitAmong }
+          : e));
+        setEditingExpenseId(null);
+      } else {
+        const res = await createEventExpense(event.id, {
+          description: expDesc, amount, category: expCategory.label.toLowerCase(),
+          paidBy: paidByUserId, splitType: apiSplitType, splitAmong,
+        });
+        const e = res.expense;
+        const myAmt = e.splits.find(s => s.userId === currentUserId);
+        setExpenses(p => [...p, {
+          id: e.id, description: e.description, amount: parseFloat(e.amount),
+          category: expCategory.label, paidBy: expPaidBy, splitType: expSplitType,
+          splitAmong: expSplitAmong,
+          date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
+          myAmount: myAmt ? parseFloat(myAmt.amount) : undefined,
+        }]);
+        setBalances(res.balances.map(d => ({ from: d.from, to: d.to, fromName: d.fromName, toName: d.toName, amount: d.amount })));
       }
+    } catch (err) {
+      handleApiError(err);
     }
     setExpDesc(''); setExpAmount(''); setExpCategory(EXPENSE_CATS[0]);
     setExpPaidBy('You'); setExpSplitType('equally');
@@ -265,23 +432,32 @@ export default function EventDetailScreen({ route, navigation }: any) {
   function handleDeleteExpense(eid: string) {
     Alert.alert('Delete', 'Remove this expense?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => setExpenses(p => p.filter(e => e.id !== eid)) },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await deleteEventExpense(event.id, eid);
+          setExpenses(p => p.filter(e => e.id !== eid));
+        } catch (err) { handleApiError(err); }
+      }},
     ]);
   }
 
-  function handleAddNote() {
+  async function handleAddNote() {
     if (!noteTitle.trim()) { Alert.alert('Error', 'Please enter a title'); return; }
-    if (editingNoteId) {
-      setNotes(p => p.map(n => n.id === editingNoteId ? { ...n, title: noteTitle, body: noteBody, category: noteCategory } : n));
-      setEditingNoteId(null);
-    } else {
-      setNotes(p => [...p, {
-        id: `note_${Date.now()}`, title: noteTitle.trim(), body: noteBody,
-        category: noteCategory,
-        date: new Date().toLocaleDateString('default', { day: 'numeric', month: 'short' }),
-        pinned: false,
-      }]);
-    }
+    try {
+      if (editingNoteId) {
+        await updateEventNote(event.id, editingNoteId, { title: noteTitle, content: noteBody, category: noteCategory });
+        setNotes(p => p.map(n => n.id === editingNoteId ? { ...n, title: noteTitle, body: noteBody, category: noteCategory } : n));
+        setEditingNoteId(null);
+      } else {
+        const res = await createEventNote(event.id, { title: noteTitle.trim(), content: noteBody, category: noteCategory });
+        setNotes(p => [...p, {
+          id: res.note.id, title: res.note.title, body: res.note.content,
+          category: (res.note.category ?? 'general') as NoteLocal['category'],
+          date: new Date(res.note.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
+          pinned: false,
+        }]);
+      }
+    } catch (err) { handleApiError(err); }
     setNoteTitle(''); setNoteBody(''); setNoteCategory('general');
   }
 
@@ -290,36 +466,47 @@ export default function EventDetailScreen({ route, navigation }: any) {
     setEditingNoteId(note.id); setShowNoteCatDrop(false);
   }
 
-  function handleAddMembersFromFriends() {
+  async function handleAddMembersFromFriends() {
     if (!selectedFriends.length && !inviteInput.trim()) {
       Alert.alert('Error', 'Select friends or enter a contact to invite');
       return;
     }
-    const newMembers = FRIENDS
-      .filter(f => selectedFriends.includes(f.id))
-      .map(f => ({ userId: f.id, fullName: f.name, avatarUrl: f.avatar, role: 'member' as const }));
-    setMembers(p => {
-      const existing = new Set(p.map(m => m.userId));
-      return [...p, ...newMembers.filter(m => !existing.has(m.userId))];
-    });
+    try {
+      const res = await inviteToEvent(event.id, {
+        friendIds: selectedFriends.length > 0 ? selectedFriends : undefined,
+        emails: inviteInput.trim() ? [inviteInput.trim()] : undefined,
+      });
+      // Add newly added members to local list
+      const added = apiFriends
+        .filter(f => res.added.some(a => a.userId === f.id))
+        .map(f => ({ userId: f.id, fullName: f.name, avatarUrl: f.avatar, role: 'member' as const }));
+      setMembers(p => {
+        const existing = new Set(p.map(m => m.userId));
+        return [...p, ...added.filter(m => !existing.has(m.userId))];
+      });
+      if (res.invited.length > 0) Alert.alert('Invite Sent', `Invitation sent to ${inviteInput.trim()}`);
+    } catch (err) { handleApiError(err); }
     setSelectedFriends([]);
     setInviteInput('');
-    if (inviteInput.trim()) Alert.alert('Invite Sent', `Invite sent to ${inviteInput.trim()}`);
   }
 
-  function handleCreatePoll() {
+  async function handleCreatePoll() {
     const valid = pollOptions.filter(o => o.trim());
     if (!pollQuestion.trim() || valid.length < 2) { Alert.alert('Error', 'Enter a question and at least 2 options'); return; }
-    setPolls(prev => [...prev, {
-      id: `poll_${Date.now()}`,
-      question: pollQuestion.trim(),
-      options: valid.map((text, i) => ({ id: `opt_${i}_${Date.now()}`, text, voteCount: 0, votedByMe: false })),
-      myVoteOptionId: null,
-    }]);
+    try {
+      const res = await createEventPoll(event.id, { question: pollQuestion.trim(), options: valid });
+      setPolls(prev => [...prev, {
+        id: res.poll.id,
+        question: res.poll.question,
+        options: res.poll.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount, votedByMe: o.votedByMe })),
+        myVoteOptionId: res.poll.myVoteOptionId,
+      }]);
+    } catch (err) { handleApiError(err); }
     setPollQuestion(''); setPollOptions(['', '', '']);
   }
 
-  function handleVote(pollId: string, optionId: string) {
+  async function handleVote(pollId: string, optionId: string) {
+    // Optimistic update
     setPolls(prev => prev.map(p => {
       if (p.id !== pollId) return p;
       const alreadyVoted = p.myVoteOptionId === optionId;
@@ -335,20 +522,36 @@ export default function EventDetailScreen({ route, navigation }: any) {
         })),
       };
     }));
+    try {
+      const res = await voteOnEventPoll(event.id, pollId, optionId);
+      setPolls(prev => prev.map(p => p.id === pollId ? {
+        id: res.poll.id, question: res.poll.question,
+        options: res.poll.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount, votedByMe: o.votedByMe })),
+        myVoteOptionId: res.poll.myVoteOptionId,
+      } : p));
+    } catch (err) { handleApiError(err); }
   }
 
-  function handleSaveEvent() {
+  async function handleSaveEvent() {
     if (!editName.trim()) { Alert.alert('Error', 'Event name is required'); return; }
     const newDateLine = editDateObj
       ? editDateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
       : event.dateLine;
-    setEvent(prev => ({
-      ...prev,
-      name: editName.trim(),
-      location: editLocation,
-      type: editType || prev.type,
-      dateLine: newDateLine,
-    }));
+    try {
+      await apiUpdateEvent(event.id, {
+        name: editName.trim(),
+        ...(editLocation ? { location: { name: editLocation } } : {}),
+        ...(editType ? { eventType: editType } : {}),
+        ...(editDateObj ? { eventDate: editDateObj.toISOString().split('T')[0] } : {}),
+      });
+      setEvent(prev => ({
+        ...prev,
+        name: editName.trim(),
+        location: editLocation || prev.location,
+        type: editType || prev.type,
+        dateLine: newDateLine,
+      }));
+    } catch (err) { handleApiError(err); }
     setShowEditEvent(false);
   }
 
@@ -378,6 +581,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+
+          {loadingDetail && (
+            <ActivityIndicator size="small" color="#0d9488" style={{ marginVertical: 8 }} />
+          )}
 
           {/* Hero Card — with stats row inside */}
           <SharedDetailHeroCard
@@ -465,7 +672,13 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.descSaveBtn}
-                      onPress={() => { setEvent(prev => ({ ...prev, description: descDraft })); setEditingDesc(false); }}
+                      onPress={async () => {
+                        try {
+                          await apiUpdateEvent(event.id, { description: descDraft });
+                          setEvent(prev => ({ ...prev, description: descDraft }));
+                        } catch (err) { handleApiError(err); }
+                        setEditingDesc(false);
+                      }}
                       activeOpacity={0.85}>
                       <Text style={styles.descSaveTxt}>Save</Text>
                     </TouchableOpacity>
@@ -565,7 +778,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         <Path d="M14 2v6h6M16 13H8M16 17H8" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                       </Svg>
                       <Text style={{ flex: 1, fontSize: 13, color: '#0f172a', marginLeft: 10 }} numberOfLines={1}>{doc.name}</Text>
-                      <TouchableOpacity onPress={() => setDocs(p => p.filter(d => d.id !== doc.id))} activeOpacity={0.7}>
+                      <TouchableOpacity onPress={async () => {
+                        try { await deleteEventDoc(event.id, doc.id); setDocs(p => p.filter(d => d.id !== doc.id)); }
+                        catch (err) { handleApiError(err); }
+                      }} activeOpacity={0.7}>
                         <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '600' }}>Remove</Text>
                       </TouchableOpacity>
                     </TouchableOpacity>
@@ -598,7 +814,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       {m.role === 'admin'
                         ? <View style={styles.ownerBadge}><Text style={styles.ownerTxt}>Admin</Text></View>
                         : m.userId !== currentUserId
-                          ? <TouchableOpacity onPress={() => setMembers(p => p.filter(x => x.userId !== m.userId))} activeOpacity={0.7}>
+                          ? <TouchableOpacity onPress={async () => {
+                              try { await removeEventMember(event.id, m.userId); setMembers(p => p.filter(x => x.userId !== m.userId)); }
+                              catch (err) { handleApiError(err); }
+                            }} activeOpacity={0.7}>
                               <Text style={{ color: '#ef4444', fontSize: 12 }}>Remove</Text>
                             </TouchableOpacity>
                           : null}
@@ -701,7 +920,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
                             <Image source={{ uri: ph.localUri ?? ph.uri }} style={{ width: 80, height: 80, borderRadius: 8 }} resizeMode="cover" />
                           </TouchableOpacity>
                           <TouchableOpacity
-                            onPress={() => setPhotos(p => p.filter(x => x.id !== ph.id))}
+                            onPress={async () => {
+                              try { await deleteEventPhoto(event.id, ph.id); setPhotos(p => p.filter(x => x.id !== ph.id)); }
+                              catch (err) { handleApiError(err); }
+                            }}
                             style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}
                             activeOpacity={0.7}>
                             <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>✕</Text>
@@ -911,9 +1133,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         </View>
                         {debt.from === currentUserId && (
                           <TouchableOpacity style={[styles.tealBtnFull, { paddingHorizontal: 12, paddingVertical: 6 }]}
-                            onPress={() => {
-                              setBalances(p => p.filter((_, j) => j !== i));
-                              setMyBalance(prev => prev + debt.amount);
+                            onPress={async () => {
+                              try {
+                                await settleEventDebt(event.id, { withUserId: debt.to, amount: debt.amount });
+                                setBalances(p => p.filter((_, j) => j !== i));
+                                setMyBalance(prev => prev + debt.amount);
+                              } catch (err) { handleApiError(err); }
                             }} activeOpacity={0.85}>
                             <Text style={[styles.tealBtnTxt, { fontSize: 12 }]}>Settle</Text>
                           </TouchableOpacity>
@@ -968,7 +1193,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
                           </TouchableOpacity>
                         );
                       })}
-                      <TouchableOpacity onPress={() => setPolls(p => p.filter(po => po.id !== poll.id))} activeOpacity={0.7} style={{ marginTop: 8, alignSelf: 'flex-end' }}>
+                      <TouchableOpacity onPress={async () => {
+                        // polls have no delete endpoint on events API — remove locally only
+                        setPolls(p => p.filter(po => po.id !== poll.id));
+                      }} activeOpacity={0.7} style={{ marginTop: 8, alignSelf: 'flex-end' }}>
                         <Text style={{ fontSize: 11, color: '#ef4444' }}>Delete Poll</Text>
                       </TouchableOpacity>
                     </View>
@@ -1062,7 +1290,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
                                     <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#64748b" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
                                   </Svg>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setNotes(p => p.filter(n => n.id !== note.id))} activeOpacity={0.7} style={{ padding: 4 }}>
+                                <TouchableOpacity onPress={async () => {
+                                  try { await deleteEventNote(event.id, note.id); setNotes(p => p.filter(n => n.id !== note.id)); }
+                                  catch (err) { handleApiError(err); }
+                                }} activeOpacity={0.7} style={{ padding: 4 }}>
                                   <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
                                     <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="#ef4444" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
                                   </Svg>

@@ -1,16 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
   Modal, TextInput, Platform, PermissionsAndroid, ActivityIndicator, Image,
+  RefreshControl,
 } from 'react-native';
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Geolocation from '@react-native-community/geolocation';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { EventCard, EventCardPast, CardData } from '../../components/common/Cards';
 import colors from '../../theme/colors';
 import { getFriends } from '../../api/trips.api';
+import {
+  getEvents,
+  createEvent as apiCreateEvent,
+  archiveEvent as apiArchiveEvent,
+  deleteEvent as apiDeleteEvent,
+  handleApiError,
+  Event as ApiEvent,
+} from '../../api/events.api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +32,7 @@ type EventItem = {
   dateISO: string;
   dateDisplay: string;
   memberCount: number;
+  memberAvatars: string[];
   description: string;
 };
 
@@ -63,6 +73,21 @@ function fmtDateISO(d: Date): string {
   return d.toISOString().split('T')[0];
 }
 
+function mapApiEvent(e: ApiEvent): EventItem {
+  return {
+    id: e.id,
+    name: e.name,
+    type: e.eventType ?? 'Other',
+    typeColor: TYPE_COLORS[e.eventType ?? 'Other'] ?? '#f8fafc',
+    location: e.location?.name ?? '',
+    dateISO: e.eventDate,
+    dateDisplay: new Date(e.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+    memberCount: e.memberCount ?? 1,
+    memberAvatars: e.memberAvatars ?? [],
+    description: e.description ?? '',
+  };
+}
+
 function toCardData(ev: EventItem): CardData {
   const days = daysUntil(ev.dateISO);
   return {
@@ -72,8 +97,8 @@ function toCardData(ev: EventItem): CardData {
     fullDate: ev.dateDisplay,
     image: require('../../assets/images/music_festival.png'),
     bannerImageUrl: null,
-    members: [],
-    extraMembers: Math.max(0, ev.memberCount - 1),
+    members: ev.memberAvatars.slice(0, 3).map((uri, idx) => ({ id: `av-${idx}`, uri })),
+    extraMembers: Math.max(0, ev.memberCount - 3),
     type: ev.type,
     daysToGo: days > 0 ? days : undefined,
   };
@@ -130,26 +155,40 @@ function CreateEventModal({ visible, onClose, onSave }: {
     setBannerImageUri(undefined);
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!name.trim()) { Alert.alert('Error', 'Please enter an event name'); return; }
     if (!dateObj) { Alert.alert('Error', 'Please select an event date'); return; }
     if (!location.trim()) { Alert.alert('Error', 'Please enter a location'); return; }
     setIsSubmitting(true);
-    const newEvent: EventItem = {
-      id: `ev_${Date.now()}`,
-      name: name.trim(),
-      type,
-      typeColor: TYPE_COLORS[type] ?? '#f8fafc',
-      location: location.trim(),
-      dateISO: fmtDateISO(dateObj),
-      dateDisplay: fmtDateDisplay(dateObj),
-      memberCount: 1 + selectedFriendIds.length,
-      description: '',
-    };
-    onSave(newEvent);
-    reset();
-    setIsSubmitting(false);
-    onClose();
+    try {
+      const result = await apiCreateEvent({
+        name: name.trim(),
+        eventDate: fmtDateISO(dateObj),
+        eventType: type,
+        location: { name: location.trim() },
+        friendIds: selectedFriendIds.length > 0 ? selectedFriendIds : undefined,
+        reminders: true,
+      });
+      const newEvent: EventItem = {
+        id: result.event.id,
+        name: result.event.name,
+        type: result.event.eventType ?? type,
+        typeColor: TYPE_COLORS[result.event.eventType ?? type] ?? '#f8fafc',
+        location: result.event.location?.name ?? location.trim(),
+        dateISO: result.event.eventDate,
+        dateDisplay: fmtDateDisplay(dateObj),
+        memberCount: result.memberCount ?? 1 + selectedFriendIds.length,
+        memberAvatars: [],
+        description: result.event.description ?? '',
+      };
+      onSave(newEvent);
+      reset();
+      onClose();
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function handleUploadDocs() {
@@ -572,13 +611,33 @@ function CreateEventModal({ visible, onClose, onSave }: {
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-export default function EventsScreen({ onArchivedEventsChange }: { onArchivedEventsChange?: (events: EventItem[]) => void } = {}) {
+export default function EventsScreen() {
   const navigation = useNavigation<any>();
   const [upcomingEvents, setUpcomingEvents] = useState<EventItem[]>([]);
   const [pastEvents, setPastEvents] = useState<EventItem[]>([]);
-  const [archivedEvents, setArchivedEvents] = useState<EventItem[]>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function loadEvents(silent = false) {
+    if (!silent) setLoading(true);
+    try {
+      const [upcomingRes, pastRes] = await Promise.all([
+        getEvents({ status: 'upcoming' }),
+        getEvents({ status: 'past' }),
+      ]);
+      setUpcomingEvents(upcomingRes.events.map(mapApiEvent));
+      setPastEvents(pastRes.events.map(mapApiEvent));
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  useFocusEffect(useCallback(() => { loadEvents(); }, []));
 
   function handleCreateEvent(ev: EventItem) {
     const days = daysUntil(ev.dateISO);
@@ -593,16 +652,15 @@ export default function EventsScreen({ onArchivedEventsChange }: { onArchivedEve
     Alert.alert('Archive Event', `Archive "${ev.name}"? You can restore it anytime.`, [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Archive', onPress: () => {
-          if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
-          else setPastEvents(p => p.filter(e => e.id !== id));
-          const newArchived = { ...ev, image: undefined, bannerImageUrl: null, fullDate: ev.dateDisplay };
-          setArchivedEvents(p => {
-            const updated = [newArchived, ...p];
-            onArchivedEventsChange?.(updated);
-            return updated;
-          });
-          setOpenMenuId(null);
+        text: 'Archive', onPress: async () => {
+          try {
+            await apiArchiveEvent(id);
+            if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
+            else setPastEvents(p => p.filter(e => e.id !== id));
+            setOpenMenuId(null);
+          } catch (err) {
+            handleApiError(err);
+          }
         },
       },
     ]);
@@ -612,10 +670,15 @@ export default function EventsScreen({ onArchivedEventsChange }: { onArchivedEve
     Alert.alert('Delete Event?', 'This action cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Delete', style: 'destructive', onPress: () => {
-          if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
-          else setPastEvents(p => p.filter(e => e.id !== id));
-          setOpenMenuId(null);
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await apiDeleteEvent(id);
+            if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
+            else setPastEvents(p => p.filter(e => e.id !== id));
+            setOpenMenuId(null);
+          } catch (err) {
+            handleApiError(err);
+          }
         },
       },
     ]);
@@ -635,12 +698,22 @@ export default function EventsScreen({ onArchivedEventsChange }: { onArchivedEve
     });
   }
 
+  const isEmpty = upcomingEvents.length === 0 && pastEvents.length === 0;
+
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.listContent}>
-
-        {/* Page title row */}
-        
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); loadEvents(true); }}
+            colors={[colors.accent]}
+            tintColor={colors.accent}
+          />
+        }
+      >
 
         {/* Hero section — always visible */}
         <View style={styles.heroSection}>
@@ -662,44 +735,59 @@ export default function EventsScreen({ onArchivedEventsChange }: { onArchivedEve
           </TouchableOpacity>
         </View>
 
-        {/* Events list header */}
-        <View style={styles.eventListHeader}>
-          <Text style={styles.eventListTitle}>Your Events</Text>
-          <Text style={styles.eventListSub}>Manage all your gatherings</Text>
-        </View>
-        {/* Upcoming Events */}
-        {upcomingEvents.length > 0 && (
-          <>
-            <Text style={styles.sectionLabel}>UPCOMING</Text>
-            {upcomingEvents.map(ev => (
-              <EventCard
-                key={ev.id}
-                event={toCardData(ev)}
-                onPress={() => navigateToDetail(ev)}
-                showMenu={openMenuId === ev.id}
-                onToggleMenu={() => toggleMenu(ev.id)}
-                onArchive={() => archiveEvent(ev.id, 'upcoming')}
-                onDelete={() => deleteEvent(ev.id, 'upcoming')}
-              />
-            ))}
-          </>
+        {/* Events list header — only show if events exist */}
+        {!isEmpty && (
+          <View style={styles.eventListHeader}>
+            <Text style={styles.eventListTitle}>Your Events</Text>
+            <Text style={styles.eventListSub}>Manage all your gatherings</Text>
+          </View>
         )}
 
-        {/* Past Events */}
-        {pastEvents.length > 0 && (
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
+        ) : (
           <>
-            <Text style={styles.sectionLabel}>PAST</Text>
-            {pastEvents.map(ev => (
-              <EventCardPast
-                key={ev.id}
-                event={toCardData(ev)}
-                onPress={() => navigateToDetail(ev)}
-                showMenu={openMenuId === ev.id}
-                onToggleMenu={() => toggleMenu(ev.id)}
-                onArchive={() => archiveEvent(ev.id, 'past')}
-                onDelete={() => deleteEvent(ev.id, 'past')}
-              />
-            ))}
+            {/* Upcoming Events */}
+            {upcomingEvents.length > 0 && (
+              <>
+                <Text style={styles.sectionLabel}>UPCOMING</Text>
+                {upcomingEvents.map(ev => (
+                  <EventCard
+                    key={ev.id}
+                    event={toCardData(ev)}
+                    onPress={() => navigateToDetail(ev)}
+                    showMenu={openMenuId === ev.id}
+                    onToggleMenu={() => toggleMenu(ev.id)}
+                    onArchive={() => archiveEvent(ev.id, 'upcoming')}
+                    onDelete={() => deleteEvent(ev.id, 'upcoming')}
+                  />
+                ))}
+              </>
+            )}
+
+            {/* Past Events */}
+            {pastEvents.length > 0 && (
+              <>
+                <Text style={styles.sectionLabel}>PAST</Text>
+                {pastEvents.map(ev => (
+                  <EventCardPast
+                    key={ev.id}
+                    event={toCardData(ev)}
+                    onPress={() => navigateToDetail(ev)}
+                    showMenu={openMenuId === ev.id}
+                    onToggleMenu={() => toggleMenu(ev.id)}
+                    onArchive={() => archiveEvent(ev.id, 'past')}
+                    onDelete={() => deleteEvent(ev.id, 'past')}
+                  />
+                ))}
+              </>
+            )}
+
+            {isEmpty && !loading && (
+              <Text style={{ textAlign: 'center', color: '#94a3b8', marginTop: 20, fontSize: 14 }}>
+                Tap "Create Event" to plan your first gathering!
+              </Text>
+            )}
           </>
         )}
 

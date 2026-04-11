@@ -527,7 +527,6 @@ export default function HomeScreen({ navigation }: any) {
   const [showTripMenu, setShowTripMenu] = useState<string | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isLoadingTrips, setIsLoadingTrips] = useState(false);
-  const [archivedEventsList, setArchivedEventsList] = useState<any[]>([]);
 
   const [insightIndex, setInsightIndex] = useState(0);
   const insightRef = useRef<FlatList>(null);
@@ -936,7 +935,7 @@ export default function HomeScreen({ navigation }: any) {
           </Svg>
           <Text style={styles.dropdownItemText}>Archived Trips</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); navigation.navigate('ArchivedEvents', { archivedEvents: archivedEventsList }); }}>
+        <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); navigation.navigate('ArchivedEvents'); }}>
           <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
             <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
           </Svg>
@@ -969,7 +968,7 @@ export default function HomeScreen({ navigation }: any) {
         {activeTab === 'trips' && <TripsScreen />}
         {/* Keep EventsScreen mounted to preserve local state across tab switches */}
         <View style={{ flex: 1, display: activeTab === 'events' ? 'flex' : 'none' }}>
-          <EventsScreen onArchivedEventsChange={setArchivedEventsList} />
+          <EventsScreen />
         </View>
         {activeTab === 'friends' && renderFriendsTab()}
         {activeTab === 'chat' && renderChatTab()}

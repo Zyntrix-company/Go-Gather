@@ -190,8 +190,9 @@ function mapApiTrip(t: any): Trip {
     fullEndDate: fmtFullDate(e),
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
-    members: (t.memberAvatars || []).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
-    extraMembers: Math.max(0, (t.memberCount ?? 1) - 1),
+    // Only show real avatar URIs returned by the API — no placeholders.
+    members: (t.memberAvatars || []).slice(0, 3).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
+    extraMembers: Math.max(0, (t.memberCount ?? 0) - 3),
   };
 }
 
@@ -410,7 +411,31 @@ function TripCardPastLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
 
 // ─── Create Trip Modal ────────────────────────────────────────────────────────
 
-function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClose: () => void; onSave: (data: any) => Promise<void> }) {
+// Props for lifted banner state (survives tab navigation & Android image-picker re-renders)
+type CreateTripModalProps = {
+  visible: boolean;
+  onClose: () => void;
+  onSave: (data: Record<string, unknown>) => Promise<void>;
+  // Lifted: banner state lives in TripsScreen so it isn't lost on nav
+  bannerImageUri: string | undefined;
+  setBannerImageUri: (v: string | undefined) => void;
+  bannerImageType: string;
+  setBannerImageType: (v: string) => void;
+  bannerCropFraction: BannerCropFraction | null;
+  setBannerCropFraction: (v: BannerCropFraction | null) => void;
+};
+
+function CreateTripModal({
+  visible,
+  onClose,
+  onSave,
+  bannerImageUri,
+  setBannerImageUri,
+  bannerImageType,
+  setBannerImageType,
+  bannerCropFraction,
+  setBannerCropFraction,
+}: CreateTripModalProps) {
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [startDateObj, setStartDateObj] = useState<Date | undefined>(undefined);
@@ -428,15 +453,14 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
   const [friendSearch, setFriendSearch] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [fetchingLocation, setFetchingLocation] = useState(false);
-  const [bannerImageUri, setBannerImageUri] = useState<string | undefined>(undefined);
-  const [bannerImageType, setBannerImageType] = useState<string>('image/jpeg');
-  const [bannerCropFraction, setBannerCropFraction] = useState<BannerCropFraction | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
+  // Crop-flow state (purely local — only needed while the crop modal is open)
   const [cropPreviewUri, setCropPreviewUri] = useState<string | undefined>(undefined);
   const [cropPreviewType, setCropPreviewType] = useState<string>('image/jpeg');
-  // Original pixel dimensions of picked image (from image-picker response)
   const [pickedOrigSize, setPickedOrigSize] = useState({ w: 1, h: 1 });
   // Actual layout dimensions of the crop canvas (set via onLayout)
   const [cropAreaSize, setCropAreaSize] = useState({ w: SCREEN_W, h: SCREEN_W });
+  // (zoom % display removed — zoom is pinch-only)
 
   // Card banner dimensions — crop box must match these proportions exactly
   const CARD_BANNER_W = SCREEN_W - 40; // scrollContent paddingHorizontal 20 each side
@@ -445,7 +469,13 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
   const cropScaleAnim  = useRef(new Animated.Value(1)).current;
   const cropTransXAnim = useRef(new Animated.Value(0)).current;
   const cropTransYAnim = useRef(new Animated.Value(0)).current;
-  const cropState = useRef({ scale: 1, x: 0, y: 0, lastDist: 0, lastMidX: 0, lastMidY: 0, isPinch: false });
+  // All mutable gesture state lives in a ref so PanResponder callbacks
+  // (created once) can always read/write the latest values without stale closures.
+  const cropState = useRef({
+    scale: 1, x: 0, y: 0,
+    lastDist: 0, lastMidX: 0, lastMidY: 0,
+    lastX: 0, lastY: 0,   // for incremental single-finger pan
+  });
 
   function cropTouchDist(touches: any[]) {
     const dx = touches[0].pageX - touches[1].pageX;
@@ -453,29 +483,36 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
     return Math.sqrt(dx * dx + dy * dy);
   }
 
+  // PanResponder uses INCREMENTAL deltas (current − last) so there's no jump
+  // when switching between single-finger pan and two-finger pinch.
   const cropPanResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (e) => {
       const touches = e.nativeEvent.touches;
       const s = cropState.current;
-      s.isPinch = touches.length >= 2;
-      if (s.isPinch) {
+      if (touches.length >= 2) {
         s.lastDist = cropTouchDist(touches);
         s.lastMidX = (touches[0].pageX + touches[1].pageX) / 2;
         s.lastMidY = (touches[0].pageY + touches[1].pageY) / 2;
+        s.lastX = s.lastMidX;
+        s.lastY = s.lastMidY;
+      } else {
+        s.lastX = touches[0]?.pageX ?? 0;
+        s.lastY = touches[0]?.pageY ?? 0;
+        s.lastDist = 0;
       }
     },
-    onPanResponderMove: (e, gs) => {
+    onPanResponderMove: (e) => {
       const touches = e.nativeEvent.touches;
       const s = cropState.current;
       if (touches.length >= 2) {
-        s.isPinch = true;
+        // Two-finger pinch-to-zoom + pan from midpoint
         const dist = cropTouchDist(touches);
         const midX = (touches[0].pageX + touches[1].pageX) / 2;
         const midY = (touches[0].pageY + touches[1].pageY) / 2;
         if (s.lastDist > 0) {
-          s.scale = Math.max(0.5, Math.min(s.scale * (dist / s.lastDist), 6));
+          s.scale = Math.max(0.25, Math.min(s.scale * (dist / s.lastDist), 8));
           cropScaleAnim.setValue(s.scale);
           s.x += midX - s.lastMidX;
           s.y += midY - s.lastMidY;
@@ -485,19 +522,23 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
         s.lastDist = dist;
         s.lastMidX = midX;
         s.lastMidY = midY;
+        s.lastX = midX;
+        s.lastY = midY;
       } else {
-        cropTransXAnim.setValue(s.x + gs.dx);
-        cropTransYAnim.setValue(s.y + gs.dy);
+        // Single-finger pan — use incremental delta to avoid jump on finger lift
+        const tx = touches[0]?.pageX ?? s.lastX;
+        const ty = touches[0]?.pageY ?? s.lastY;
+        s.x += tx - s.lastX;
+        s.y += ty - s.lastY;
+        cropTransXAnim.setValue(s.x);
+        cropTransYAnim.setValue(s.y);
+        s.lastX = tx;
+        s.lastY = ty;
+        s.lastDist = 0;
       }
     },
-    onPanResponderRelease: (_, gs) => {
-      const s = cropState.current;
-      if (!s.isPinch) {
-        s.x += gs.dx;
-        s.y += gs.dy;
-      }
-      s.lastDist = 0;
-      s.isPinch = false;
+    onPanResponderRelease: () => {
+      cropState.current.lastDist = 0;
     },
   })).current;
 
@@ -515,10 +556,9 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
     setShowStartPicker(false); setShowEndPicker(false);
     setReminders(false); setUploadedDocs([]); setSelectedFriendIds([]);
     setFriendSearch(''); setInviteEmail('');
-    setBannerImageUri(undefined);
-    setBannerImageType('image/jpeg');
-    setBannerCropFraction(null);
-    setPickedOrigSize({ w: 1, h: 1 });
+    // Banner state lives in the parent — do NOT reset it here so it
+    // survives the user tapping Cancel and re-opening the modal.
+    // Parent clears it only after a successful trip creation.
     setCropAreaSize({ w: SCREEN_W, h: SCREEN_W });
   }
 
@@ -537,6 +577,7 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
         inviteEmail: inviteEmail.trim() || undefined,
         bannerImageUrl: bannerImageUri,
         bannerImageType: bannerImageType,
+        bannerCropFraction: bannerCropFraction,
       });
       reset();
       onClose();
@@ -648,64 +689,91 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
 
             {/* Banner Image */}
             <Text style={styles.ctLabel}>Banner Image <Text style={{ color: '#94a3b8', fontWeight: '400' }}>(optional — auto-assigned if skipped)</Text></Text>
-            <TouchableOpacity
-              style={{ width: '100%', height: 140, borderRadius: 12, backgroundColor: '#f1f5f9', overflow: 'hidden', marginBottom: 14, alignItems: 'center', justifyContent: 'center', borderWidth: bannerImageUri ? 0 : 1, borderColor: '#e2e8f0', borderStyle: 'dashed' }}
-              onPress={() => launchImageLibrary({
-                mediaType: 'photo',
-                selectionLimit: 1,
-                includeBase64: false,
-                presentationStyle: 'fullScreen',
-              }, res => {
-                if (res.didCancel || res.errorCode) return;
-                const asset = res.assets?.[0];
-                if (asset?.uri) {
-                  setPickedOrigSize({ w: asset.width ?? 1, h: asset.height ?? 1 });
-                  setCropPreviewUri(asset.uri);
-                  setCropPreviewType(asset.type ?? 'image/jpeg');
-                  setBannerCropFraction(null); // reset previous crop when new image picked
-                }
-              })}
-              activeOpacity={0.8}
+            {/* Bug 2 fix: use a plain View container + absolute Image so height:100% resolves
+                correctly regardless of the parent's alignItems/justifyContent flex settings. */}
+            <View
+              style={{ width: '100%', height: 140, borderRadius: 12, backgroundColor: '#f1f5f9', overflow: 'hidden', marginBottom: 14, borderWidth: bannerImageUri ? 0 : 1, borderColor: '#e2e8f0', borderStyle: 'dashed' }}
             >
               {bannerImageUri ? (
                 <>
-                  {bannerCrop ? (() => {
-                    const previewH = 140;
-                    const overlayW = SCREEN_W * 0.9;
-                    const ratio = (SCREEN_W - 48) / overlayW;
-                    const imgSize = SCREEN_W * ratio * bannerCrop.scale;
-                    const imgLeft = ((SCREEN_W - 48) - imgSize) / 2 + bannerCrop.x * ratio;
-                    const imgTop  = (previewH - imgSize) / 2 + bannerCrop.y * ratio;
-                    return (
-                      <Image
-                        source={{ uri: bannerImageUri }}
-                        style={{ position: 'absolute', width: imgSize, height: imgSize, left: imgLeft, top: imgTop }}
-                        resizeMode="cover"
-                      />
-                    );
-                  })() : (
-                    <Image source={{ uri: bannerImageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                  )}
+                  {/* Fill the entire container — resizeMode="cover" handles aspect ratio */}
+                  <Image
+                    source={{ uri: bannerImageUri }}
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+                    resizeMode="cover"
+                  />
+                  {/* Re-crop / change button overlay */}
+                  <TouchableOpacity
+                    style={{ position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                    onPress={() => {
+                      setIsCompressing(true);
+                      launchImageLibrary({
+                        mediaType: 'photo', selectionLimit: 1, includeBase64: false,
+                        presentationStyle: 'fullScreen',
+                        maxWidth: 1280, maxHeight: 720, quality: 0.7,
+                      }, res => {
+                        setIsCompressing(false);
+                        if (res.didCancel || res.errorCode) return;
+                        const asset = res.assets?.[0];
+                        if (asset?.uri) {
+                          setPickedOrigSize({ w: asset.width ?? 1280, h: asset.height ?? 720 });
+                          setCropPreviewUri(asset.uri);
+                          setCropPreviewType(asset.type ?? 'image/jpeg');
+                          setBannerCropFraction(null);
+                        }
+                      });
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>Change</Text>
+                  </TouchableOpacity>
+                  {/* Remove button */}
                   <TouchableOpacity
                     style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4 }}
-                    onPress={() => { setBannerImageUri(undefined); setBannerCrop(null); }}
+                    onPress={() => { setBannerImageUri(undefined); setBannerCropFraction(null); }}
                   >
                     <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
                       <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
                     </Svg>
                   </TouchableOpacity>
                 </>
+              ) : isCompressing ? (
+                <TouchableOpacity style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }} activeOpacity={1}>
+                  <ActivityIndicator size="small" color="#0d9488" />
+                  <Text style={{ color: '#64748b', fontSize: 13 }}>Compressing image…</Text>
+                </TouchableOpacity>
               ) : (
-                <View style={{ alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  onPress={() => {
+                    setIsCompressing(true);
+                    launchImageLibrary({
+                      mediaType: 'photo', selectionLimit: 1, includeBase64: false,
+                      presentationStyle: 'fullScreen',
+                      maxWidth: 1280, maxHeight: 720, quality: 0.7,
+                    }, res => {
+                      setIsCompressing(false);
+                      if (res.didCancel || res.errorCode) return;
+                      const asset = res.assets?.[0];
+                      if (asset?.uri) {
+                        setPickedOrigSize({ w: asset.width ?? 1280, h: asset.height ?? 720 });
+                        setCropPreviewUri(asset.uri);
+                        setCropPreviewType(asset.type ?? 'image/jpeg');
+                        setBannerCropFraction(null);
+                      }
+                    });
+                  }}
+                  activeOpacity={0.8}
+                >
                   <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
                     <Rect x={3} y={3} width={18} height={18} rx={2} ry={2} stroke="#94a3b8" strokeWidth={2} />
                     <Circle cx={8.5} cy={8.5} r={1.5} fill="#94a3b8" />
                     <Path d="M21 15l-5-5L5 21" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
                   <Text style={{ color: '#94a3b8', fontSize: 13 }}>Tap to add banner photo (auto-matched otherwise)</Text>
-                </View>
+                </TouchableOpacity>
               )}
-            </TouchableOpacity>
+            </View>
 
             {/* Trip Name */}
             <Text style={styles.ctLabel}>Trip Name</Text>
@@ -997,57 +1065,170 @@ function CreateTripModal({ visible, onClose, onSave }: { visible: boolean; onClo
         onRequestClose={() => setCropPreviewUri(undefined)}
         onShow={() => {
           const s = cropState.current;
-          s.scale = 1; s.x = 0; s.y = 0; s.lastDist = 0;
+          s.scale = 1; s.x = 0; s.y = 0;
+          s.lastDist = 0; s.lastX = 0; s.lastY = 0;
           cropScaleAnim.setValue(1);
           cropTransXAnim.setValue(0);
           cropTransYAnim.setValue(0);
         }}
       >
+        {/*
+          Layout:
+            - Black full-screen background
+            - Canvas area (flex:1) holds the image + crop overlay
+            - Canvas uses onLayout to record actual pixel size → cropAreaSize
+            - Image is centered in the canvas and sized to fill it (contain)
+            - Crop box = card banner aspect ratio (CARD_BANNER_W : CARD_BANNER_H)
+              constrained to canvas width so it never overflows
+            - Zoom buttons + zoom % display
+            - Cancel / Reset / Done action row
+        */}
         <View style={{ flex: 1, backgroundColor: '#000' }}>
+          {/* Canvas — full remaining height, pan+pinch target */}
           <View
             style={{ flex: 1, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' }}
+            onLayout={(e) => {
+              const { width, height } = e.nativeEvent.layout;
+              setCropAreaSize({ w: width, h: height });
+            }}
             {...cropPanResponder.panHandlers}
           >
-            {cropPreviewUri && (
-              <Animated.Image
-                source={{ uri: cropPreviewUri }}
-                style={[
-                  { width: SCREEN_W, height: SCREEN_W },
-                  { transform: [{ translateX: cropTransXAnim }, { translateY: cropTransYAnim }, { scale: cropScaleAnim }] },
-                ]}
-                resizeMode="contain"
-              />
-            )}
-            <View pointerEvents="none" style={{ position: 'absolute', width: SCREEN_W * 0.9, aspectRatio: 16 / 9, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.7)', borderRadius: 6 }}>
-              <View style={{ position: 'absolute', left: '33.3%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
-              <View style={{ position: 'absolute', left: '66.6%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
-              <View style={{ position: 'absolute', top: '33.3%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
-              <View style={{ position: 'absolute', top: '66.6%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
-            </View>
+            {cropPreviewUri && (() => {
+              // Size the image to fill the canvas while preserving aspect ratio (contain-style)
+              const canvasW = cropAreaSize.w || SCREEN_W;
+              const canvasH = cropAreaSize.h || SCREEN_W;
+              const origAspect = pickedOrigSize.w / pickedOrigSize.h;
+              let imgDisplayW: number, imgDisplayH: number;
+              if (origAspect > canvasW / canvasH) {
+                imgDisplayW = canvasW;
+                imgDisplayH = canvasW / origAspect;
+              } else {
+                imgDisplayH = canvasH;
+                imgDisplayW = canvasH * origAspect;
+              }
+              return (
+                <Animated.Image
+                  source={{ uri: cropPreviewUri }}
+                  style={[
+                    { width: imgDisplayW, height: imgDisplayH },
+                    { transform: [{ translateX: cropTransXAnim }, { translateY: cropTransYAnim }, { scale: cropScaleAnim }] },
+                  ]}
+                  resizeMode="stretch"
+                />
+              );
+            })()}
+
+            {/* Crop overlay — absoluteFill + flex-center guarantees the box is
+                exactly centered in the canvas, matching the Done handler's math
+                (which assumes cropLeft = canvasCX - cropBoxW/2). Using plain
+                position:'absolute' without top/left would place it at (0,0)
+                in React Native Yoga, NOT centered. */}
+            {(() => {
+              const canvasW = cropAreaSize.w || SCREEN_W;
+              const bannerAspect = CARD_BANNER_W / CARD_BANNER_H;
+              const cropBoxW = Math.min(canvasW * 0.92, canvasW);
+              const cropBoxH = cropBoxW / bannerAspect;
+              return (
+                <View
+                  pointerEvents="none"
+                  style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <View
+                    style={{
+                      width: cropBoxW,
+                      height: cropBoxH,
+                      borderWidth: 2,
+                      borderColor: 'rgba(255,255,255,0.85)',
+                      borderRadius: 8,
+                    }}
+                  >
+                    {/* Rule-of-thirds grid lines */}
+                    <View style={{ position: 'absolute', left: '33.3%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
+                    <View style={{ position: 'absolute', left: '66.6%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
+                    <View style={{ position: 'absolute', top: '33.3%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
+                    <View style={{ position: 'absolute', top: '66.6%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
+                  </View>
+                </View>
+              );
+            })()}
           </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 40, paddingVertical: 32, backgroundColor: '#000' }}>
+
+          {/* Action row */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 40, paddingVertical: 28, backgroundColor: '#000' }}>
             <TouchableOpacity onPress={() => setCropPreviewUri(undefined)} activeOpacity={0.8}>
-              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '500' }}>Cancel</Text>
+              <Text style={{ color: '#aaa', fontSize: 17, fontWeight: '500' }}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => {
               const s = cropState.current;
               s.scale = 1; s.x = 0; s.y = 0;
-              Animated.parallel([
-                Animated.spring(cropScaleAnim,  { toValue: 1, useNativeDriver: true }),
-                Animated.spring(cropTransXAnim, { toValue: 0, useNativeDriver: true }),
-                Animated.spring(cropTransYAnim, { toValue: 0, useNativeDriver: true }),
-              ]).start();
+              s.lastDist = 0; s.lastX = 0; s.lastY = 0;
+              cropScaleAnim.setValue(1);
+              cropTransXAnim.setValue(0);
+              cropTransYAnim.setValue(0);
             }} activeOpacity={0.8}>
               <Text style={{ color: '#fff', fontSize: 17, fontWeight: '500' }}>Reset</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => {
+              /*
+                BannerCropFraction — how to position the image inside the card.
+
+                BannerImage renders the image as an absolute child of the card View:
+                  left:   imgFracX * 100%  (fraction of cardW, can be negative)
+                  top:    imgFracY * 100%  (fraction of cardH, can be negative)
+                  width:  imgFracW * 100%  (fraction of cardW, typically > 1)
+                  height: imgFracH * 100%  (fraction of cardH, typically > 1)
+                  resizeMode="stretch"     (no extra scaling — fractions do it all)
+                  parent overflow="hidden" clips to card bounds
+
+                Derivation:
+                  The card shows exactly what was inside the crop box.
+                  cropBoxW must map to cardW  →  scale factor = cardW / cropBoxW
+                  (expressed as fractions of cardW so cardW cancels out)
+
+                  imgFracW = imgVisW / cropBoxW       (> 1 → image wider than card)
+                  imgFracH = imgVisH / cropBoxH
+                  imgFracX = (imgVisLeft − cropLeft) / cropBoxW  (< 0 → image shifts left)
+                  imgFracY = (imgVisTop  − cropTop ) / cropBoxH
+              */
               const s = cropState.current;
-              setBannerImageUri(cropPreviewUri);
+              const canvasW = cropAreaSize.w || SCREEN_W;
+              const canvasH = cropAreaSize.h || SCREEN_W;
+              const origAspect = pickedOrigSize.w / pickedOrigSize.h;
+              let imgDisplayW: number, imgDisplayH: number;
+              if (origAspect > canvasW / canvasH) {
+                imgDisplayW = canvasW;
+                imgDisplayH = canvasW / origAspect;
+              } else {
+                imgDisplayH = canvasH;
+                imgDisplayW = canvasH * origAspect;
+              }
+              const bannerAspect = CARD_BANNER_W / CARD_BANNER_H;
+              const cropBoxW = Math.min(canvasW * 0.92, canvasW);
+              const cropBoxH = cropBoxW / bannerAspect;
+
+              const canvasCX = canvasW / 2;
+              const canvasCY = canvasH / 2;
+
+              const imgVisW = imgDisplayW * s.scale;
+              const imgVisH = imgDisplayH * s.scale;
+              const imgVisLeft = canvasCX + s.x - imgVisW / 2;
+              const imgVisTop  = canvasCY + s.y - imgVisH / 2;
+
+              const cropLeft = canvasCX - cropBoxW / 2;
+              const cropTop  = canvasCY - cropBoxH / 2;
+
+              // Correct fractions: image position/size relative to card dimensions
+              const imgFracW = imgVisW / cropBoxW;
+              const imgFracH = imgVisH / cropBoxH;
+              const imgFracX = (imgVisLeft - cropLeft) / cropBoxW;
+              const imgFracY = (imgVisTop  - cropTop ) / cropBoxH;
+
+              setBannerCropFraction({ imgFracX, imgFracY, imgFracW, imgFracH });
+              setBannerImageUri(cropPreviewUri!);
               setBannerImageType(cropPreviewType);
-              setBannerCrop({ scale: s.scale, x: s.x, y: s.y });
               setCropPreviewUri(undefined);
             }} activeOpacity={0.8}>
-              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>Done</Text>
+              <Text style={{ color: '#0d9488', fontSize: 17, fontWeight: '700' }}>Done</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1066,6 +1247,12 @@ export default function TripsScreen() {
   const [hasMoreTrips, setHasMoreTrips] = useState(false);
   const [showTripMenu, setShowTripMenu] = useState<string | null>(null);
   const [showCreateTrip, setShowCreateTrip] = useState(false);
+
+  // Bug 3 fix: banner state lives here so it survives tab navigation and
+  // Android image-picker activity restarts. Only cleared after successful creation.
+  const [bannerImageUri, setBannerImageUri] = useState<string | undefined>(undefined);
+  const [bannerImageType, setBannerImageType] = useState<string>('image/jpeg');
+  const [bannerCropFraction, setBannerCropFraction] = useState<BannerCropFraction | null>(null);
 
   const { upcoming, ongoing, past } = categorizeTrips(trips);
 
@@ -1248,28 +1435,34 @@ export default function TripsScreen() {
       <CreateTripModal
         visible={showCreateTrip}
         onClose={() => setShowCreateTrip(false)}
-        onSave={async (data: any) => {
+        bannerImageUri={bannerImageUri}
+        setBannerImageUri={setBannerImageUri}
+        bannerImageType={bannerImageType}
+        setBannerImageType={setBannerImageType}
+        bannerCropFraction={bannerCropFraction}
+        setBannerCropFraction={setBannerCropFraction}
+        onSave={async (data) => {
           const res = await apiCreateTrip({
-            name: data.name,
-            startDate: data.startDateISO ?? data.startDate ?? '',
-            endDate: data.endDateISO ?? data.endDate ?? '',
-            location: { name: data.location || 'TBD' },
-            friendIds: data.friendIds?.length ? data.friendIds : undefined,
-            emails: data.inviteEmail ? [data.inviteEmail] : undefined,
+            name: data.name as string,
+            startDate: (data.startDateISO ?? data.startDate ?? '') as string,
+            endDate: (data.endDateISO ?? data.endDate ?? '') as string,
+            location: { name: (data.location as string) || 'TBD' },
+            friendIds: (data.friendIds as string[] | undefined)?.length ? data.friendIds as string[] : undefined,
+            emails: data.inviteEmail ? [data.inviteEmail as string] : undefined,
           });
           let newTrip = res.trip;
-          const localUri: string | undefined = data.bannerImageUrl;
+          const localUri = data.bannerImageUrl as string | undefined;
           const isLocalUri = localUri && (localUri.startsWith('file://') || localUri.startsWith('content://') || localUri.startsWith('file:'));
           if (isLocalUri) {
-            setTrips(p => [{ ...mapApiTrip(newTrip), bannerImageUrl: localUri! }, ...p]);
+            setTrips(p => [{ ...mapApiTrip(newTrip), bannerImageUrl: localUri }, ...p]);
             try {
               const photoRes = await uploadTripPhotos(newTrip.id, [{
-                uri: localUri!,
-                type: data.bannerImageType ?? 'image/jpeg',
-                name: `banner.${(data.bannerImageType ?? 'image/jpeg').split('/')[1] ?? 'jpg'}`,
+                uri: localUri,
+                type: (data.bannerImageType as string) ?? 'image/jpeg',
+                name: `banner.${((data.bannerImageType as string) ?? 'image/jpeg').split('/')[1] ?? 'jpg'}`,
               }]);
               const photo = photoRes.photos?.[0];
-              const permanentUrl = (photo as any)?.fileUrl ?? photo?.url;
+              const permanentUrl = (photo as Record<string, unknown>)?.fileUrl as string ?? photo?.url;
               const displayUrl = photo?.url ?? permanentUrl;
               if (permanentUrl) {
                 const updated = await apiUpdateTrip(newTrip.id, { bannerImageUrl: permanentUrl });
@@ -1280,6 +1473,10 @@ export default function TripsScreen() {
           } else {
             setTrips(p => [mapApiTrip(newTrip), ...p]);
           }
+          // Bug 3 fix: clear banner only after the trip is successfully created
+          setBannerImageUri(undefined);
+          setBannerImageType('image/jpeg');
+          setBannerCropFraction(null);
         }}
       />
     </View>

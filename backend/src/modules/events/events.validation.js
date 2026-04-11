@@ -47,8 +47,8 @@ const eventIdParam = [
 const getEventsQuery = [
   query('status')
     .optional()
-    .isIn(['upcoming', 'past', 'ongoing'])
-    .withMessage('status must be upcoming, past, or ongoing'),
+    .isIn(['upcoming', 'past', 'ongoing', 'archived'])
+    .withMessage('status must be upcoming, past, ongoing, or archived'),
   query('page').optional().isInt({ min: 1 }).toInt(),
   query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
 ];

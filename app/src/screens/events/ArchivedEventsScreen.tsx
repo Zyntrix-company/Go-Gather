@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,14 @@ import {
   ScrollView,
   Image,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
+import { getArchivedEvents, unarchiveEvent, handleApiError } from '../../api/events.api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,7 +23,6 @@ type ArchivedEvent = {
   name: string;
   location: string;
   fullDate: string;
-  image?: any;
   bannerImageUrl?: string | null;
 };
 
@@ -28,10 +30,32 @@ type ArchivedEvent = {
 
 export default function ArchivedEventsScreen() {
   const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const [events, setEvents] = useState<ArchivedEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // events are passed in via route params (from EventListScreen)
-  const [events, setEvents] = useState<ArchivedEvent[]>(route?.params?.archivedEvents ?? []);
+  async function loadArchived(silent = false) {
+    if (!silent) setLoading(true);
+    try {
+      const res = await getArchivedEvents();
+      setEvents(res.events.map(e => ({
+        id: e.id,
+        name: e.name,
+        location: e.location?.name ?? '',
+        fullDate: e.eventDate
+          ? new Date(e.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+          : '',
+        bannerImageUrl: null,
+      })));
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
+  useFocusEffect(useCallback(() => { loadArchived(); }, []));
 
   function handleUnarchive(event: ArchivedEvent) {
     Alert.alert(
@@ -41,9 +65,14 @@ export default function ArchivedEventsScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Restore',
-          onPress: () => {
-            setEvents(prev => prev.filter(e => e.id !== event.id));
-            Toast.show({ type: 'success', text1: 'Restored', text2: `"${event.name}" moved back to events.` });
+          onPress: async () => {
+            try {
+              await unarchiveEvent(event.id);
+              setEvents(prev => prev.filter(e => e.id !== event.id));
+              Toast.show({ type: 'success', text1: 'Restored', text2: `"${event.name}" moved back to events.` });
+            } catch (err) {
+              handleApiError(err);
+            }
           },
         },
       ],
@@ -63,8 +92,22 @@ export default function ArchivedEventsScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {events.length === 0 && (
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); loadArchived(true); }}
+            colors={['#0d9488']}
+            tintColor="#0d9488"
+          />
+        }
+      >
+        {loading ? (
+          <ActivityIndicator size="large" color="#0d9488" style={{ marginTop: 60 }} />
+        ) : events.length === 0 ? (
           <View style={styles.emptyState}>
             <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
               <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#94a3b8" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
@@ -72,39 +115,36 @@ export default function ArchivedEventsScreen() {
             <Text style={styles.emptyTitle}>No archived events</Text>
             <Text style={styles.emptyText}>Events you archive will appear here.</Text>
           </View>
-        )}
+        ) : (
+          events.map(event => (
+            <View key={event.id} style={styles.card}>
+              {event.bannerImageUrl ? (
+                <Image source={{ uri: event.bannerImageUrl }} style={styles.banner} resizeMode="cover" />
+              ) : (
+                <View style={[styles.banner, styles.bannerPlaceholder]}>
+                  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+                    <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                </View>
+              )}
 
-        {events.map(event => (
-          <View key={event.id} style={styles.card}>
-            {/* Banner / placeholder */}
-            {event.bannerImageUrl ? (
-              <Image source={{ uri: event.bannerImageUrl }} style={styles.banner} resizeMode="cover" />
-            ) : event.image ? (
-              <Image source={event.image} style={styles.banner} resizeMode="cover" />
-            ) : (
-              <View style={[styles.banner, styles.bannerPlaceholder]}>
-                <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-                  <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                </Svg>
+              <View style={styles.cardBody}>
+                <View style={styles.cardInfo}>
+                  <Text style={styles.cardName} numberOfLines={1}>{event.name}</Text>
+                  <Text style={styles.cardMeta} numberOfLines={1}>{event.location}</Text>
+                  <Text style={styles.cardMeta}>{event.fullDate}</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.restoreBtn}
+                  onPress={() => handleUnarchive(event)}
+                  activeOpacity={0.8}>
+                  <Text style={styles.restoreBtnText}>Move to Events</Text>
+                </TouchableOpacity>
               </View>
-            )}
-
-            <View style={styles.cardBody}>
-              <View style={styles.cardInfo}>
-                <Text style={styles.cardName} numberOfLines={1}>{event.name}</Text>
-                <Text style={styles.cardMeta} numberOfLines={1}>{event.location}</Text>
-                <Text style={styles.cardMeta}>{event.fullDate}</Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.restoreBtn}
-                onPress={() => handleUnarchive(event)}
-                activeOpacity={0.8}>
-                <Text style={styles.restoreBtnText}>Move to Events</Text>
-              </TouchableOpacity>
             </View>
-          </View>
-        ))}
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   );
