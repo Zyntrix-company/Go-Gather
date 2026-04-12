@@ -192,9 +192,8 @@ function mapApiTrip(t: any): Trip {
     fullEndDate: fmtFullDate(e),
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
-    // Only show real avatar URIs returned by the API — no placeholders.
     members: (t.memberAvatars || []).slice(0, 3).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
-    extraMembers: Math.max(0, (t.memberCount ?? 0) - 3),
+    extraMembers: (t.memberAvatars || []).length === 0 ? (t.memberCount ?? 0) : Math.max(0, (t.memberCount ?? 0) - 3),
   };
 }
 
@@ -304,16 +303,18 @@ function TripCardFullLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
           <TouchableOpacity style={styles.cardMoreBtn} onPress={onToggleMenu} activeOpacity={0.8}>
             <MoreIcon />
           </TouchableOpacity>
-          <View style={styles.participantAvatars}>
-            {trip.members.slice(0, 3).map((m, i) => (
-              <Image key={m.id} source={{ uri: m.uri }} style={[styles.miniAvatar as any, { marginLeft: i > 0 ? -10 : 0 }]} />
-            ))}
-            {trip.extraMembers > 0 && (
-              <View style={[styles.moreCounter, { marginLeft: -10 }]}>
-                <Text style={styles.moreCounterText}>+{trip.extraMembers}</Text>
-              </View>
-            )}
-          </View>
+          {(trip.members.length > 0 || trip.extraMembers > 0) && (
+            <View style={styles.participantAvatars}>
+              {trip.members.slice(0, 3).map((m, i) => (
+                <Image key={m.id} source={{ uri: m.uri }} style={[styles.miniAvatar as any, i === 0 ? { marginLeft: 0 } : { marginLeft: -8 }]} />
+              ))}
+              {trip.extraMembers > 0 && (
+                <View style={[styles.moreCounter, trip.members.length === 0 && { marginLeft: 0 }]}>
+                  <Text style={styles.moreCounterText}>+{trip.extraMembers}</Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
         <View style={styles.cardBody}>
           <View style={styles.cardMain}>
@@ -1553,12 +1554,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   participantAvatars: {
-    position: 'absolute', bottom: 8, right: 8, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 20, padding: 3,
+    position: 'absolute', bottom: 10, right: 10, flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 8, gap: 0,
   },
-  miniAvatar: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#fff' },
-  moreCounter: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
-  moreCounterText: { fontSize: 9, color: '#0d9488', fontWeight: 'bold' },
+  miniAvatar: { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: '#fff' },
+  moreCounter: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#0d9488', borderWidth: 1.5, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
+  moreCounterText: { color: '#fff', fontSize: 9, fontWeight: '800' },
   cardBody: { padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardMain: { flex: 1, paddingRight: 8 },
   cardTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginBottom: 4, lineHeight: 22 },

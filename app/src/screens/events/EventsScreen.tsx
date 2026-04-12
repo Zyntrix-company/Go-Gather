@@ -113,7 +113,7 @@ function toCardData(ev: EventItem): CardData {
     image: require('../../assets/images/music_festival.png'),
     bannerImageUrl: ev.bannerImageUrl ?? null,
     members: ev.memberAvatars.slice(0, 3).map((uri, idx) => ({ id: `av-${idx}`, uri })),
-    extraMembers: Math.max(0, ev.memberCount - 3),
+    extraMembers: ev.memberAvatars.length === 0 ? ev.memberCount : Math.max(0, ev.memberCount - 3),
     type: ev.type,
     daysToGo: days > 0 ? days : undefined,
   };
