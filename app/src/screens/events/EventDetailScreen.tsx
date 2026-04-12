@@ -1361,8 +1361,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     <View key={poll.id} style={styles.pollCard}>
                       <Text style={styles.pollQ}>{poll.question}</Text>
                       {poll.options.map(opt => {
-                        const total = Math.max(1, poll.options.reduce((s, o) => s + o.voteCount, 0));
-                        const pct   = Math.round((opt.voteCount / total) * 100);
+                        const total    = poll.options.reduce((s, o) => s + o.voteCount, 0);
+                        const pct      = total > 0 ? Math.round((opt.voteCount / total) * 100) : 0;
                         const isMyVote = opt.votedByMe || poll.myVoteOptionId === opt.id;
                         const isVoting = votingPollId === poll.id;
                         return (
@@ -1371,12 +1371,20 @@ export default function EventDetailScreen({ route, navigation }: any) {
                             disabled={isVoting}
                             onPress={() => handleVote(poll.id, opt.id)}
                             activeOpacity={0.8}
-                            style={[styles.pollOptRow, isMyVote && styles.pollOptRowVoted]}
+                            style={styles.pollOptRow}
                           >
-                            <Text style={[styles.pollOptTxt, isMyVote && { fontWeight: '700', color: '#fff' }]} numberOfLines={1}>
+                            {/* Teal fill — full width when voted, proportional to % when not */}
+                            <View style={[
+                              styles.pollBar,
+                              {
+                                width: `${isMyVote ? 100 : pct}%` as any,
+                                backgroundColor: isMyVote ? '#0d9488' : '#ccfbf1',
+                              },
+                            ]} />
+                            <Text style={[styles.pollOptTxt, isMyVote && { color: '#fff', fontWeight: '700' }]} numberOfLines={1}>
                               {isMyVote ? '✓  ' : ''}{opt.text}
                             </Text>
-                            <Text style={[styles.pollVotes, isMyVote && { color: '#fff' }]}>{pct}%  ·  {opt.voteCount}</Text>
+                            <Text style={[styles.pollVotes, isMyVote && { color: '#fff' }]}>{pct}%</Text>
                           </TouchableOpacity>
                         );
                       })}
@@ -1667,12 +1675,12 @@ const styles = StyleSheet.create({
   balLabel: { fontSize: 11, color: '#64748b', fontWeight: '500', marginBottom: 4 },
   balValue: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
 
-  pollCard:        { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  pollQ:           { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 10 },
-  pollOptRow:      { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, marginBottom: 6 },
-  pollOptRowVoted: { backgroundColor: '#0d9488', borderColor: '#0d9488' },
-  pollOptTxt:      { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500' },
-  pollVotes:       { fontSize: 12, color: '#64748b', fontWeight: '600' },
+  pollCard:   { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
+  pollQ:      { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 10 },
+  pollOptRow: { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, marginBottom: 6, overflow: 'hidden' },
+  pollBar:    { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 8 },
+  pollOptTxt: { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500', zIndex: 1 },
+  pollVotes:  { fontSize: 12, color: '#64748b', fontWeight: '600', zIndex: 1 },
 
   noteCard:  { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
   noteTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a', flex: 1 },
