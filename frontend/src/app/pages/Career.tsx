@@ -28,7 +28,6 @@ export default function Career() {
         title="Careers at GatherrGo — Join Our Team"
         description="Join the GatherrGo team. We're hiring passionate people for remote roles in Marketing, Design, and Engineering. Help us shape the future of group travel planning."
         canonical="/careers"
-        noIndex={true}
       />
       
       {/* Hero */}

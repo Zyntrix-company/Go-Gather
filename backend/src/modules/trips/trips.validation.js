@@ -7,7 +7,17 @@ const isUUID = (value) =>
 // ── Trip CRUD ─────────────────────────────────────────────────
 const createTripValidation = [
   body('name').trim().notEmpty().withMessage('Trip name is required').isLength({ min: 3, max: 255 }),
-  body('startDate').isISO8601().withMessage('startDate must be a valid ISO 8601 date (YYYY-MM-DD)'),
+  body('startDate')
+    .isISO8601().withMessage('startDate must be a valid ISO 8601 date (YYYY-MM-DD)')
+    .custom((val) => {
+      const start = new Date(val);
+      const maxDate = new Date();
+      maxDate.setFullYear(maxDate.getFullYear() + 1);
+      if (start > maxDate) {
+        throw new Error('startDate cannot be more than 1 year from today');
+      }
+      return true;
+    }),
   body('endDate')
     .isISO8601().withMessage('endDate must be a valid ISO 8601 date')
     .custom((val, { req }) => {
@@ -40,8 +50,18 @@ const createTripValidation = [
 const updateTripValidation = [
   param('id').isUUID().withMessage('Trip ID must be a valid UUID'),
   body('name').optional().trim().notEmpty().isLength({ max: 255 }),
-  body('startDate').optional().isISO8601(),
-  body('endDate').optional().isISO8601(),
+  body('startDate').optional().isISO8601().custom((val) => {
+    const maxDate = new Date();
+    maxDate.setFullYear(maxDate.getFullYear() + 1);
+    if (new Date(val) > maxDate) throw new Error('startDate cannot be more than 1 year from today');
+    return true;
+  }),
+  body('endDate').optional().isISO8601().custom((val) => {
+    const maxDate = new Date();
+    maxDate.setFullYear(maxDate.getFullYear() + 1);
+    if (new Date(val) > maxDate) throw new Error('endDate cannot be more than 1 year from today');
+    return true;
+  }),
   body('location').optional().isObject(),
   body('location.name').optional().isString().isLength({ max: 500 }),
   body('location.lat').optional().isFloat({ min: -90, max: 90 }),

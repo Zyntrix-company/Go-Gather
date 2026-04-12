@@ -119,6 +119,36 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* ── Safari vendor-prefix fallbacks ─────────────────────────────────────── */
+
+/*
+ * backdrop-filter — Safari < 18 requires the -webkit- prefix.
+ * Tailwind v4 generates both prefixed and unprefixed rules for backdrop-blur-*
+ * utilities, but we add an explicit override here to guarantee coverage when
+ * the Tailwind build strips vendor prefixes.
+ */
+[class*="backdrop-blur"] {
+  -webkit-backdrop-filter: var(--tw-backdrop-blur, blur(0)) var(--tw-backdrop-brightness, ) var(--tw-backdrop-contrast, ) var(--tw-backdrop-grayscale, ) var(--tw-backdrop-hue-rotate, ) var(--tw-backdrop-invert, ) var(--tw-backdrop-opacity, ) var(--tw-backdrop-saturate, ) var(--tw-backdrop-sepia, );
+}
+
+/*
+ * position: sticky — Safari 12 needs -webkit-sticky.
+ */
+[class*="sticky"] {
+  position: -webkit-sticky;
+  position: sticky;
+}
+
+/*
+ * scroll-behavior: smooth — wrap in @supports so it only fires where
+ * supported (some older Safari versions jank with native smooth scroll).
+ */
+@supports (scroll-behavior: smooth) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

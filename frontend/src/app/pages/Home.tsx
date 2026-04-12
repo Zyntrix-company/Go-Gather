@@ -28,6 +28,48 @@ const stagger = {
   visible: { opacity: 1, transition: { staggerChildren: 0.2 } }
 };
 
+// ── Structured data for Google sitelinks & rich results ─────────────────────
+const homeSchemas = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    '@id': 'https://www.gatherrgo.com/#website',
+    url: 'https://www.gatherrgo.com/',
+    name: 'GatherrGo',
+    description: 'Group Travel Planning App — plan trips, split expenses, coordinate with friends.',
+    publisher: { '@id': 'https://www.gatherrgo.com/#organization' },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    '@id': 'https://www.gatherrgo.com/#organization',
+    name: 'GatherrGo',
+    url: 'https://www.gatherrgo.com',
+    logo: {
+      '@type': 'ImageObject',
+      url: 'https://www.gatherrgo.com/logo.png',
+      width: 1042,
+      height: 212,
+    },
+    description: 'GatherrGo is the all-in-one group travel planning app.',
+    contactPoint: {
+      '@type': 'ContactPoint',
+      contactType: 'customer support',
+      url: 'https://www.gatherrgo.com/contact',
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    '@id': 'https://www.gatherrgo.com/#webpage',
+    url: 'https://www.gatherrgo.com/',
+    name: 'GatherrGo — Group Travel Planning App',
+    isPartOf: { '@id': 'https://www.gatherrgo.com/#website' },
+    about: { '@id': 'https://www.gatherrgo.com/#organization' },
+    description: 'GatherrGo is the all-in-one group travel app. Plan trips, coordinate itineraries, split expenses, and capture memories.',
+  },
+];
+
 export default function Home() {
   return (
     <div className="relative flex flex-col gap-8 pb-16 overflow-x-hidden bg-transparent -mt-24 pt-24">
@@ -35,6 +77,7 @@ export default function Home() {
         title="GatherrGo — Group Travel Planning App | Organize Trips & Split Expenses"
         description="GatherrGo is the all-in-one group travel app. Plan trips, coordinate itineraries, split expenses, and capture memories — all in one private space for your group."
         canonical="/"
+        jsonLd={homeSchemas}
       />
       <FloatingScrollButton />
       
