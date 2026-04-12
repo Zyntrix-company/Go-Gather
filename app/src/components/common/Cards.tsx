@@ -55,10 +55,10 @@ export function TripCardFull({ trip, onPress, showMenu, onToggleMenu, onArchive,
           </TouchableOpacity>
           <View style={styles.participantAvatars}>
             {trip.members.slice(0, 3).map((m, i) => (
-              <Image key={m.id} source={{ uri: m.uri }} style={[styles.miniAvatar as any, { marginLeft: i > 0 ? -10 : 0 }]} />
+              <Image key={m.id} source={{ uri: m.uri }} style={[styles.miniAvatar as any, i === 0 && { marginLeft: 0 }]} />
             ))}
             {trip.extraMembers > 0 && (
-              <View style={[styles.moreCounter, { marginLeft: -10 }]}>
+              <View style={[styles.moreCounter, trip.members.length === 0 && { marginLeft: 0 }]}>
                 <Text style={styles.moreCounterText}>+{trip.extraMembers}</Text>
               </View>
             )}
@@ -189,10 +189,10 @@ export function EventCard({ event, onPress, showMenu, onToggleMenu, onArchive, o
           </TouchableOpacity>
           <View style={styles.participantAvatars}>
             {event.members.slice(0, 3).map((m, i) => (
-              <Image key={m.id} source={{ uri: m.uri }} style={[styles.miniAvatar as any, { marginLeft: i > 0 ? -10 : 0 }]} />
+              <Image key={m.id} source={{ uri: m.uri }} style={[styles.miniAvatar as any, i === 0 && { marginLeft: 0 }]} />
             ))}
             {event.extraMembers > 0 && (
-              <View style={[styles.moreCounter, { marginLeft: -10 }]}>
+              <View style={[styles.moreCounter, event.members.length === 0 && { marginLeft: 0 }]}>
                 <Text style={styles.moreCounterText}>+{event.extraMembers}</Text>
               </View>
             )}
@@ -348,27 +348,34 @@ const styles = StyleSheet.create({
   },
   participantAvatars: {
     position: 'absolute',
-    bottom: 12,
-    right: 12,
+    bottom: 10,
+    right: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    gap: 0,
   },
   miniAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1.5,
     borderColor: '#fff',
+    marginLeft: -8,
   },
   moreCounter: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: '#0d9488',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: -8,
   },
   moreCounterText: {
     color: '#fff',
