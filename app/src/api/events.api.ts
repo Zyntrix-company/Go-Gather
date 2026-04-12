@@ -48,6 +48,7 @@ export type Event = {
   eventDate: string;
   eventType: string | null;
   description: string | null;
+  bannerImageUrl: string | null;
   location: EventLocation;
   archivedAt: string | null;
   createdBy: string;
@@ -96,6 +97,7 @@ export async function createEvent(body: {
   eventDate: string;
   eventType?: string;
   description?: string;
+  bannerImageUrl?: string;
   location?: { name?: string; lat?: number; lng?: number };
   reminders?: boolean;
   friendIds?: string[];
@@ -115,6 +117,7 @@ export async function updateEvent(eventId: string, body: Partial<{
   eventDate: string;
   eventType: string;
   description: string;
+  bannerImageUrl: string;
   location: { name?: string; lat?: number; lng?: number };
 }>) {
   const res = await client.put(`/events/${eventId}`, body);

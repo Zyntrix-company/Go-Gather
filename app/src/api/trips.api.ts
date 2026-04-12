@@ -45,14 +45,25 @@ export type ApiError = {
   retryAfter?: number;
 };
 
+function stripHtml(s: string): string {
+  if (!s || !s.trim().startsWith('<')) return s;
+  // HTML response from nginx/proxy — extract a human-readable message
+  const status = s.match(/<title>([^<]+)<\/title>/i)?.[1];
+  if (status) return status.trim();
+  return 'Server error. Please try again.';
+}
+
 export function parseError(err: any): ApiError {
   const data = err?.response?.data;
+  const rawMsg: string = (typeof data === 'object' ? data?.message : undefined)
+    ?? err?.message
+    ?? 'Something went wrong';
   return {
-    error: data?.error ?? 'UNKNOWN_ERROR',
-    message: data?.message ?? err?.message ?? 'Something went wrong',
+    error: (typeof data === 'object' ? data?.error : undefined) ?? 'UNKNOWN_ERROR',
+    message: stripHtml(rawMsg),
     statusCode: err?.response?.status ?? 0,
-    errors: data?.errors,
-    retryAfter: data?.retryAfter,
+    errors: typeof data === 'object' ? data?.errors : undefined,
+    retryAfter: typeof data === 'object' ? data?.retryAfter : undefined,
   };
 }
 

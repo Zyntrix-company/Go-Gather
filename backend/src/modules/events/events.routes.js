@@ -78,7 +78,7 @@ router.get('/:eventId/photos', eventMemberMW, ctrl.getPhotos);
 router.post(
   '/:eventId/photos',
   eventMemberMW,
-  (req, res, next) => photoUpload.array('photos', 5)(req, res, (err) => {
+  (req, res, next) => photoUpload.array('photos')(req, res, (err) => {
     if (err) return handleMulterError(err, req, res, next);
     next();
   }),

@@ -801,7 +801,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   function handlePickPhoto(cam: boolean) {
     const fn = cam ? launchCamera : launchImageLibrary;
-    fn({ mediaType: 'mixed', selectionLimit: 5 }, async res => {
+    fn({ mediaType: 'mixed' }, async res => {
       if (res.didCancel || res.errorCode) return;
       const assets = (res.assets || []).map(a => ({
         uri: a.uri ?? '',
@@ -1757,29 +1757,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   });
 
                   const renderPhotoThumb = (ph: PhotoItem) => (
-                    <View key={ph.id} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
-                      <TouchableOpacity
-                        onPress={() => setPreviewPhoto(ph)}
-                        activeOpacity={0.85}
-                        style={{ width: 80, height: 80 }}
-                      >
-                        <Image
-                          source={{ uri: ph.localUri ?? ph.uri }}
-                          style={{ width: 80, height: 80, borderRadius: 8 }}
-                          resizeMode="cover"
-                          onError={() => {}}
-                        />
-                      </TouchableOpacity>
-                      {(role === 'admin' || ph.uploadedBy === currentUserId) && (
-                        <TouchableOpacity
-                          onPress={() => handleDeletePhoto(ph.id, ph.uploadedBy ?? '')}
-                          style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>✕</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
+                    <TouchableOpacity key={ph.id} onPress={() => setPreviewPhoto(ph)} activeOpacity={0.85} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
+                      <Image
+                        source={{ uri: ph.localUri ?? ph.uri }}
+                        style={{ width: 80, height: 80, borderRadius: 8 }}
+                        resizeMode="cover"
+                        onError={() => {}}
+                      />
+                    </TouchableOpacity>
                   );
 
                   return (
@@ -1826,13 +1811,40 @@ export default function TripDetailScreen({ route, navigation }: any) {
       ═══════════════════════════════════════════════════ */}
       <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' }}>
+          {/* Close — top left */}
           <TouchableOpacity
             onPress={() => setPreviewPhoto(null)}
-            style={{ position: 'absolute', top: 48, right: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}
+            style={{ position: 'absolute', top: 48, left: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}
             activeOpacity={0.8}
           >
-            <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>✕</Text>
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+              <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
           </TouchableOpacity>
+          {/* Delete — top right */}
+          {previewPhoto && (role === 'admin' || previewPhoto.uploadedBy === currentUserId) && (
+            <TouchableOpacity
+              onPress={() => {
+                if (!previewPhoto) return;
+                Alert.alert('Delete Photo', 'Remove this photo?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete', style: 'destructive',
+                    onPress: async () => {
+                      await handleDeletePhoto(previewPhoto.id, previewPhoto.uploadedBy ?? '');
+                      setPreviewPhoto(null);
+                    },
+                  },
+                ]);
+              }}
+              style={{ position: 'absolute', top: 48, right: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(239,68,68,0.85)', alignItems: 'center', justifyContent: 'center' }}
+              activeOpacity={0.8}
+            >
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
+            </TouchableOpacity>
+          )}
           {previewPhoto && (
             <>
               <Image
@@ -2138,18 +2150,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 </TouchableOpacity>
 
                 {/* Active polls */}
-                {polls.map(poll => (
+                {polls.map(poll => {
+                  const totalVotes = poll.options.reduce((s, o) => s + o.voteCount, 0);
+                  return (
                   <View key={poll.id} style={styles.pollCard}>
                     <Text style={styles.pollQ}>{poll.question}</Text>
                     {poll.options.map(opt => {
-                      const total = Math.max(1, poll.options.reduce((s, o) => s + o.voteCount, 0));
-                      const pct = opt.voteCount / total;
+                      const pct = totalVotes > 0 ? Math.round((opt.voteCount / totalVotes) * 100) : 0;
                       const isMyVote = opt.votedByMe || poll.myVoteOptionId === opt.id;
                       return (
-                        <TouchableOpacity key={opt.id} style={[styles.pollOptRow, isMyVote && { borderColor: '#0d9488', borderWidth: 1, borderRadius: 8 }]} onPress={() => handleVote(poll.id, opt.id)} activeOpacity={0.8}>
-                          <View style={[styles.pollBar, { width: `${Math.max(4, pct * 100)}%`, backgroundColor: isMyVote ? '#0d9488' : '#ccfbf1' }]} />
-                          <Text style={[styles.pollOptTxt, isMyVote && { fontWeight: '700', color: '#0d9488' }]}>{opt.text}{isMyVote ? ' ✓' : ''}</Text>
-                          <Text style={styles.pollVotes}>{opt.voteCount}</Text>
+                        <TouchableOpacity key={opt.id} style={styles.pollOptRow} onPress={() => handleVote(poll.id, opt.id)} activeOpacity={0.8}>
+                          <View style={[styles.pollBar, { width: `${isMyVote ? 100 : pct}%` as any, backgroundColor: isMyVote ? '#0d9488' : '#ccfbf1' }]} />
+                          <Text style={[styles.pollOptTxt, isMyVote && { fontWeight: '700', color: '#fff' }]}>{isMyVote ? '✓  ' : ''}{opt.text}</Text>
+                          <Text style={[styles.pollVotes, isMyVote && { color: '#fff' }]}>{pct}%</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -2159,7 +2172,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       </TouchableOpacity>
                     )}
                   </View>
-                ))}
+                  );
+                })}
               </View>
             </ScrollView>
             <View style={styles.dFooterRow}>

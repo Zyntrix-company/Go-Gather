@@ -365,7 +365,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   function handlePickPhoto(cam: boolean) {
     const fn = cam ? launchCamera : launchImageLibrary;
-    fn({ mediaType: 'photo', selectionLimit: 5, maxWidth: 1280, maxHeight: 1280, quality: 0.7 }, async res => {
+    fn({ mediaType: 'photo', maxWidth: 1280, maxHeight: 1280, quality: 0.7 }, async res => {
       if (res.didCancel || res.errorCode) return;
       const assets = (res.assets || []).filter(a => a.uri);
       if (!assets.length) return;
@@ -798,18 +798,23 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     </TouchableOpacity>
                   )}
                 </View>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {photos.slice(0, 3).map(p => (
-                    <TouchableOpacity key={p.id} onPress={() => setPreviewPhoto(p)} activeOpacity={0.85} style={{ flex: 1 }}>
-                      <Image
-                        source={{ uri: p.localUri ?? p.uri }}
-                        style={{ width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: '#e2e8f0' }}
-                        resizeMode="cover"
-                        onError={() => {}}
-                      />
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                {(() => {
+                  const THUMB = (Dimensions.get('window').width - 32 - 32 - 16) / 3;
+                  return (
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {photos.slice(0, 3).map(p => (
+                        <TouchableOpacity key={p.id} onPress={() => setPreviewPhoto(p)} activeOpacity={0.85}>
+                          <Image
+                            source={{ uri: p.localUri ?? p.uri }}
+                            style={{ width: THUMB, height: THUMB, borderRadius: 10, backgroundColor: '#e2e8f0' }}
+                            resizeMode="cover"
+                            onError={() => {}}
+                          />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  );
+                })()}
               </View>
             )}
 
@@ -883,12 +888,13 @@ export default function EventDetailScreen({ route, navigation }: any) {
                             onPress={() => handleVote(poll.id, opt.id)}
                             activeOpacity={0.8}
                             disabled={isVoting}
-                            style={[
-                              styles.hlPollOption,
-                              opt.votedByMe ? styles.hlPollOptionVoted : styles.hlPollOptionUnvoted,
-                            ]}
+                            style={styles.hlPollOption}
                           >
-                            <View style={styles.hlPollOptionInner}>
+                            <View style={[styles.hlPollBar, {
+                              width: `${opt.votedByMe ? 100 : pct}%` as any,
+                              backgroundColor: opt.votedByMe ? '#0d9488' : '#ccfbf1',
+                            }]} />
+                            <View style={[styles.hlPollOptionInner, { zIndex: 1 }]}>
                               <Text style={[styles.hlPollOptText, opt.votedByMe && { color: '#fff', fontWeight: '700' }]} numberOfLines={1}>
                                 {opt.votedByMe ? '✓  ' : ''}{opt.text}
                               </Text>
@@ -1697,10 +1703,10 @@ const styles = StyleSheet.create({
 
   hlPollCard:          { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', padding: 14, gap: 8 },
   hlPollQuestion:      { flex: 1, fontSize: 14, fontWeight: '700', color: '#0f172a', lineHeight: 20 },
-  hlPollOption:        { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40 },
-  hlPollOptionVoted:   { backgroundColor: '#0d9488', borderColor: '#0d9488' },
-  hlPollOptionUnvoted: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' },
-  hlPollBar:           { display: 'none' } as any,
+  hlPollOption:        { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, position: 'relative', overflow: 'hidden', backgroundColor: '#f8fafc' },
+  hlPollOptionVoted:   {},
+  hlPollOptionUnvoted: {},
+  hlPollBar:           { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 10 },
   hlPollOptionInner:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   hlPollOptText:       { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500' },
   hlPollPct:           { fontSize: 12, color: '#64748b', fontWeight: '600', marginLeft: 8 },

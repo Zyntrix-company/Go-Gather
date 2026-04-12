@@ -132,7 +132,7 @@ router.get('/:id/photos', tripMemberMW, photosCtrl.getPhotos);
 router.post(
   '/:id/photos',
   tripMemberMW,
-  (req, res, next) => photoUpload.array('photos', 5)(req, res, (err) => {
+  (req, res, next) => photoUpload.array('photos')(req, res, (err) => {
     if (err) return handleMulterError(err, req, res, next);
     next();
   }),

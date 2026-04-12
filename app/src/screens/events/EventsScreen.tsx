@@ -1,10 +1,19 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
   Modal, TextInput, Platform, PermissionsAndroid, ActivityIndicator, Image,
-  RefreshControl, NativeModules,
+  RefreshControl, NativeModules, Animated, PanResponder, Dimensions,
 } from 'react-native';
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
+
+const { width: SCREEN_W } = Dimensions.get('window');
+
+type BannerCropFraction = {
+  imgFracX: number;
+  imgFracY: number;
+  imgFracW: number;
+  imgFracH: number;
+};
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Geolocation from '@react-native-community/geolocation';
@@ -15,6 +24,7 @@ import { getFriends } from '../../api/trips.api';
 import {
   getEvents,
   createEvent as apiCreateEvent,
+  updateEvent as apiUpdateEvent,
   archiveEvent as apiArchiveEvent,
   deleteEvent as apiDeleteEvent,
   handleApiError,
@@ -36,6 +46,8 @@ type EventItem = {
   memberCount: number;
   memberAvatars: string[];
   description: string;
+  bannerImageUrl?: string | null;
+  bannerCropFraction?: BannerCropFraction | null;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -87,6 +99,7 @@ function mapApiEvent(e: ApiEvent): EventItem {
     memberCount: e.memberCount ?? 1,
     memberAvatars: e.memberAvatars ?? [],
     description: e.description ?? '',
+    bannerImageUrl: e.bannerImageUrl ?? null,
   };
 }
 
@@ -98,7 +111,7 @@ function toCardData(ev: EventItem): CardData {
     location: ev.location,
     fullDate: ev.dateDisplay,
     image: require('../../assets/images/music_festival.png'),
-    bannerImageUrl: null,
+    bannerImageUrl: ev.bannerImageUrl ?? null,
     members: ev.memberAvatars.slice(0, 3).map((uri, idx) => ({ id: `av-${idx}`, uri })),
     extraMembers: Math.max(0, ev.memberCount - 3),
     type: ev.type,
@@ -127,7 +140,69 @@ function CreateEventModal({ visible, onClose, onSave }: {
   const [friendSearch, setFriendSearch] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [bannerImageUri, setBannerImageUri] = useState<string | undefined>(undefined);
+  const [bannerCropFraction, setBannerCropFraction] = useState<BannerCropFraction | null>(null);
+  const [cropPreviewUri, setCropPreviewUri] = useState<string | undefined>(undefined);
+  const [pickedOrigSize, setPickedOrigSize] = useState({ w: 1, h: 1 });
+  const [cropAreaSize, setCropAreaSize] = useState({ w: SCREEN_W, h: SCREEN_W });
+
+  const CARD_BANNER_W = SCREEN_W - 40;
+  const CARD_BANNER_H = 144;
+
+  const cropScaleAnim  = useRef(new Animated.Value(1)).current;
+  const cropTransXAnim = useRef(new Animated.Value(0)).current;
+  const cropTransYAnim = useRef(new Animated.Value(0)).current;
+  const cropState = useRef({ scale: 1, x: 0, y: 0, lastDist: 0, lastMidX: 0, lastMidY: 0, lastX: 0, lastY: 0 });
+
+  function cropTouchDist(touches: any[]) {
+    const dx = touches[0].pageX - touches[1].pageX;
+    const dy = touches[0].pageY - touches[1].pageY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  const cropPanResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (e) => {
+      const touches = e.nativeEvent.touches;
+      const s = cropState.current;
+      if (touches.length >= 2) {
+        s.lastDist = cropTouchDist(touches);
+        s.lastMidX = (touches[0].pageX + touches[1].pageX) / 2;
+        s.lastMidY = (touches[0].pageY + touches[1].pageY) / 2;
+        s.lastX = s.lastMidX; s.lastY = s.lastMidY;
+      } else {
+        s.lastX = touches[0]?.pageX ?? 0;
+        s.lastY = touches[0]?.pageY ?? 0;
+        s.lastDist = 0;
+      }
+    },
+    onPanResponderMove: (e) => {
+      const touches = e.nativeEvent.touches;
+      const s = cropState.current;
+      if (touches.length >= 2) {
+        const dist = cropTouchDist(touches);
+        const midX = (touches[0].pageX + touches[1].pageX) / 2;
+        const midY = (touches[0].pageY + touches[1].pageY) / 2;
+        if (s.lastDist > 0) {
+          s.scale = Math.max(0.25, Math.min(s.scale * (dist / s.lastDist), 8));
+          cropScaleAnim.setValue(s.scale);
+          s.x += midX - s.lastMidX; s.y += midY - s.lastMidY;
+          cropTransXAnim.setValue(s.x); cropTransYAnim.setValue(s.y);
+        }
+        s.lastDist = dist; s.lastMidX = midX; s.lastMidY = midY;
+        s.lastX = midX; s.lastY = midY;
+      } else {
+        const tx = touches[0]?.pageX ?? s.lastX;
+        const ty = touches[0]?.pageY ?? s.lastY;
+        s.x += tx - s.lastX; s.y += ty - s.lastY;
+        cropTransXAnim.setValue(s.x); cropTransYAnim.setValue(s.y);
+        s.lastX = tx; s.lastY = ty; s.lastDist = 0;
+      }
+    },
+    onPanResponderRelease: () => { cropState.current.lastDist = 0; },
+  })).current;
 
   useEffect(() => {
     if (!showInviteModal) return;
@@ -154,7 +229,8 @@ function CreateEventModal({ visible, onClose, onSave }: {
     setUploadedDocs([]); setSelectedFriendIds([]);
     setShowInviteModal(false); setShowEmailModal(false);
     setMemberTab('friends'); setFriendSearch(''); setInviteEmail('');
-    setBannerImageUri(undefined);
+    setBannerImageUri(undefined); setBannerCropFraction(null);
+    setCropPreviewUri(undefined);
   }
 
   async function handleSave() {
@@ -182,13 +258,25 @@ function CreateEventModal({ visible, onClose, onSave }: {
         memberCount: result.memberCount ?? 1 + selectedFriendIds.length,
         memberAvatars: [],
         description: result.event.description ?? '',
+        bannerImageUrl: null,
+        bannerCropFraction: bannerCropFraction,
       };
-      // Upload banner image → photos module (events have no banner_image_url column)
-      if (bannerImageUri) {
+      // Upload banner → photos module → get CDN URL → save to banner_image_url
+      const localBannerUri = bannerImageUri;
+      const isLocalUri = localBannerUri && (localBannerUri.startsWith('file://') || localBannerUri.startsWith('content://'));
+      if (isLocalUri) {
+        newEvent.bannerImageUrl = localBannerUri; // show locally while uploading
         try {
-          const ext = bannerImageUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+          const ext = localBannerUri.split('.').pop()?.toLowerCase() ?? 'jpg';
           const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', heic: 'image/heic', webp: 'image/webp' };
-          await uploadEventPhotos(newEvent.id, [{ uri: bannerImageUri, type: mimeMap[ext] ?? 'image/jpeg', name: `banner.${ext}` }]);
+          const mime = mimeMap[ext] ?? 'image/jpeg';
+          const photoRes = await uploadEventPhotos(newEvent.id, [{ uri: localBannerUri, type: mime, name: `banner.${ext}` }]);
+          const photo = photoRes.photos?.[0];
+          const permanentUrl = (photo as any)?.fileUrl as string ?? photo?.url;
+          if (permanentUrl) {
+            await apiUpdateEvent(newEvent.id, { bannerImageUrl: permanentUrl });
+            newEvent.bannerImageUrl = permanentUrl;
+          }
         } catch (e) { console.warn('Banner upload failed:', e); }
       }
       // Upload docs — images → photos module, everything else → docs module
@@ -450,38 +538,71 @@ function CreateEventModal({ visible, onClose, onSave }: {
 
             {/* Banner Image */}
             <Text style={[modal.label, { marginTop: 4 }]}>Banner Image <Text style={{ color: '#94a3b8', fontWeight: '400' }}>(optional)</Text></Text>
-            <TouchableOpacity
-              style={{ width: '100%', height: 130, borderRadius: 12, backgroundColor: '#f1f5f9', overflow: 'hidden', marginBottom: 14, alignItems: 'center', justifyContent: 'center', borderWidth: bannerImageUri ? 0 : 1, borderColor: '#e2e8f0', borderStyle: 'dashed' }}
-              onPress={() => launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, includeBase64: false }, res => {
-                if (res.didCancel || res.errorCode) return;
-                const asset = res.assets?.[0];
-                if (asset?.uri) setBannerImageUri(asset.uri);
-              })}
-              activeOpacity={0.8}
-            >
+            <View style={{ width: '100%', height: 140, borderRadius: 12, backgroundColor: '#f1f5f9', overflow: 'hidden', marginBottom: 14, borderWidth: bannerImageUri ? 0 : 1, borderColor: '#e2e8f0', borderStyle: 'dashed' }}>
               {bannerImageUri ? (
                 <>
-                  <Image source={{ uri: bannerImageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  <Image source={{ uri: bannerImageUri }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} resizeMode="cover" />
+                  <TouchableOpacity
+                    style={{ position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                    onPress={() => {
+                      setIsCompressing(true);
+                      launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, includeBase64: false, presentationStyle: 'fullScreen', maxWidth: 1280, maxHeight: 720, quality: 0.7 }, res => {
+                        setIsCompressing(false);
+                        if (res.didCancel || res.errorCode) return;
+                        const asset = res.assets?.[0];
+                        if (asset?.uri) {
+                          setPickedOrigSize({ w: asset.width ?? 1280, h: asset.height ?? 720 });
+                          setCropPreviewUri(asset.uri);
+
+                          setBannerCropFraction(null);
+                        }
+                      });
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>Change</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4 }}
-                    onPress={() => setBannerImageUri(undefined)}
+                    onPress={() => { setBannerImageUri(undefined); setBannerCropFraction(null); }}
                   >
                     <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
                       <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
                     </Svg>
                   </TouchableOpacity>
                 </>
+              ) : isCompressing ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <ActivityIndicator size="small" color="#0d9488" />
+                  <Text style={{ color: '#64748b', fontSize: 13 }}>Compressing image…</Text>
+                </View>
               ) : (
-                <View style={{ alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity
+                  style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  onPress={() => {
+                    setIsCompressing(true);
+                    launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, includeBase64: false, presentationStyle: 'fullScreen', maxWidth: 1280, maxHeight: 720, quality: 0.7 }, res => {
+                      setIsCompressing(false);
+                      if (res.didCancel || res.errorCode) return;
+                      const asset = res.assets?.[0];
+                      if (asset?.uri) {
+                        setPickedOrigSize({ w: asset.width ?? 1280, h: asset.height ?? 720 });
+                        setCropPreviewUri(asset.uri);
+                        setBannerCropFraction(null);
+                      }
+                    });
+                  }}
+                  activeOpacity={0.8}
+                >
                   <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
                     <Rect x={3} y={3} width={18} height={18} rx={2} ry={2} stroke="#94a3b8" strokeWidth={2} />
                     <Circle cx={8.5} cy={8.5} r={1.5} fill="#94a3b8" />
                     <Path d="M21 15l-5-5L5 21" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
                   <Text style={{ color: '#94a3b8', fontSize: 13 }}>Tap to add banner photo</Text>
-                </View>
+                </TouchableOpacity>
               )}
-            </TouchableOpacity>
+            </View>
 
           </ScrollView>
 
@@ -638,6 +759,105 @@ function CreateEventModal({ visible, onClose, onSave }: {
           </View>
         </Modal>
       )}
+
+      {/* ── Banner crop/preview modal ── */}
+      <Modal
+        visible={!!cropPreviewUri}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => setCropPreviewUri(undefined)}
+        onShow={() => {
+          const s = cropState.current;
+          s.scale = 1; s.x = 0; s.y = 0; s.lastDist = 0; s.lastX = 0; s.lastY = 0;
+          cropScaleAnim.setValue(1); cropTransXAnim.setValue(0); cropTransYAnim.setValue(0);
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          <View
+            style={{ flex: 1, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' }}
+            onLayout={(e) => { const { width, height } = e.nativeEvent.layout; setCropAreaSize({ w: width, h: height }); }}
+            {...cropPanResponder.panHandlers}
+          >
+            {cropPreviewUri && (() => {
+              const canvasW = cropAreaSize.w || SCREEN_W;
+              const canvasH = cropAreaSize.h || SCREEN_W;
+              const origAspect = pickedOrigSize.w / pickedOrigSize.h;
+              let imgDisplayW: number, imgDisplayH: number;
+              if (origAspect > canvasW / canvasH) {
+                imgDisplayW = canvasW; imgDisplayH = canvasW / origAspect;
+              } else {
+                imgDisplayH = canvasH; imgDisplayW = canvasH * origAspect;
+              }
+              return (
+                <Animated.Image
+                  source={{ uri: cropPreviewUri }}
+                  style={[{ width: imgDisplayW, height: imgDisplayH }, { transform: [{ translateX: cropTransXAnim }, { translateY: cropTransYAnim }, { scale: cropScaleAnim }] }]}
+                  resizeMode="stretch"
+                />
+              );
+            })()}
+            {(() => {
+              const canvasW = cropAreaSize.w || SCREEN_W;
+              const cropBoxW = Math.min(canvasW * 0.92, canvasW);
+              const cropBoxH = cropBoxW / (CARD_BANNER_W / CARD_BANNER_H);
+              return (
+                <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: cropBoxW, height: cropBoxH, borderWidth: 2, borderColor: 'rgba(255,255,255,0.85)', borderRadius: 8 }}>
+                    <View style={{ position: 'absolute', left: '33.3%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
+                    <View style={{ position: 'absolute', left: '66.6%', top: 0, bottom: 0, borderLeftWidth: 0.5, borderLeftColor: 'rgba(255,255,255,0.4)' }} />
+                    <View style={{ position: 'absolute', top: '33.3%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
+                    <View style={{ position: 'absolute', top: '66.6%', left: 0, right: 0, borderTopWidth: 0.5, borderTopColor: 'rgba(255,255,255,0.4)' }} />
+                  </View>
+                </View>
+              );
+            })()}
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 40, paddingVertical: 28, backgroundColor: '#000' }}>
+            <TouchableOpacity onPress={() => setCropPreviewUri(undefined)} activeOpacity={0.8}>
+              <Text style={{ color: '#aaa', fontSize: 17, fontWeight: '500' }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => {
+              const s = cropState.current;
+              s.scale = 1; s.x = 0; s.y = 0; s.lastDist = 0; s.lastX = 0; s.lastY = 0;
+              cropScaleAnim.setValue(1); cropTransXAnim.setValue(0); cropTransYAnim.setValue(0);
+            }} activeOpacity={0.8}>
+              <Text style={{ color: '#fff', fontSize: 17, fontWeight: '500' }}>Reset</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => {
+              const s = cropState.current;
+              const canvasW = cropAreaSize.w || SCREEN_W;
+              const canvasH = cropAreaSize.h || SCREEN_W;
+              const origAspect = pickedOrigSize.w / pickedOrigSize.h;
+              let imgDisplayW: number, imgDisplayH: number;
+              if (origAspect > canvasW / canvasH) {
+                imgDisplayW = canvasW; imgDisplayH = canvasW / origAspect;
+              } else {
+                imgDisplayH = canvasH; imgDisplayW = canvasH * origAspect;
+              }
+              const cropBoxW = Math.min(canvasW * 0.92, canvasW);
+              const cropBoxH = cropBoxW / (CARD_BANNER_W / CARD_BANNER_H);
+              const canvasCX = canvasW / 2;
+              const canvasCY = canvasH / 2;
+              const imgVisW = imgDisplayW * s.scale;
+              const imgVisH = imgDisplayH * s.scale;
+              const imgVisLeft = canvasCX + s.x - imgVisW / 2;
+              const imgVisTop  = canvasCY + s.y - imgVisH / 2;
+              const cropLeft = canvasCX - cropBoxW / 2;
+              const cropTop  = canvasCY - cropBoxH / 2;
+              setBannerCropFraction({
+                imgFracW: imgVisW / cropBoxW,
+                imgFracH: imgVisH / cropBoxH,
+                imgFracX: (imgVisLeft - cropLeft) / cropBoxW,
+                imgFracY: (imgVisTop  - cropTop ) / cropBoxH,
+              });
+              setBannerImageUri(cropPreviewUri!);
+              setCropPreviewUri(undefined);
+            }} activeOpacity={0.8}>
+              <Text style={{ color: '#0d9488', fontSize: 17, fontWeight: '700' }}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
