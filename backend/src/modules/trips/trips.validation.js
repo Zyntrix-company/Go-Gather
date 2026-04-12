@@ -7,7 +7,17 @@ const isUUID = (value) =>
 // ── Trip CRUD ─────────────────────────────────────────────────
 const createTripValidation = [
   body('name').trim().notEmpty().withMessage('Trip name is required').isLength({ min: 3, max: 255 }),
-  body('startDate').isISO8601().withMessage('startDate must be a valid ISO 8601 date (YYYY-MM-DD)'),
+  body('startDate')
+    .isISO8601().withMessage('startDate must be a valid ISO 8601 date (YYYY-MM-DD)')
+    .custom((val) => {
+      const start = new Date(val);
+      const maxDate = new Date();
+      maxDate.setFullYear(maxDate.getFullYear() + 1);
+      if (start > maxDate) {
+        throw new Error('startDate cannot be more than 1 year from today');
+      }
+      return true;
+    }),
   body('endDate')
     .isISO8601().withMessage('endDate must be a valid ISO 8601 date')
     .custom((val, { req }) => {
