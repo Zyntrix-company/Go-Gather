@@ -300,8 +300,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [editingExpenseId,setEditingExpenseId]= useState<string | null>(null);
 
   // ── Polls modal ──
-  const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOptions,  setPollOptions]  = useState<string[]>(['', '', '']);
+  const [pollQuestion,   setPollQuestion]   = useState('');
+  const [pollOptions,    setPollOptions]    = useState<string[]>(['', '', '']);
+  const [votingPollId,   setVotingPollId]   = useState<string | null>(null);
 
   // ── Notes modal ──
   const [noteTitle,       setNoteTitle]       = useState('');
@@ -586,30 +587,18 @@ export default function EventDetailScreen({ route, navigation }: any) {
   }
 
   async function handleVote(pollId: string, optionId: string) {
-    // Optimistic update
-    setPolls(prev => prev.map(p => {
-      if (p.id !== pollId) return p;
-      const alreadyVoted = p.myVoteOptionId === optionId;
-      return {
-        ...p,
-        myVoteOptionId: alreadyVoted ? null : optionId,
-        options: p.options.map(o => ({
-          ...o,
-          votedByMe: !alreadyVoted && o.id === optionId,
-          voteCount: o.id === optionId
-            ? (alreadyVoted ? o.voteCount - 1 : o.voteCount + 1)
-            : (o.votedByMe ? o.voteCount - 1 : o.voteCount),
-        })),
-      };
-    }));
+    if (votingPollId === pollId) return; // already in-flight
+    setVotingPollId(pollId);
     try {
       const res = await voteOnEventPoll(event.id, pollId, optionId);
       setPolls(prev => prev.map(p => p.id === pollId ? {
-        id: res.poll.id, question: res.poll.question,
+        id: res.poll.id,
+        question: res.poll.question,
         options: res.poll.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount, votedByMe: o.votedByMe })),
         myVoteOptionId: res.poll.myVoteOptionId,
       } : p));
     } catch (err) { handleApiError(err); }
+    finally { setVotingPollId(null); }
   }
 
   async function handleSaveEvent() {
@@ -887,21 +876,23 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       {/* Options */}
                       {poll.options.map(opt => {
                         const pct = totalVotes > 0 ? Math.round((opt.voteCount / totalVotes) * 100) : 0;
+                        const isVoting = votingPollId === poll.id;
                         return (
                           <TouchableOpacity
                             key={opt.id}
                             onPress={() => handleVote(poll.id, opt.id)}
                             activeOpacity={0.8}
-                            style={[styles.hlPollOption, opt.votedByMe && styles.hlPollOptionVoted]}
+                            disabled={isVoting}
+                            style={[
+                              styles.hlPollOption,
+                              opt.votedByMe ? styles.hlPollOptionVoted : styles.hlPollOptionUnvoted,
+                            ]}
                           >
-                            {/* Progress fill */}
-                            <View style={[styles.hlPollBar, { width: `${pct}%` as any, backgroundColor: opt.votedByMe ? '#99f6e4' : '#e2e8f0' }]} />
-                            {/* Content row */}
                             <View style={styles.hlPollOptionInner}>
-                              <Text style={[styles.hlPollOptText, opt.votedByMe && { color: '#0d9488', fontWeight: '700' }]} numberOfLines={1}>
-                                {opt.votedByMe ? '✓ ' : ''}{opt.text}
+                              <Text style={[styles.hlPollOptText, opt.votedByMe && { color: '#fff', fontWeight: '700' }]} numberOfLines={1}>
+                                {opt.votedByMe ? '✓  ' : ''}{opt.text}
                               </Text>
-                              <Text style={[styles.hlPollPct, opt.votedByMe && { color: '#0d9488' }]}>{pct}%</Text>
+                              <Text style={[styles.hlPollPct, opt.votedByMe && { color: '#fff' }]}>{pct}%</Text>
                             </View>
                           </TouchableOpacity>
                         );
@@ -1370,14 +1361,22 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     <View key={poll.id} style={styles.pollCard}>
                       <Text style={styles.pollQ}>{poll.question}</Text>
                       {poll.options.map(opt => {
-                        const total  = Math.max(1, poll.options.reduce((s, o) => s + o.voteCount, 0));
-                        const pct    = opt.voteCount / total;
+                        const total = Math.max(1, poll.options.reduce((s, o) => s + o.voteCount, 0));
+                        const pct   = Math.round((opt.voteCount / total) * 100);
                         const isMyVote = opt.votedByMe || poll.myVoteOptionId === opt.id;
+                        const isVoting = votingPollId === poll.id;
                         return (
-                          <TouchableOpacity key={opt.id} style={[styles.pollOptRow, isMyVote && { borderColor: '#0d9488', borderWidth: 1, borderRadius: 8 }]} onPress={() => handleVote(poll.id, opt.id)} activeOpacity={0.8}>
-                            <View style={[styles.pollBar, { width: `${Math.max(4, pct * 100)}%`, backgroundColor: isMyVote ? '#0d9488' : '#ccfbf1' }]} />
-                            <Text style={[styles.pollOptTxt, isMyVote && { fontWeight: '700', color: '#0d9488' }]}>{opt.text}{isMyVote ? ' ✓' : ''}</Text>
-                            <Text style={styles.pollVotes}>{opt.voteCount}</Text>
+                          <TouchableOpacity
+                            key={opt.id}
+                            disabled={isVoting}
+                            onPress={() => handleVote(poll.id, opt.id)}
+                            activeOpacity={0.8}
+                            style={[styles.pollOptRow, isMyVote && styles.pollOptRowVoted]}
+                          >
+                            <Text style={[styles.pollOptTxt, isMyVote && { fontWeight: '700', color: '#fff' }]} numberOfLines={1}>
+                              {isMyVote ? '✓  ' : ''}{opt.text}
+                            </Text>
+                            <Text style={[styles.pollVotes, isMyVote && { color: '#fff' }]}>{pct}%  ·  {opt.voteCount}</Text>
                           </TouchableOpacity>
                         );
                       })}
@@ -1668,12 +1667,12 @@ const styles = StyleSheet.create({
   balLabel: { fontSize: 11, color: '#64748b', fontWeight: '500', marginBottom: 4 },
   balValue: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
 
-  pollCard:   { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  pollQ:      { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 10 },
-  pollOptRow: { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 9, paddingHorizontal: 12, marginBottom: 6, overflow: 'hidden' },
-  pollBar:    { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#ccfbf1', borderRadius: 8 },
-  pollOptTxt: { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500', zIndex: 1 },
-  pollVotes:  { fontSize: 12, color: '#64748b', fontWeight: '600', zIndex: 1 },
+  pollCard:        { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
+  pollQ:           { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 10 },
+  pollOptRow:      { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, marginBottom: 6 },
+  pollOptRowVoted: { backgroundColor: '#0d9488', borderColor: '#0d9488' },
+  pollOptTxt:      { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500' },
+  pollVotes:       { fontSize: 12, color: '#64748b', fontWeight: '600' },
 
   noteCard:  { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
   noteTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a', flex: 1 },
@@ -1688,13 +1687,14 @@ const styles = StyleSheet.create({
   hlDocIcon:   { width: 36, height: 36, borderRadius: 8, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center' },
   hlDocName:   { flex: 1, fontSize: 13, fontWeight: '500', color: '#0f172a' },
 
-  hlPollCard:         { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', padding: 14, gap: 8 },
-  hlPollQuestion:     { flex: 1, fontSize: 14, fontWeight: '700', color: '#0f172a', lineHeight: 20 },
-  hlPollOption:       { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden', paddingVertical: 10, paddingHorizontal: 12, minHeight: 40 },
-  hlPollOptionVoted:  { borderColor: '#0d9488' },
-  hlPollBar:          { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 10 },
-  hlPollOptionInner:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 },
-  hlPollOptText:      { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500' },
-  hlPollPct:          { fontSize: 12, color: '#64748b', fontWeight: '600', marginLeft: 8 },
-  hlPollTotal:        { fontSize: 11, color: '#94a3b8', textAlign: 'right', marginTop: 2 },
+  hlPollCard:          { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', padding: 14, gap: 8 },
+  hlPollQuestion:      { flex: 1, fontSize: 14, fontWeight: '700', color: '#0f172a', lineHeight: 20 },
+  hlPollOption:        { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, paddingVertical: 10, paddingHorizontal: 12, minHeight: 40 },
+  hlPollOptionVoted:   { backgroundColor: '#0d9488', borderColor: '#0d9488' },
+  hlPollOptionUnvoted: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' },
+  hlPollBar:           { display: 'none' } as any,
+  hlPollOptionInner:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hlPollOptText:       { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500' },
+  hlPollPct:           { fontSize: 12, color: '#64748b', fontWeight: '600', marginLeft: 8 },
+  hlPollTotal:         { fontSize: 11, color: '#94a3b8', textAlign: 'right', marginTop: 2 },
 });
