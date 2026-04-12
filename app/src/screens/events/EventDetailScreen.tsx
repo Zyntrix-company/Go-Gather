@@ -875,31 +875,37 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   const totalVotes = poll.options.reduce((s, o) => s + o.voteCount, 0);
                   return (
                     <View style={styles.hlPollCard}>
-                      <Text style={styles.hlPollQuestion} numberOfLines={2}>{poll.question}</Text>
-                      <View style={{ gap: 6, marginTop: 10 }}>
-                        {poll.options.map(opt => {
-                          const pct = totalVotes > 0 ? Math.round((opt.voteCount / totalVotes) * 100) : 0;
-                          return (
-                            <TouchableOpacity
-                              key={opt.id}
-                              onPress={() => handleVote(poll.id, opt.id)}
-                              activeOpacity={0.8}
-                              style={styles.hlPollOption}
-                            >
-                              <View style={[styles.hlPollBar, { width: `${pct}%` }]} />
-                              <View style={styles.hlPollOptionInner}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                  {opt.votedByMe && (
-                                    <View style={styles.hlPollDot} />
-                                  )}
-                                  <Text style={[styles.hlPollOptText, opt.votedByMe && { color: '#0d9488', fontWeight: '700' }]} numberOfLines={1}>{opt.text}</Text>
-                                </View>
-                                <Text style={styles.hlPollPct}>{pct}%</Text>
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        })}
+                      {/* Poll icon + question */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                        <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#e0e7ff', alignItems: 'center', justifyContent: 'center' }}>
+                          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                            <Path d="M18 20V10M12 20V4M6 20v-6" stroke="#4338ca" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                          </Svg>
+                        </View>
+                        <Text style={styles.hlPollQuestion} numberOfLines={2}>{poll.question}</Text>
                       </View>
+                      {/* Options */}
+                      {poll.options.map(opt => {
+                        const pct = totalVotes > 0 ? Math.round((opt.voteCount / totalVotes) * 100) : 0;
+                        return (
+                          <TouchableOpacity
+                            key={opt.id}
+                            onPress={() => handleVote(poll.id, opt.id)}
+                            activeOpacity={0.8}
+                            style={[styles.hlPollOption, opt.votedByMe && styles.hlPollOptionVoted]}
+                          >
+                            {/* Progress fill */}
+                            <View style={[styles.hlPollBar, { width: `${pct}%` as any, backgroundColor: opt.votedByMe ? '#99f6e4' : '#e2e8f0' }]} />
+                            {/* Content row */}
+                            <View style={styles.hlPollOptionInner}>
+                              <Text style={[styles.hlPollOptText, opt.votedByMe && { color: '#0d9488', fontWeight: '700' }]} numberOfLines={1}>
+                                {opt.votedByMe ? '✓ ' : ''}{opt.text}
+                              </Text>
+                              <Text style={[styles.hlPollPct, opt.votedByMe && { color: '#0d9488' }]}>{pct}%</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
                       <Text style={styles.hlPollTotal}>{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</Text>
                     </View>
                   );
@@ -1081,18 +1087,20 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   ) : (
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {photos.map(ph => (
-                        <View key={ph.id} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
-                          <TouchableOpacity onPress={() => setPreviewPhoto(ph)} activeOpacity={0.85} style={{ width: 80, height: 80 }}>
-                            <Image source={{ uri: ph.localUri ?? ph.uri }} style={{ width: 80, height: 80, borderRadius: 8 }} resizeMode="cover" onError={() => {}} />
+                        <View key={ph.id} style={{ width: 80, height: 80, position: 'relative' }}>
+                          <TouchableOpacity onPress={() => setPreviewPhoto(ph)} activeOpacity={0.85} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
+                            <Image source={{ uri: ph.localUri ?? ph.uri }} style={{ width: 80, height: 80 }} resizeMode="cover" onError={() => {}} />
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={async () => {
                               try { await deleteEventPhoto(event.id, ph.id); setPhotos(p => p.filter(x => x.id !== ph.id)); }
                               catch (err) { handleApiError(err); }
                             }}
-                            style={{ position: 'absolute', top: 2, right: 2, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}
+                            style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
                             activeOpacity={0.7}>
-                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>✕</Text>
+                            <Svg width={10} height={10} viewBox="0 0 24 24" fill="none">
+                              <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+                            </Svg>
                           </TouchableOpacity>
                         </View>
                       ))}
@@ -1666,13 +1674,13 @@ const styles = StyleSheet.create({
   hlDocIcon:   { width: 36, height: 36, borderRadius: 8, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center' },
   hlDocName:   { flex: 1, fontSize: 13, fontWeight: '500', color: '#0f172a' },
 
-  hlPollCard:         { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', padding: 14 },
-  hlPollQuestion:     { fontSize: 14, fontWeight: '700', color: '#0f172a' },
-  hlPollOption:       { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden', paddingVertical: 9, paddingHorizontal: 12 },
-  hlPollBar:          { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#ccfbf1', borderRadius: 8 },
+  hlPollCard:         { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', padding: 14, gap: 8 },
+  hlPollQuestion:     { flex: 1, fontSize: 14, fontWeight: '700', color: '#0f172a', lineHeight: 20 },
+  hlPollOption:       { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden', paddingVertical: 10, paddingHorizontal: 12, minHeight: 40 },
+  hlPollOptionVoted:  { borderColor: '#0d9488' },
+  hlPollBar:          { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 10 },
   hlPollOptionInner:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 },
-  hlPollDot:          { width: 8, height: 8, borderRadius: 4, backgroundColor: '#0d9488' },
   hlPollOptText:      { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500' },
   hlPollPct:          { fontSize: 12, color: '#64748b', fontWeight: '600', marginLeft: 8 },
-  hlPollTotal:        { fontSize: 11, color: '#94a3b8', marginTop: 8, textAlign: 'right' },
+  hlPollTotal:        { fontSize: 11, color: '#94a3b8', textAlign: 'right', marginTop: 2 },
 });
