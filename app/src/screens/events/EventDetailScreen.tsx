@@ -1087,22 +1087,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   ) : (
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {photos.map(ph => (
-                        <View key={ph.id} style={{ width: 80, height: 80, position: 'relative' }}>
-                          <TouchableOpacity onPress={() => setPreviewPhoto(ph)} activeOpacity={0.85} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
-                            <Image source={{ uri: ph.localUri ?? ph.uri }} style={{ width: 80, height: 80 }} resizeMode="cover" onError={() => {}} />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={async () => {
-                              try { await deleteEventPhoto(event.id, ph.id); setPhotos(p => p.filter(x => x.id !== ph.id)); }
-                              catch (err) { handleApiError(err); }
-                            }}
-                            style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
-                            activeOpacity={0.7}>
-                            <Svg width={10} height={10} viewBox="0 0 24 24" fill="none">
-                              <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-                            </Svg>
-                          </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity key={ph.id} onPress={() => setPreviewPhoto(ph)} activeOpacity={0.85} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
+                          <Image source={{ uri: ph.localUri ?? ph.uri }} style={{ width: 80, height: 80 }} resizeMode="cover" onError={() => {}} />
+                        </TouchableOpacity>
                       ))}
                     </View>
                   )}
@@ -1115,14 +1102,41 @@ export default function EventDetailScreen({ route, navigation }: any) {
         {/* Fullscreen photo preview */}
         <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' }}>
+            {/* Close button — top left */}
             <TouchableOpacity
               onPress={() => setPreviewPhoto(null)}
-              style={{ position: 'absolute', top: 48, right: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}
+              style={{ position: 'absolute', top: 48, left: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}
               activeOpacity={0.8}>
-              <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>✕</Text>
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
+            </TouchableOpacity>
+            {/* Delete button — top right */}
+            <TouchableOpacity
+              onPress={() => {
+                if (!previewPhoto) return;
+                Alert.alert('Delete Photo', 'Remove this photo?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete', style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        await deleteEventPhoto(event.id, previewPhoto.id);
+                        setPhotos(p => p.filter(x => x.id !== previewPhoto.id));
+                        setPreviewPhoto(null);
+                      } catch (err) { handleApiError(err); }
+                    },
+                  },
+                ]);
+              }}
+              style={{ position: 'absolute', top: 48, right: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(239,68,68,0.85)', alignItems: 'center', justifyContent: 'center' }}
+              activeOpacity={0.8}>
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
             </TouchableOpacity>
             {previewPhoto && (
-              <Image source={{ uri: previewPhoto.localUri ?? previewPhoto.uri }} style={{ width: '100%', height: '75%' }} resizeMode="contain" />
+              <Image source={{ uri: previewPhoto.localUri ?? previewPhoto.uri }} style={{ width: '100%', height: '75%' }} resizeMode="contain" onError={() => {}} />
             )}
           </View>
         </Modal>
