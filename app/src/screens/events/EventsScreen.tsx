@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
   Modal, TextInput, Platform, PermissionsAndroid, ActivityIndicator, Image,
-  RefreshControl, NativeModules, Animated, PanResponder, Dimensions,
+  RefreshControl, NativeModules, Animated, PanResponder, Dimensions, SafeAreaView,
 } from 'react-native';
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
 
@@ -43,6 +43,7 @@ type EventItem = {
   location: string;
   dateISO: string;
   dateDisplay: string;
+  dateDisplayNoYear: string;
   memberCount: number;
   memberAvatars: string[];
   description: string;
@@ -83,11 +84,16 @@ function fmtDateDisplay(d: Date): string {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function fmtDateNoYear(d: Date): string {
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
 function fmtDateISO(d: Date): string {
   return d.toISOString().split('T')[0];
 }
 
 function mapApiEvent(e: ApiEvent): EventItem {
+  const eventDate = new Date(e.eventDate);
   return {
     id: e.id,
     name: e.name,
@@ -95,7 +101,8 @@ function mapApiEvent(e: ApiEvent): EventItem {
     typeColor: TYPE_COLORS[e.eventType ?? 'Other'] ?? '#f8fafc',
     location: e.location?.name ?? '',
     dateISO: e.eventDate,
-    dateDisplay: new Date(e.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+    dateDisplay: eventDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+    dateDisplayNoYear: fmtDateNoYear(eventDate),
     memberCount: e.memberCount ?? 1,
     memberAvatars: e.memberAvatars ?? [],
     description: e.description ?? '',
@@ -109,7 +116,7 @@ function toCardData(ev: EventItem): CardData {
     id: ev.id,
     name: ev.name,
     location: ev.location,
-    fullDate: ev.dateDisplay,
+    fullDate: days > 0 ? ev.dateDisplayNoYear : ev.dateDisplay,
     image: require('../../assets/images/music_festival.png'),
     bannerImageUrl: ev.bannerImageUrl ?? null,
     members: ev.memberAvatars.slice(0, 3).map((uri, idx) => ({ id: `av-${idx}`, uri })),
@@ -255,6 +262,7 @@ function CreateEventModal({ visible, onClose, onSave }: {
         location: result.event.location?.name ?? location.trim(),
         dateISO: result.event.eventDate,
         dateDisplay: fmtDateDisplay(dateObj),
+        dateDisplayNoYear: fmtDateNoYear(dateObj),
         memberCount: result.memberCount ?? 1 + selectedFriendIds.length,
         memberAvatars: [],
         description: result.event.description ?? '',
@@ -957,7 +965,7 @@ export default function EventsScreen() {
   const isEmpty = upcomingEvents.length === 0 && pastEvents.length === 0;
 
   return (
-    <View style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1 }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
@@ -1057,7 +1065,7 @@ export default function EventsScreen() {
         onClose={() => setShowCreate(false)}
         onSave={handleCreateEvent}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

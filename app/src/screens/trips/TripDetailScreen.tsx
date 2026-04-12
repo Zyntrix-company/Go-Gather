@@ -13,6 +13,7 @@ import { WebView } from 'react-native-webview';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
+import FloatingTabBar from '../../components/common/FloatingTabBar';
 import useAuthStore from '../../store/authStore';
 import Toast from 'react-native-toast-message';
 import {
@@ -163,6 +164,27 @@ function daysUntilISO(iso: string): number {
 function fmtDate(d: Date): string {
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
 }
+
+function fmtFullDate(iso: string): string {
+  if (!iso) return 'TBD';
+  const clean = iso.includes('T') ? iso.split('T')[0] : iso;
+  const parts = clean.split('-');
+  if (parts.length !== 3) return 'TBD';
+  const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  if (isNaN(d.getTime())) return 'TBD';
+  return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} ${d.getFullYear()}`;
+}
+
+function fmtDateNoYear(iso: string): string {
+  if (!iso) return 'TBD';
+  const clean = iso.includes('T') ? iso.split('T')[0] : iso;
+  const parts = clean.split('-');
+  if (parts.length !== 3) return 'TBD';
+  const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  if (isNaN(d.getTime())) return 'TBD';
+  return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
+}
+
 function parseActivityTime(t: any): { hour: string; minute: string } {
   if (!t) return { hour: '', minute: '' };
   if (typeof t === 'object' && t !== null) {
@@ -1196,10 +1218,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-        {/* ── Header Card ── */}
+       
+      
         <SharedDetailHeroCard
           name={trip?.name ?? 'Trip'}
-          dateLine={`${trip?.startDate ?? ''}${trip?.endDate ? ` - ${trip.endDate}` : ''}`}
+          dateLine={`${trip?.startDateISO ? (days > 0 ? fmtDateNoYear(trip.startDateISO) : fmtFullDate(trip.startDateISO)) : (trip?.startDate ?? '')}${trip?.endDateISO ? ` — ${days > 0 ? fmtDateNoYear(trip.endDateISO) : fmtFullDate(trip.endDateISO)}` : (trip?.endDate ? ` - ${trip.endDate}` : '')}`}
           location={typeof trip?.location === 'string' ? trip.location : trip?.location?.name ?? ''}
           dayCount={Math.abs(days)}
           dayLabel={days > 0 ? 'Days to go' : days === 0 ? 'Today!' : 'Days ago'}
@@ -1341,7 +1364,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
       </ScrollView>
 
-      <SweeFab onPress={() => navigation.navigate('ChatDetail', { chat: { id: 'swee', name: 'Swee', isSwee: true, subtitle: 'Always active · AI Assistant', lastMessage: "Hi! I'm Swee.", time: 'Now', unread: 0 } })} />
+      <SweeFab onPress={() => navigation.navigate('ChatDetail', { chat: { id: 'swee', name: 'Swee', isSwee: true, subtitle: 'Always active · AI Assistant', lastMessage: "Hi! I'm Swee.", time: 'Now', unread: 0 } })} fabStyle={{ bottom: 78 }} />
+
+      <FloatingTabBar activeTab="trips" navigation={navigation} />
 
       {/* ═══════════════════════════════════════════════════
           MODAL 1 — Add Activity
@@ -2361,7 +2386,7 @@ const styles = StyleSheet.create({
   container:  { flex: 1, backgroundColor: 'transparent' },
   topBar:     { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2 },
   backBtn:    { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  scrollContent: { paddingBottom: 120 },
+  scrollContent: { paddingBottom: 150 },
 
   // Header card
   headerCard: { marginHorizontal: 16, marginBottom: 6, borderRadius: 20, borderWidth: 2, borderColor: '#99f6e4', padding: 16 },
@@ -2379,7 +2404,7 @@ const styles = StyleSheet.create({
   statTxt:   { fontSize: 12, fontWeight: '600', color: '#0f172a' },
 
   // Actions
-  actionsWrap: { backgroundColor: '#f0fdfa', paddingHorizontal: 20, paddingVertical: 16, gap: 16, marginBottom: 6 },
+  actionsWrap: { paddingHorizontal: 20, paddingVertical: 16, gap: 16, marginBottom: 6 },
   actionsRow:  { flexDirection: 'row', justifyContent: 'space-between' },
   actionBtn:   { alignItems: 'center', width: 72, gap: 6 },
   actionCircle:{ width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },

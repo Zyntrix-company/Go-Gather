@@ -78,8 +78,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   logo: {
-    width: 26,
-    height: 26,
+    width: 22,
+    height: 22,
   },
   rightSection: {
     flexDirection: 'row',

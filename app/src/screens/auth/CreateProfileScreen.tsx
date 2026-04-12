@@ -12,6 +12,8 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  SafeAreaView,
+  Dimensions,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Logo from '../../components/common/Logo';
@@ -400,34 +402,35 @@ export default function CreateProfileScreen({ navigation }: any) {
   const busy = isLoading || uploadingPhoto;
 
   return (
-    <BlobBackground>
-      {/* Gender picker modal */}
-      <PickerModal
-        visible={showGenderPicker}
-        title="Select Gender"
-        options={GENDERS}
-        selected={gender}
-        onSelect={(val) => { setGender(val); setValue('gender', val); if (apiError) setApiError(null); }}
-        onClose={() => setShowGenderPicker(false)}
-      />
+    <SafeAreaView style={styles.safeArea}>
+      <BlobBackground>
+        {/* Gender picker modal */}
+        <PickerModal
+          visible={showGenderPicker}
+          title="Select Gender"
+          options={GENDERS}
+          selected={gender}
+          onSelect={(val) => { setGender(val); setValue('gender', val); if (apiError) setApiError(null); }}
+          onClose={() => setShowGenderPicker(false)}
+        />
 
-      {/* Country picker modal */}
-      <PickerModal
-        visible={showCountryPicker}
-        title="Select Country"
-        options={COUNTRIES}
-        selected={country}
-        onSelect={(val) => { setCountry(val); setValue('country', val); if (apiError) setApiError(null); }}
-        onClose={() => setShowCountryPicker(false)}
-      />
+        {/* Country picker modal */}
+        <PickerModal
+          visible={showCountryPicker}
+          title="Select Country"
+          options={COUNTRIES}
+          selected={country}
+          onSelect={(val) => { setCountry(val); setValue('country', val); if (apiError) setApiError(null); }}
+          onClose={() => setShowCountryPicker(false)}
+        />
 
-      <KeyboardAvoidingView
-        style={styles.kav}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
+        <KeyboardAvoidingView
+          style={styles.kav}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled">
 
           {/* Logo */}
           <View style={styles.logoRow}>
@@ -574,24 +577,28 @@ export default function CreateProfileScreen({ navigation }: any) {
                 : <Text style={styles.primaryBtnText}>Save & Continue</Text>}
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </BlobBackground>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </BlobBackground>
+    </SafeAreaView>
   );
 }
 
+const SCREEN_W = Dimensions.get('window').width;
+
 const styles = StyleSheet.create({
+  safeArea: { flex: 1 },
   kav: { flex: 1, zIndex: 10 },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingHorizontal: SCREEN_W < 375 ? 16 : 24,
+    paddingTop: SCREEN_W < 375 ? 12 : 16,
     paddingBottom: 100,
   },
   logoRow: { marginBottom: 56, alignItems: 'flex-start' },
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
   title: {
-    fontSize: 28,
+    fontSize: SCREEN_W < 375 ? 23 : 28,
     fontWeight: '400',
     color: '#0f172a',
     textAlign: 'center',

@@ -12,6 +12,7 @@ import {
   FlatList,
   SafeAreaView,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Logo from '../../components/common/Logo';
@@ -380,22 +381,23 @@ export default function SignupScreen({ navigation }: any) {
   }
 
   return (
-    <BlobBackground>
-      {/* Country Code Modal */}
-      <CountryCodeModal
-        visible={showCountryPicker}
-        selected={selectedCountry}
-        onSelect={setSelectedCountry}
-        onClose={() => setShowCountryPicker(false)}
-      />
+    <SafeAreaView style={styles.safeArea}>
+      <BlobBackground>
+        {/* Country Code Modal */}
+        <CountryCodeModal
+          visible={showCountryPicker}
+          selected={selectedCountry}
+          onSelect={setSelectedCountry}
+          onClose={() => setShowCountryPicker(false)}
+        />
 
-      <KeyboardAvoidingView
-        style={styles.kav}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
+        <KeyboardAvoidingView
+          style={styles.kav}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled">
 
           {/* Logo top-left */}
           <View style={styles.logoRow}>
@@ -631,23 +633,27 @@ export default function SignupScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </BlobBackground>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </BlobBackground>
+    </SafeAreaView>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
+const SCREEN_W = Dimensions.get('window').width;
+
 const styles = StyleSheet.create({
+  safeArea: { flex: 1 },
   gradient: { flex: 1 },
   kav: { flex: 1 },
-  scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: SCREEN_W < 375 ? 16 : 24, paddingTop: SCREEN_W < 375 ? 12 : 16, paddingBottom: SCREEN_W < 375 ? 24 : 32 },
 
   logoRow: { marginBottom: 60, alignItems: 'flex-start' },
 
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
   title: {
-    fontSize: 28,
+    fontSize: SCREEN_W < 375 ? 23 : 28,
     fontWeight: '400',
     color: '#0f172a',
     textAlign: 'center',
@@ -683,7 +689,7 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     paddingHorizontal: 11,
     paddingVertical: 9,
-    fontSize: 16,
+    fontSize: SCREEN_W < 375 ? 14 : 16,
     color: '#0f172a',
     marginTop: 9,
   },
@@ -743,7 +749,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 9,
     paddingRight: 44,
-    fontSize: 16,
+    fontSize: SCREEN_W < 375 ? 14 : 16,
     color: '#0f172a',
   },
   eyeBtn: { position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center', padding: 1 },
@@ -765,7 +771,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     elevation: 2,
   },
-  primaryBtnText: { color: '#ffffff', fontSize: 17, fontWeight: '600', letterSpacing: 0.1 },
+  primaryBtnText: { color: '#ffffff', fontSize: SCREEN_W < 375 ? 15 : 17, fontWeight: '600', letterSpacing: 0.1 },
 
   linkRow: {
     flexDirection: 'row',
@@ -774,10 +780,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginTop: 14,
   },
-  linkPlain: { fontSize: 13, color: '#64748b' },
-  linkUnderline: { fontSize: 17, color: '#0d9488', fontWeight: '500', textDecorationLine: 'underline' },
-  termsPlain: { fontSize: 12, color: '#64748b' },
-  termsLink: { fontSize: 13, color: '#0d9488', textDecorationLine: 'underline' },
+  linkPlain: { fontSize: SCREEN_W < 375 ? 11 : 13, color: '#64748b' },
+  linkUnderline: { fontSize: SCREEN_W < 375 ? 14 : 17, color: '#0d9488', fontWeight: '500', textDecorationLine: 'underline' },
+  termsPlain: { fontSize: SCREEN_W < 375 ? 10 : 12, color: '#64748b' },
+  termsLink: { fontSize: SCREEN_W < 375 ? 11 : 13, color: '#0d9488', textDecorationLine: 'underline' },
 
   linkDivider: { marginVertical: 6, alignItems: 'center' },
   linkDividerLine: {

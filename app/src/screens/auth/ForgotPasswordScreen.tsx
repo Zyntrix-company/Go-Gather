@@ -9,6 +9,8 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  SafeAreaView,
+  Dimensions,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Logo from '../../components/common/Logo';
@@ -64,14 +66,15 @@ export default function ForgotPasswordScreen({ navigation }: any) {
   }
 
   return (
-    <BlobBackground>
-      <KeyboardAvoidingView
-        style={styles.kav}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.safeArea}>
+      <BlobBackground>
+        <KeyboardAvoidingView
+          style={styles.kav}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
 
           {/* Logo top-left */}
           <View style={styles.logoRow}>
@@ -131,36 +134,40 @@ export default function ForgotPasswordScreen({ navigation }: any) {
               <Text style={styles.backText}>Back to Login</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </BlobBackground>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </BlobBackground>
+    </SafeAreaView>
   );
 }
 
+const SCREEN_W = Dimensions.get('window').width;
+
 const styles = StyleSheet.create({
+  safeArea: { flex: 1 },
   kav: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 22,
-    paddingBottom: 40,
+    paddingHorizontal: SCREEN_W < 375 ? 16 : 24,
+    paddingTop: SCREEN_W < 375 ? 16 : 22,
+    paddingBottom: SCREEN_W < 375 ? 32 : 40,
     justifyContent: 'space-between',
   },
   logoRow: { marginBottom: 0, alignItems: 'flex-start' },
   form: { maxWidth: 400, width: '100%', alignSelf: 'center', flex: 1, justifyContent: 'center', paddingBottom: 60 },
 
   title: {
-    fontSize: 28,
+    fontSize: SCREEN_W < 375 ? 23 : 28,
     fontWeight: '700',
     color: '#0f172a',
     textAlign: 'center',
     marginBottom: 10,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: SCREEN_W < 375 ? 13 : 15,
     color: '#566170',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: SCREEN_W < 375 ? 19 : 22,
     marginBottom: 28,
   },
 
@@ -178,7 +185,7 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     paddingHorizontal: 14,
     paddingVertical: 11,
-    fontSize: 16,
+    fontSize: SCREEN_W < 375 ? 14 : 16,
     color: '#0f172a',
   },
   inputFocused: { borderColor: '#0d9488' },
@@ -208,7 +215,7 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: {
     color: '#ffffff',
-    fontSize: 17,
+    fontSize: SCREEN_W < 375 ? 15 : 17,
     fontWeight: '600',
     letterSpacing: 0.1,
   },
@@ -221,7 +228,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   backText: {
-    fontSize: 15,
+    fontSize: SCREEN_W < 375 ? 13 : 15,
     color: '#0d9488',
     fontWeight: '500',
   },

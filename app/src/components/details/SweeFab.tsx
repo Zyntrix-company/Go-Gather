@@ -9,6 +9,7 @@ import Svg, { Path } from 'react-native-svg';
 
 interface SweeFabProps {
   onPress: () => void;
+  fabStyle?: object;
 }
 
 function SparkleIcon() {
@@ -25,7 +26,7 @@ function SparkleIcon() {
   );
 }
 
-export default function SweeFab({ onPress }: SweeFabProps) {
+export default function SweeFab({ onPress, fabStyle }: SweeFabProps) {
   const pan = useRef(new Animated.ValueXY()).current;
   const moved = useRef(false);
 
@@ -56,7 +57,7 @@ export default function SweeFab({ onPress }: SweeFabProps) {
 
   return (
     <Animated.View
-      style={[styles.fab, { transform: pan.getTranslateTransform() }]}
+      style={[styles.fab, fabStyle, { transform: pan.getTranslateTransform() }]}
       {...pr.panHandlers}
     >
       <SparkleIcon />

@@ -9,6 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  SafeAreaView,
+  Dimensions,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Logo from '../../components/common/Logo';
@@ -168,15 +170,15 @@ export default function LoginScreen({ navigation }: any) {
   }
 
   return (
-    <BlobBackground>
-
-      <KeyboardAvoidingView
-        style={styles.kav}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
+    <SafeAreaView style={styles.safeArea}>
+      <BlobBackground>
+        <KeyboardAvoidingView
+          style={styles.kav}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled">
 
           {/* Logo – top left (matches Figma mb-14) */}
           <View style={styles.logoRow}>
@@ -320,20 +322,24 @@ export default function LoginScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </BlobBackground>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </BlobBackground>
+    </SafeAreaView>
   );
 }
 
+const SCREEN_W = Dimensions.get('window').width;
+
 const styles = StyleSheet.create({
+  safeArea: { flex: 1 },
   gradient: { flex: 1 },
   kav: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 32,
+    paddingHorizontal: SCREEN_W < 375 ? 16 : 24,
+    paddingTop: SCREEN_W < 375 ? 12 : 20,
+    paddingBottom: SCREEN_W < 375 ? 24 : 32,
   },
 
   // Logo row — mb-14 from Figma
@@ -347,18 +353,18 @@ const styles = StyleSheet.create({
 
   // Typography — matches Figma text-2xl / text-slate-600 text-sm mb-10
   title: {
-    fontSize: 27, // Increased from 24
+    fontSize: SCREEN_W < 375 ? 22 : 27,
     fontWeight: '400',
     color: '#0f172a',
     textAlign: 'center',
     marginBottom: 12,
   },
   subtitle: {
-    fontSize: 17,
+    fontSize: SCREEN_W < 375 ? 14 : 17,
     color: '#505c6dff',
     textAlign: 'center',
     marginBottom: 36,
-    lineHeight: 22,
+    lineHeight: SCREEN_W < 375 ? 19 : 22,
   },
 
   // Social buttons — rounded-lg (matches web rounded-lg)
@@ -396,7 +402,7 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     paddingHorizontal: 11,
     paddingVertical: 9,
-    fontSize: 16,
+    fontSize: SCREEN_W < 375 ? 14 : 16,
     color: '#0f172a',
     marginTop: 8,
   },
@@ -453,7 +459,7 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: {
     color: '#ffffff',
-    fontSize: 17,
+    fontSize: SCREEN_W < 375 ? 15 : 17,
     fontWeight: '600',
     letterSpacing: 0.1,
   },
@@ -465,9 +471,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 16,
   },
-  linkPlain: { fontSize: 14, color: '#515e70ff' }, // Increased from 12
+  linkPlain: { fontSize: SCREEN_W < 375 ? 12 : 14, color: '#515e70ff' },
   linkUnderline: {
-    fontSize: 16, // Increased from 12
+    fontSize: SCREEN_W < 375 ? 13 : 16,
     color: '#0d9488',
     fontWeight: '500',
     textDecorationLine: 'underline',

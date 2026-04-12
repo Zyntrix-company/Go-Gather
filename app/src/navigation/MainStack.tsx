@@ -6,18 +6,16 @@ import NotificationsScreen from '../screens/main/NotificationsScreen';
 import TripDetailScreen from '../screens/trips/TripDetailScreen';
 import EventDetailScreen from '../screens/events/EventDetailScreen';
 import ChatDetailScreen from '../screens/main/ChatDetailScreen';
-import ArchivedTripsScreen from '../screens/trips/ArchivedTripsScreen';
-import ArchivedEventsScreen from '../screens/events/ArchivedEventsScreen';
+import ArchivedScreen from '../screens/home/ArchivedScreen';
 
 export type MainStackParamList = {
-  Home: undefined;
+  Home: { initialTab?: string } | undefined;
   EditProfile: undefined;
   Notifications: undefined;
   TripDetail: { trip: any };
   EventDetail: { event: any };
   ChatDetail: { chat: any };
-  ArchivedTrips: undefined;
-  ArchivedEvents: { archivedEvents: any[] } | undefined;
+  Archived: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -37,8 +35,7 @@ export default function MainStack() {
       <Stack.Screen name="TripDetail" component={TripDetailScreen} />
       <Stack.Screen name="EventDetail" component={EventDetailScreen} />
       <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
-      <Stack.Screen name="ArchivedTrips" component={ArchivedTripsScreen} />
-      <Stack.Screen name="ArchivedEvents" component={ArchivedEventsScreen} />
+      <Stack.Screen name="Archived" component={ArchivedScreen} />
     </Stack.Navigator>
   );
 }

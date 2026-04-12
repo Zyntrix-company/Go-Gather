@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import LinearGradient from 'react-native-linear-gradient';
 import BlobBackground from '../../components/common/BlobBackground';
 import AppHeader from '../../components/common/AppHeader';
 import useAuthStore from '../../store/authStore';
@@ -30,6 +31,7 @@ import TripsScreen from '../trips/TripsScreen';
 import EventsScreen from '../events/EventsScreen';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const INSIGHT_IMG_H = SCREEN_H < 700 ? 140 : SCREEN_H < 800 ? 160 : 192;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -519,7 +521,7 @@ function SweeFab({ onPress }: { onPress: () => void }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function HomeScreen({ navigation }: any) {
+export default function HomeScreen({ navigation, route }: any) {
   const { logout, refreshProfile } = useAuth();
   const rawUser = useAuthStore((s) => s.user) as any;
   const [activeTab, setActiveTab] = useState<Tab>('home');
@@ -527,6 +529,7 @@ export default function HomeScreen({ navigation }: any) {
   const [showTripMenu, setShowTripMenu] = useState<string | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isLoadingTrips, setIsLoadingTrips] = useState(false);
+  const [triggerCreateTrip, setTriggerCreateTrip] = useState(false);
 
   const [insightIndex, setInsightIndex] = useState(0);
   const insightRef = useRef<FlatList>(null);
@@ -550,6 +553,14 @@ export default function HomeScreen({ navigation }: any) {
     }, 5000);
     return () => clearInterval(timer);
   }, []);
+
+  // Handle initialTab param when returning from detail screens
+  useEffect(() => {
+    if (route?.params?.initialTab) {
+      setActiveTab(route.params.initialTab as Tab);
+      navigation.setParams({ initialTab: undefined });
+    }
+  }, [route?.params?.initialTab, navigation]);
 
   // Load trips on mount AND every time the screen comes back into focus
   // (so edits made in TripDetailScreen are reflected immediately)
@@ -646,7 +657,7 @@ export default function HomeScreen({ navigation }: any) {
       {/* Create New Trip CTA */}
       <TouchableOpacity
         style={styles.createTripBtn1}
-        onPress={() => setActiveTab('trips')}
+        onPress={() => setTriggerCreateTrip(true)}
         activeOpacity={0.9}>
         <Text style={styles.createTripBtnText}>Create New Trip</Text>
       </TouchableOpacity>
@@ -704,19 +715,30 @@ export default function HomeScreen({ navigation }: any) {
           ref={insightRef}
           data={TRAVEL_INSIGHTS}
           horizontal
-          pagingEnabled
           showsHorizontalScrollIndicator={false}
+          snapToInterval={SCREEN_W - 60}
+          snapToAlignment="start"
+          decelerationRate="fast"
+          contentContainerStyle={{ paddingHorizontal: 20 }}
           keyExtractor={item => item.id}
           onMomentumScrollEnd={e => {
-            const idx = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_W - 40));
-            setInsightIndex(idx);
+            const idx = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_W - 60));
+            setInsightIndex(Math.max(0, Math.min(idx, TRAVEL_INSIGHTS.length - 1)));
           }}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.insightSlide} activeOpacity={0.9}>
               <Image source={item.image} style={styles.insightImage} resizeMode="cover" />
-              <View style={styles.insightCaption}>
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.72)']}
+                style={styles.insightOverlay}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+              >
+                <View style={styles.insightReadTimePill}>
+                  <Text style={styles.insightReadTimeText}>{item.readTime}</Text>
+                </View>
                 <Text style={styles.insightTitle} numberOfLines={2}>{item.title}</Text>
-              </View>
+              </LinearGradient>
             </TouchableOpacity>
           )}
         />
@@ -924,22 +946,16 @@ export default function HomeScreen({ navigation }: any) {
           <UserMenuIcon />
           <Text style={styles.dropdownItemText}>Account</Text>
         </TouchableOpacity>
-      
+
         <TouchableOpacity style={styles.dropdownItem} onPress={() => setShowProfileMenu(false)}>
           <SettingsIcon />
           <Text style={styles.dropdownItemText}>Settings</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); navigation.navigate('ArchivedTrips'); }}>
+        <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); navigation.navigate('Archived'); }}>
           <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
             <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
           </Svg>
-          <Text style={styles.dropdownItemText}>Archived Trips</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); navigation.navigate('ArchivedEvents'); }}>
-          <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-            <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-          <Text style={styles.dropdownItemText}>Archived Events</Text>
+          <Text style={styles.dropdownItemText}>Archived</Text>
         </TouchableOpacity>
         <View style={styles.dropdownDivider} />
         <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); logout(); }}>
@@ -965,7 +981,10 @@ export default function HomeScreen({ navigation }: any) {
         {showProfileMenu && renderProfileDropdown()}
 
         {activeTab === 'home' && renderHomeTab()}
-        {activeTab === 'trips' && <TripsScreen />}
+        {/* Keep TripsScreen mounted to allow modal to open from HomeScreen */}
+        <View style={{ flex: 1, display: activeTab === 'trips' ? 'flex' : 'none' }}>
+          <TripsScreen openCreateOnMount={triggerCreateTrip} onCreateMountHandled={() => setTriggerCreateTrip(false)} />
+        </View>
         {/* Keep EventsScreen mounted to preserve local state across tab switches */}
         <View style={{ flex: 1, display: activeTab === 'events' ? 'flex' : 'none' }}>
           <EventsScreen />
@@ -993,15 +1012,15 @@ export default function HomeScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 120, paddingTop: 4 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 4 },
 
   // ── Home Tab ──
   // responsive: tighten spacing on small screens so Travel Insights is visible in first viewport
-  welcomeCenter: { alignItems: 'center', marginTop: SCREEN_H < 700 ? 2 : 6, marginBottom: SCREEN_H < 700 ? 10 : 16 },
-  // Figma: text-2xl font-bold text-slate-600
-  welcomeTitle: { fontSize: 24, fontWeight: '700', color: '#475569', textAlign: 'center', marginBottom: 6 },
-  // Figma: text-lg font-normal text-slate-900
-  welcomeSubtitle: { fontSize: 18, fontWeight: '400', color: '#0f172a', textAlign: 'center' },
+  welcomeCenter: { alignItems: 'center', marginTop: SCREEN_H < 700 ? 4 : 8, marginBottom: SCREEN_H < 700 ? 14 : 20 },
+  // Figma: text-2xl font-bold text-slate-600 — reduced from 24 to 20
+  welcomeTitle: { fontSize: SCREEN_W < 375 ? 18 : 20, fontWeight: '700', color: '#475569', textAlign: 'center', marginBottom: 8 },
+  // Figma: text-lg font-normal text-slate-900 — reduced from 18 to 15
+  welcomeSubtitle: { fontSize: SCREEN_W < 375 ? 13 : 15, fontWeight: '400', color: '#0f172a', textAlign: 'center', lineHeight: 20 },
 
   // Figma: bg-teal-600 px-8 py-3 rounded-full font-semibold shadow-lg
   createTripBtn1: {
@@ -1066,52 +1085,69 @@ const styles = StyleSheet.create({
   // Figma: text-sm font-bold text-teal-700
   askSweeBtnText: { fontSize: 14, color: '#0f766e', fontWeight: '700' },
 
-  // Insights carousel — Figma: text-lg font-normal heading, h-48 image, p-4 caption
-  insightCarousel: { marginBottom: 20, position: 'relative' },
+  // Insights carousel — show peek of next card on sides
+  insightCarousel: { marginBottom: 20, position: 'relative', marginHorizontal: -20, overflow: 'visible' },
   insightArrowLeft: {
-    position: 'absolute', left: 10, top: '40%', zIndex: 10,
-    width: 30, height: 30, borderRadius: 15,
+    position: 'absolute', left: 2, top: SCREEN_H < 700 ? 52 : SCREEN_H < 800 ? 62 : 78, zIndex: 10,
+    width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15, shadowRadius: 4, elevation: 4,
+    shadowOpacity: 0.18, shadowRadius: 4, elevation: 5,
   },
   insightArrowRight: {
-    position: 'absolute', right: 10, top: '40%', zIndex: 10,
-    width: 30, height: 30, borderRadius: 15,
+    position: 'absolute', right: 2, top: SCREEN_H < 700 ? 52 : SCREEN_H < 800 ? 62 : 78, zIndex: 10,
+    width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15, shadowRadius: 4, elevation: 4,
+    shadowOpacity: 0.18, shadowRadius: 4, elevation: 5,
   },
   insightArrowActive: { backgroundColor: '#0d9488' },
   insightArrowInactive: { backgroundColor: '#e2e8f0' },
   insightSlide: {
-    width: SCREEN_W - 40,
+    width: SCREEN_W - 80,
+    marginHorizontal: 10,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#e2e8f0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  // scale image height so card fits in first viewport alongside header content
-  insightImage: { width: '100%', height: SCREEN_H < 700 ? 140 : SCREEN_H < 800 ? 160 : 192 },
-  // Figma: p-4 bg-gradient from-teal-50 to-orange-50
-  insightCaption: {
-    padding: 16,
-    backgroundColor: '#f0fdfa',
+  insightImage: { width: '100%', height: INSIGHT_IMG_H },
+  insightOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 14,
+    paddingTop: 32,
+    paddingBottom: 14,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
   },
-  insightReadTime: { fontSize: 11, color: '#0d9488', fontWeight: '600', marginBottom: 4 },
-  // Figma: text-sm font-medium text-slate-800
-  insightTitle: { fontSize: 14, fontWeight: '500', color: '#1e293b', lineHeight: 20 },
+  insightReadTimePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 6,
+  },
+  insightReadTimeText: {
+    fontSize: 11,
+    color: '#e2e8f0',
+    fontWeight: '600',
+  },
+  insightTitle: { fontSize: 14, fontWeight: '600', color: '#ffffff', lineHeight: 20 },
 
   // Section headers
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 8 },
-  // Figma: text-lg font-normal text-slate-900
-  sectionTitle: { fontSize: 18, fontWeight: '400', color: '#0f172a', marginBottom: 10 },
+  // Figma: text-lg font-normal text-slate-900 — reduced from 18 to 16
+  sectionTitle: { fontSize: SCREEN_W < 375 ? 14 : 16, fontWeight: '400', color: '#0f172a', marginBottom: 10 },
   seeAll: { fontSize: 13, color: '#0d9488', fontWeight: '600' },
 
   // ── Trips Tab ──

@@ -15,6 +15,7 @@ import DetailDialogHeader from '../../components/details/DetailDialogHeader';
 import DetailTabBar from '../../components/details/DetailTabBar';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import SweeFab from '../../components/details/SweeFab';
+import FloatingTabBar from '../../components/common/FloatingTabBar';
 import {
   BackIcon, PencilIcon, TrashIcon, CheckIcon,
 } from '../../components/common/Icons';
@@ -82,6 +83,22 @@ const NOTE_CATS = [
 
 function fmtDate(d: Date): string {
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+
+function daysUntil(isoDate: string): number {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const target = new Date(isoDate);
+  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function fmtEventDateLine(isoDate: string): string {
+  if (!isoDate) return 'TBD';
+  const d = new Date(isoDate);
+  const days = daysUntil(isoDate);
+  if (days > 0) {
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  }
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function ActionIcon({ path, color }: { path: string; color: string }) {
@@ -160,9 +177,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
             ...prev,
             name:        eventData.event.name,
             location:    eventData.event.location?.name ?? prev.location,
-            dateLine:    eventData.event.eventDate
-              ? new Date(eventData.event.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-              : prev.dateLine,
+            dateLine:    eventData.event.eventDate ? fmtEventDateLine(eventData.event.eventDate) : prev.dateLine,
             type:        eventData.event.eventType ?? prev.type,
             description: eventData.event.description ?? prev.description,
           }));
@@ -460,7 +475,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         const balData = await getEventBalances(event.id);
         setMyBalance(balData.myBalance ?? 0);
       }
-    } catch (err) {
+    } catch (err: any) {
       // Improved error handling for duplicate key errors
       const errorMsg = err?.message?.toLowerCase() || '';
       if (errorMsg.includes('duplicate') || errorMsg.includes('unique')) {
@@ -913,7 +928,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
         </ScrollView>
 
-        <SweeFab onPress={() => navigation.navigate('ChatDetail', { chat: { id: 'swee', name: 'Swee', isSwee: true, subtitle: 'Always active · AI Assistant', lastMessage: "Hi! I'm Swee.", time: 'Now', unread: 0 } })} />
+        <SweeFab onPress={() => navigation.navigate('ChatDetail', { chat: { id: 'swee', name: 'Swee', isSwee: true, subtitle: 'Always active · AI Assistant', lastMessage: "Hi! I'm Swee.", time: 'Now', unread: 0 } })} fabStyle={{ bottom: 78 }} />
+
+        <FloatingTabBar activeTab="events" navigation={navigation} />
 
         {/* ═══════════════════════════════════════════════════
             MODAL 1 — Documents
@@ -1600,9 +1617,9 @@ const styles = StyleSheet.create({
   container:    { flex: 1, backgroundColor: 'transparent' },
   topBar:       { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2 },
   backBtn:      { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  scrollContent:{ paddingBottom: 120 },
+  scrollContent:{ paddingBottom: 150 },
 
-  actionsWrap:  { backgroundColor: '#f0fdfa', paddingHorizontal: 20, paddingVertical: 16, gap: 16, marginBottom: 6 },
+  actionsWrap:  { paddingHorizontal: 20, paddingVertical: 16, gap: 16, marginBottom: 6 },
   actionsRow:   { flexDirection: 'row', justifyContent: 'space-between' },
   actionBtn:    { alignItems: 'center', width: isSmall ? 60 : 72, gap: 6 },
   actionCircle:     { width: isSmall ? 46 : 52, height: isSmall ? 46 : 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },

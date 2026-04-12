@@ -20,6 +20,8 @@ import {
   PermissionsAndroid,
   ActivityIndicator,
   NativeModules,
+  SafeAreaView,
+  Pressable,
 } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -63,6 +65,8 @@ type Trip = {
   endDateISO: string;
   fullStartDate: string;
   fullEndDate: string;
+  shortStartDate: string;
+  shortEndDate: string;
   image: any;
   bannerImageUrl?: string | null;
   bannerCropFraction?: BannerCropFraction | null;
@@ -83,6 +87,8 @@ const MOCK_TRIPS: Trip[] = [
     endDateISO: '2026-05-20',
     fullStartDate: '15 May 2026',
     fullEndDate: '20 May 2026',
+    shortStartDate: '15 May',
+    shortEndDate: '20 May',
     image: require('../../assets/images/goa_beach.png'),
     members: [
       { id: '1', uri: 'https://i.pravatar.cc/150?u=1' },
@@ -101,6 +107,8 @@ const MOCK_TRIPS: Trip[] = [
     endDateISO: '2026-01-15',
     fullStartDate: '5 Jan 2026',
     fullEndDate: '15 Jan 2026',
+    shortStartDate: '5 Jan',
+    shortEndDate: '15 Jan',
     image: require('../../assets/images/music_festival.png'),
     members: [
       { id: '1', uri: 'https://i.pravatar.cc/150?u=4' },
@@ -172,6 +180,16 @@ function fmtFullDate(iso: string): string {
   return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} ${d.getFullYear()}`;
 }
 
+function fmtDateNoYear(iso: string): string {
+  if (!iso) return 'TBD';
+  const clean = iso.includes('T') ? iso.split('T')[0] : iso;
+  const parts = clean.split('-');
+  if (parts.length !== 3) return 'TBD';
+  const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  if (isNaN(d.getTime())) return 'TBD';
+  return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
+}
+
 function mapApiTrip(t: any): Trip {
   const locName = typeof t.location === 'string'
     ? t.location
@@ -190,6 +208,8 @@ function mapApiTrip(t: any): Trip {
     endDateISO: e,
     fullStartDate: fmtFullDate(s),
     fullEndDate: fmtFullDate(e),
+    shortStartDate: fmtDateNoYear(s),
+    shortEndDate: fmtDateNoYear(e),
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
     members: (t.memberAvatars || []).slice(0, 3).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
@@ -325,7 +345,7 @@ function TripCardFullLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
             </View>
             <View style={[styles.infoItem, { marginTop: 4 }]}>
               <CalendarIcon color="#f97316" />
-              <Text style={styles.infoText}>{trip.startDate} – {trip.endDate}</Text>
+              <Text style={styles.infoText}>{trip.shortStartDate} – {trip.shortEndDate}</Text>
             </View>
           </View>
           {!isOngoing && days > 0 && (
@@ -682,8 +702,8 @@ function CreateTripModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalDialog}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <View style={styles.modalDialog} onStartShouldSetResponder={() => true}>
 
           <View style={styles.ctHeader}>
             <Text style={styles.ctTitle}>Create New Trip</Text>
@@ -696,101 +716,13 @@ function CreateTripModal({
 
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.ctScrollContent}>
 
-            {/* Banner Image */}
-            <Text style={styles.ctLabel}>Banner Image <Text style={{ color: '#94a3b8', fontWeight: '400' }}>(optional — auto-assigned if skipped)</Text></Text>
-            {/* Bug 2 fix: use a plain View container + absolute Image so height:100% resolves
-                correctly regardless of the parent's alignItems/justifyContent flex settings. */}
-            <View
-              style={{ width: '100%', height: 140, borderRadius: 12, backgroundColor: '#f1f5f9', overflow: 'hidden', marginBottom: 14, borderWidth: bannerImageUri ? 0 : 1, borderColor: '#e2e8f0', borderStyle: 'dashed' }}
-            >
-              {bannerImageUri ? (
-                <>
-                  {/* Fill the entire container — resizeMode="cover" handles aspect ratio */}
-                  <Image
-                    source={{ uri: bannerImageUri }}
-                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-                    resizeMode="cover"
-                  />
-                  {/* Re-crop / change button overlay */}
-                  <TouchableOpacity
-                    style={{ position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
-                    onPress={() => {
-                      setIsCompressing(true);
-                      launchImageLibrary({
-                        mediaType: 'photo', selectionLimit: 1, includeBase64: false,
-                        presentationStyle: 'fullScreen',
-                        maxWidth: 1280, maxHeight: 720, quality: 0.7,
-                      }, res => {
-                        setIsCompressing(false);
-                        if (res.didCancel || res.errorCode) return;
-                        const asset = res.assets?.[0];
-                        if (asset?.uri) {
-                          setPickedOrigSize({ w: asset.width ?? 1280, h: asset.height ?? 720 });
-                          setCropPreviewUri(asset.uri);
-                          setCropPreviewType(asset.type ?? 'image/jpeg');
-                          setBannerCropFraction(null);
-                        }
-                      });
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>Change</Text>
-                  </TouchableOpacity>
-                  {/* Remove button */}
-                  <TouchableOpacity
-                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4 }}
-                    onPress={() => { setBannerImageUri(undefined); setBannerCropFraction(null); }}
-                  >
-                    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-                      <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                  </TouchableOpacity>
-                </>
-              ) : isCompressing ? (
-                <TouchableOpacity style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }} activeOpacity={1}>
-                  <ActivityIndicator size="small" color="#0d9488" />
-                  <Text style={{ color: '#64748b', fontSize: 13 }}>Compressing image…</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                  onPress={() => {
-                    setIsCompressing(true);
-                    launchImageLibrary({
-                      mediaType: 'photo', selectionLimit: 1, includeBase64: false,
-                      presentationStyle: 'fullScreen',
-                      maxWidth: 1280, maxHeight: 720, quality: 0.7,
-                    }, res => {
-                      setIsCompressing(false);
-                      if (res.didCancel || res.errorCode) return;
-                      const asset = res.assets?.[0];
-                      if (asset?.uri) {
-                        setPickedOrigSize({ w: asset.width ?? 1280, h: asset.height ?? 720 });
-                        setCropPreviewUri(asset.uri);
-                        setCropPreviewType(asset.type ?? 'image/jpeg');
-                        setBannerCropFraction(null);
-                      }
-                    });
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
-                    <Rect x={3} y={3} width={18} height={18} rx={2} ry={2} stroke="#94a3b8" strokeWidth={2} />
-                    <Circle cx={8.5} cy={8.5} r={1.5} fill="#94a3b8" />
-                    <Path d="M21 15l-5-5L5 21" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                  <Text style={{ color: '#94a3b8', fontSize: 13 }}>Tap to add banner photo (auto-matched otherwise)</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
             {/* Trip Name */}
             <Text style={styles.ctLabel}>Trip Name</Text>
             <TextInput style={styles.ctInput} placeholder="e.g., Tokyo Getaway" placeholderTextColor="#94a3b8" value={name} onChangeText={setName} />
 
             {/* Start / End Date row */}
             <View style={styles.ctDateRow}>
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, gap: 8 }}>
                 <Text style={styles.ctLabel}>Start Date</Text>
                 <TouchableOpacity style={styles.ctDateBox} onPress={() => { setShowEndPicker(false); setShowStartPicker(true); }} activeOpacity={0.8}>
                   <Text style={[styles.ctDateText, { flex: 1, color: startDateObj ? '#0f172a' : '#94a3b8' }]}>
@@ -802,7 +734,7 @@ function CreateTripModal({
                   </Svg>
                 </TouchableOpacity>
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, gap: 8 }}>
                 <Text style={styles.ctLabel}>End Date</Text>
                 <TouchableOpacity style={styles.ctDateBox} onPress={() => { setShowStartPicker(false); setShowEndPicker(true); }} activeOpacity={0.8}>
                   <Text style={[styles.ctDateText, { flex: 1, color: endDateObj ? '#0f172a' : '#94a3b8' }]}>
@@ -945,6 +877,89 @@ function CreateTripModal({
               )}
             </TouchableOpacity>
 
+            {/* Banner Image */}
+            <Text style={[styles.ctLabel, { marginTop: 16 }]}>Banner Image <Text style={{ color: '#94a3b8', fontWeight: '400' }}>(optional — auto-assigned if skipped)</Text></Text>
+            <View
+              style={{ width: '100%', height: 140, borderRadius: 12, backgroundColor: '#f1f5f9', overflow: 'hidden', marginBottom: 14, borderWidth: bannerImageUri ? 0 : 1, borderColor: '#e2e8f0', borderStyle: 'dashed' }}
+            >
+              {bannerImageUri ? (
+                <>
+                  <Image
+                    source={{ uri: bannerImageUri }}
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+                    resizeMode="cover"
+                  />
+                  <TouchableOpacity
+                    style={{ position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
+                    onPress={() => {
+                      setIsCompressing(true);
+                      launchImageLibrary({
+                        mediaType: 'photo', selectionLimit: 1, includeBase64: false,
+                        presentationStyle: 'fullScreen',
+                        maxWidth: 1280, maxHeight: 720, quality: 0.7,
+                      }, res => {
+                        setIsCompressing(false);
+                        if (res.didCancel || res.errorCode) return;
+                        const asset = res.assets?.[0];
+                        if (asset?.uri) {
+                          setPickedOrigSize({ w: asset.width ?? 1280, h: asset.height ?? 720 });
+                          setCropPreviewUri(asset.uri);
+                          setCropPreviewType(asset.type ?? 'image/jpeg');
+                          setBannerCropFraction(null);
+                        }
+                      });
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>Change</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4 }}
+                    onPress={() => { setBannerImageUri(undefined); setBannerCropFraction(null); }}
+                  >
+                    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                      <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                  </TouchableOpacity>
+                </>
+              ) : isCompressing ? (
+                <TouchableOpacity style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }} activeOpacity={1}>
+                  <ActivityIndicator size="small" color="#0d9488" />
+                  <Text style={{ color: '#64748b', fontSize: 13 }}>Compressing image…</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  onPress={() => {
+                    setIsCompressing(true);
+                    launchImageLibrary({
+                      mediaType: 'photo', selectionLimit: 1, includeBase64: false,
+                      presentationStyle: 'fullScreen',
+                      maxWidth: 1280, maxHeight: 720, quality: 0.7,
+                    }, res => {
+                      setIsCompressing(false);
+                      if (res.didCancel || res.errorCode) return;
+                      const asset = res.assets?.[0];
+                      if (asset?.uri) {
+                        setPickedOrigSize({ w: asset.width ?? 1280, h: asset.height ?? 720 });
+                        setCropPreviewUri(asset.uri);
+                        setCropPreviewType(asset.type ?? 'image/jpeg');
+                        setBannerCropFraction(null);
+                      }
+                    });
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
+                    <Rect x={3} y={3} width={18} height={18} rx={2} ry={2} stroke="#94a3b8" strokeWidth={2} />
+                    <Circle cx={8.5} cy={8.5} r={1.5} fill="#94a3b8" />
+                    <Path d="M21 15l-5-5L5 21" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                  <Text style={{ color: '#94a3b8', fontSize: 13 }}>Tap to add banner photo</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
           </ScrollView>
 
           <View style={styles.ctFooter}>
@@ -1067,7 +1082,7 @@ function CreateTripModal({
             </View>
           </Modal>
         )}
-      </View>
+      </Pressable>
 
       {/* Banner crop/preview modal */}
       <Modal
@@ -1251,7 +1266,7 @@ function CreateTripModal({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function TripsScreen() {
+export default function TripsScreen({ openCreateOnMount = false, onCreateMountHandled }: { openCreateOnMount?: boolean; onCreateMountHandled?: () => void } = {}) {
   const navigation = useNavigation<any>();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isLoadingTrips, setIsLoadingTrips] = useState(false);
@@ -1270,6 +1285,14 @@ export default function TripsScreen() {
 
   const loadTripsRef = useRef<() => void>(() => {});
   useFocusEffect(useCallback(() => { loadTripsRef.current(); }, []));
+
+  // Open create trip modal if triggered from HomeScreen
+  useEffect(() => {
+    if (openCreateOnMount) {
+      setShowCreateTrip(true);
+      onCreateMountHandled?.();
+    }
+  }, [openCreateOnMount, onCreateMountHandled]);
 
   async function loadTrips(page: number = 1, replace: boolean = false) {
     setIsLoadingTrips(true);
@@ -1338,7 +1361,7 @@ export default function TripsScreen() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <SafeAreaView style={{ flex: 1 }}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
         {/* Always-visible CTA section */}
@@ -1509,7 +1532,7 @@ export default function TripsScreen() {
           setBannerCropFraction(null);
         }}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -1615,7 +1638,7 @@ const styles = StyleSheet.create({
   ctScrollContent: { paddingHorizontal: 16, paddingBottom: 8, gap: 12 },
   ctLabel: { fontSize: 13, fontWeight: '600', color: '#0f172a', marginTop: 4 },
   ctInput: { borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#0f172a', backgroundColor: '#fff' },
-  ctDateRow: { flexDirection: 'row', gap: 10 },
+  ctDateRow: { flexDirection: 'row', gap: 12, marginBottom: 0 },
   ctDateBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
   ctDateText: { flex: 1, fontSize: 13, color: '#0f172a' },
   ctLocationBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
