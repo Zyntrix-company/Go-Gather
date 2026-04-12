@@ -651,12 +651,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
     return text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
   }
 
-  // Create composite highlights from photos, docs, and polls
-  const highlights = [
-    ...photos.slice(0, 4).map(p => ({ type: 'photo', id: p.id, item: p })),
-    ...docs.slice(0, 1).map(d => ({ type: 'doc', id: d.id, item: d })),
-    ...polls.slice(0, 1).map(p => ({ type: 'poll', id: p.id, item: p })),
-  ].slice(0, 6);
+  const hasHighlights = photos.length > 0 || docs.length > 0 || polls.length > 0;
 
   return (
     <BlobBackground>
@@ -787,17 +782,11 @@ export default function EventDetailScreen({ route, navigation }: any) {
             )}
           </View>
 
-          {/* ── Highlights (Composite: Photos + Docs + Polls) ── */}
+          {/* ── Highlights ── */}
           <View style={styles.section}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Highlights</Text>
-              {highlights.length > 0 && (
-                <TouchableOpacity onPress={() => setShowPhotos(true)} activeOpacity={0.7}>
-                  <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '600' }}>See all</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            {highlights.length === 0 ? (
+            <Text style={styles.sectionTitle}>Highlights</Text>
+
+            {!hasHighlights && (
               <View style={styles.emptyBox}>
                 <Svg width={36} height={36} viewBox="0 0 24 24" fill="none">
                   <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
@@ -807,52 +796,114 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 <Text style={styles.emptyTitle}>No highlights yet</Text>
                 <Text style={styles.emptySub}>Add photos, documents, or create polls to see them here!</Text>
               </View>
-            ) : (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {highlights.map(h => (
-                  <TouchableOpacity
-                    key={h.id}
-                    onPress={() => {
-                      if (h.type === 'photo') setPreviewPhoto(h.item);
-                      else if (h.type === 'doc') setDocPreviewUrl(h.item.uri);
-                      else if (h.type === 'poll') setShowPolls(true);
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    {h.type === 'photo' && (
+            )}
+
+            {/* Photos sub-section */}
+            {photos.length > 0 && (
+              <View style={{ marginBottom: 20 }}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.hlSubTitle}>Photos</Text>
+                  {photos.length > 3 && (
+                    <TouchableOpacity onPress={() => setShowPhotos(true)} activeOpacity={0.7}>
+                      <Text style={styles.seeAllLink}>See All Photos</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {photos.slice(0, 3).map(p => (
+                    <TouchableOpacity key={p.id} onPress={() => setPreviewPhoto(p)} activeOpacity={0.85} style={{ flex: 1 }}>
                       <Image
-                        source={{ uri: h.item.localUri ?? h.item.uri }}
-                        style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: '#e2e8f0' }}
+                        source={{ uri: p.localUri ?? p.uri }}
+                        style={{ width: '100%', aspectRatio: 1, borderRadius: 10, backgroundColor: '#e2e8f0' }}
                         resizeMode="cover"
                         onError={() => {}}
                       />
-                    )}
-                    {h.type === 'doc' && (
-                      <View style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center' }}>
-                        <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Documents sub-section */}
+            {docs.length > 0 && (
+              <View style={{ marginBottom: 20 }}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.hlSubTitle}>Documents</Text>
+                  {docs.length > 3 && (
+                    <TouchableOpacity onPress={() => setShowDocs(true)} activeOpacity={0.7}>
+                      <Text style={styles.seeAllLink}>See All Docs</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={{ gap: 8 }}>
+                  {docs.slice(0, 3).map(d => (
+                    <TouchableOpacity
+                      key={d.id}
+                      onPress={() => setDocPreviewUrl(d.uri)}
+                      activeOpacity={0.85}
+                      style={styles.hlDocRow}
+                    >
+                      <View style={styles.hlDocIcon}>
+                        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
                           <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#6d28d9" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                           <Path d="M14 2v6h6M16 13H8M16 17H8" stroke="#6d28d9" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                         </Svg>
                       </View>
-                    )}
-                    {h.type === 'poll' && (
-                      <View style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: '#e0e7ff', alignItems: 'center', justifyContent: 'center' }}>
-                        <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-                          <Path d="M18 20V10M12 20V4M6 20v-6" stroke="#4338ca" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                        </Svg>
+                      <Text style={styles.hlDocName} numberOfLines={1}>{d.name}</Text>
+                      <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                        <Path d="M9 18l6-6-6-6" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      </Svg>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Polls sub-section */}
+            {polls.length > 0 && (
+              <View style={{ marginBottom: 4 }}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.hlSubTitle}>Polls</Text>
+                  {polls.length > 1 && (
+                    <TouchableOpacity onPress={() => setShowPolls(true)} activeOpacity={0.7}>
+                      <Text style={styles.seeAllLink}>See All Polls</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {(() => {
+                  const poll = polls[0];
+                  const totalVotes = poll.options.reduce((s, o) => s + o.voteCount, 0);
+                  return (
+                    <View style={styles.hlPollCard}>
+                      <Text style={styles.hlPollQuestion} numberOfLines={2}>{poll.question}</Text>
+                      <View style={{ gap: 6, marginTop: 10 }}>
+                        {poll.options.map(opt => {
+                          const pct = totalVotes > 0 ? Math.round((opt.voteCount / totalVotes) * 100) : 0;
+                          return (
+                            <TouchableOpacity
+                              key={opt.id}
+                              onPress={() => handleVote(poll.id, opt.id)}
+                              activeOpacity={0.8}
+                              style={styles.hlPollOption}
+                            >
+                              <View style={[styles.hlPollBar, { width: `${pct}%` }]} />
+                              <View style={styles.hlPollOptionInner}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                  {opt.votedByMe && (
+                                    <View style={styles.hlPollDot} />
+                                  )}
+                                  <Text style={[styles.hlPollOptText, opt.votedByMe && { color: '#0d9488', fontWeight: '700' }]} numberOfLines={1}>{opt.text}</Text>
+                                </View>
+                                <Text style={styles.hlPollPct}>{pct}%</Text>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-                {highlights.length > 6 && (
-                  <TouchableOpacity
-                    onPress={() => setShowPhotos(true)}
-                    activeOpacity={0.85}
-                    style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <Text style={{ fontSize: 16, fontWeight: '800', color: '#64748b' }}>+{highlights.length - 6}</Text>
-                  </TouchableOpacity>
-                )}
+                      <Text style={styles.hlPollTotal}>{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</Text>
+                    </View>
+                  );
+                })()}
               </View>
             )}
           </View>
@@ -1606,4 +1657,22 @@ const styles = StyleSheet.create({
   noteTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a', flex: 1 },
   noteBody:  { fontSize: 13, color: '#64748b', lineHeight: 18 },
   catBtn:    { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+
+  // ── Highlights sub-section styles ──
+  hlSubTitle:  { fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  seeAllLink:  { fontSize: 12, color: '#0d9488', fontWeight: '600' },
+
+  hlDocRow:    { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, gap: 10 },
+  hlDocIcon:   { width: 36, height: 36, borderRadius: 8, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center' },
+  hlDocName:   { flex: 1, fontSize: 13, fontWeight: '500', color: '#0f172a' },
+
+  hlPollCard:         { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', padding: 14 },
+  hlPollQuestion:     { fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  hlPollOption:       { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden', paddingVertical: 9, paddingHorizontal: 12 },
+  hlPollBar:          { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#ccfbf1', borderRadius: 8 },
+  hlPollOptionInner:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 },
+  hlPollDot:          { width: 8, height: 8, borderRadius: 4, backgroundColor: '#0d9488' },
+  hlPollOptText:      { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500' },
+  hlPollPct:          { fontSize: 12, color: '#64748b', fontWeight: '600', marginLeft: 8 },
+  hlPollTotal:        { fontSize: 11, color: '#94a3b8', marginTop: 8, textAlign: 'right' },
 });
