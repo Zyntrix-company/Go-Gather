@@ -19,4 +19,11 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  build: {
+    // Target Safari 12+ / iOS 12+ — transpiles optional chaining (?.),
+    // nullish coalescing (??), and other ES2020+ syntax that older Safari
+    // versions do not support natively.
+    target: ['es2019', 'safari12'],
+  },
 })

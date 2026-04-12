@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# Disallow utility/legal pages that add no search value
+Disallow: /privacy
+Disallow: /terms
+Disallow: /data-deletion
+
+Sitemap: https://www.gatherrgo.com/sitemap.xml

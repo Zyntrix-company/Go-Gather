@@ -1,0 +1,68 @@
+<!--
+  OG IMAGE TEMPLATE — 1200 × 630 px
+  ─────────────────────────────────
+  ACTION REQUIRED:
+    1. Open this file in Figma, Illustrator, or a browser
+    2. Export / screenshot at exactly 1200 × 630 px
+    3. Save as /public/og-image.png
+  This PNG is used by WhatsApp, Slack, iMessage, Facebook, Twitter/X
+  when someone shares https://www.gatherrgo.com
+-->
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none"
+     xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#F0FDFB"/>
+
+  <!-- Teal gradient blob top-right -->
+  <ellipse cx="1050" cy="100" rx="400" ry="300" fill="#009788" opacity="0.12"/>
+  <!-- Teal gradient blob bottom-left -->
+  <ellipse cx="150" cy="550" rx="350" ry="250" fill="#009788" opacity="0.10"/>
+
+  <!-- Card -->
+  <rect x="80" y="80" width="1040" height="470" rx="32" fill="white"
+        filter="url(#shadow)"/>
+
+  <!-- Logo icon (scaled from 84×77 viewBox) -->
+  <g transform="translate(100, 130) scale(1.6)">
+    <path d="M52.6628 18.3281C52.6628 19.9636 53.9823 21.2896 55.6101 21.2896C57.2378 21.2896 58.5575 19.9636 58.5575 18.3281H55.6101H52.6628ZM29.1949 18.3281H32.1423V5.92308H29.1949H26.2476V18.3281H29.1949ZM32.1423 2.96154V5.92308H52.6628V2.96154V0H32.1423V2.96154ZM55.6101 5.92308H52.6628V18.3281H55.6101H58.5575V5.92308H55.6101ZM52.6628 2.96154V5.92308H55.6101H58.5575C58.5575 2.65185 55.9183 0 52.6628 0V2.96154ZM29.1949 5.92308H32.1423V2.96154V0C28.8868 0 26.2476 2.65186 26.2476 5.92308H29.1949Z" fill="#009788"/>
+    <path d="M7.36842 16.9312C3.29896 16.9312 0 20.2459 0 24.335V69.5962C0 73.6852 3.29896 77 7.36842 77H76.0477C80.1171 77 83.4161 73.6852 83.4161 69.5962V24.335C83.4161 20.2459 80.1171 16.9312 76.0477 16.9312H55.183H25.6664H7.36842Z" fill="#009788"/>
+    <path d="M30.0885 49.0611C39.884 62.5539 41.5319 63.8495 41.5319 63.8495C41.5319 63.8495 44.35 60.9351 53.3868 49.0611C62.424 37.1869 60.5533 30.9006 55.2325 30.9006C49.9116 30.9006 41.5319 46.9656 41.5319 46.9656C41.5319 46.9656 33.9231 30.9006 27.8312 30.9006C20.6781 30.9006 23.4964 39.9809 30.0885 49.0611Z" fill="white"/>
+  </g>
+
+  <!-- Wordmark "GatherrGo" -->
+  <text x="270" y="215" font-family="'Segoe UI', Arial, sans-serif"
+        font-size="72" font-weight="700" fill="#009788">GatherrGo</text>
+
+  <!-- Tagline -->
+  <text x="270" y="278" font-family="'Segoe UI', Arial, sans-serif"
+        font-size="32" font-weight="400" fill="#475569">
+    Group Travel, Planned Together
+  </text>
+
+  <!-- Feature pills -->
+  <rect x="270" y="330" width="210" height="52" rx="26" fill="#F0FDFB" stroke="#009788" stroke-width="2"/>
+  <text x="375" y="363" font-family="'Segoe UI', Arial, sans-serif" font-size="22"
+        font-weight="600" fill="#009788" text-anchor="middle">Itineraries</text>
+
+  <rect x="496" y="330" width="210" height="52" rx="26" fill="#F0FDFB" stroke="#009788" stroke-width="2"/>
+  <text x="601" y="363" font-family="'Segoe UI', Arial, sans-serif" font-size="22"
+        font-weight="600" fill="#009788" text-anchor="middle">Expenses</text>
+
+  <rect x="722" y="330" width="210" height="52" rx="26" fill="#F0FDFB" stroke="#009788" stroke-width="2"/>
+  <text x="827" y="363" font-family="'Segoe UI', Arial, sans-serif" font-size="22"
+        font-weight="600" fill="#009788" text-anchor="middle">Memories</text>
+
+  <!-- URL -->
+  <text x="600" y="490" font-family="'Segoe UI', Arial, sans-serif"
+        font-size="26" font-weight="400" fill="#94A3B8" text-anchor="middle">
+    www.gatherrgo.com
+  </text>
+
+  <!-- Drop shadow filter -->
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="24" flood-color="#009788" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+</svg>
