@@ -444,7 +444,7 @@ function CreateTripModal({
   const [startDateObj, setStartDateObj] = useState<Date | undefined>(undefined);
   const [endDateObj, setEndDateObj] = useState<Date | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [apiFriends, setApiFriends] = useState<typeof CT_FRIENDS>(CT_FRIENDS);
+  const [apiFriends, setApiFriends] = useState<typeof CT_FRIENDS>([]);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [reminders, setReminders] = useState(false);
@@ -671,8 +671,8 @@ function CreateTripModal({
         email: '',
         uri: f.user.avatarUrl ?? `https://i.pravatar.cc/150?u=${f.user.id}`,
       }));
-      if (mapped.length > 0) setApiFriends(mapped);
-    }).catch(() => { /* keep CT_FRIENDS fallback */ });
+      setApiFriends(mapped);
+    }).catch(() => {});
   }, [showInviteModal]);
 
   const filteredFriends = apiFriends.filter(f =>
@@ -982,25 +982,28 @@ function CreateTripModal({
                   {memberTab === 'friends' && (
                     <>
                       <TextInput style={[styles.ctInput, { marginBottom: 12 }]} placeholder="Search friends..." placeholderTextColor="#94a3b8" value={friendSearch} onChangeText={setFriendSearch} />
-                      {filteredFriends.map(friend => {
-                        const sel = selectedFriendIds.includes(friend.id);
-                        return (
-                          <TouchableOpacity key={friend.id} style={[styles.friendSelectRow, sel && { backgroundColor: '#f0fdfa' }]} onPress={() => toggleFriend(friend.id)} activeOpacity={0.8}>
-                            <Image source={{ uri: friend.uri }} style={styles.friendSelectAvatar as any} />
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.friendName}>{friend.name}</Text>
-                              <Text style={[styles.friendHandle, { fontSize: 12 }]}>{friend.email}</Text>
-                            </View>
-                            {sel && (
-                              <View style={styles.checkCircle}>
-                                <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                                  <Path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-                                </Svg>
+                      {filteredFriends.length === 0
+                        ? <Text style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 8, marginBottom: 4 }}>No friends found.</Text>
+                        : filteredFriends.map(friend => {
+                          const sel = selectedFriendIds.includes(friend.id);
+                          return (
+                            <TouchableOpacity key={friend.id} style={[styles.friendSelectRow, sel && { backgroundColor: '#f0fdfa' }]} onPress={() => toggleFriend(friend.id)} activeOpacity={0.8}>
+                              <Image source={{ uri: friend.uri }} style={styles.friendSelectAvatar as any} />
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.friendName}>{friend.name}</Text>
+                                <Text style={[styles.friendHandle, { fontSize: 12 }]}>{friend.email}</Text>
                               </View>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
+                              {sel && (
+                                <View style={styles.checkCircle}>
+                                  <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+                                    <Path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+                                  </Svg>
+                                </View>
+                              )}
+                            </TouchableOpacity>
+                          );
+                        })
+                      }
                     </>
                   )}
                   {memberTab === 'new' && (

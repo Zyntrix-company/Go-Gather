@@ -1001,11 +1001,15 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       <Svg width={14} height={14} viewBox="0 0 24 24" fill="none"><Circle cx={11} cy={11} r={8} stroke="#94a3b8" strokeWidth={2} /><Path d="M21 21l-4.35-4.35" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
                       <TextInput style={styles.searchInput} placeholder="Search by name..." placeholderTextColor="#94a3b8" value={memberSearch} onChangeText={setMemberSearch} />
                     </View>
-                    {filteredFriends.map(f => {
+                    {filteredFriends.length === 0 ? (
+                      <Text style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 16, marginBottom: 8 }}>
+                        {apiFriends.length === 0 ? 'No friends found. Add friends to invite them.' : 'All your friends are already members.'}
+                      </Text>
+                    ) : filteredFriends.map(f => {
                       const sel = selectedFriends.includes(f.id);
                       return (
                         <TouchableOpacity key={f.id} style={styles.memberRow} onPress={() => setSelectedFriends(p => p.includes(f.id) ? p.filter(x => x !== f.id) : [...p, f.id])} activeOpacity={0.8}>
-                          <Image source={{ uri: f.avatar }} style={styles.memberAvatar as any} />
+                          <Image source={{ uri: f.avatar || `https://i.pravatar.cc/150?u=${f.id}` }} style={styles.memberAvatar as any} />
                           <View style={{ flex: 1, marginLeft: 10 }}><Text style={styles.memberName}>{f.name}</Text></View>
                           {sel ? <View style={styles.checkCircle}><CheckIcon /></View> : null}
                         </TouchableOpacity>

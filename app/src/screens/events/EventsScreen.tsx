@@ -133,7 +133,7 @@ function CreateEventModal({ visible, onClose, onSave }: {
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [uploadedDocs, setUploadedDocs] = useState<{ uri: string; name: string; type: string }[]>([]);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
-  const [apiFriends, setApiFriends] = useState(CT_FRIENDS);
+  const [apiFriends, setApiFriends] = useState<typeof CT_FRIENDS>([]);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [memberTab, setMemberTab] = useState<'friends' | 'new'>('friends');
@@ -213,7 +213,7 @@ function CreateEventModal({ visible, onClose, onSave }: {
         email: '',
         uri: f.user.avatarUrl ?? `https://i.pravatar.cc/150?u=${f.user.id}`,
       }));
-      if (mapped.length > 0) setApiFriends(mapped);
+      setApiFriends(mapped);
     }).catch(() => {});
   }, [showInviteModal]);
 
@@ -654,32 +654,35 @@ function CreateEventModal({ visible, onClose, onSave }: {
                       value={friendSearch}
                       onChangeText={setFriendSearch}
                     />
-                    {filteredFriends.map(friend => {
-                      const sel = selectedFriendIds.includes(friend.id);
-                      return (
-                        <TouchableOpacity
-                          key={friend.id}
-                          style={[modal.friendSelectRow, sel && { backgroundColor: '#f0fdfa' }]}
-                          onPress={() => toggleFriend(friend.id)}
-                          activeOpacity={0.8}
-                        >
-                          <View style={modal.friendAvatar}>
-                            <Text style={modal.friendAvatarText}>{friend.name[0]}</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={modal.friendName}>{friend.name}</Text>
-                            <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{friend.email}</Text>
-                          </View>
-                          {sel && (
-                            <View style={modal.checkCircle}>
-                              <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                                <Path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-                              </Svg>
+                    {filteredFriends.length === 0
+                      ? <Text style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 8, marginBottom: 4 }}>No friends found.</Text>
+                      : filteredFriends.map(friend => {
+                        const sel = selectedFriendIds.includes(friend.id);
+                        return (
+                          <TouchableOpacity
+                            key={friend.id}
+                            style={[modal.friendSelectRow, sel && { backgroundColor: '#f0fdfa' }]}
+                            onPress={() => toggleFriend(friend.id)}
+                            activeOpacity={0.8}
+                          >
+                            <View style={modal.friendAvatar}>
+                              <Text style={modal.friendAvatarText}>{friend.name[0]}</Text>
                             </View>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
+                            <View style={{ flex: 1 }}>
+                              <Text style={modal.friendName}>{friend.name}</Text>
+                              <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{friend.email}</Text>
+                            </View>
+                            {sel && (
+                              <View style={modal.checkCircle}>
+                                <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+                                  <Path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+                                </Svg>
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })
+                    }
                   </>
                 )}
                 {memberTab === 'new' && (

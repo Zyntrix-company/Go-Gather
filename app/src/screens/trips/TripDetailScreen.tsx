@@ -610,10 +610,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const memberCount = members.length;
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
   const memberIds = new Set(members.map(m => m.userId));
-  const friendPool = apiFriends.length > 0 ? apiFriends : FRIENDS.map(f => ({ id: f.id, name: f.name, avatarUrl: f.avatar }));
-  const filteredFriends = friendPool
+  const filteredFriends = apiFriends
     .filter(f => !memberIds.has(f.id) && f.name.toLowerCase().includes(memberSearch.toLowerCase()))
-    .map(f => ({ id: f.id, name: f.name, email: '', avatar: (f as any).avatarUrl ?? (f as any).avatar ?? `https://i.pravatar.cc/150?u=${f.id}` }));
+    .map(f => ({ id: f.id, name: f.name, avatar: f.avatarUrl ?? `https://i.pravatar.cc/150?u=${f.id}` }));
 
   // ── Handlers ──
   function resetActForm() {
@@ -1660,7 +1659,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <Svg width={14} height={14} viewBox="0 0 24 24" fill="none"><Circle cx={11} cy={11} r={8} stroke="#94a3b8" strokeWidth={2} /><Path d="M21 21l-4.35-4.35" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
                     <TextInput style={styles.searchInput} placeholder="Search by name or email..." placeholderTextColor="#94a3b8" value={memberSearch} onChangeText={setMemberSearch} />
                   </View>
-                  {filteredFriends.map(f => {
+                  {filteredFriends.length === 0 ? (
+                    <Text style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 16, marginBottom: 8 }}>
+                      {apiFriends.length === 0 ? 'No friends found. Add friends to invite them.' : 'All your friends are already members.'}
+                    </Text>
+                  ) : filteredFriends.map(f => {
                     const sel = selectedFriends.includes(f.id);
                     return (
                       <TouchableOpacity key={f.id} style={styles.memberRow} onPress={() => setSelectedFriends(p => p.includes(f.id) ? p.filter(x => x !== f.id) : [...p, f.id])} activeOpacity={0.8}>
