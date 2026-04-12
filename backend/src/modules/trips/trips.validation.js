@@ -50,8 +50,18 @@ const createTripValidation = [
 const updateTripValidation = [
   param('id').isUUID().withMessage('Trip ID must be a valid UUID'),
   body('name').optional().trim().notEmpty().isLength({ max: 255 }),
-  body('startDate').optional().isISO8601(),
-  body('endDate').optional().isISO8601(),
+  body('startDate').optional().isISO8601().custom((val) => {
+    const maxDate = new Date();
+    maxDate.setFullYear(maxDate.getFullYear() + 1);
+    if (new Date(val) > maxDate) throw new Error('startDate cannot be more than 1 year from today');
+    return true;
+  }),
+  body('endDate').optional().isISO8601().custom((val) => {
+    const maxDate = new Date();
+    maxDate.setFullYear(maxDate.getFullYear() + 1);
+    if (new Date(val) > maxDate) throw new Error('endDate cannot be more than 1 year from today');
+    return true;
+  }),
   body('location').optional().isObject(),
   body('location.name').optional().isString().isLength({ max: 500 }),
   body('location.lat').optional().isFloat({ min: -90, max: 90 }),

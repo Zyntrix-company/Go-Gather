@@ -36,7 +36,12 @@ const createEventValidation = [
 const updateEventValidation = [
   param('eventId').isUUID().withMessage('Event ID must be a valid UUID'),
   body('name').optional().trim().notEmpty().isLength({ max: 255 }),
-  body('eventDate').optional().isISO8601(),
+  body('eventDate').optional().isISO8601().custom((val) => {
+    const maxDate = new Date();
+    maxDate.setFullYear(maxDate.getFullYear() + 1);
+    if (new Date(val) > maxDate) throw new Error('eventDate cannot be more than 1 year from today');
+    return true;
+  }),
   body('eventType').optional({ nullable: true }).isString().isLength({ max: 100 }),
   body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }),
   body('location').optional().isObject(),
