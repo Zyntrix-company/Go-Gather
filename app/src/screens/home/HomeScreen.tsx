@@ -542,6 +542,7 @@ export default function HomeScreen({ navigation, route }: any) {
   loadTripsRef.current = () => loadTrips(1, true);
 
   const user = rawUser ? {
+    id: rawUser.id ?? rawUser.sub ?? '',
     fullName: rawUser.fullName ?? rawUser.full_name ?? '',
     username: rawUser.username ?? '',
     email: rawUser.email ?? '',

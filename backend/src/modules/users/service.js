@@ -406,10 +406,31 @@ const getUserProfile = async (viewerId, targetId) => {
 };
 
 /**
- * GET /users/:id/gallery — Past trips and events (end_date < NOW()).
- * Visible to any authenticated user.
+ * GET /users/:id/gallery — All non-archived trips and events the user is a member of.
+ * Banner images are presigned so they're viewable on the client.
  */
 const getUserGallery = async (targetId) => {
+  const { getPresignedDownloadUrl } = require('../../utils/s3.util');
+  const cloudfrontDomain = config.s3?.cloudfrontDomain;
+
+  // Resolve a raw S3/CloudFront URL to a 1-hour presigned URL.
+  // External URLs (Unsplash, etc.) pass through unchanged.
+  const presignBanner = async (rawUrl) => {
+    if (!rawUrl) return null;
+    try {
+      const hostname = new URL(rawUrl).hostname;
+      const isOwn = (
+        (cloudfrontDomain && hostname === cloudfrontDomain) ||
+        hostname.endsWith('.amazonaws.com')
+      );
+      if (!isOwn) return rawUrl;
+      const key = new URL(rawUrl).pathname.replace(/^\//, '');
+      return key ? await getPresignedDownloadUrl(key) : rawUrl;
+    } catch {
+      return rawUrl;
+    }
+  };
+
   const [tripsResult, eventsResult] = await Promise.all([
     db.query(
       `SELECT
@@ -418,13 +439,13 @@ const getUserGallery = async (targetId) => {
          COALESCE(t.banner_image_url, t.cover_photo_url) AS "bannerImageUrl",
          t.location_name   AS location,
          t.end_date        AS "endDate",
-         (SELECT COUNT(*)::int FROM trip_members  WHERE trip_id = t.id)                        AS "memberCount",
-         (SELECT COUNT(*)::int FROM photos        WHERE parent_type = 'trip' AND parent_id = t.id) AS "photoCount"
+         (SELECT COUNT(*)::int FROM trip_members WHERE trip_id = t.id)                        AS "memberCount",
+         (SELECT COUNT(*)::int FROM photos       WHERE parent_type = 'trip' AND parent_id = t.id) AS "photoCount"
        FROM trips t
        JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = $1
-       WHERE t.end_date < NOW()
+       WHERE t.archived_at IS NULL
        ORDER BY t.end_date DESC
-       LIMIT 20`,
+       LIMIT 50`,
       [targetId],
     ),
     db.query(
@@ -440,15 +461,24 @@ const getUserGallery = async (targetId) => {
        JOIN event_members em ON em.event_id = e.id AND em.user_id = $1
        WHERE e.archived_at IS NULL
        ORDER BY e.event_date DESC
-       LIMIT 20`,
+       LIMIT 50`,
       [targetId],
     ),
   ]);
 
-  return {
-    trips:  tripsResult.rows,
-    events: eventsResult.rows,
-  };
+  // Presign all banner URLs in parallel
+  const [trips, events] = await Promise.all([
+    Promise.all(tripsResult.rows.map(async (row) => ({
+      ...row,
+      bannerImageUrl: await presignBanner(row.bannerImageUrl),
+    }))),
+    Promise.all(eventsResult.rows.map(async (row) => ({
+      ...row,
+      bannerImageUrl: await presignBanner(row.bannerImageUrl),
+    }))),
+  ]);
+
+  return { trips, events };
 };
 
 /**
