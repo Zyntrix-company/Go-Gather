@@ -438,7 +438,7 @@ const getUserGallery = async (targetId) => {
          (SELECT COUNT(*)::int FROM photos         WHERE parent_type = 'event' AND parent_id = e.id) AS "photoCount"
        FROM events e
        JOIN event_members em ON em.event_id = e.id AND em.user_id = $1
-       WHERE e.event_date < NOW()
+       WHERE e.archived_at IS NULL
        ORDER BY e.event_date DESC
        LIMIT 20`,
       [targetId],
