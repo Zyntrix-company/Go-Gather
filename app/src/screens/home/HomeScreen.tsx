@@ -29,7 +29,7 @@ import {
 import Toast from 'react-native-toast-message';
 import TripsScreen from '../trips/TripsScreen';
 import EventsScreen from '../events/EventsScreen';
-import FriendsTab, { MOCK_FRIENDS } from './FriendsTab';
+import FriendsTab from './FriendsTab';
 import ChatTab, { SWEE_CHAT } from './ChatTab';
 import GalleryTab from './GalleryTab';
 import ProfileDropdown from './ProfileDropdown';
@@ -1162,60 +1162,6 @@ const styles = StyleSheet.create({
   },
   fabInlineText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
-  // ── Friends ──
-  friendsSearchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 12, gap: 10, borderWidth: 1, borderColor: '#e2e8f0' },
-  friendsSearchPlaceholder: { fontSize: 14, color: '#94a3b8' },
-  friendsCount: { fontSize: 13, color: '#94a3b8', fontWeight: '500', marginBottom: 12 },
-  friendCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, padding: 12, marginBottom: 10, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  friendAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  friendInitials: { fontSize: 18, fontWeight: '700' },
-  friendInfo: { flex: 1 },
-  friendName: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
-  friendHandle: { fontSize: 13, color: '#64748b', marginTop: 2 },
-  mutualBadge: { backgroundColor: '#f0fdfa', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
-  mutualBadgeText: { fontSize: 11, color: '#0d9488', fontWeight: '600' },
-
-  // ── Chat ──
-  chatCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, padding: 12, marginBottom: 10, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  chatAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  chatAvatarSwee: { backgroundColor: '#0d9488' },
-  chatAvatarGroup: { backgroundColor: '#6366f1' },
-  chatAvatarText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  // Swee-only chat card
-  sweeChatCard: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff', borderRadius: 16, padding: 16, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3, borderWidth: 1, borderColor: '#f0fdfa' },
-  sweeChatAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  sweeChatSubtitle: { fontSize: 12, color: '#0d9488', fontWeight: '500', marginTop: 1 },
-  chatInfo: { flex: 1 },
-  chatTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
-  chatName: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
-  chatTime: { fontSize: 11, color: '#94a3b8' },
-  chatMsgRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  chatLastMsg: { flex: 1, fontSize: 13, color: '#64748b' },
-  unreadBadge: { backgroundColor: '#0d9488', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, marginLeft: 6 },
-  unreadBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-
-  // ── Gallery ──
-  galleryProfile: { alignItems: 'center', marginTop: 8, marginBottom: 24 },
-  galleryAvatarWrap: { position: 'relative', marginBottom: 12 },
-  galleryAvatar: { width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: '#0d9488' },
-  galleryAvatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
-  galleryAvatarInitial: { fontSize: 36, fontWeight: '700', color: '#0d9488' },
-  galleryEditBtn: { position: 'absolute', bottom: 2, right: -4, width: 28, height: 28, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
-  galleryName: { fontSize: 20, fontWeight: '700', color: '#0f172a' },
-  galleryHandle: { fontSize: 13, color: '#0d9488', fontWeight: '500', marginTop: 2 },
-  galleryLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  galleryLocationText: { fontSize: 13, color: '#64748b' },
-  galleryBio: { fontSize: 14, color: '#334155', textAlign: 'center', marginTop: 8, paddingHorizontal: 20, lineHeight: 20 },
-  gallerySectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  gallerySectionTitle: { fontSize: 17, fontWeight: '700', color: '#1e293b' },
-  galleryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  galleryGridCard: { width: (SCREEN_W - 52) / 2, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: '#f1f5f9' },
-  galleryGridImage: { width: '100%', height: '100%' },
-  galleryGridOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.4)', padding: 8 },
-  galleryGridText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  galleryEmptyCard: { width: (SCREEN_W - 52) / 2, height: 140, borderRadius: 14, borderWidth: 2, borderColor: '#e2e8f0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  galleryEmptyText: { fontSize: 12, color: '#cbd5e1', fontWeight: '500' },
-
   // ── Swee FAB — teal circle with white ring border ──
   sweeFab: {
     position: 'absolute',
@@ -1260,20 +1206,6 @@ const styles = StyleSheet.create({
   navItem: { alignItems: 'center', justifyContent: 'center', flex: 1, paddingTop: 4 },
   navText: { fontSize: 9, color: '#94a3b8', marginTop: 2, fontWeight: '500' },
   navTextActive: { color: '#0d9488', fontWeight: '600' },
-
-  // ── Profile Dropdown ──
-  dropdownOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000 },
-  dropdownBackdrop: { flex: 1 },
-  profileDropdown: { position: 'absolute', top: 70, right: 20, width: 240, maxHeight: 420, backgroundColor: '#fff', borderRadius: 16, padding: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 8, borderWidth: 1, borderColor: '#f1f5f9' },
-  dropdownHeader: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },
-  dropdownAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#f1f5f9' },
-  dropdownUserText: { flex: 1 },
-  dropdownName: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
-  dropdownEmail: { fontSize: 12, color: '#64748b', marginTop: 2 },
-  dropdownDivider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 4 },
-  dropdownItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12, borderRadius: 10 },
-  dropdownItemText: { fontSize: 14, fontWeight: '500', color: '#334155' },
-  logoutLabel: { color: '#ef4444' },
 
   // ── Modals (shared overlay + dialog shell) ──
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
