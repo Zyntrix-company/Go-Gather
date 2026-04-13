@@ -99,6 +99,18 @@ const getUserGallery = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /users/:id/photos — All photos uploaded by a user, grouped by trip/event + activity
+ */
+const getUserPhotos = async (req, res, next) => {
+  try {
+    const photos = await usersService.getUserPhotos(req.params.id);
+    return res.status(200).json(photos);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   saveProfile,
   uploadPhoto,
@@ -107,4 +119,5 @@ module.exports = {
   searchUsers,
   getUserProfile,
   getUserGallery,
+  getUserPhotos,
 };

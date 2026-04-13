@@ -17,6 +17,7 @@ const friendsRoutes = require('./modules/friends/friends.routes');
 const invitesRoutes = require('./modules/invites/invites.routes');
 const contactRoutes = require('./modules/contact/contact.routes');
 const { authRouter: emailAuthRoutes, emailDocsRouter } = require('./modules/emailDocs/emailDocs.routes');
+const aiRoutes = require('./modules/ai/ai.routes');
 
 const app = express();
 
@@ -93,6 +94,7 @@ app.use('/trips',   tripsRoutes);
 app.use('/events',  eventsRoutes);
 app.use('/friends', friendsRoutes);
 app.use('/invites', invitesRoutes);
+app.use('/ai',          aiRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/auth',        emailAuthRoutes);
 app.use('/email-docs',  emailDocsRouter);

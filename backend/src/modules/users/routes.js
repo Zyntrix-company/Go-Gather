@@ -65,6 +65,15 @@ router.get(
   controller.getUserGallery,
 );
 
+// GET /users/:id/photos — All photos uploaded by user, grouped by trip/event + activity (requires auth)
+router.get(
+  '/:id/photos',
+  authenticateJWT,
+  validators.getPublicProfileValidation,
+  validate,
+  controller.getUserPhotos,
+);
+
 // GET /users/:id — Get public user profile (no auth required — legacy endpoint)
 router.get(
   '/:id',

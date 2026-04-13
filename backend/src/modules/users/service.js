@@ -410,25 +410,143 @@ const getUserProfile = async (viewerId, targetId) => {
  * Visible to any authenticated user.
  */
 const getUserGallery = async (targetId) => {
-  const tripsResult = await db.query(
+  const [tripsResult, eventsResult] = await Promise.all([
+    db.query(
+      `SELECT
+         t.id,
+         t.name,
+         t.cover_photo_url AS "coverPhotoUrl",
+         t.location_name   AS location,
+         t.end_date        AS "endDate",
+         (SELECT COUNT(*)::int FROM trip_members  WHERE trip_id = t.id)                        AS "memberCount",
+         (SELECT COUNT(*)::int FROM photos        WHERE parent_type = 'trip' AND parent_id = t.id) AS "photoCount"
+       FROM trips t
+       JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = $1
+       WHERE t.end_date < NOW()
+       ORDER BY t.end_date DESC
+       LIMIT 20`,
+      [targetId],
+    ),
+    db.query(
+      `SELECT
+         e.id,
+         e.name,
+         e.cover_photo_url  AS "coverPhotoUrl",
+         e.location_name    AS location,
+         e.end_date         AS "endDate",
+         (SELECT COUNT(*)::int FROM event_members  WHERE event_id = e.id)                         AS "memberCount",
+         (SELECT COUNT(*)::int FROM photos         WHERE parent_type = 'event' AND parent_id = e.id) AS "photoCount"
+       FROM events e
+       JOIN event_members em ON em.event_id = e.id AND em.user_id = $1
+       WHERE e.end_date < NOW()
+       ORDER BY e.end_date DESC
+       LIMIT 20`,
+      [targetId],
+    ),
+  ]);
+
+  return {
+    trips:  tripsResult.rows,
+    events: eventsResult.rows,
+  };
+};
+
+/**
+ * GET /users/:id/photos — All photos uploaded by a user, grouped by trip/event + activity.
+ * Returns structure: { trips: [{id, name, activities: [{id, title, photos:[]}], photos:[]}, ...], events: [{id, name, photos:[]}, ...] }
+ */
+const getUserPhotos = async (targetId) => {
+  const { getPresignedDownloadUrl } = require('../../utils/s3.util');
+
+  // Fetch all photos uploaded by this user, with parent + activity info
+  const photosResult = await db.query(
     `SELECT
-       t.id,
-       t.name,
-       t.cover_photo_url AS "coverPhotoUrl",
-       t.location_name   AS location,
-       t.end_date        AS "endDate",
-       (SELECT COUNT(*)::int FROM trip_members WHERE trip_id = t.id) AS "memberCount"
-     FROM trips t
-     JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = $1
-     WHERE t.end_date < NOW()
-     ORDER BY t.end_date DESC
-     LIMIT 20`,
+       ph.id,
+       ph.parent_type,
+       ph.parent_id,
+       ph.activity_id,
+       ph.file_url,
+       ph.s3_key,
+       ph.mime_type,
+       ph.caption,
+       ph.created_at,
+       ta.title AS activity_title,
+       CASE ph.parent_type
+         WHEN 'trip'  THEN t.name
+         WHEN 'event' THEN e.name
+       END AS parent_name,
+       CASE ph.parent_type
+         WHEN 'trip'  THEN t.cover_photo_url
+         WHEN 'event' THEN e.cover_photo_url
+       END AS parent_cover
+     FROM photos ph
+     LEFT JOIN trip_activities ta ON ta.id = ph.activity_id
+     LEFT JOIN trips  t ON t.id = ph.parent_id AND ph.parent_type = 'trip'
+     LEFT JOIN events e ON e.id = ph.parent_id AND ph.parent_type = 'event'
+     WHERE ph.uploaded_by = $1
+     ORDER BY ph.created_at DESC
+     LIMIT 500`,
     [targetId],
   );
 
+  // Generate presigned URLs and group by parent
+  const tripMap  = new Map();
+  const eventMap = new Map();
+
+  for (const row of photosResult.rows) {
+    const presignedUrl = await getPresignedDownloadUrl(row.s3_key);
+    const photo = {
+      id:            row.id,
+      fileUrl:       row.file_url,
+      url:           presignedUrl || row.file_url,
+      mimeType:      row.mime_type,
+      caption:       row.caption,
+      activityId:    row.activity_id || null,
+      activityTitle: row.activity_title || null,
+      createdAt:     row.created_at,
+    };
+
+    if (row.parent_type === 'trip') {
+      if (!tripMap.has(row.parent_id)) {
+        tripMap.set(row.parent_id, {
+          id:         row.parent_id,
+          name:       row.parent_name,
+          coverPhoto: row.parent_cover,
+          activities: new Map(),
+          photos:     [],
+        });
+      }
+      const trip = tripMap.get(row.parent_id);
+      if (photo.activityId) {
+        if (!trip.activities.has(photo.activityId)) {
+          trip.activities.set(photo.activityId, { id: photo.activityId, title: photo.activityTitle, photos: [] });
+        }
+        trip.activities.get(photo.activityId).photos.push(photo);
+      } else {
+        trip.photos.push(photo);
+      }
+    } else if (row.parent_type === 'event') {
+      if (!eventMap.has(row.parent_id)) {
+        eventMap.set(row.parent_id, {
+          id:         row.parent_id,
+          name:       row.parent_name,
+          coverPhoto: row.parent_cover,
+          photos:     [],
+        });
+      }
+      eventMap.get(row.parent_id).photos.push(photo);
+    }
+  }
+
+  // Serialize Maps to arrays
+  const trips = Array.from(tripMap.values()).map((t) => ({
+    ...t,
+    activities: Array.from(t.activities.values()),
+  }));
+
   return {
-    trips: tripsResult.rows,
-    events: [], // M3 events to be populated when events module is complete
+    trips,
+    events: Array.from(eventMap.values()),
   };
 };
 
@@ -440,4 +558,5 @@ module.exports = {
   searchUsers,
   getUserProfile,
   getUserGallery,
+  getUserPhotos,
 };

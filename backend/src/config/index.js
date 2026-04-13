@@ -89,6 +89,23 @@ module.exports = {
     serverKey: process.env.FCM_SERVER_KEY,
   },
 
+  // ─── AI Provider ─────────────────────────────
+  // Set AI_PROVIDER=openai to switch to OpenAI GPT-4o once the client key is ready.
+  // Default is 'gemini' (free tier, no client dependency).
+  ai: {
+    provider: process.env.AI_PROVIDER || 'gemini',
+  },
+
+  // ─── Google Gemini ────────────────────────────
+  gemini: {
+    apiKey: process.env.GEMINI_API_KEY,
+  },
+
+  // ─── OpenAI (pending client key) ─────────────
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+
   // ─── Branch.io ───────────────────────────────
   branch: {
     key:    process.env.BRANCH_KEY,
