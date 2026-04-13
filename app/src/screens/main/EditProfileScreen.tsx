@@ -36,9 +36,9 @@ type FormData = {
 const editProfileSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters').max(60, 'Full name is too long'),
   username: z.string()
-    .min(3, 'Username must be at least 3 characters')
-    .max(20, 'Username must be at most 20 characters')
-    .regex(/^[a-z0-9_]+$/, 'Username can only contain lowercase letters, numbers, and underscores'),
+    .min(3, 'Must be at least 3 characters')
+    .max(20, 'Must be at most 20 characters')
+    .regex(/^[a-z0-9_]+$/, 'Only lowercase letters, numbers, and underscores allowed'),
   gender: z.string().min(1, 'Gender is required'),
   country: z.string().min(1, 'Country is required'),
   bio: z.string().max(100, 'Bio must be under 100 characters').optional(),
@@ -164,7 +164,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const initialCountry = user?.country || '';
   const initialPhoto = user?.photoUrl || user?.avatarUrl || (user?.profile as any)?.avatarUrl || '';
   const initialDob = user?.dob || '';
-  const initialUsername = (user?.profile as any)?.username || '';
+  const initialUsername = user?.username || '';
 
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(editProfileSchema),
@@ -190,6 +190,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [usernameValue, setUsernameValue] = useState(initialUsername);
   const localPreviewUriRef = useRef<string>('');
 
   useEffect(() => {
@@ -347,22 +348,27 @@ export default function EditProfileScreen({ navigation }: any) {
               control={control}
               name="username"
               render={({ field: { onChange, value } }) => (
-                <TextInput
-                  style={[styles.input, focusedField === 'username' && styles.inputFocused, errors.username && styles.inputError]}
-                  placeholder="Username (lowercase, numbers, underscores only)"
-                  placeholderTextColor="#94a3b8"
-                  value={value}
-                  onChangeText={(val) => { onChange(val.toLowerCase()); if (apiError) setApiError(null); }}
-                  onFocus={() => setFocusedField('username')}
-                  onBlur={() => setFocusedField(null)}
-                  underlineColorAndroid="transparent"
-                  selectionColor="#0d9488"
-                  editable={!busy}
-                  autoCapitalize="none"
-                />
+                <>
+                  <TextInput
+                    style={[styles.input, focusedField === 'username' && styles.inputFocused, errors.username && styles.inputError]}
+                    placeholder="Username"
+                    placeholderTextColor="#94a3b8"
+                    value={value}
+                    onChangeText={(val) => { const lowercased = val.toLowerCase(); onChange(lowercased); setUsernameValue(lowercased); if (apiError) setApiError(null); }}
+                    onFocus={() => setFocusedField('username')}
+                    onBlur={() => setFocusedField(null)}
+                    underlineColorAndroid="transparent"
+                    selectionColor="#0d9488"
+                    editable={!busy}
+                    autoCapitalize="none"
+                  />
+                  {!errors.username && (focusedField === 'username' || usernameValue) && (
+                    <Text style={styles.helperText}>Use lowercase letters, numbers, and underscores only</Text>
+                  )}
+                  {errors.username && <Text style={styles.errorText}>{errors.username.message}</Text>}
+                </>
               )}
             />
-            {errors.username && <Text style={styles.errorText}>{errors.username.message}</Text>}
 
             {/* Date of Birth */}
             <DobPicker
@@ -456,7 +462,8 @@ const styles = StyleSheet.create({
   input: { width: '100%', backgroundColor: '#ffffff', borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0f172a', marginBottom: 10 },
   inputFocused: { borderColor: '#0d9488' },
   inputError: { borderColor: '#ef4444' },
-  errorText: { fontSize: 12, color: '#ef4444', marginBottom: 8, marginTop: -4 },
+  helperText: { fontSize: 12, color: '#0d9488', marginBottom: 10, marginTop: -6, fontWeight: '400' },
+  errorText: { fontSize: 12, color: '#ef4444', marginBottom: 10, marginTop: -6 },
   bioInput: { height: 100, paddingTop: 12, paddingBottom: 12 },
   dropdownBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#ffffff', borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 10 },
   dropdownText: { fontSize: 14, color: '#0f172a' },

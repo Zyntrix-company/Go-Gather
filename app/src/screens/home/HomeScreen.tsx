@@ -544,6 +544,7 @@ export default function HomeScreen({ navigation, route }: any) {
 
   const user = rawUser ? {
     fullName: rawUser.fullName ?? rawUser.full_name ?? '',
+    username: rawUser.username ?? '',
     email: rawUser.email ?? '',
     country: rawUser.country ?? '',
     bio: rawUser.bio ?? '',

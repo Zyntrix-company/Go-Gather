@@ -260,8 +260,11 @@ export default function useAuth() {
   }) {
     setLoading(true);
     try {
-      await authApi.updateProfile(payload);
-      await refreshProfile();
+      const updatedUser = await authApi.updateProfile(payload);
+      const token = (await storage.getToken()) || useAuthStore.getState().accessToken;
+      const refreshToken = (await storage.getRefreshToken()) || useAuthStore.getState().refreshToken;
+      // Update store immediately with the returned user data
+      setAuth(updatedUser, token, refreshToken);
     } finally {
       setLoading(false);
     }

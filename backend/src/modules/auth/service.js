@@ -505,7 +505,7 @@ const resendOTP = async ({ email, purpose }) => {
  */
 const getMe = async (userId) => {
   const result = await db.query(
-    `SELECT u.id, u.email, u.phone, u.google_id, u.facebook_id, u.is_profile_complete, u.is_verified,
+    `SELECT u.id, u.email, u.phone, u.username, u.google_id, u.facebook_id, u.is_profile_complete, u.is_verified,
             u.sns_endpoint_arn, u.created_at, u.updated_at,
             p.full_name, p.dob, p.gender, p.country, p.bio, p.avatar_url
      FROM users u
@@ -526,6 +526,7 @@ const getMe = async (userId) => {
     id: row.id,
     email: row.email,
     phone: row.phone,
+    username: row.username,
     googleId: row.google_id,
     isProfileComplete: row.is_profile_complete,
     isVerified: row.is_verified,

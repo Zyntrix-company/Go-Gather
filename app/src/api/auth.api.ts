@@ -75,6 +75,7 @@ function normalizeUser(raw: any): User {
     id: raw.id || raw._id,
     email: raw.email,
     phone: raw.phone,
+    username: raw.username || profile.username || '',
     isVerified: raw.isVerified,
     isProfileComplete: raw.isProfileComplete,
     fullName: raw.fullName || profile.fullName || raw.name || raw.full_name || profile.full_name || raw.displayName || '',
@@ -306,8 +307,11 @@ const authApi = {
     bio?: string;
     dob?: string;
     username?: string;
-  }): Promise<void> => {
-    await client.put('/users/profile', payload);
+  }): Promise<User> => {
+    const { data } = await client.put('/users/profile', payload);
+    // Backend returns: { message, user: { id, username, profile: { fullName, bio, country, avatarUrl, updatedAt } } }
+    const raw = data.user ?? data;
+    return normalizeUser(raw);
   },
 };
 

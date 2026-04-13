@@ -28,7 +28,7 @@ function GalleryTab({ user, trips, onEditProfile, onNavigateToTrip, onSetActiveT
   const [avatarError, setAvatarError] = useState(false);
 
   const displayName = user?.fullName || '';
-  const handle = displayName.toLowerCase().replace(/ /g, '_') || 'username';
+  const handle = user?.username || displayName.toLowerCase().replace(/ /g, '_') || 'username';
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>

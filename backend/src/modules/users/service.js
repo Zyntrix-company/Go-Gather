@@ -188,7 +188,7 @@ const getPublicProfile = async (userId) => {
  * PUT /users/profile — Update profile fields including optional username.
  */
 const updateProfile = async (userId, updates) => {
-  const { fullName, username, bio, country } = updates;
+  const { fullName, username, bio, country, gender, dob } = updates;
 
   // Username uniqueness check
   if (username) {
@@ -225,6 +225,14 @@ const updateProfile = async (userId, updates) => {
     setClauses.push(`country = $${paramIdx++}`);
     params.push(country);
   }
+  if (gender !== undefined) {
+    setClauses.push(`gender = $${paramIdx++}`);
+    params.push(gender);
+  }
+  if (dob !== undefined) {
+    setClauses.push(`dob = $${paramIdx++}`);
+    params.push(dob);
+  }
 
   if (setClauses.length > 0) {
     setClauses.push('updated_at = NOW()');
@@ -238,7 +246,7 @@ const updateProfile = async (userId, updates) => {
   // Return updated profile
   const result = await db.query(
     `SELECT u.id, u.username,
-            p.full_name, p.bio, p.country, p.avatar_url, p.updated_at
+            p.full_name, p.dob, p.gender, p.bio, p.country, p.avatar_url, p.updated_at
      FROM users u
      LEFT JOIN profiles p ON p.user_id = u.id
      WHERE u.id = $1`,
@@ -251,6 +259,8 @@ const updateProfile = async (userId, updates) => {
     username: row.username,
     profile: {
       fullName: row.full_name,
+      dob: row.dob,
+      gender: row.gender,
       bio: row.bio,
       country: row.country,
       avatarUrl: row.avatar_url,

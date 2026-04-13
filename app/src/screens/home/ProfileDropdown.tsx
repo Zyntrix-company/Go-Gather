@@ -42,7 +42,7 @@ function ProfileDropdown({ user, firstName, avatarError, onClose, onNavigateToAc
           )}
           <View style={styles.dropdownUserText}>
             <Text style={styles.dropdownName}>{user?.fullName || 'User'}</Text>
-            <Text style={styles.dropdownEmail} numberOfLines={1}>{user?.email || ''}</Text>
+            <Text style={styles.dropdownEmail} numberOfLines={1}>@{user?.username || user?.email || ''}</Text>
           </View>
         </View>
         <View style={styles.dropdownDivider} />
