@@ -51,7 +51,17 @@
       "Bash(ssh-keygen -t ed25519 -f /tmp/gogather_temp -N \"\" -q)",
       "Bash(identify \"E:/Go Gather/app/assets/Complete Logo Teal w_o BG.png\")",
       "Bash(python3 -c \"from PIL import Image; img=Image.open\\('E:/Go Gather/app/assets/Complete Logo Teal w_o BG.png'\\); print\\(img.size, img.mode\\)\")",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(echo \"\")",
+      "Bash(echo \"# ── AI Provider \\(gemini | openai\\) ──────────────────────────────\")",
+      "Bash(echo \"# Default: gemini \\(free key\\). Switch to openai when client key is ready.\")",
+      "Bash(echo \"AI_PROVIDER=gemini\")",
+      "Bash(echo \"# Google Gemini API key \\(free at aistudio.google.com\\)\")",
+      "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQWQEBMCOS AWS_SECRET_ACCESS_KEY=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 aws ec2 describe-instances:*)",
+      "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQWQEBMCOS AWS_SECRET_ACCESS_KEY=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 aws ec2-instance-connect send-ssh-public-key --region ap-south-1 --instance-id i-0b68d4de037f37441 --instance-os-user ubuntu --ssh-public-key file:///tmp/ec2_temp_key.pub)",
+      "Bash(ssh-keygen -t rsa -b 2048 -f /tmp/ec2_temp_key -N \"\")"
     ]
   }
 }

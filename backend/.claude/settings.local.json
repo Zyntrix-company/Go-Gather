@@ -4,7 +4,9 @@
       "Bash(curl:*)",
       "Bash(npm run:*)",
       "Bash(node seed.js)",
-      "Bash(grep -h \"CREATE TABLE\" migrations/*.sql)"
+      "Bash(grep -h \"CREATE TABLE\" migrations/*.sql)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\([i['name'] for i in d['item']]\\)\")",
+      "Bash(node:*)"
     ]
   }
 }

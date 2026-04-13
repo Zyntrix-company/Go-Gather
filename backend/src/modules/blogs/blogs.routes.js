@@ -6,6 +6,7 @@ const BLOGS = [
   {
     id: 1,
     slug: 'scuba-diving-andaman-guide',
+    image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=800&auto=format&fit=crop',
     title: 'Scuba Diving in Andaman: The Ultimate Guide to an Unforgettable Underwater Experience',
     excerpt: 'There are trips you enjoy—and then there are experiences that stay with you forever. Scuba diving in the Andaman Islands falls firmly into the second category.',
     content: `There are trips you enjoy—and then there are experiences that stay with you forever.
@@ -143,6 +144,7 @@ If you've been thinking about scuba diving… This is your sign. Andaman is wait
   {
     id: 2,
     slug: 'how-to-plan-group-trip-without-chaos',
+    image: 'https://images.unsplash.com/photo-1539635278303-d4002c07eae3?w=800&auto=format&fit=crop',
     title: 'How to Plan a Group Trip Without Chaos (Step-by-Step Guide)',
     excerpt: 'Planning a group trip always starts the same way. Someone sends a message on WhatsApp: "Let\'s plan a trip!" Everyone reacts with excitement. And then… chaos begins.',
     content: `Planning a group trip always starts the same way.
@@ -260,6 +262,7 @@ With GatherrGo.`,
   {
     id: 3,
     slug: 'top-6-cities-usa-first-time-travelers',
+    image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&auto=format&fit=crop',
     title: 'Top 6 Cities to Visit in the USA for First-Time Travelers (Complete Guide)',
     excerpt: 'Planning a trip to the United States can feel overwhelming. It\'s not just one destination—it\'s a collection of completely different worlds.',
     content: `Planning a trip to the United States can feel overwhelming.
@@ -361,6 +364,7 @@ The US isn't just one destination. It's a collection of experiences—best explo
   {
     id: 4,
     slug: 'top-apps-group-travel-planning',
+    image: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=800&auto=format&fit=crop',
     title: 'Top Apps for Group Travel Planning: Better Alternatives to WhatsApp Chaos',
     excerpt: 'Every group trip starts in the same place: a WhatsApp group. For a while, it feels like things are moving. Then reality kicks in.',
     content: `Every group trip starts in the same place: a WhatsApp group.
@@ -470,6 +474,7 @@ Or do it differently - With GatherrGo.`,
   {
     id: 5,
     slug: 'thailand-nightlife-guide',
+    image: 'https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=800&auto=format&fit=crop',
     title: 'Thailand Nightlife Guide: The Best Parties Across Bangkok, Phuket & Koh Phangan',
     excerpt: 'Thailand isn\'t just a destination—it\'s an experience that truly comes alive after dark. As the sun sets, cities transform.',
     content: `Thailand isn't just a destination—it's an experience that truly comes alive after dark.
@@ -554,6 +559,7 @@ It's about what happens after the sun goes down.`,
   {
     id: 6,
     slug: 'goa-trip-cost-budget-breakdown',
+    image: 'https://images.unsplash.com/photo-1587922546307-776227941871?w=800&auto=format&fit=crop',
     title: 'Goa Trip Cost for Friends: Real Budget Breakdown for a 4-Day North Goa Trip',
     excerpt: 'Planning a Goa trip with friends always starts the same way—big plans, beach scenes, party ideas. And then reality hits: "Kitna kharcha hoga?"',
     content: `Planning a Goa trip with friends always starts the same way—big plans, beach scenes, party ideas.
@@ -719,7 +725,7 @@ Because Goa is meant to be experienced—not managed.`,
 
 // GET /blogs — list of all blogs (no content, just metadata)
 router.get('/', (_req, res) => {
-  const list = BLOGS.map(({ id, slug, title, excerpt }) => ({ id, slug, title, excerpt }));
+  const list = BLOGS.map(({ id, slug, image, title, excerpt }) => ({ id, slug, image, title, excerpt }));
   res.json(list);
 });
 

@@ -273,7 +273,7 @@ function ActionIcon({ path, color }: { path: string; color: string }) {
 
 // ─── Swee FAB ─────────────────────────────────────────────────────────────────
 
-function SweeFab({ onPress }: { onPress: () => void }) {
+function SweeFab({ onPress, fabStyle }: { onPress: () => void; fabStyle?: object }) {
   const pan = useRef(new Animated.ValueXY()).current;
   const moved = useRef(false);
   const pr = useRef(PanResponder.create({
@@ -1385,7 +1385,20 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
       </ScrollView>
 
-      <SweeFab onPress={() => navigation.navigate('ChatDetail', { chat: { id: 'swee', name: 'Swee', isSwee: true, subtitle: 'Always active · AI Assistant', lastMessage: "Hi! I'm Swee.", time: 'Now', unread: 0 } })} fabStyle={{ bottom: 78 }} />
+      <SweeFab
+        onPress={() => navigation.navigate('ChatDetail', {
+          chat: { id: 'swee', name: 'Swee', isSwee: true, subtitle: 'Always active · AI Assistant' },
+          tripContext: {
+            name: trip?.name,
+            destination: typeof trip?.location === 'string' ? trip.location : trip?.location?.name ?? '',
+            startDate: trip?.start_date ? new Date(trip.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : undefined,
+            endDate: trip?.end_date ? new Date(trip.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : undefined,
+            memberCount: members?.length,
+            contextType: 'trip',
+          },
+        })}
+        fabStyle={{ bottom: 78 }}
+      />
 
       <FloatingTabBar activeTab="trips" navigation={navigation} />
 

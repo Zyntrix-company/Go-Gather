@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, Dimensions, StyleSheet } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import {
+  View, Text, TouchableOpacity, ScrollView, Image,
+  Dimensions, StyleSheet, ActivityIndicator, Modal,
+} from 'react-native';
+import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { getUserGallery } from '../../api/ai.api';
+import { getTripPhotos } from '../../api/trips.api';
+import { getEventPhotos } from '../../api/events.api';
 
 const { width: SCREEN_W } = Dimensions.get('window');
+const CARD_W = (SCREEN_W - 52) / 2;
+
+// ─── Icons ─────────────────────────────────────────────────────────────────
 
 const PinIcon = ({ color = '#94a3b8', size = 13 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
     <Circle cx={12} cy={10} r={3} stroke={color} strokeWidth={2} />
-  </Svg>
-);
-
-const PlusIcon = ({ color = '#fff', size = 18 }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path d="M12 5v14M5 12h14" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 
@@ -24,91 +27,502 @@ const EditIcon = () => (
   </Svg>
 );
 
-function GalleryTab({ user, trips, onEditProfile, onNavigateToTrip, onSetActiveTab }: any) {
-  const [avatarError, setAvatarError] = useState(false);
+const CameraIcon = () => (
+  <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
+    <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+    <Circle cx={12} cy={13} r={4} stroke="#cbd5e1" strokeWidth={1.5} />
+  </Svg>
+);
 
-  // Reset avatarError when photoUrl changes (after upload)
+const CloseIcon = () => (
+  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+    <Path d="M18 6L6 18M6 6l12 12" stroke="#64748b" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+// ─── Section header ─────────────────────────────────────────────────────────
+
+function SectionHeader({ title, count, onAdd }: { title: string; count: number; onAdd?: () => void }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionTitleRow}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        {count > 0 && (
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>{count}</Text>
+          </View>
+        )}
+      </View>
+      {onAdd && (
+        <TouchableOpacity onPress={onAdd} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+            <Path d="M12 5v14M5 12h14" stroke="#0d9488" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+          </Svg>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+// ─── Gallery grid card ──────────────────────────────────────────────────────
+
+function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
+  const [imgError, setImgError] = useState(false);
+  const hasImage = item.bannerImageUrl && !imgError;
+
+  return (
+    <TouchableOpacity style={styles.gridCard} onPress={onPress} activeOpacity={0.85}>
+      {hasImage ? (
+        <Image
+          source={{ uri: item.bannerImageUrl }}
+          style={styles.gridCardImage}
+          resizeMode="cover"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <View style={styles.gridCardPlaceholder}>
+          <CameraIcon />
+        </View>
+      )}
+      <View style={styles.gridCardOverlay}>
+        <Text style={styles.gridCardText} numberOfLines={2}>{item.name}</Text>
+        {item.photoCount > 0 && (
+          <Text style={styles.gridCardPhotoCount}>{item.photoCount} photo{item.photoCount !== 1 ? 's' : ''}</Text>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// ─── Empty card ─────────────────────────────────────────────────────────────
+
+function EmptyCard({ label }: { label: string }) {
+  return (
+    <View style={styles.emptyCard}>
+      <CameraIcon />
+      <Text style={styles.emptyCardText}>{label}</Text>
+    </View>
+  );
+}
+
+// ─── Photo type ──────────────────────────────────────────────────────────────
+
+type PhotoItem = {
+  id: string;
+  uri: string;
+  activityId?: string | null;
+  activityTitle?: string | null;
+};
+
+// ─── Photos modal ─────────────────────────────────────────────────────────────
+
+function PhotosModal({
+  visible,
+  title,
+  onClose,
+  parentId,
+  parentType,
+}: {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
+  parentId: string;
+  parentType: 'trip' | 'event';
+}) {
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
+
+  useEffect(() => {
+    if (!visible || !parentId) return;
+    let cancelled = false;
+    setLoading(true);
+    setPhotos([]);
+    const fetcher = parentType === 'trip'
+      ? getTripPhotos(parentId)
+      : getEventPhotos(parentId);
+    fetcher
+      .then((data) => {
+        if (cancelled) return;
+        const mapped: PhotoItem[] = (data.photos ?? []).map((ph: any) => ({
+          id: ph.id,
+          uri: ph.uri ?? ph.url ?? ph.fileUrl ?? '',
+          activityId: ph.activityId ?? null,
+          activityTitle: ph.activityTitle ?? null,
+        }));
+        setPhotos(mapped);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [visible, parentId, parentType]);
+
+  // Group: activity photos by activityTitle, then direct photos
+  const activityGroups: Record<string, PhotoItem[]> = {};
+  const directPhotos: PhotoItem[] = [];
+  photos.forEach((ph) => {
+    if (ph.activityId && ph.activityTitle) {
+      if (!activityGroups[ph.activityTitle]) activityGroups[ph.activityTitle] = [];
+      activityGroups[ph.activityTitle].push(ph);
+    } else {
+      directPhotos.push(ph);
+    }
+  });
+
+  const renderThumb = (ph: PhotoItem) => (
+    <TouchableOpacity
+      key={ph.id}
+      onPress={() => setPreviewPhoto(ph)}
+      activeOpacity={0.85}
+      style={styles.thumb}
+    >
+      <Image
+        source={{ uri: ph.uri }}
+        style={styles.thumbImg}
+        resizeMode="cover"
+        onError={() => {}}
+      />
+    </TouchableOpacity>
+  );
+
+  return (
+    <>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <View style={styles.overlay}>
+          <View style={[styles.dialog, { maxHeight: '85%' }]}>
+            {/* Header */}
+            <View style={styles.dialogHeader}>
+              <Text style={styles.dialogTitle}>{title}</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <CloseIcon />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.dialogBody}>
+                {loading && (
+                  <View style={styles.modalLoadingRow}>
+                    <ActivityIndicator color="#0d9488" />
+                  </View>
+                )}
+
+                {!loading && photos.length === 0 && (
+                  <View style={styles.emptyCenter}>
+                    <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
+                      <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
+                      <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
+                      <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                    <Text style={styles.emptyTitle}>No photos yet</Text>
+                    <Text style={styles.emptySub}>No memories captured for this {parentType}.</Text>
+                  </View>
+                )}
+
+                {!loading && photos.length > 0 && (
+                  <View>
+                    {/* Activity groups */}
+                    {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
+                      <View key={actTitle} style={{ marginBottom: 16 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                          <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a' }}>{actTitle}</Text>
+                          <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
+                        </View>
+                        <View style={styles.thumbRow}>
+                          {actPhotos.map(renderThumb)}
+                        </View>
+                      </View>
+                    ))}
+                    {/* Direct photos */}
+                    {directPhotos.length > 0 && (
+                      <View style={{ marginBottom: 8 }}>
+                        {Object.keys(activityGroups).length > 0 && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                            <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a' }}>
+                              {parentType === 'trip' ? 'Trip Photos' : 'Event Photos'}
+                            </Text>
+                            <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
+                          </View>
+                        )}
+                        <View style={styles.thumbRow}>
+                          {directPhotos.map(renderThumb)}
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Full-screen preview */}
+      <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
+        <View style={styles.previewBg}>
+          <TouchableOpacity
+            onPress={() => setPreviewPhoto(null)}
+            style={styles.previewClose}
+            activeOpacity={0.8}
+          >
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+              <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </TouchableOpacity>
+          {previewPhoto && (
+            <Image
+              source={{ uri: previewPhoto.uri }}
+              style={styles.previewImg}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+// ─── Main component ─────────────────────────────────────────────────────────
+
+interface GalleryTabProps {
+  user: any;
+  trips?: any[];           // fallback from HomeScreen
+  onEditProfile: () => void;
+  onNavigateToTrip: (trip: any) => void;
+  onSetActiveTab: (tab: string) => void;
+  onNavigateToEvent?: (event: any) => void;
+}
+
+export default function GalleryTab({
+  user,
+  trips: propTrips = [],
+  onEditProfile,
+  onSetActiveTab,
+}: GalleryTabProps) {
+  const [avatarError, setAvatarError] = useState(false);
+  const [galleryTrips, setGalleryTrips] = useState<any[]>([]);
+  const [galleryEvents, setGalleryEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Photo modal state
+  const [photoModal, setPhotoModal] = useState<{ id: string; name: string; type: 'trip' | 'event' } | null>(null);
+
+  const userId: string = user?.id ?? '';
+  const displayName = user?.fullName ?? '';
+  const handle = user?.username ?? displayName.toLowerCase().replace(/ /g, '_') ?? 'username';
+
+  // Reset avatar error when photo URL changes
   useEffect(() => {
     setAvatarError(false);
   }, [user?.photoUrl]);
 
-  const displayName = user?.fullName || '';
-  const handle = user?.username || displayName.toLowerCase().replace(/ /g, '_') || 'username';
+  // Fetch gallery data when userId is available
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    setLoading(true);
+    getUserGallery(userId)
+      .then((data) => {
+        if (cancelled) return;
+        setGalleryTrips(data.trips ?? []);
+        setGalleryEvents(data.events ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setGalleryTrips(propTrips);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  const displayTrips = galleryTrips.length > 0 ? galleryTrips : propTrips;
 
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.galleryProfile}>
-        <View style={styles.galleryAvatarWrap}>
-          {user?.photoUrl && !avatarError ? (
-            <Image source={{ uri: user.photoUrl }} style={styles.galleryAvatar} onError={() => setAvatarError(true)} />
-          ) : (
-            <View style={[styles.galleryAvatar, styles.galleryAvatarPlaceholder]}>
-              <Text style={styles.galleryAvatarInitial}>{displayName ? displayName[0].toUpperCase() : '?'}</Text>
-            </View>
-          )}
-          <TouchableOpacity style={styles.galleryEditBtn} onPress={onEditProfile} activeOpacity={0.8}>
-            <EditIcon />
-          </TouchableOpacity>
-        </View>
-        {displayName ? <Text style={styles.galleryName}>{displayName}</Text> : null}
-        {displayName ? <Text style={styles.galleryHandle}>@{handle}</Text> : null}
-        {user?.country ? (
-          <View style={styles.galleryLocationRow}>
-            <PinIcon color="#0d9488" size={14} />
-            <Text style={styles.galleryLocationText}>{user.country}</Text>
-          </View>
-        ) : null}
-        {user?.bio ? <Text style={styles.galleryBio}>{user.bio}</Text> : null}
-      </View>
+    <>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-      <View style={styles.gallerySectionHeader}>
-        <Text style={styles.gallerySectionTitle}>Gallery of Trips</Text>
-        <TouchableOpacity onPress={() => onSetActiveTab('trips')}>
-          <PlusIcon color="#0d9488" size={18} />
-        </TouchableOpacity>
-      </View>
-      <View style={styles.galleryGrid}>
-        {trips.map((trip: any) => (
-          <TouchableOpacity key={trip.id} style={styles.galleryGridCard} onPress={() => onNavigateToTrip(trip)} activeOpacity={0.85}>
-            <Image source={trip.image} style={styles.galleryGridImage} resizeMode="cover" />
-            <View style={styles.galleryGridOverlay}>
-              <Text style={styles.galleryGridText} numberOfLines={1}>{trip.name}</Text>
+        {/* ── Profile card ── */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatarWrap}>
+            {user?.photoUrl && !avatarError ? (
+              <Image
+                source={{ uri: user.photoUrl }}
+                style={styles.avatar}
+                onError={() => setAvatarError(true)}
+              />
+            ) : (
+              <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                <Text style={styles.avatarInitial}>{displayName ? displayName[0].toUpperCase() : '?'}</Text>
+              </View>
+            )}
+            <TouchableOpacity style={styles.editBtn} onPress={onEditProfile} activeOpacity={0.8}>
+              <EditIcon />
+            </TouchableOpacity>
+          </View>
+
+          {displayName ? <Text style={styles.name}>{displayName}</Text> : null}
+          {handle ? <Text style={styles.handle}>@{handle}</Text> : null}
+          {user?.country ? (
+            <View style={styles.locationRow}>
+              <PinIcon color="#0d9488" size={14} />
+              <Text style={styles.locationText}>{user.country}</Text>
             </View>
-          </TouchableOpacity>
-        ))}
-        {trips.length === 0 && (
-          <View style={styles.galleryEmptyCard}>
-            <PlusIcon color="#cbd5e1" size={28} />
-            <Text style={styles.galleryEmptyText}>Add Trip</Text>
+          ) : null}
+          {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
+        </View>
+
+        {/* ── Loading spinner ── */}
+        {loading && (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color="#0d9488" />
           </View>
         )}
-      </View>
-    </ScrollView>
+
+        {/* ── Gallery of Trips ── */}
+        <SectionHeader
+          title="Gallery of Trips"
+          count={displayTrips.length}
+          onAdd={() => onSetActiveTab('trips')}
+        />
+        <View style={styles.grid}>
+          {displayTrips.length > 0
+            ? displayTrips.map((trip: any) => (
+                <GridCard
+                  key={trip.id}
+                  item={trip}
+                  onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip' })}
+                />
+              ))
+            : !loading && <EmptyCard label="No past trips yet" />
+          }
+        </View>
+
+        {/* ── Gallery of Events ── */}
+        <View style={styles.sectionSpacer} />
+        <SectionHeader
+          title="Gallery of Events"
+          count={galleryEvents.length}
+          onAdd={() => onSetActiveTab('events')}
+        />
+        <View style={styles.grid}>
+          {galleryEvents.length > 0
+            ? galleryEvents.map((ev: any) => (
+                <GridCard
+                  key={ev.id}
+                  item={ev}
+                  onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event' })}
+                />
+              ))
+            : !loading && <EmptyCard label="No past events yet" />
+          }
+        </View>
+
+      </ScrollView>
+
+      {/* ── Photos modal (outside ScrollView so it renders above) ── */}
+      {photoModal && (
+        <PhotosModal
+          visible
+          title={photoModal.name}
+          parentId={photoModal.id}
+          parentType={photoModal.type}
+          onClose={() => setPhotoModal(null)}
+        />
+      )}
+    </>
   );
 }
 
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 4 },
-  galleryProfile: { alignItems: 'center', marginTop: 8, marginBottom: 24 },
-  galleryAvatarWrap: { position: 'relative', marginBottom: 12 },
-  galleryAvatar: { width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: '#0d9488' },
-  galleryAvatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
-  galleryAvatarInitial: { fontSize: 36, fontWeight: '700', color: '#0d9488' },
-  galleryEditBtn: { position: 'absolute', bottom: 2, right: -4, width: 28, height: 28, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
-  galleryName: { fontSize: 20, fontWeight: '700', color: '#0f172a' },
-  galleryHandle: { fontSize: 13, color: '#0d9488', fontWeight: '500', marginTop: 2 },
-  galleryLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  galleryLocationText: { fontSize: 13, color: '#64748b' },
-  galleryBio: { fontSize: 14, color: '#334155', textAlign: 'center', marginTop: 8, paddingHorizontal: 20, lineHeight: 20 },
-  gallerySectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  gallerySectionTitle: { fontSize: 17, fontWeight: '700', color: '#1e293b' },
-  galleryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  galleryGridCard: { width: (SCREEN_W - 52) / 2, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: '#f1f5f9' },
-  galleryGridImage: { width: '100%', height: '100%' },
-  galleryGridOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.4)', padding: 8 },
-  galleryGridText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  galleryEmptyCard: { width: (SCREEN_W - 52) / 2, height: 140, borderRadius: 14, borderWidth: 2, borderColor: '#e2e8f0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  galleryEmptyText: { fontSize: 12, color: '#cbd5e1', fontWeight: '500' },
-});
 
-export default GalleryTab;
+  profileCard: { alignItems: 'center', marginTop: 8, marginBottom: 24 },
+  avatarWrap: { position: 'relative', marginBottom: 12 },
+  avatar: { width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: '#0d9488' },
+  avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { fontSize: 36, fontWeight: '700', color: '#0d9488' },
+  editBtn: {
+    position: 'absolute', bottom: 2, right: -4,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1, shadowRadius: 4, elevation: 2,
+  },
+  name: { fontSize: 20, fontWeight: '700', color: '#0f172a' },
+  handle: { fontSize: 13, color: '#0d9488', fontWeight: '500', marginTop: 2 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  locationText: { fontSize: 13, color: '#64748b' },
+  bio: { fontSize: 14, color: '#334155', textAlign: 'center', marginTop: 8, paddingHorizontal: 20, lineHeight: 20 },
+
+  loadingRow: { alignItems: 'center', marginBottom: 12 },
+
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#1e293b' },
+  countBadge: {
+    backgroundColor: '#f0fdfa', borderRadius: 10,
+    paddingHorizontal: 7, paddingVertical: 2,
+    borderWidth: 1, borderColor: '#ccfbf1',
+  },
+  countBadgeText: { fontSize: 12, fontWeight: '700', color: '#0d9488' },
+
+  sectionSpacer: { height: 24 },
+
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+
+  gridCard: { width: CARD_W, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: '#f1f5f9' },
+  gridCardImage: { width: '100%', height: '100%' },
+  gridCardPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
+  gridCardOverlay: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)', padding: 8,
+  },
+  gridCardText: { color: '#fff', fontSize: 12, fontWeight: '600', lineHeight: 16 },
+  gridCardPhotoCount: { color: 'rgba(255,255,255,0.75)', fontSize: 10, marginTop: 2 },
+
+  emptyCard: {
+    width: CARD_W, height: 140, borderRadius: 14,
+    borderWidth: 2, borderColor: '#e2e8f0', borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: '#fafafa',
+  },
+  emptyCardText: { fontSize: 12, color: '#cbd5e1', fontWeight: '500' },
+
+  // Modal
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  dialog: { width: '100%', backgroundColor: '#fff', borderRadius: 20, overflow: 'hidden' },
+  dialogHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 16,
+    borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+  },
+  dialogTitle: { fontSize: 17, fontWeight: '700', color: '#0f172a' },
+  dialogBody: { padding: 16 },
+
+  modalLoadingRow: { alignItems: 'center', paddingVertical: 32 },
+
+  emptyCenter: { alignItems: 'center', paddingVertical: 32, gap: 8 },
+  emptyTitle: { fontSize: 15, fontWeight: '600', color: '#334155' },
+  emptySub: { fontSize: 13, color: '#94a3b8', textAlign: 'center' },
+
+  thumbRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  thumb: { width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' },
+  thumbImg: { width: 80, height: 80, borderRadius: 8 },
+
+  // Full-screen preview
+  previewBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' },
+  previewClose: {
+    position: 'absolute', top: 48, left: 20, zIndex: 10,
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  previewImg: { width: SCREEN_W, height: SCREEN_W * 1.2 },
+});

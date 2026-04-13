@@ -947,7 +947,19 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
         </ScrollView>
 
-        <SweeFab onPress={() => navigation.navigate('ChatDetail', { chat: { id: 'swee', name: 'Swee', isSwee: true, subtitle: 'Always active · AI Assistant', lastMessage: "Hi! I'm Swee.", time: 'Now', unread: 0 } })} fabStyle={{ bottom: 78 }} />
+        <SweeFab
+          onPress={() => navigation.navigate('ChatDetail', {
+            chat: { id: 'swee', name: 'Swee', isSwee: true, subtitle: 'Always active · AI Assistant' },
+            tripContext: {
+              name: event?.name,
+              destination: typeof event?.location === 'string' ? event.location : '',
+              startDate: event?.dateLine ?? undefined,
+              memberCount: members?.length,
+              contextType: 'event',
+            },
+          })}
+          fabStyle={{ bottom: 78 }}
+        />
 
         <FloatingTabBar activeTab="events" navigation={navigation} />
 

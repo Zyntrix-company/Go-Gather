@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,124 +9,249 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
+import useAuthStore from '../../store/authStore';
+import {
+  sendMessageStream,
+  reportMessage,
+  clearConversation,
+  type ConversationMessage,
+  type TripContext,
+} from '../../api/ai.api';
 
-const SWEE_RESPONSES = [
-  "That sounds like a great adventure! I can help you plan itineraries, find local tips, and manage group expenses.",
-  "I recommend visiting during the shoulder season for the best experience and fewer crowds.",
-  "For group trips, splitting costs early avoids awkwardness later. Use the Expenses tab to track everything!",
-  "Don't forget to check visa requirements and travel insurance before booking flights.",
-  "Goa is beautiful in winter (November–February). The beaches are perfect and the weather is ideal.",
-  "I can suggest hidden gems and local restaurants if you tell me more about your travel style!",
-  "Pro tip: Book accommodation at least 2 months in advance for peak season travel.",
-];
+// ─── Types ─────────────────────────────────────────────────────────────────
 
 type Message = {
   id: string;
   text: string;
-  sender: 'user' | 'swee' | 'other';
-  senderName?: string;
+  sender: 'user' | 'swee';
   time: string;
+  streaming?: boolean;
 };
 
-const INITIAL_MESSAGES_SWEE: Message[] = [
-  { id: 'm1', text: 'Hey! I\'m Swee, your AI travel companion. Ask me anything about planning your trip! ✈️', sender: 'swee', time: '10:00 AM' },
-  { id: 'm2', text: 'How do I plan a group trip to Goa?', sender: 'user', time: '10:02 AM' },
-  { id: 'm3', text: 'Great choice! Goa is perfect for group trips. Start by deciding on dates, then use GatherGo to invite friends, plan the itinerary, and track shared expenses. Want me to suggest a 5-day itinerary?', sender: 'swee', time: '10:02 AM' },
-];
+// ─── Welcome message ───────────────────────────────────────────────────────
 
-const INITIAL_MESSAGES_GROUP: Message[] = [
-  { id: 'm1', text: 'Hey everyone! Super excited for Goa 🎉', sender: 'other', senderName: 'Alex', time: '9:00 AM' },
-  { id: 'm2', text: 'Me too! Can\'t wait 🏖️', sender: 'other', senderName: 'Sam', time: '9:01 AM' },
-  { id: 'm3', text: 'Should we book the hotel now or wait?', sender: 'user', time: '9:05 AM' },
-  { id: 'm4', text: 'I say book now — prices are going up!', sender: 'other', senderName: 'Priya', time: '9:06 AM' },
-];
+const WELCOME_MESSAGE: Message = {
+  id: 'welcome',
+  text: "Hi! I'm Swee, your travel assistant. How can I help you plan your next adventure?",
+  sender: 'swee',
+  time: formatTime(),
+};
 
 function formatTime() {
   const now = new Date();
   return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 }
 
-function getSweeResponse() {
-  return SWEE_RESPONSES[Math.floor(Math.random() * SWEE_RESPONSES.length)];
+// ─── Build history for API ─────────────────────────────────────────────────
+
+function toApiHistory(messages: Message[]): ConversationMessage[] {
+  return messages
+    .filter((m) => m.id !== 'welcome' && !m.streaming)
+    .map((m) => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }));
 }
 
+// ─── Icons ─────────────────────────────────────────────────────────────────
+
+const BackIcon = () => (
+  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    <Path d="M19 12H5M12 19l-7-7 7-7" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+const SparkleIcon = ({ size = 16, color = '#fff' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M9.937 15.5A2 2 0 008.5 14.063l-6.135-1.582a.5.5 0 010-.962L8.5 9.937A2 2 0 009.937 8.5l1.582-6.135a.5.5 0 01.963 0L14.063 8.5A2 2 0 0015.5 9.937l6.135 1.582a.5.5 0 010 .963L15.5 14.063A2 2 0 0014.063 15.5l-1.582 6.135a.5.5 0 01-.963 0z"
+      stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+const DotsIcon = () => (
+  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+    <Path d="M12 13a1 1 0 100-2 1 1 0 000 2zM19 13a1 1 0 100-2 1 1 0 000 2zM5 13a1 1 0 100-2 1 1 0 000 2z" fill="#64748b" />
+  </Svg>
+);
+
+const SendIcon = () => (
+  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+    <Path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+const AttachIcon = () => (
+  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+    <Path d="M12 5v14M5 12h14" stroke="#0d9488" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+const CloseIcon = ({ size = 20 }: { size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path d="M18 6L6 18M6 6l12 12" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+// ─── Main Screen ───────────────────────────────────────────────────────────
+
 export default function ChatDetailScreen({ route, navigation }: any) {
+  const rawUser = useAuthStore((s) => s.user) as any;
+  const userId: string = rawUser?.id ?? '';
+
   const chat = route?.params?.chat ?? {
     id: 'swee',
-    name: 'Swee AI',
+    name: 'Swee',
     isSwee: true,
-    subtitle: 'Your AI travel companion',
+    subtitle: 'Always active · AI Assistant',
   };
-
   const isSwee = chat.isSwee ?? chat.id === 'swee';
-  const isGroup = chat.isGroup ?? false;
 
-  const [messages, setMessages] = useState<Message[]>(
-    isSwee ? INITIAL_MESSAGES_SWEE : INITIAL_MESSAGES_GROUP
+  // Trip/event context passed from TripDetailScreen or EventDetailScreen via SweeFab
+  const [tripContext, setTripContext] = useState<TripContext | null>(
+    route?.params?.tripContext ?? null,
   );
+
+  const [messages, setMessages] = useState<Message[]>([{ ...WELCOME_MESSAGE }]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
+  const [showOverflow, setShowOverflow] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportingMessageId, setReportingMessageId] = useState<string | null>(null);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reportSent, setReportSent] = useState(false);
 
+  const flatListRef = useRef<FlatList>(null);
+  const abortRef = useRef<(() => void) | null>(null);
+
+  // Scroll to bottom whenever messages change
   useEffect(() => {
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+  }, [messages]);
+
+  // Cleanup streaming on unmount
+  useEffect(() => {
+    return () => {
+      abortRef.current?.();
+    };
   }, []);
 
-  function sendMessage() {
+  const sendMessage = useCallback(() => {
     const text = inputText.trim();
-    if (!text) return;
+    if (!text || isTyping) return;
 
     const userMsg: Message = {
-      id: `m${Date.now()}`,
+      id: `u_${Date.now()}`,
       text,
       sender: 'user',
       time: formatTime(),
     };
 
-    setMessages(prev => [...prev, userMsg]);
-    setInputText('');
+    const streamingMsgId = `s_${Date.now() + 1}`;
+    const streamingMsg: Message = {
+      id: streamingMsgId,
+      text: '',
+      sender: 'swee',
+      time: formatTime(),
+      streaming: true,
+    };
 
-    if (isSwee) {
-      setIsTyping(true);
-      setTimeout(() => {
-        const sweeMsg: Message = {
-          id: `m${Date.now() + 1}`,
-          text: getSweeResponse(),
-          sender: 'swee',
-          time: formatTime(),
-        };
-        setMessages(prev => [...prev, sweeMsg]);
+    setMessages((prev) => [...prev, userMsg, streamingMsg]);
+    setInputText('');
+    setIsTyping(true);
+
+    const history = toApiHistory([...messages, userMsg]);
+
+    abortRef.current = sendMessageStream(
+      text,
+      history,
+      tripContext,
+      (delta) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === streamingMsgId ? { ...m, text: m.text + delta } : m,
+          ),
+        );
+      },
+      () => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === streamingMsgId ? { ...m, streaming: false } : m,
+          ),
+        );
         setIsTyping(false);
-      }, 1200);
+        abortRef.current = null;
+      },
+      (err) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === streamingMsgId
+              ? { ...m, text: `Sorry, something went wrong. ${err}`, streaming: false }
+              : m,
+          ),
+        );
+        setIsTyping(false);
+        abortRef.current = null;
+      },
+    );
+  }, [inputText, isTyping, messages, tripContext]);
+
+  const handleClearConversation = useCallback(async () => {
+    abortRef.current?.();
+    abortRef.current = null;
+    setShowOverflow(false);
+    setIsTyping(false);
+    setMessages([{ ...WELCOME_MESSAGE, time: formatTime() }]);
+    try {
+      await clearConversation(userId);
+    } catch (_) { /* silent — client already cleared */ }
+  }, [userId]);
+
+  const openReportModal = useCallback(() => {
+    const lastSweeMsg = [...messages].reverse().find((m) => m.sender === 'swee');
+    setReportingMessageId(lastSweeMsg?.id ?? null);
+    setReportReason('');
+    setReportSent(false);
+    setShowOverflow(false);
+    setShowReportModal(true);
+  }, [messages]);
+
+  const submitReport = useCallback(async () => {
+    if (!reportReason.trim()) return;
+    setIsSubmittingReport(true);
+    try {
+      await reportMessage(reportingMessageId ?? '', reportReason.trim());
+      setReportSent(true);
+    } catch (_) {
+      setReportSent(true); // still close gracefully
+    } finally {
+      setIsSubmittingReport(false);
     }
-  }
+  }, [reportReason, reportingMessageId]);
 
   function renderMessage({ item }: { item: Message }) {
     const isUser = item.sender === 'user';
-    const isSweeMsg = item.sender === 'swee';
-
     return (
       <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowOther]}>
         {!isUser && (
-          <View style={[styles.msgAvatar, isSweeMsg ? styles.msgAvatarSwee : styles.msgAvatarOther]}>
-            {isSweeMsg ? (
-              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                <Path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#fff" />
-              </Svg>
-            ) : (
-              <Text style={styles.msgAvatarText}>{item.senderName?.[0] ?? '?'}</Text>
-            )}
+          <View style={styles.msgAvatarSwee}>
+            <SparkleIcon size={14} color="#fff" />
           </View>
         )}
-        <View style={[styles.msgBubble, isUser ? styles.msgBubbleUser : (isSweeMsg ? styles.msgBubbleSwee : styles.msgBubbleOther)]}>
-          {!isUser && isGroup && item.senderName && (
-            <Text style={styles.msgSenderName}>{item.senderName}</Text>
+        <View style={[styles.msgBubble, isUser ? styles.msgBubbleUser : styles.msgBubbleSwee]}>
+          <Text style={[styles.msgText, isUser && styles.msgTextUser]}>
+            {item.text}
+            {item.streaming && <Text style={styles.cursor}>▌</Text>}
+          </Text>
+          {!item.streaming && (
+            <Text style={[styles.msgTime, isUser && styles.msgTimeUser]}>{item.time}</Text>
           )}
-          <Text style={[styles.msgText, isUser && styles.msgTextUser]}>{item.text}</Text>
-          <Text style={[styles.msgTime, isUser && styles.msgTimeUser]}>{item.time}</Text>
         </View>
       </View>
     );
@@ -135,158 +260,350 @@ export default function ChatDetailScreen({ route, navigation }: any) {
   return (
     <BlobBackground>
       <SafeAreaView style={styles.container}>
-        {/* Header */}
+
+        {/* ── Header ── */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-              <Path d="M19 12H5M12 19l-7-7 7-7" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn} activeOpacity={0.7}>
+            <BackIcon />
           </TouchableOpacity>
 
-          <View style={[styles.headerAvatar, isSwee ? styles.headerAvatarSwee : styles.headerAvatarOther]}>
-            {isSwee ? (
-              <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-                <Path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#fff" />
-              </Svg>
-            ) : (
-              <Text style={styles.headerAvatarText}>{chat.name[0]}</Text>
-            )}
+          <View style={styles.headerAvatarSwee}>
+            <SparkleIcon size={20} color="#fff" />
           </View>
 
           <View style={styles.headerInfo}>
             <Text style={styles.headerName}>{chat.name}</Text>
             <Text style={styles.headerSubtitle}>
-              {isTyping ? 'typing...' : (chat.subtitle ?? (isGroup ? `${INITIAL_MESSAGES_GROUP.length} members` : 'Online'))}
+              {isTyping ? 'typing...' : 'Always active · AI Assistant'}
             </Text>
           </View>
+
+          {/* + context button */}
+          {isSwee && (
+            <TouchableOpacity
+              style={[styles.iconBtn, tripContext && styles.contextBtnActive]}
+              onPress={() => {
+                // If context already set, clear it; otherwise open would need a trip list sheet
+                // For now: tap to clear the context
+                if (tripContext) setTripContext(null);
+              }}
+              activeOpacity={0.7}
+            >
+              {tripContext ? (
+                <View style={styles.contextPill}>
+                  <Text style={styles.contextPillText} numberOfLines={1}>
+                    {tripContext.name?.substring(0, 12) ?? 'Trip'}
+                  </Text>
+                  <CloseIcon size={12} />
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          )}
+
+          {/* Overflow menu */}
+          {isSwee && (
+            <TouchableOpacity style={styles.iconBtn} onPress={() => setShowOverflow(true)} activeOpacity={0.7}>
+              <DotsIcon />
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Messages */}
+        {/* ── Context banner (when trip is attached) ── */}
+        {tripContext && (
+          <View style={styles.contextBanner}>
+            <SparkleIcon size={13} color="#0d9488" />
+            <Text style={styles.contextBannerText} numberOfLines={1}>
+              Context: {tripContext.name}
+              {tripContext.destination ? ` · ${tripContext.destination}` : ''}
+            </Text>
+            <TouchableOpacity onPress={() => setTripContext(null)}>
+              <CloseIcon size={14} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── Messages ── */}
         <FlatList
           ref={flatListRef}
           data={messages}
-          keyExtractor={item => item.id}
+          keyExtractor={(item) => item.id}
           renderItem={renderMessage}
           contentContainerStyle={styles.messageList}
           showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         />
 
-        {/* Typing Indicator */}
-        {isTyping && (
+        {/* ── Typing indicator ── */}
+        {isTyping && messages[messages.length - 1]?.text === '' && (
           <View style={styles.typingRow}>
             <View style={styles.typingBubble}>
+              <ActivityIndicator size="small" color="#0d9488" />
               <Text style={styles.typingText}>Swee is typing...</Text>
             </View>
           </View>
         )}
 
-        {/* Input */}
+        {/* ── Input bar ── */}
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.inputRow}>
             <TextInput
               style={styles.input}
-              placeholder={isSwee ? 'Ask Swee anything...' : 'Type a message...'}
+              placeholder="Ask Swee anything..."
               placeholderTextColor="#94a3b8"
               value={inputText}
               onChangeText={setInputText}
               multiline
-              maxLength={500}
+              maxLength={1000}
               selectionColor="#0d9488"
+              editable={!isTyping}
             />
             <TouchableOpacity
-              style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
+              style={[styles.sendBtn, (!inputText.trim() || isTyping) && styles.sendBtnDisabled]}
               onPress={sendMessage}
-              disabled={!inputText.trim()}
-              activeOpacity={0.8}>
-              <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-                <Path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-              </Svg>
+              disabled={!inputText.trim() || isTyping}
+              activeOpacity={0.8}
+            >
+              <SendIcon />
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+
       </SafeAreaView>
+
+      {/* ── Overflow Menu Modal ── */}
+      <Modal visible={showOverflow} transparent animationType="fade" onRequestClose={() => setShowOverflow(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowOverflow(false)}>
+          <View style={styles.overflowMenu}>
+            <TouchableOpacity style={styles.overflowItem} onPress={handleClearConversation} activeOpacity={0.8}>
+              <Text style={styles.overflowItemText}>Clear conversation</Text>
+            </TouchableOpacity>
+            <View style={styles.overflowDivider} />
+            <TouchableOpacity style={styles.overflowItem} onPress={openReportModal} activeOpacity={0.8}>
+              <Text style={[styles.overflowItemText, { color: '#ef4444' }]}>Report issue</Text>
+            </TouchableOpacity>
+            <View style={styles.overflowDivider} />
+            <TouchableOpacity style={styles.overflowItem} onPress={() => { setShowOverflow(false); setShowAboutModal(true); }} activeOpacity={0.8}>
+              <Text style={styles.overflowItemText}>About Swee</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Report Issue Modal ── */}
+      <Modal visible={showReportModal} transparent animationType="slide" onRequestClose={() => setShowReportModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.reportModal}>
+            <View style={styles.reportHeader}>
+              <Text style={styles.reportTitle}>Report an issue</Text>
+              <TouchableOpacity onPress={() => setShowReportModal(false)}>
+                <CloseIcon size={20} />
+              </TouchableOpacity>
+            </View>
+
+            {reportSent ? (
+              <View style={styles.reportSent}>
+                <Text style={styles.reportSentText}>Thank you! Your report has been submitted.</Text>
+                <TouchableOpacity style={styles.reportBtn} onPress={() => setShowReportModal(false)}>
+                  <Text style={styles.reportBtnText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.reportLabel}>What went wrong?</Text>
+                <TextInput
+                  style={styles.reportInput}
+                  placeholder="Describe the issue with Swee's response..."
+                  placeholderTextColor="#94a3b8"
+                  value={reportReason}
+                  onChangeText={setReportReason}
+                  multiline
+                  maxLength={500}
+                  selectionColor="#0d9488"
+                />
+                <TouchableOpacity
+                  style={[styles.reportBtn, (!reportReason.trim() || isSubmittingReport) && styles.reportBtnDisabled]}
+                  onPress={submitReport}
+                  disabled={!reportReason.trim() || isSubmittingReport}
+                  activeOpacity={0.8}
+                >
+                  {isSubmittingReport
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={styles.reportBtnText}>Submit report</Text>
+                  }
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── About Swee Modal ── */}
+      <Modal visible={showAboutModal} transparent animationType="slide" onRequestClose={() => setShowAboutModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.aboutModal}>
+            <View style={styles.reportHeader}>
+              <Text style={styles.reportTitle}>About Swee</Text>
+              <TouchableOpacity onPress={() => setShowAboutModal(false)}>
+                <CloseIcon size={20} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.aboutAvatarRow}>
+              <View style={styles.aboutAvatar}>
+                <SparkleIcon size={28} color="#fff" />
+              </View>
+            </View>
+            <Text style={styles.aboutText}>
+              Swee is your AI-powered travel assistant, built into GatherGo to help you plan
+              better group trips. She can suggest itineraries, recommend restaurants, answer
+              visa questions, help with packing lists, and much more.{'\n\n'}
+              Swee is powered by OpenAI GPT-4o and gets smarter when you attach a trip or event
+              context to the conversation.
+            </Text>
+            <Text style={styles.aboutDisclaimer}>
+              Swee may occasionally make mistakes. Always verify critical travel information
+              from official sources.
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
     </BlobBackground>
   );
 }
 
+// ─── Styles ────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    gap: 8,
   },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  headerAvatarSwee: { backgroundColor: '#0d9488' },
-  headerAvatarOther: { backgroundColor: '#6366f1' },
-  headerAvatarText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  contextBtnActive: {},
+  headerAvatarSwee: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center',
+  },
   headerInfo: { flex: 1 },
-  headerName: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
-  headerSubtitle: { fontSize: 12, color: '#64748b', marginTop: 1 },
+  headerName: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  headerSubtitle: { fontSize: 11, color: '#64748b', marginTop: 1 },
+
+  contextPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#f0fdfa', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4,
+    borderWidth: 1, borderColor: '#ccfbf1',
+  },
+  contextPillText: { fontSize: 11, color: '#0d9488', fontWeight: '600', maxWidth: 80 },
+
+  contextBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#f0fdfa', paddingHorizontal: 16, paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: '#ccfbf1',
+  },
+  contextBannerText: { flex: 1, fontSize: 12, color: '#0d9488', fontWeight: '500' },
 
   messageList: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 8, gap: 12 },
 
-  msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 4 },
+  msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 2 },
   msgRowUser: { flexDirection: 'row-reverse' },
   msgRowOther: {},
 
-  msgAvatar: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  msgAvatarSwee: { backgroundColor: '#0d9488' },
-  msgAvatarOther: { backgroundColor: '#6366f1' },
-  msgAvatarText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-
-  msgBubble: { maxWidth: '75%', borderRadius: 16, padding: 10, paddingHorizontal: 13 },
+  msgAvatarSwee: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  msgBubble: { maxWidth: '78%', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 13 },
   msgBubbleUser: { backgroundColor: '#0d9488', borderBottomRightRadius: 4 },
-  msgBubbleSwee: { backgroundColor: '#f0fdfa', borderBottomLeftRadius: 4, borderWidth: 1, borderColor: '#ccfbf1' },
-  msgBubbleOther: { backgroundColor: '#f8fafc', borderBottomLeftRadius: 4, borderWidth: 1, borderColor: '#e2e8f0' },
+  msgBubbleSwee: {
+    backgroundColor: '#f0fdfa', borderBottomLeftRadius: 4,
+    borderWidth: 1, borderColor: '#ccfbf1',
+  },
 
-  msgSenderName: { fontSize: 11, fontWeight: '700', color: '#6366f1', marginBottom: 3 },
-  msgText: { fontSize: 14, color: '#0f172a', lineHeight: 20 },
+  msgText: { fontSize: 14, color: '#0f172a', lineHeight: 21 },
   msgTextUser: { color: '#ffffff' },
+  cursor: { color: '#0d9488', fontWeight: '300' },
   msgTime: { fontSize: 10, color: '#94a3b8', marginTop: 4, textAlign: 'right' },
-  msgTimeUser: { color: 'rgba(255,255,255,0.7)' },
+  msgTimeUser: { color: 'rgba(255,255,255,0.65)' },
 
   typingRow: { paddingHorizontal: 16, paddingBottom: 4 },
-  typingBubble: { backgroundColor: '#f0fdfa', borderRadius: 12, paddingVertical: 6, paddingHorizontal: 12, alignSelf: 'flex-start', borderWidth: 1, borderColor: '#ccfbf1' },
+  typingBubble: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#f0fdfa', borderRadius: 12,
+    paddingVertical: 7, paddingHorizontal: 12,
+    alignSelf: 'flex-start', borderWidth: 1, borderColor: '#ccfbf1',
+  },
   typingText: { fontSize: 12, color: '#0d9488', fontStyle: 'italic' },
 
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    gap: 10,
+    flexDirection: 'row', alignItems: 'flex-end',
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderTopWidth: 1, borderTopColor: '#f1f5f9',
+    backgroundColor: 'rgba(255,255,255,0.95)', gap: 10,
   },
   input: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    borderRadius: 22,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#0f172a',
-    maxHeight: 100,
-    selectionColor: '#0d9488',
+    flex: 1, backgroundColor: '#f8fafc',
+    borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 22,
+    paddingHorizontal: 16, paddingVertical: 10,
+    fontSize: 14, color: '#0f172a', maxHeight: 100,
   },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#0d9488',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: '#cbd5e1' },
+
+  // Modals
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
+
+  overflowMenu: {
+    position: 'absolute', top: 60, right: 12,
+    backgroundColor: '#fff', borderRadius: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12, shadowRadius: 12, elevation: 8,
+    minWidth: 190, overflow: 'hidden',
+  },
+  overflowItem: { paddingVertical: 14, paddingHorizontal: 18 },
+  overflowItemText: { fontSize: 14, color: '#0f172a', fontWeight: '500' },
+  overflowDivider: { height: 1, backgroundColor: '#f1f5f9' },
+
+  reportModal: {
+    backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 24, paddingBottom: 40,
+  },
+  reportHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  reportTitle: { fontSize: 17, fontWeight: '700', color: '#0f172a' },
+  reportLabel: { fontSize: 14, color: '#475569', marginBottom: 10 },
+  reportInput: {
+    backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0',
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 14, color: '#0f172a', minHeight: 100, textAlignVertical: 'top',
+    marginBottom: 16,
+  },
+  reportBtn: {
+    backgroundColor: '#0d9488', borderRadius: 12,
+    paddingVertical: 14, alignItems: 'center',
+  },
+  reportBtnDisabled: { backgroundColor: '#cbd5e1' },
+  reportBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  reportSent: { alignItems: 'center', paddingVertical: 16, gap: 16 },
+  reportSentText: { fontSize: 15, color: '#0f172a', textAlign: 'center', lineHeight: 22 },
+
+  aboutModal: {
+    backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 24, paddingBottom: 40,
+  },
+  aboutAvatarRow: { alignItems: 'center', marginVertical: 16 },
+  aboutAvatar: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center',
+  },
+  aboutText: { fontSize: 14, color: '#334155', lineHeight: 22, marginBottom: 12 },
+  aboutDisclaimer: { fontSize: 12, color: '#94a3b8', lineHeight: 18, fontStyle: 'italic' },
 });
