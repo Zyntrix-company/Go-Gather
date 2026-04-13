@@ -29,6 +29,10 @@ import {
 import Toast from 'react-native-toast-message';
 import TripsScreen from '../trips/TripsScreen';
 import EventsScreen from '../events/EventsScreen';
+import FriendsTab, { MOCK_FRIENDS } from './FriendsTab';
+import ChatTab, { SWEE_CHAT } from './ChatTab';
+import GalleryTab from './GalleryTab';
+import ProfileDropdown from './ProfileDropdown';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const INSIGHT_IMG_H = SCREEN_H < 700 ? 140 : SCREEN_H < 800 ? 160 : 192;
@@ -92,18 +96,6 @@ const MOCK_TRIPS: Trip[] = [
     extraMembers: 0,
   },
 ];
-
-
-const MOCK_FRIENDS = [
-  { id: '1', name: 'Alex Johnson', handle: '@alexj', initials: 'AJ', color: '#6366f1', mutualTrips: 2 },
-  { id: '2', name: 'Sam Patel', handle: '@sampatel', initials: 'SP', color: '#f59e0b', mutualTrips: 1 },
-  { id: '3', name: 'Priya Singh', handle: '@priyas', initials: 'PS', color: '#10b981', mutualTrips: 3 },
-  { id: '4', name: 'Jordan Lee', handle: '@jordanl', initials: 'JL', color: '#ec4899', mutualTrips: 1 },
-  { id: '5', name: 'Marcus Wei', handle: '@marcusw', initials: 'MW', color: '#8b5cf6', mutualTrips: 0 },
-];
-
-// Only Swee AI — no friend/group chats
-const SWEE_CHAT = { id: 'swee', name: 'Swee', subtitle: 'Always active · AI Assistant', isSwee: true, lastMessage: "Hi! I'm Swee, your travel assistant. How can I help plan your next adventure?", time: 'Now', unread: 0 };
 
 const TRAVEL_INSIGHTS = [
   {
@@ -177,12 +169,6 @@ const CalendarIcon = ({ color = '#94a3b8', size = 13 }) => (
 );
 
 
-const PlusIcon = ({ color = '#fff', size = 18 }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path d="M12 5v14M5 12h14" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
 const MoreIcon = ({ color = '#fff' }) => (
   <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
     <Circle cx={12} cy={5} r={1.5} fill={color} />
@@ -200,29 +186,13 @@ const PlaneIcon = ({ color = '#0d9488', size = 44 }) => (
   </Svg>
 );
 
-const UserMenuIcon = () => (
-  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-    <Path d="M16 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-const SettingsIcon = () => (
-  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-    <Path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-    <Path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-const LogoutIcon = () => (
-  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-    <Path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="#ef4444" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-const EditIcon = () => (
-  <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
-    <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-    <Path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+const SparklesIcon = ({ size = 24, color = '#fff' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M9.937 15.5A2 2 0 008.5 14.063l-6.135-1.582a.5.5 0 010-.962L8.5 9.937A2 2 0 009.937 8.5l1.582-6.135a.5.5 0 01.963 0L14.063 8.5A2 2 0 0015.5 9.937l6.135 1.582a.5.5 0 010 .963L15.5 14.063A2 2 0 0014.063 15.5l-1.582 6.135a.5.5 0 01-.963 0z"
+      stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
+    />
+    <Path d="M20 3v4M22 5h-4M4 17v2M5 18H3" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 
@@ -469,18 +439,6 @@ function mapApiTrip(t: any): Trip {
 }
 
 
-
-// ─── Sparkles Icon (matches Figma Sparkles / lucide) ─────────────────────────
-
-const SparklesIcon = ({ size = 24, color = '#fff' }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M9.937 15.5A2 2 0 008.5 14.063l-6.135-1.582a.5.5 0 010-.962L8.5 9.937A2 2 0 009.937 8.5l1.582-6.135a.5.5 0 01.963 0L14.063 8.5A2 2 0 0015.5 9.937l6.135 1.582a.5.5 0 010 .963L15.5 14.063A2 2 0 0014.063 15.5l-1.582 6.135a.5.5 0 01-.963 0z"
-      stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
-    />
-    <Path d="M20 3v4M22 5h-4M4 17v2M5 18H3" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
 
 // ─── Draggable Swee FAB ───────────────────────────────────────────────────────
 
@@ -807,166 +765,6 @@ export default function HomeScreen({ navigation, route }: any) {
     </ScrollView>
   );
 
-  // ─── FRIENDS TAB ───────────────────────────────────────────────────────────
-
-  const renderFriendsTab = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.tabHeaderRow}>
-        <Text style={styles.tabScreenTitle}>Friends</Text>
-        <TouchableOpacity style={styles.fabInline} onPress={() => Alert.alert('Add Friend', 'Search by username or invite via email')} activeOpacity={0.85}>
-          <PlusIcon size={16} />
-          <Text style={styles.fabInlineText}>Add Friend</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.friendsSearchWrap}>
-        <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-          <Path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        </Svg>
-        <Text style={styles.friendsSearchPlaceholder}>Search friends...</Text>
-      </View>
-      <Text style={styles.friendsCount}>{MOCK_FRIENDS.length} friends</Text>
-      {MOCK_FRIENDS.map(friend => (
-        <TouchableOpacity key={friend.id} style={styles.friendCard} activeOpacity={0.8} onPress={() => Alert.alert(friend.name, `Handle: ${friend.handle}\nMutual trips: ${friend.mutualTrips}`)}>
-          <View style={[styles.friendAvatar, { backgroundColor: friend.color + '20' }]}>
-            <Text style={[styles.friendInitials, { color: friend.color }]}>{friend.initials}</Text>
-          </View>
-          <View style={styles.friendInfo}>
-            <Text style={styles.friendName}>{friend.name}</Text>
-            <Text style={styles.friendHandle}>{friend.handle}</Text>
-          </View>
-          {friend.mutualTrips > 0 && (
-            <View style={styles.mutualBadge}>
-              <Text style={styles.mutualBadgeText}>{friend.mutualTrips} trip{friend.mutualTrips > 1 ? 's' : ''}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
-
-  // ─── CHAT TAB — Swee AI only ────────────────────────────────────────────────
-
-  const renderChatTab = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      {/* Swee AI chat — the only entry */}
-      <TouchableOpacity style={styles.sweeChatCard} onPress={() => navigateToChat(SWEE_CHAT)} activeOpacity={0.85}>
-        <View style={styles.sweeChatAvatar}>
-          <SparklesIcon size={22} color="#fff" />
-        </View>
-        <View style={styles.chatInfo}>
-          <View style={styles.chatTitleRow}>
-            <View>
-              <Text style={styles.chatName}>{SWEE_CHAT.name}</Text>
-              <Text style={styles.sweeChatSubtitle}>{SWEE_CHAT.subtitle}</Text>
-            </View>
-            <Text style={styles.chatTime}>{SWEE_CHAT.time}</Text>
-          </View>
-          <Text style={styles.chatLastMsg} numberOfLines={2}>{SWEE_CHAT.lastMessage}</Text>
-        </View>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-
-  // ─── GALLERY TAB ───────────────────────────────────────────────────────────
-
-  const renderGalleryTab = () => {
-    const displayName = user?.fullName || '';
-    const handle = displayName.toLowerCase().replace(/ /g, '_') || 'username';
-    return (
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.galleryProfile}>
-          <View style={styles.galleryAvatarWrap}>
-            {user?.photoUrl && !avatarError ? (
-              <Image source={{ uri: user.photoUrl }} style={styles.galleryAvatar} onError={() => setAvatarError(true)} />
-            ) : (
-              <View style={[styles.galleryAvatar, styles.galleryAvatarPlaceholder]}>
-                <Text style={styles.galleryAvatarInitial}>{displayName ? displayName[0].toUpperCase() : '?'}</Text>
-              </View>
-            )}
-            <TouchableOpacity style={styles.galleryEditBtn} onPress={() => navigation.navigate('CreateProfile')} activeOpacity={0.8}>
-              <EditIcon />
-            </TouchableOpacity>
-          </View>
-          {displayName ? <Text style={styles.galleryName}>{displayName}</Text> : null}
-          {displayName ? <Text style={styles.galleryHandle}>@{handle}</Text> : null}
-          {user?.country ? (
-            <View style={styles.galleryLocationRow}>
-              <PinIcon color="#0d9488" size={14} />
-              <Text style={styles.galleryLocationText}>{user.country}</Text>
-            </View>
-          ) : null}
-          {user?.bio ? <Text style={styles.galleryBio}>{user.bio}</Text> : null}
-        </View>
-
-        <View style={styles.gallerySectionHeader}>
-          <Text style={styles.gallerySectionTitle}>Gallery of Trips</Text>
-          <TouchableOpacity onPress={() => setActiveTab('trips')}>
-            <PlusIcon color="#0d9488" size={18} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.galleryGrid}>
-          {trips.map(trip => (
-            <TouchableOpacity key={trip.id} style={styles.galleryGridCard} onPress={() => navigateToTrip(trip)} activeOpacity={0.85}>
-              <Image source={trip.image} style={styles.galleryGridImage} resizeMode="cover" />
-              <View style={styles.galleryGridOverlay}>
-                <Text style={styles.galleryGridText} numberOfLines={1}>{trip.name}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-          {trips.length === 0 && (
-            <View style={styles.galleryEmptyCard}>
-              <PlusIcon color="#cbd5e1" size={28} />
-              <Text style={styles.galleryEmptyText}>Add Trip</Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-    );
-  };
-
-  // ─── Profile Dropdown ───────────────────────────────────────────────────────
-
-  const renderProfileDropdown = () => (
-    <View style={styles.dropdownOverlay}>
-      <TouchableOpacity style={styles.dropdownBackdrop} activeOpacity={1} onPress={() => setShowProfileMenu(false)} />
-      <View style={styles.profileDropdown}>
-        <View style={styles.dropdownHeader}>
-          {user?.photoUrl && !avatarError ? (
-            <Image source={{ uri: user.photoUrl }} style={styles.dropdownAvatar} />
-          ) : (
-            <View style={[styles.dropdownAvatar, { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: '#0d9488' }}>{firstName[0]}</Text>
-            </View>
-          )}
-          <View style={styles.dropdownUserText}>
-            <Text style={styles.dropdownName}>{user?.fullName || 'User'}</Text>
-            <Text style={styles.dropdownEmail} numberOfLines={1}>{user?.email || ''}</Text>
-          </View>
-        </View>
-        <View style={styles.dropdownDivider} />
-        <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); navigation.navigate('CreateProfile'); }}>
-          <UserMenuIcon />
-          <Text style={styles.dropdownItemText}>Account</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.dropdownItem} onPress={() => setShowProfileMenu(false)}>
-          <SettingsIcon />
-          <Text style={styles.dropdownItemText}>Settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); navigation.navigate('Archived'); }}>
-          <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-            <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-          <Text style={styles.dropdownItemText}>Archived</Text>
-        </TouchableOpacity>
-        <View style={styles.dropdownDivider} />
-        <TouchableOpacity style={styles.dropdownItem} onPress={() => { setShowProfileMenu(false); logout(); }}>
-          <LogoutIcon />
-          <Text style={[styles.dropdownItemText, styles.logoutLabel]}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -980,7 +778,17 @@ export default function HomeScreen({ navigation, route }: any) {
           onMenuPress={() => setShowProfileMenu(true)}
         />
 
-        {showProfileMenu && renderProfileDropdown()}
+        {showProfileMenu && (
+          <ProfileDropdown
+            user={user}
+            firstName={firstName}
+            avatarError={avatarError}
+            onClose={() => setShowProfileMenu(false)}
+            onNavigateToAccount={() => navigation.navigate('EditProfile')}
+            onNavigateToArchived={() => navigation.navigate('Archived')}
+            onLogout={logout}
+          />
+        )}
 
         {activeTab === 'home' && renderHomeTab()}
         {/* Keep TripsScreen mounted to allow modal to open from HomeScreen */}
@@ -991,9 +799,17 @@ export default function HomeScreen({ navigation, route }: any) {
         <View style={{ flex: 1, display: activeTab === 'events' ? 'flex' : 'none' }}>
           <EventsScreen />
         </View>
-        {activeTab === 'friends' && renderFriendsTab()}
-        {activeTab === 'chat' && renderChatTab()}
-        {activeTab === 'gallery' && renderGalleryTab()}
+        {activeTab === 'friends' && <FriendsTab />}
+        {activeTab === 'chat' && <ChatTab onNavigateToChat={navigateToChat} />}
+        {activeTab === 'gallery' && (
+          <GalleryTab
+            user={user}
+            trips={trips}
+            onEditProfile={() => navigation.navigate('EditProfile')}
+            onNavigateToTrip={navigateToTrip}
+            onSetActiveTab={setActiveTab}
+          />
+        )}
 
         {/* Draggable Swee FAB */}
         <SweeFab onPress={() => navigateToChat(SWEE_CHAT)} />

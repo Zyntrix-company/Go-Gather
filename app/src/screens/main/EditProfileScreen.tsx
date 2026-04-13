@@ -26,6 +26,7 @@ import useAuthStore from '../../store/authStore';
 
 type FormData = {
   fullName: string;
+  username: string;
   gender: string;
   country: string;
   bio?: string;
@@ -34,6 +35,10 @@ type FormData = {
 
 const editProfileSchema = z.object({
   fullName: z.string().min(2, 'Full name must be at least 2 characters').max(60, 'Full name is too long'),
+  username: z.string()
+    .min(3, 'Username must be at least 3 characters')
+    .max(20, 'Username must be at most 20 characters')
+    .regex(/^[a-z0-9_]+$/, 'Username can only contain lowercase letters, numbers, and underscores'),
   gender: z.string().min(1, 'Gender is required'),
   country: z.string().min(1, 'Country is required'),
   bio: z.string().max(100, 'Bio must be under 100 characters').optional(),
@@ -159,11 +164,13 @@ export default function EditProfileScreen({ navigation }: any) {
   const initialCountry = user?.country || '';
   const initialPhoto = user?.photoUrl || user?.avatarUrl || (user?.profile as any)?.avatarUrl || '';
   const initialDob = user?.dob || '';
+  const initialUsername = (user?.profile as any)?.username || '';
 
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(editProfileSchema),
     defaultValues: {
       fullName: user?.fullName || '',
+      username: initialUsername,
       gender: initialGender,
       country: initialCountry,
       bio: user?.bio || '',
@@ -234,6 +241,7 @@ export default function EditProfileScreen({ navigation }: any) {
       setApiError(null);
       await editProfile({
         fullName: data.fullName,
+        username: data.username || undefined,
         gender: GENDER_TO_API[gender] || undefined,
         country: country || undefined,
         bio: data.bio || undefined,
@@ -334,6 +342,28 @@ export default function EditProfileScreen({ navigation }: any) {
               )}
             />
 
+            {/* Username / Handle */}
+            <Controller
+              control={control}
+              name="username"
+              render={({ field: { onChange, value } }) => (
+                <TextInput
+                  style={[styles.input, focusedField === 'username' && styles.inputFocused, errors.username && styles.inputError]}
+                  placeholder="Username (lowercase, numbers, underscores only)"
+                  placeholderTextColor="#94a3b8"
+                  value={value}
+                  onChangeText={(val) => { onChange(val.toLowerCase()); if (apiError) setApiError(null); }}
+                  onFocus={() => setFocusedField('username')}
+                  onBlur={() => setFocusedField(null)}
+                  underlineColorAndroid="transparent"
+                  selectionColor="#0d9488"
+                  editable={!busy}
+                  autoCapitalize="none"
+                />
+              )}
+            />
+            {errors.username && <Text style={styles.errorText}>{errors.username.message}</Text>}
+
             {/* Date of Birth */}
             <DobPicker
               value={dob}
@@ -426,6 +456,7 @@ const styles = StyleSheet.create({
   input: { width: '100%', backgroundColor: '#ffffff', borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0f172a', marginBottom: 10 },
   inputFocused: { borderColor: '#0d9488' },
   inputError: { borderColor: '#ef4444' },
+  errorText: { fontSize: 12, color: '#ef4444', marginBottom: 8, marginTop: -4 },
   bioInput: { height: 100, paddingTop: 12, paddingBottom: 12 },
   dropdownBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#ffffff', borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, marginBottom: 10 },
   dropdownText: { fontSize: 14, color: '#0f172a' },

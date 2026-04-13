@@ -297,6 +297,7 @@ const authApi = {
   /**
    * PUT /users/profile
    * Updates mutable profile fields for an already-complete profile.
+   * username — the only way to change your handle after signup. Format: `^[a-z0-9_]{3,20}$`. Returns 409 if already taken.
    */
   updateProfile: async (payload: {
     fullName?: string;
@@ -304,6 +305,7 @@ const authApi = {
     country?: string;
     bio?: string;
     dob?: string;
+    username?: string;
   }): Promise<void> => {
     await client.put('/users/profile', payload);
   },

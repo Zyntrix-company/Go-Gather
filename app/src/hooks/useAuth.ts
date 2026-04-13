@@ -256,6 +256,7 @@ export default function useAuth() {
     country?: string;
     bio?: string;
     dob?: string;
+    username?: string;
   }) {
     setLoading(true);
     try {
