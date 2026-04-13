@@ -5,6 +5,7 @@ import {
   RefreshControl, NativeModules, Animated, PanResponder, Dimensions, SafeAreaView,
 } from 'react-native';
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
+import DateInfoPopover from '../../components/common/DateInfoPopover';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -80,6 +81,24 @@ function daysUntil(isoDate: string): number {
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+// Validate that date is within ±365 days from today
+function validateDateRange(date: Date): { isValid: boolean; error?: string } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+
+  const daysDiff = Math.floor((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysDiff < -365) {
+    return { isValid: false, error: 'Date must be within 365 days from today.' };
+  }
+  if (daysDiff > 365) {
+    return { isValid: false, error: 'Date must be within 365 days from today.' };
+  }
+  return { isValid: true };
+}
+
 function fmtDateDisplay(d: Date): string {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
@@ -107,6 +126,7 @@ function mapApiEvent(e: ApiEvent): EventItem {
     memberAvatars: e.memberAvatars ?? [],
     description: e.description ?? '',
     bannerImageUrl: e.bannerImageUrl ?? null,
+    bannerCropFraction: e.bannerCropFraction ?? null,
   };
 }
 
@@ -124,6 +144,39 @@ function toCardData(ev: EventItem): CardData {
     type: ev.type,
     daysToGo: days > 0 ? days : undefined,
   };
+}
+
+// ─── Banner image renderer (respects crop fraction if present) ────────────────
+
+function BannerImage({
+  uri, fallback, crop, style, resizeMode = 'cover',
+}: {
+  uri?: string | null;
+  fallback?: any;
+  crop?: BannerCropFraction | null;
+  style: any;
+  resizeMode?: 'cover' | 'stretch' | 'contain';
+}) {
+  if (uri && crop) {
+    // Render inside an overflow:hidden container with precise positioning
+    return (
+      <View style={[style, { overflow: 'hidden' }]}>
+        <Image
+          source={{ uri }}
+          style={{
+            position: 'absolute',
+            width: `${crop.imgFracW * 100}%`,
+            height: `${crop.imgFracH * 100}%`,
+            left: `${crop.imgFracX * 100}%`,
+            top: `${crop.imgFracY * 100}%`,
+          }}
+          resizeMode="stretch"
+        />
+      </View>
+    );
+  }
+  if (uri) return <Image source={{ uri }} style={style} resizeMode={resizeMode} />;
+  return <Image source={fallback} style={style} resizeMode={resizeMode} />;
 }
 
 // ─── Create Event Modal ───────────────────────────────────────────────────────
@@ -150,6 +203,10 @@ function CreateEventModal({ visible, onClose, onSave }: {
   const [isCompressing, setIsCompressing] = useState(false);
   const [bannerImageUri, setBannerImageUri] = useState<string | undefined>(undefined);
   const [bannerCropFraction, setBannerCropFraction] = useState<BannerCropFraction | null>(null);
+  const [showDateTooltip, setShowDateTooltip] = useState(false);
+  const [dateError, setDateError] = useState<string | null>(null);
+  const [dateIconPos, setDateIconPos] = useState({ x: 0, y: 0 });
+  const dateIconRef = useRef<any>(null);
   const [cropPreviewUri, setCropPreviewUri] = useState<string | undefined>(undefined);
   const [pickedOrigSize, setPickedOrigSize] = useState({ w: 1, h: 1 });
   const [cropAreaSize, setCropAreaSize] = useState({ w: SCREEN_W, h: SCREEN_W });
@@ -253,6 +310,7 @@ function CreateEventModal({ visible, onClose, onSave }: {
         location: { name: location.trim() },
         friendIds: selectedFriendIds.length > 0 ? selectedFriendIds : undefined,
         reminders: true,
+        ...(bannerCropFraction && { bannerCropFraction }),
       });
       const newEvent: EventItem = {
         id: result.event.id,
@@ -282,7 +340,7 @@ function CreateEventModal({ visible, onClose, onSave }: {
           const photo = photoRes.photos?.[0];
           const permanentUrl = (photo as any)?.fileUrl as string ?? photo?.url;
           if (permanentUrl) {
-            await apiUpdateEvent(newEvent.id, { bannerImageUrl: permanentUrl });
+            await apiUpdateEvent(newEvent.id, { bannerImageUrl: permanentUrl, ...(bannerCropFraction && { bannerCropFraction }) });
             newEvent.bannerImageUrl = permanentUrl;
           }
         } catch (e) { console.warn('Banner upload failed:', e); }
@@ -434,16 +492,38 @@ function CreateEventModal({ visible, onClose, onSave }: {
             )}
 
             {/* Event Date */}
-            <Text style={modal.label}>Event Date</Text>
-            <TouchableOpacity style={[modal.input, modal.row]} onPress={() => setShowDatePicker(true)} activeOpacity={0.8}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <Text style={modal.label}>Event Date</Text>
+              <TouchableOpacity
+                ref={dateIconRef}
+                onPress={() => {
+                  if (dateIconRef.current) {
+                    dateIconRef.current.measure((_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
+                      setDateIconPos({ x: pageX + width / 2, y: pageY + height / 2 });
+                    });
+                  }
+                  setShowDateTooltip(true);
+                }}
+                activeOpacity={0.6}
+              >
+                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                  <Circle cx={12} cy={12} r={10} stroke="#0d9488" strokeWidth={2} />
+                  <Path d="M12 7v5M12 17a1 1 0 100-2 1 1 0 000 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity style={[modal.input, modal.row, dateError && { borderColor: '#ef4444', borderWidth: 1.5 }]} onPress={() => setShowDatePicker(true)} activeOpacity={0.8}>
               <Text style={{ fontSize: 14, color: dateObj ? '#0f172a' : '#94a3b8', flex: 1 }}>
                 {dateObj ? fmtDateDisplay(dateObj) : 'DD/MM/YY'}
               </Text>
               <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#94a3b8" strokeWidth={1.8} />
-                <Path d="M16 2v4M8 2v4M3 10h18" stroke="#94a3b8" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                <Rect x={3} y={4} width={18} height={18} rx={2} stroke={dateError ? '#ef4444' : '#94a3b8'} strokeWidth={1.8} />
+                <Path d="M16 2v4M8 2v4M3 10h18" stroke={dateError ? '#ef4444' : '#94a3b8'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
               </Svg>
             </TouchableOpacity>
+            {dateError && (
+              <Text style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{dateError}</Text>
+            )}
             {showDatePicker && (
               <DateTimePicker
                 value={dateObj ?? new Date()}
@@ -451,7 +531,16 @@ function CreateEventModal({ visible, onClose, onSave }: {
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={(_: DateTimePickerEvent, d?: Date) => {
                   if (Platform.OS === 'android') setShowDatePicker(false);
-                  if (d) setDateObj(d);
+                  if (d) {
+                    const validation = validateDateRange(d);
+                    if (validation.isValid) {
+                      setDateObj(d);
+                      setDateError(null);
+                    } else {
+                      setDateError(validation.error || '');
+                      setDateObj(undefined);
+                    }
+                  }
                   else setShowDatePicker(false);
                 }}
               />
@@ -549,7 +638,11 @@ function CreateEventModal({ visible, onClose, onSave }: {
             <View style={{ width: '100%', height: 140, borderRadius: 12, backgroundColor: '#f1f5f9', overflow: 'hidden', marginBottom: 14, borderWidth: bannerImageUri ? 0 : 1, borderColor: '#e2e8f0', borderStyle: 'dashed' }}>
               {bannerImageUri ? (
                 <>
-                  <Image source={{ uri: bannerImageUri }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} resizeMode="cover" />
+                  <BannerImage
+                    uri={bannerImageUri}
+                    crop={bannerCropFraction}
+                    style={{ width: '100%', height: '100%', borderRadius: 12 }}
+                  />
                   <TouchableOpacity
                     style={{ position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
                     onPress={() => {
@@ -869,6 +962,9 @@ function CreateEventModal({ visible, onClose, onSave }: {
           </View>
         </View>
       </Modal>
+
+      {/* Info Popover */}
+      <DateInfoPopover visible={showDateTooltip} onClose={() => setShowDateTooltip(false)} iconX={dateIconPos.x} iconY={dateIconPos.y} />
     </Modal>
   );
 }

@@ -29,6 +29,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { TripCardFull, TripCardPast, CardData } from '../../components/common/Cards';
 import Toast from 'react-native-toast-message';
+import DateInfoPopover from '../../components/common/DateInfoPopover';
 import {
   getTrips,
   createTrip as apiCreateTrip,
@@ -160,6 +161,24 @@ function daysUntil(isoDate: string): number {
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+// Validate that date is within ±365 days from today
+function validateDateRange(date: Date): { isValid: boolean; error?: string } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+
+  const daysDiff = Math.floor((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysDiff < -365) {
+    return { isValid: false, error: 'Date must be within 365 days from today.' };
+  }
+  if (daysDiff > 365) {
+    return { isValid: false, error: 'Date must be within 365 days from today.' };
+  }
+  return { isValid: true };
+}
+
 function fmtDisplayDate(iso: string): string {
   if (!iso) return 'TBD';
   const clean = iso.includes('T') ? iso.split('T')[0] : iso;
@@ -212,6 +231,7 @@ function mapApiTrip(t: any): Trip {
     shortEndDate: fmtDateNoYear(e),
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
+    bannerCropFraction: t.bannerCropFraction ?? null,
     members: (t.memberAvatars || []).slice(0, 3).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
     extraMembers: (t.memberAvatars || []).length === 0 ? (t.memberCount ?? 0) : Math.max(0, (t.memberCount ?? 0) - 3),
   };
@@ -477,6 +497,14 @@ function CreateTripModal({
   const [inviteEmail, setInviteEmail] = useState('');
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [showStartDateTooltip, setShowStartDateTooltip] = useState(false);
+  const [showEndDateTooltip, setShowEndDateTooltip] = useState(false);
+  const [startDateError, setStartDateError] = useState<string | null>(null);
+  const [endDateError, setEndDateError] = useState<string | null>(null);
+  const [startIconPos, setStartIconPos] = useState({ x: 0, y: 0 });
+  const [endIconPos, setEndIconPos] = useState({ x: 0, y: 0 });
+  const startIconRef = useRef<any>(null);
+  const endIconRef = useRef<any>(null);
   // Crop-flow state (purely local — only needed while the crop modal is open)
   const [cropPreviewUri, setCropPreviewUri] = useState<string | undefined>(undefined);
   const [cropPreviewType, setCropPreviewType] = useState<string>('image/jpeg');
@@ -723,28 +751,72 @@ function CreateTripModal({
             {/* Start / End Date row */}
             <View style={styles.ctDateRow}>
               <View style={{ flex: 1, gap: 8 }}>
-                <Text style={styles.ctLabel}>Start Date</Text>
-                <TouchableOpacity style={styles.ctDateBox} onPress={() => { setShowEndPicker(false); setShowStartPicker(true); }} activeOpacity={0.8}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.ctLabel}>Start Date</Text>
+                  <TouchableOpacity
+                    ref={startIconRef}
+                    onPress={() => {
+                      if (startIconRef.current) {
+                        startIconRef.current.measure((x: number, y: number, width: number, height: number, pageX: number, pageY: number) => {
+                          setStartIconPos({ x: pageX + width / 2, y: pageY + height / 2 });
+                        });
+                      }
+                      setShowStartDateTooltip(true);
+                    }}
+                    activeOpacity={0.6}
+                  >
+                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                      <Circle cx={12} cy={12} r={10} stroke="#0d9488" strokeWidth={2} />
+                      <Path d="M12 7v5M12 17a1 1 0 100-2 1 1 0 000 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity style={[styles.ctDateBox, startDateError && { borderColor: '#ef4444', borderWidth: 1.5 }]} onPress={() => { setShowEndPicker(false); setShowStartPicker(true); }} activeOpacity={0.8}>
                   <Text style={[styles.ctDateText, { flex: 1, color: startDateObj ? '#0f172a' : '#94a3b8' }]}>
                     {startDateObj ? formatDate(startDateObj) : 'DD/MM/YY'}
                   </Text>
                   <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                    <Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke="#0d9488" strokeWidth={2} />
-                    <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    <Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke={startDateError ? '#ef4444' : '#0d9488'} strokeWidth={2} />
+                    <Path d="M16 2v4M8 2v4M3 10h18" stroke={startDateError ? '#ef4444' : '#0d9488'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
                 </TouchableOpacity>
+                {startDateError && (
+                  <Text style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{startDateError}</Text>
+                )}
               </View>
               <View style={{ flex: 1, gap: 8 }}>
-                <Text style={styles.ctLabel}>End Date</Text>
-                <TouchableOpacity style={styles.ctDateBox} onPress={() => { setShowStartPicker(false); setShowEndPicker(true); }} activeOpacity={0.8}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.ctLabel}>End Date</Text>
+                  <TouchableOpacity
+                    ref={endIconRef}
+                    onPress={() => {
+                      if (endIconRef.current) {
+                        endIconRef.current.measure((_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
+                          setEndIconPos({ x: pageX + width / 2, y: pageY + height / 2 });
+                        });
+                      }
+                      setShowEndDateTooltip(true);
+                    }}
+                    activeOpacity={0.6}
+                  >
+                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                      <Circle cx={12} cy={12} r={10} stroke="#0d9488" strokeWidth={2} />
+                      <Path d="M12 7v5M12 17a1 1 0 100-2 1 1 0 000 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity style={[styles.ctDateBox, endDateError && { borderColor: '#ef4444', borderWidth: 1.5 }]} onPress={() => { setShowStartPicker(false); setShowEndPicker(true); }} activeOpacity={0.8}>
                   <Text style={[styles.ctDateText, { flex: 1, color: endDateObj ? '#0f172a' : '#94a3b8' }]}>
                     {endDateObj ? formatDate(endDateObj) : 'DD/MM/YY'}
                   </Text>
                   <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                    <Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke="#0d9488" strokeWidth={2} />
-                    <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    <Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke={endDateError ? '#ef4444' : '#0d9488'} strokeWidth={2} />
+                    <Path d="M16 2v4M8 2v4M3 10h18" stroke={endDateError ? '#ef4444' : '#0d9488'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
                 </TouchableOpacity>
+                {endDateError && (
+                  <Text style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{endDateError}</Text>
+                )}
               </View>
             </View>
 
@@ -755,7 +827,16 @@ function CreateTripModal({
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={(event: DateTimePickerEvent, date?: Date) => {
                   if (Platform.OS === 'android') setShowStartPicker(false);
-                  if (event.type === 'set' && date) setStartDateObj(date);
+                  if (event.type === 'set' && date) {
+                    const validation = validateDateRange(date);
+                    if (validation.isValid) {
+                      setStartDateObj(date);
+                      setStartDateError(null);
+                    } else {
+                      setStartDateError(validation.error || '');
+                      setStartDateObj(undefined);
+                    }
+                  }
                   else if (event.type === 'dismissed') setShowStartPicker(false);
                 }}
               />
@@ -772,7 +853,16 @@ function CreateTripModal({
                 display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                 onChange={(event: DateTimePickerEvent, date?: Date) => {
                   if (Platform.OS === 'android') setShowEndPicker(false);
-                  if (event.type === 'set' && date) setEndDateObj(date);
+                  if (event.type === 'set' && date) {
+                    const validation = validateDateRange(date);
+                    if (validation.isValid) {
+                      setEndDateObj(date);
+                      setEndDateError(null);
+                    } else {
+                      setEndDateError(validation.error || '');
+                      setEndDateObj(undefined);
+                    }
+                  }
                   else if (event.type === 'dismissed') setShowEndPicker(false);
                 }}
               />
@@ -884,10 +974,10 @@ function CreateTripModal({
             >
               {bannerImageUri ? (
                 <>
-                  <Image
-                    source={{ uri: bannerImageUri }}
-                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-                    resizeMode="cover"
+                  <BannerImage
+                    uri={bannerImageUri}
+                    crop={bannerCropFraction}
+                    style={{ width: '100%', height: '100%', borderRadius: 12 }}
                   />
                   <TouchableOpacity
                     style={{ position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}
@@ -1260,6 +1350,10 @@ function CreateTripModal({
           </View>
         </View>
       </Modal>
+
+      {/* Info Popovers */}
+      <DateInfoPopover visible={showStartDateTooltip} onClose={() => setShowStartDateTooltip(false)} iconX={startIconPos.x} iconY={startIconPos.y} />
+      <DateInfoPopover visible={showEndDateTooltip} onClose={() => setShowEndDateTooltip(false)} iconX={endIconPos.x} iconY={endIconPos.y} />
     </Modal>
   );
 }
@@ -1477,6 +1571,7 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
         bannerCropFraction={bannerCropFraction}
         setBannerCropFraction={setBannerCropFraction}
         onSave={async (data) => {
+          const cropFraction = data.bannerCropFraction as any;
           const res = await apiCreateTrip({
             name: data.name as string,
             startDate: (data.startDateISO ?? data.startDate ?? '') as string,
@@ -1484,12 +1579,14 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
             location: { name: (data.location as string) || 'TBD' },
             friendIds: (data.friendIds as string[] | undefined)?.length ? data.friendIds as string[] : undefined,
             emails: data.inviteEmail ? [data.inviteEmail as string] : undefined,
+            ...(cropFraction && { bannerCropFraction: cropFraction }),
           });
           let newTrip = res.trip;
           const localUri = data.bannerImageUrl as string | undefined;
           const isLocalUri = localUri && (localUri.startsWith('file://') || localUri.startsWith('content://') || localUri.startsWith('file:'));
           if (isLocalUri) {
-            setTrips(p => [{ ...mapApiTrip(newTrip), bannerImageUrl: localUri }, ...p]);
+            const tripWithBanner = mapApiTrip(newTrip);
+            setTrips(p => [{ ...tripWithBanner, bannerImageUrl: localUri, bannerCropFraction: cropFraction || null }, ...p]);
             try {
               const photoRes = await uploadTripPhotos(newTrip.id, [{
                 uri: localUri,
@@ -1500,7 +1597,7 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
               const permanentUrl = (photo as Record<string, unknown>)?.fileUrl as string ?? photo?.url;
               const displayUrl = photo?.url ?? permanentUrl;
               if (permanentUrl) {
-                const updated = await apiUpdateTrip(newTrip.id, { bannerImageUrl: permanentUrl });
+                const updated = await apiUpdateTrip(newTrip.id, { bannerImageUrl: permanentUrl, ...(cropFraction && { bannerCropFraction: cropFraction }) });
                 newTrip = updated.trip;
                 setTrips(p => p.map(t => t.id === newTrip.id ? { ...t, bannerImageUrl: newTrip.bannerImageUrl ?? displayUrl } : t));
               }

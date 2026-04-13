@@ -161,6 +161,25 @@ function daysUntilISO(iso: string): number {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   return Math.ceil((new Date(iso).getTime() - today.getTime()) / 86400000);
 }
+
+// Validate that date is within ±365 days from today
+function validateDateRange(date: Date): { isValid: boolean; error?: string } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+
+  const daysDiff = Math.floor((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysDiff < -365) {
+    return { isValid: false, error: 'Date must be within 365 days from today.' };
+  }
+  if (daysDiff > 365) {
+    return { isValid: false, error: 'Date must be within 365 days from today.' };
+  }
+  return { isValid: true };
+}
+
 function fmtDate(d: Date): string {
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
 }
@@ -424,6 +443,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [editEndDate,        setEditEndDate]        = useState<Date>(new Date());
   const [showStartPicker,    setShowStartPicker]    = useState(false);
   const [showEndPicker,      setShowEndPicker]      = useState(false);
+  const [editStartDateError, setEditStartDateError] = useState<string | null>(null);
+  const [editEndDateError,   setEditEndDateError]   = useState<string | null>(null);
 
   // ── Initial fetch: trip detail + members + activities ──
   useFocusEffect(useCallback(() => {
@@ -2336,31 +2357,59 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 <Text style={styles.fLabel}>Trip Name</Text>
                 <TextInput style={styles.fInput} placeholder="e.g., Tokyo Getaway" placeholderTextColor="#94a3b8" value={editName} onChangeText={setEditName} />
                 <Text style={styles.fLabel}>Start Date</Text>
-                <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowStartPicker(true)} activeOpacity={0.8}>
+                <TouchableOpacity style={[styles.fInputTouch, editStartDateError && { borderColor: '#ef4444', borderWidth: 1.5 }]} onPress={() => setShowStartPicker(true)} activeOpacity={0.8}>
                   <Text style={{ color: '#0f172a', fontSize: 14 }}>
                     {`${String(editStartDate.getDate()).padStart(2,'0')}/${String(editStartDate.getMonth()+1).padStart(2,'0')}/${String(editStartDate.getFullYear()).slice(-2)}`}
                   </Text>
                 </TouchableOpacity>
+                {editStartDateError && (
+                  <Text style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{editStartDateError}</Text>
+                )}
                 {showStartPicker && (
                   <DateTimePicker
                     value={editStartDate}
                     mode="date"
                     display="default"
-                    onChange={(_: DateTimePickerEvent, d?: Date) => { setShowStartPicker(false); if (d) setEditStartDate(d); }}
+                    onChange={(_: DateTimePickerEvent, d?: Date) => {
+                      setShowStartPicker(false);
+                      if (d) {
+                        const validation = validateDateRange(d);
+                        if (validation.isValid) {
+                          setEditStartDate(d);
+                          setEditStartDateError(null);
+                        } else {
+                          setEditStartDateError(validation.error || '');
+                        }
+                      }
+                    }}
                   />
                 )}
                 <Text style={styles.fLabel}>End Date</Text>
-                <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowEndPicker(true)} activeOpacity={0.8}>
+                <TouchableOpacity style={[styles.fInputTouch, editEndDateError && { borderColor: '#ef4444', borderWidth: 1.5 }]} onPress={() => setShowEndPicker(true)} activeOpacity={0.8}>
                   <Text style={{ color: '#0f172a', fontSize: 14 }}>
                     {`${String(editEndDate.getDate()).padStart(2,'0')}/${String(editEndDate.getMonth()+1).padStart(2,'0')}/${String(editEndDate.getFullYear()).slice(-2)}`}
                   </Text>
                 </TouchableOpacity>
+                {editEndDateError && (
+                  <Text style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{editEndDateError}</Text>
+                )}
                 {showEndPicker && (
                   <DateTimePicker
                     value={editEndDate}
                     mode="date"
                     display="default"
-                    onChange={(_: DateTimePickerEvent, d?: Date) => { setShowEndPicker(false); if (d) setEditEndDate(d); }}
+                    onChange={(_: DateTimePickerEvent, d?: Date) => {
+                      setShowEndPicker(false);
+                      if (d) {
+                        const validation = validateDateRange(d);
+                        if (validation.isValid) {
+                          setEditEndDate(d);
+                          setEditEndDateError(null);
+                        } else {
+                          setEditEndDateError(validation.error || '');
+                        }
+                      }
+                    }}
                   />
                 )}
                 <Text style={styles.fLabel}>Location</Text>

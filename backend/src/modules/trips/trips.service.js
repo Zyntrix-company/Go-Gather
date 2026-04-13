@@ -96,6 +96,7 @@ const formatTrip = (t) => ({
   },
   coverPhotoUrl: t.cover_photo_url,
   bannerImageUrl: t.banner_image_url || null,
+  bannerCropFraction: t.banner_crop_fraction || null,
   archivedAt: t.archived_at || null,
   createdBy: t.created_by,
   createdAt: t.created_at,
@@ -113,7 +114,7 @@ const enrichTrip = async (t) => {
 const createTrip = async (userId, body) => {
   const {
     name, startDate, endDate, location = {}, reminders,
-    friendIds = [], emails = [], bannerImageUrl = null,
+    friendIds = [], emails = [], bannerImageUrl = null, bannerCropFraction = null,
   } = body;
 
   // Fallback chain: user upload → keyword match → generic travel photo
@@ -126,10 +127,10 @@ const createTrip = async (userId, body) => {
 
     // Insert trip
     const tripResult = await client.query(
-      `INSERT INTO trips (name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO trips (name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url, banner_crop_fraction)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [name, startDate, endDate, location.name || null, location.lat || null, location.lng || null, userId, resolvedBanner],
+      [name, startDate, endDate, location.name || null, location.lat || null, location.lng || null, userId, resolvedBanner, bannerCropFraction ? JSON.stringify(bannerCropFraction) : null],
     );
     const trip = tripResult.rows[0];
 
@@ -367,6 +368,7 @@ const updateTrip = async (tripId, updates) => {
   if (updates.location?.lat !== undefined) { fields.push(`location_lat = $${idx++}`); values.push(updates.location.lat); }
   if (updates.location?.lng !== undefined) { fields.push(`location_lng = $${idx++}`); values.push(updates.location.lng); }
   if (updates.bannerImageUrl !== undefined) { fields.push(`banner_image_url = $${idx++}`); values.push(updates.bannerImageUrl); }
+  if (updates.bannerCropFraction !== undefined) { fields.push(`banner_crop_fraction = $${idx++}`); values.push(updates.bannerCropFraction ? JSON.stringify(updates.bannerCropFraction) : null); }
 
   if (fields.length === 0) {
     const existing = await db('SELECT * FROM trips WHERE id = $1', [tripId]);

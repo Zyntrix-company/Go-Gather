@@ -91,6 +91,24 @@ function daysUntil(isoDate: string): number {
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+// Validate that date is within ±365 days from today
+function validateDateRange(date: Date): { isValid: boolean; error?: string } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+
+  const daysDiff = Math.floor((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysDiff < -365) {
+    return { isValid: false, error: 'Date must be within 365 days from today.' };
+  }
+  if (daysDiff > 365) {
+    return { isValid: false, error: 'Date must be within 365 days from today.' };
+  }
+  return { isValid: true };
+}
+
 function fmtEventDateLine(isoDate: string): string {
   if (!isoDate) return 'TBD';
   const d = new Date(isoDate);
@@ -338,6 +356,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [editDateObj,     setEditDateObj]     = useState<Date | undefined>(undefined);
   const [showEditDatePicker, setShowEditDatePicker] = useState(false);
   const [showEditTypeDrop,   setShowEditTypeDrop]   = useState(false);
+  const [editDateError,   setEditDateError]   = useState<string | null>(null);
 
   const EVENT_TYPE_LIST = ['Wedding', 'Birthday', 'Party', 'Professional', 'Meetup', 'Festival', 'Family', 'Sports', 'Religious', 'Other'];
 
@@ -1568,7 +1587,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
                   <Text style={styles.fLabel}>Event Date</Text>
                   <TouchableOpacity
-                    style={[styles.fInputTouch, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                    style={[styles.fInputTouch, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, editDateError && { borderColor: '#ef4444', borderWidth: 1.5 }]}
                     onPress={() => setShowEditDatePicker(true)} activeOpacity={0.8}>
                     <Text style={{ fontSize: 13, color: editDateObj ? '#0f172a' : '#94a3b8' }}>
                       {editDateObj
@@ -1576,10 +1595,13 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         : event.dateLine || 'Select date'}
                     </Text>
                     <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                      <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#94a3b8" strokeWidth={1.8} />
-                      <Path d="M16 2v4M8 2v4M3 10h18" stroke="#94a3b8" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                      <Rect x={3} y={4} width={18} height={18} rx={2} stroke={editDateError ? '#ef4444' : '#94a3b8'} strokeWidth={1.8} />
+                      <Path d="M16 2v4M8 2v4M3 10h18" stroke={editDateError ? '#ef4444' : '#94a3b8'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
                     </Svg>
                   </TouchableOpacity>
+                  {editDateError && (
+                    <Text style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{editDateError}</Text>
+                  )}
                   {showEditDatePicker && (
                     <DateTimePicker
                       value={editDateObj ?? new Date()}
@@ -1587,7 +1609,16 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                       onChange={(_: DateTimePickerEvent, d?: Date) => {
                         if (Platform.OS === 'android') setShowEditDatePicker(false);
-                        if (d) setEditDateObj(d);
+                        if (d) {
+                          const validation = validateDateRange(d);
+                          if (validation.isValid) {
+                            setEditDateObj(d);
+                            setEditDateError(null);
+                          } else {
+                            setEditDateError(validation.error || '');
+                            setEditDateObj(undefined);
+                          }
+                        }
                         else setShowEditDatePicker(false);
                       }}
                     />

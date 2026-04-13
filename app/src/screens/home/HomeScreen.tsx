@@ -47,6 +47,7 @@ type Trip = {
   fullEndDate: string;
   image: any;
   bannerImageUrl?: string | null;
+  bannerCropFraction?: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null;
   members: { id: string; uri: string }[];
   extraMembers: number;
 };
@@ -461,6 +462,7 @@ function mapApiTrip(t: any): Trip {
     fullEndDate: fmtFullDate(e),
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
+    bannerCropFraction: t.bannerCropFraction ?? null,
     members: (t.memberAvatars || []).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
     extraMembers: Math.max(0, (t.memberCount ?? 1) - 1),
   };

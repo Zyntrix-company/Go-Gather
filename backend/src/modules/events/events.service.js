@@ -18,6 +18,7 @@ const formatEvent = (e) => ({
   eventType: e.event_type || null,
   description: e.description || null,
   bannerImageUrl: e.banner_image_url || null,
+  bannerCropFraction: e.banner_crop_fraction || null,
   location: {
     name: e.location_name || null,
     lat: e.location_lat ? parseFloat(e.location_lat) : null,
@@ -34,7 +35,7 @@ const formatEvent = (e) => ({
 const createEvent = async (userId, body) => {
   const {
     name, eventDate, eventType, description, location = {}, reminders,
-    friendIds = [], emails = [], bannerImageUrl,
+    friendIds = [], emails = [], bannerImageUrl, bannerCropFraction = null,
   } = body;
 
   const client = await getClient();
@@ -42,10 +43,10 @@ const createEvent = async (userId, body) => {
     await client.query('BEGIN');
 
     const eventResult = await client.query(
-      `INSERT INTO events (name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO events (name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url, banner_crop_fraction)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [name, eventDate, eventType || null, description || null, location.name || null, location.lat || null, location.lng || null, userId, bannerImageUrl || null],
+      [name, eventDate, eventType || null, description || null, location.name || null, location.lat || null, location.lng || null, userId, bannerImageUrl || null, bannerCropFraction ? JSON.stringify(bannerCropFraction) : null],
     );
     const event = eventResult.rows[0];
 
@@ -275,6 +276,7 @@ const updateEvent = async (eventId, updates) => {
   if (updates.eventType !== undefined)        { fields.push(`event_type = $${idx++}`);        values.push(updates.eventType); }
   if (updates.description !== undefined)      { fields.push(`description = $${idx++}`);       values.push(updates.description); }
   if (updates.bannerImageUrl !== undefined)   { fields.push(`banner_image_url = $${idx++}`);  values.push(updates.bannerImageUrl); }
+  if (updates.bannerCropFraction !== undefined) { fields.push(`banner_crop_fraction = $${idx++}`); values.push(updates.bannerCropFraction ? JSON.stringify(updates.bannerCropFraction) : null); }
   if (updates.location?.name !== undefined)   { fields.push(`location_name = $${idx++}`);     values.push(updates.location.name); }
   if (updates.location?.lat !== undefined)    { fields.push(`location_lat = $${idx++}`);       values.push(updates.location.lat); }
   if (updates.location?.lng !== undefined)    { fields.push(`location_lng = $${idx++}`);       values.push(updates.location.lng); }

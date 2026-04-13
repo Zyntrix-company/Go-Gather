@@ -108,6 +108,7 @@ export type Trip = {
   location: TripLocation | string;
   coverPhotoUrl: string | null;
   bannerImageUrl?: string | null;
+  bannerCropFraction?: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null;
   createdBy: string;
   daysToGo?: number;
   memberCount?: number;
@@ -230,6 +231,7 @@ export async function createTrip(body: {
   endDate: string;
   location: TripLocation;
   bannerImageUrl?: string;
+  bannerCropFraction?: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null;
   reminders?: boolean;
   friendIds?: string[];
   emails?: string[];
@@ -243,7 +245,7 @@ export async function getTripDetail(tripId: string) {
   return res.data as { trip: Trip; role: 'admin' | 'member' };
 }
 
-export async function updateTrip(tripId: string, body: Partial<{ name: string; startDate: string; endDate: string; location: TripLocation; bannerImageUrl: string }>) {
+export async function updateTrip(tripId: string, body: Partial<{ name: string; startDate: string; endDate: string; location: TripLocation; bannerImageUrl: string; bannerCropFraction: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null }>) {
   const res = await client.put(`/trips/${tripId}`, body);
   return res.data as { trip: Trip };
 }

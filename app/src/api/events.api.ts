@@ -49,6 +49,7 @@ export type Event = {
   eventType: string | null;
   description: string | null;
   bannerImageUrl: string | null;
+  bannerCropFraction?: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null;
   location: EventLocation;
   archivedAt: string | null;
   createdBy: string;
@@ -98,6 +99,7 @@ export async function createEvent(body: {
   eventType?: string;
   description?: string;
   bannerImageUrl?: string;
+  bannerCropFraction?: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null;
   location?: { name?: string; lat?: number; lng?: number };
   reminders?: boolean;
   friendIds?: string[];
@@ -118,6 +120,7 @@ export async function updateEvent(eventId: string, body: Partial<{
   eventType: string;
   description: string;
   bannerImageUrl: string;
+  bannerCropFraction: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null;
   location: { name?: string; lat?: number; lng?: number };
 }>) {
   const res = await client.put(`/events/${eventId}`, body);
