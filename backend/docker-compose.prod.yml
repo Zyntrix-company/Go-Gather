@@ -74,6 +74,8 @@ services:
       # ── Rate limits ────────────────────────────────────────────────────────
       FRIEND_INVITE_RATE_LIMIT_PER_HOUR: ${FRIEND_INVITE_RATE_LIMIT_PER_HOUR:-10}
       FRIEND_REQUEST_RATE_LIMIT_PER_DAY: ${FRIEND_REQUEST_RATE_LIMIT_PER_DAY:-20}
+      # ── AI ─────────────────────────────────────────────────────────────────
+      OPENAI_API_KEY:       ${OPENAI_API_KEY}
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/health | grep -q "ok" || exit 1']
       interval: 30s
