@@ -494,7 +494,6 @@ export default function HomeScreen({ navigation, route }: any) {
   const [insightIndex, setInsightIndex] = useState(0);
   const insightRef = useRef<FlatList>(null);
   const [pressedArrow, setPressedArrow] = useState<'left' | 'right' | null>(null);
-  const [avatarError, setAvatarError] = useState(false);
 
   // Refresh profile on mount so name/avatar are always up to date
   useEffect(() => {
@@ -783,7 +782,6 @@ export default function HomeScreen({ navigation, route }: any) {
           <ProfileDropdown
             user={user}
             firstName={firstName}
-            avatarError={avatarError}
             onClose={() => setShowProfileMenu(false)}
             onNavigateToAccount={() => navigation.navigate('EditProfile')}
             onNavigateToArchived={() => navigation.navigate('Archived')}

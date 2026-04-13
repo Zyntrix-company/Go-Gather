@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, Dimensions, StyleSheet } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 
@@ -26,6 +26,11 @@ const EditIcon = () => (
 
 function GalleryTab({ user, trips, onEditProfile, onNavigateToTrip, onSetActiveTab }: any) {
   const [avatarError, setAvatarError] = useState(false);
+
+  // Reset avatarError when photoUrl changes (after upload)
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.photoUrl]);
 
   const displayName = user?.fullName || '';
   const handle = user?.username || displayName.toLowerCase().replace(/ /g, '_') || 'username';

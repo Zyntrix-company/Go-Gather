@@ -197,9 +197,9 @@ export default function useAuth() {
       useAuthStore.getState().updateUser({ photoUrl, avatarUrl: photoUrl });
       console.log('[useAuth.uploadPhoto] Store updated with photoUrl');
     }
-    console.log('[useAuth.uploadPhoto] Calling refreshProfile...');
-    const refreshed = await refreshProfile();
-    console.log('[useAuth.uploadPhoto] refreshProfile result — photoUrl:', refreshed?.photoUrl || '(EMPTY)');
+    // Do NOT call refreshProfile here — it would fetch from server which may not have
+    // persisted the new URL yet, causing it to be overwritten with the old one.
+    // The photo URL returned from the upload API is already the correct one.
     return photoUrl;
   }
 

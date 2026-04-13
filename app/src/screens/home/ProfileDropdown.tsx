@@ -27,13 +27,13 @@ const ArchiveIcon = () => (
   </Svg>
 );
 
-function ProfileDropdown({ user, firstName, avatarError, onClose, onNavigateToAccount, onNavigateToArchived, onLogout }: any) {
+function ProfileDropdown({ user, firstName, onClose, onNavigateToAccount, onNavigateToArchived, onLogout }: any) {
   return (
     <View style={styles.dropdownOverlay}>
       <TouchableOpacity style={styles.dropdownBackdrop} activeOpacity={1} onPress={onClose} />
       <View style={styles.profileDropdown}>
         <View style={styles.dropdownHeader}>
-          {user?.photoUrl && !avatarError ? (
+          {user?.photoUrl ? (
             <Image source={{ uri: user.photoUrl }} style={styles.dropdownAvatar} />
           ) : (
             <View style={[styles.dropdownAvatar, { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' }]}>
