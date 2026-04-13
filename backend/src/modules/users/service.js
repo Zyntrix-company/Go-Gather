@@ -415,7 +415,7 @@ const getUserGallery = async (targetId) => {
       `SELECT
          t.id,
          t.name,
-         t.cover_photo_url AS "coverPhotoUrl",
+         COALESCE(t.banner_image_url, t.cover_photo_url) AS "bannerImageUrl",
          t.location_name   AS location,
          t.end_date        AS "endDate",
          (SELECT COUNT(*)::int FROM trip_members  WHERE trip_id = t.id)                        AS "memberCount",
@@ -431,15 +431,15 @@ const getUserGallery = async (targetId) => {
       `SELECT
          e.id,
          e.name,
-         e.cover_photo_url  AS "coverPhotoUrl",
-         e.location_name    AS location,
-         e.end_date         AS "endDate",
+         e.banner_image_url                        AS "bannerImageUrl",
+         e.location_name                           AS location,
+         e.event_date                              AS "endDate",
          (SELECT COUNT(*)::int FROM event_members  WHERE event_id = e.id)                         AS "memberCount",
          (SELECT COUNT(*)::int FROM photos         WHERE parent_type = 'event' AND parent_id = e.id) AS "photoCount"
        FROM events e
        JOIN event_members em ON em.event_id = e.id AND em.user_id = $1
-       WHERE e.end_date < NOW()
-       ORDER BY e.end_date DESC
+       WHERE e.event_date < NOW()
+       ORDER BY e.event_date DESC
        LIMIT 20`,
       [targetId],
     ),
