@@ -1,31 +1,40 @@
 /**
  * GatherGo — Comprehensive Seed Script
  *
- * Creates 5 users, 3 trips (upcoming / ongoing / past), friends, expenses,
- * activities, notes, polls, and invite tokens so every API endpoint can be
- * tested immediately after running this script.
+ * Creates 8 users, 6 trips (upcoming / ongoing / past / archived), a wider
+ * friend graph, gallery photos (trip + event + one activity-linked), expenses,
+ * activities, notes, polls, and invite tokens so API flows can be exercised
+ * immediately after running this script.
  *
  * Run from the backend/ folder:
  *   node seed.js
  *
  * ─── Users ──────────────────────────────────────────────────────────────────
- *   alice   test@gathergo.com      +919876543210   (primary test user)
- *   bob     bob@gathergo.com       +919876543211   (accepted friend of alice)
- *   charlie charlie@gathergo.com   +919876543212   (accepted friend of alice)
- *   diana   diana@gathergo.com     +919876543213   (alice sent request → pending)
- *   eve     eve@gathergo.com       +919876543214   (eve sent request to alice → pending)
+ *   alice   test@gathergo.com      +919876543210   @alice_gg    (primary)
+ *   bob     bob@gathergo.com       +919876543211   @bob_gg
+ *   charlie charlie@gathergo.com   +919876543212   @charlie_gg
+ *   diana   diana@gathergo.com     +919876543213   @diana_gg
+ *   eve     eve@gathergo.com       +919876543214   @eve_gg
+ *   frank   frank@gathergo.com     +919876543215   @frank_gg
+ *   grace   grace@gathergo.com     +919876543216   @grace_gg
+ *   henry   henry@gathergo.com     +919876543217   @henry_gg
  *
  * ─── Trips ──────────────────────────────────────────────────────────────────
- *   UPCOMING  — "Goa Trip 2027"        start 2027-04-10, admin alice, members bob + charlie
- *   ONGOING   — "Manali Winter 2026"   start 2026-01-01 end 2026-12-31, admin alice, member charlie
- *   PAST      — "Kerala Backwaters"    end 2024-03-20, admin alice, member bob
- *   ARCHIVED  — "Kasol Trekking 2025"  end 2025-09-07, admin alice, member bob, archived_at set
+ *   UPCOMING  — "Goa Trip 2027"           admin alice, bob + charlie
+ *   UPCOMING  — "Udaipur Long Weekend"   admin alice, bob + grace
+ *   ONGOING   — "Manali Winter 2026"     admin alice, charlie
+ *   PAST      — "Kerala Backwaters"      admin alice, bob
+ *   PAST      — "Jaipur Heritage 2025"   admin alice, frank
+ *   ARCHIVED  — "Kasol Trekking 2025"    admin alice, bob
  *
  * ─── Events ─────────────────────────────────────────────────────────────────
- *   UPCOMING  — "Diwali Night 2026"    2026-10-20, admin alice, member bob
- *                                       id: e1000000-0000-4000-8000-000000000001
- *   PAST      — "Holi 2024"            2024-03-25, admin alice, member charlie
- *                                       id: e1000000-0000-4000-8000-000000000002
+ *   UPCOMING  — "Diwali Night 2026"       alice admin, bob
+ *   UPCOMING  — "NYE Party 2026"         alice admin, bob + charlie + grace
+ *   UPCOMING  — "Pune Tech Meetup"        bob admin, alice + henry
+ *   PAST      — "Holi 2024"               alice admin, charlie
+ *
+ * Gallery `photos` rows use Unsplash file_url; s3_key is a seed placeholder
+ * (list/count APIs work; presigned image GET may 404 without real S3 objects).
  *
  * All passwords: TestPass123!
  */
@@ -53,12 +62,17 @@ const IDS = {
   charlie: 'a0000000-0000-4000-8000-000000000003',
   diana:   'a0000000-0000-4000-8000-000000000004',
   eve:     'a0000000-0000-4000-8000-000000000005',
+  frank:   'a0000000-0000-4000-8000-000000000006',
+  grace:   'a0000000-0000-4000-8000-000000000007',
+  henry:   'a0000000-0000-4000-8000-000000000008',
 
   // Trips
   upcomingTrip: 'b0000000-0000-4000-8000-000000000001',
   ongoingTrip:  'b0000000-0000-4000-8000-000000000002',
   pastTrip:     'b0000000-0000-4000-8000-000000000003',
   archivedTrip: 'b0000000-0000-4000-8000-000000000004',
+  udaipurTrip:  'b0000000-0000-4000-8000-000000000005',
+  jaipurTrip:   'b0000000-0000-4000-8000-000000000006',
 
   // Expenses (upcoming trip — multi-user splits for balance testing)
   expense1: 'c0000000-0000-4000-8000-000000000001', // Hotel, equal, alice paid
@@ -76,6 +90,11 @@ const IDS = {
   connAliceCharlie: 'f0000000-0000-4000-8000-000000000002',
   connAliceDiana:   'f0000000-0000-4000-8000-000000000003',
   connEveAlice:     'f0000000-0000-4000-8000-000000000004',
+  connAliceFrank:   'f0000000-0000-4000-8000-000000000005',
+  connGraceAlice:   'f0000000-0000-4000-8000-000000000006',
+  connBobCharlie:   'f0000000-0000-4000-8000-000000000007',
+  connCharlieDiana: 'f0000000-0000-4000-8000-000000000008',
+  connCharlieHenry: 'f0000000-0000-4000-8000-000000000009',
 
   // Activities
   actUpcoming1: 'e0000000-0000-4000-8000-000000000001',
@@ -94,6 +113,25 @@ const IDS = {
   // Events
   upcomingEvent: 'e1000000-0000-4000-8000-000000000001',
   pastEvent:     'e1000000-0000-4000-8000-000000000002',
+  eventNYE:      'e1000000-0000-4000-8000-000000000003',
+  eventMeetup:   'e1000000-0000-4000-8000-000000000004',
+
+  // Udaipur trip activities
+  actUdaipur1: 'e0000000-0000-4000-8000-000000000008',
+  actUdaipur2: 'e0000000-0000-4000-8000-000000000009',
+
+  // Gallery photos (shared `photos` table)
+  photoGoa1:     'a5000000-0000-4000-8000-000000000001',
+  photoGoa2:     'a5000000-0000-4000-8000-000000000002',
+  photoGoa3:     'a5000000-0000-4000-8000-000000000003',
+  photoGoaAct:   'a5000000-0000-4000-8000-000000000004',
+  photoKerala1:  'a5000000-0000-4000-8000-000000000005',
+  photoKerala2:  'a5000000-0000-4000-8000-000000000006',
+  photoUdaipur1: 'a5000000-0000-4000-8000-000000000007',
+  photoDiwali1:  'a5000000-0000-4000-8000-000000000008',
+  photoDiwali2:  'a5000000-0000-4000-8000-000000000009',
+  photoHoli1:    'a5000000-0000-4000-8000-00000000000a',
+  photoNYE1:     'a5000000-0000-4000-8000-00000000000b',
 
   // Event expenses
   eventExpense1: 'e2000000-0000-4000-8000-000000000001', // Venue, equal, alice paid
@@ -124,20 +162,24 @@ async function seed() {
     // ── 2. Users ──────────────────────────────────────────────────────────────
     console.log('  Seeding users…');
     const users = [
-      [IDS.alice,   'test@gathergo.com',    '+919876543210'],
-      [IDS.bob,     'bob@gathergo.com',     '+919876543211'],
-      [IDS.charlie, 'charlie@gathergo.com', '+919876543212'],
-      [IDS.diana,   'diana@gathergo.com',   '+919876543213'],
-      [IDS.eve,     'eve@gathergo.com',     '+919876543214'],
+      [IDS.alice,   'test@gathergo.com',    '+919876543210', 'alice_gg'],
+      [IDS.bob,     'bob@gathergo.com',     '+919876543211', 'bob_gg'],
+      [IDS.charlie, 'charlie@gathergo.com', '+919876543212', 'charlie_gg'],
+      [IDS.diana,   'diana@gathergo.com',   '+919876543213', 'diana_gg'],
+      [IDS.eve,     'eve@gathergo.com',     '+919876543214', 'eve_gg'],
+      [IDS.frank,   'frank@gathergo.com',   '+919876543215', 'frank_gg'],
+      [IDS.grace,   'grace@gathergo.com',   '+919876543216', 'grace_gg'],
+      [IDS.henry,   'henry@gathergo.com',   '+919876543217', 'henry_gg'],
     ];
-    for (const [id, email, phone] of users) {
+    for (const [id, email, phone, username] of users) {
       await client.query(
-        `INSERT INTO users (id, email, phone, password_hash, is_verified, is_profile_complete)
-         VALUES ($1, $2, $3, $4, true, true)
+        `INSERT INTO users (id, email, phone, password_hash, is_verified, is_profile_complete, username)
+         VALUES ($1, $2, $3, $4, true, true, $5)
          ON CONFLICT (id) DO UPDATE SET
            email = EXCLUDED.email, phone = EXCLUDED.phone,
-           password_hash = EXCLUDED.password_hash`,
-        [id, email, phone, hash],
+           password_hash = EXCLUDED.password_hash,
+           username = EXCLUDED.username`,
+        [id, email, phone, hash, username],
       );
     }
 
@@ -149,6 +191,9 @@ async function seed() {
       [IDS.charlie, 'Charlie Verma',  '1999-11-05', 'male',   'India', 'Beach bum'],
       [IDS.diana,   'Diana Kapoor',   '2000-07-18', 'female', 'India', 'New here!'],
       [IDS.eve,     'Eve Nair',       '1996-02-14', 'female', 'India', 'Wanderlust forever'],
+      [IDS.frank,   'Frank Joshi',    '1995-09-30', 'male',   'India', 'History walks & coffee'],
+      [IDS.grace,   'Grace Thomas',   '2001-01-08', 'female', 'India', 'Photography & road trips'],
+      [IDS.henry,   'Henry Banerjee', '1997-12-01', 'male',   'India', 'Cycling & tech meetups'],
     ];
     for (const [uid, name, dob, gender, country, bio] of profiles) {
       await client.query(
@@ -163,14 +208,15 @@ async function seed() {
     // ── 4. Friend connections ─────────────────────────────────────────────────
     console.log('  Seeding friend connections…');
     const connections = [
-      // alice ↔ bob (accepted)
       [IDS.connAliceBob, IDS.alice, IDS.bob, 'accepted'],
-      // alice ↔ charlie (accepted)
       [IDS.connAliceCharlie, IDS.alice, IDS.charlie, 'accepted'],
-      // alice → diana (pending — alice sent)
       [IDS.connAliceDiana, IDS.alice, IDS.diana, 'pending'],
-      // eve → alice (pending — alice received, can accept/decline)
       [IDS.connEveAlice, IDS.eve, IDS.alice, 'pending'],
+      [IDS.connAliceFrank, IDS.alice, IDS.frank, 'accepted'],
+      [IDS.connGraceAlice, IDS.grace, IDS.alice, 'accepted'],
+      [IDS.connBobCharlie, IDS.bob, IDS.charlie, 'accepted'],
+      [IDS.connCharlieDiana, IDS.charlie, IDS.diana, 'accepted'],
+      [IDS.connCharlieHenry, IDS.charlie, IDS.henry, 'accepted'],
     ];
     for (const [id, req, addr, status] of connections) {
       await client.query(
@@ -235,6 +281,26 @@ async function seed() {
       [IDS.archivedTrip, IDS.alice],
     );
 
+    // UPCOMING — long weekend (more gallery / member coverage)
+    await client.query(
+      `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
+       VALUES ($1, 'Udaipur Long Weekend', '2026-12-05', '2026-12-08',
+               'Udaipur, Rajasthan', 24.5854452, 73.7124790, $2,
+               'https://images.pexels.com/photos/3581364/pexels-photo-3581364.jpeg?auto=compress&cs=tinysrgb&w=1400')
+       ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
+      [IDS.udaipurTrip, IDS.alice],
+    );
+
+    // PAST — heritage weekend (extra past trip for profiles & gallery lists)
+    await client.query(
+      `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
+       VALUES ($1, 'Jaipur Heritage 2025', '2025-01-10', '2025-01-14',
+               'Jaipur, Rajasthan', 26.9124336, 75.7872709, $2,
+               'https://images.unsplash.com/photo-1524492412937-b28074a5d7da')
+       ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
+      [IDS.jaipurTrip, IDS.alice],
+    );
+
     // ── 7. Trip members ───────────────────────────────────────────────────────
     console.log('  Seeding trip members…');
     const members = [
@@ -251,6 +317,13 @@ async function seed() {
       // Archived: alice admin, bob member
       [IDS.archivedTrip, IDS.alice, 'admin'],
       [IDS.archivedTrip, IDS.bob,   'member'],
+      // Udaipur: alice admin, bob + grace
+      [IDS.udaipurTrip, IDS.alice, 'admin'],
+      [IDS.udaipurTrip, IDS.bob,   'member'],
+      [IDS.udaipurTrip, IDS.grace, 'member'],
+      // Jaipur past: alice admin, frank
+      [IDS.jaipurTrip, IDS.alice, 'admin'],
+      [IDS.jaipurTrip, IDS.frank, 'member'],
     ];
     for (const [tripId, userId, role] of members) {
       await client.query(
@@ -294,8 +367,13 @@ async function seed() {
       [IDS.actPast2, IDS.pastTrip, IDS.bob,   'Kathakali Show',      '2024-03-18', '18:30:00', 'Cochin Cultural Centre', 'Traditional dance performance.',  true, null],
     ];
 
+    const udaipurActivities = [
+      [IDS.actUdaipur1, IDS.udaipurTrip, IDS.alice, 'City Palace & Old Town', '2026-12-06', '09:30:00', 'City Palace, Udaipur', 'Guided walk + museum tickets.', false, null],
+      [IDS.actUdaipur2, IDS.udaipurTrip, IDS.grace, 'Sunset Boat Dinner',     '2026-12-07', '18:00:00', 'Lake Pichola',         'Dress code: smart casual.',     false, null],
+    ];
+
     for (const [id, tripId, createdBy, title, date, time, loc, desc, done, expId] of [
-      ...upcomingActivities, ...ongoingActivities, ...pastActivities,
+      ...upcomingActivities, ...ongoingActivities, ...pastActivities, ...udaipurActivities,
     ]) {
       await client.query(
         `INSERT INTO trip_activities
@@ -364,6 +442,39 @@ async function seed() {
       `UPDATE trip_activities SET expense_id = $1 WHERE id = $2`,
       [IDS.expense2, IDS.actUpcoming3],
     );
+
+    // ── 9b. Gallery photos (shared `photos` — photoCount on /users/:id/gallery)
+    console.log('  Seeding gallery photos…');
+    const uBeach = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200';
+    const uResort = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200';
+    const uLake = 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1200';
+    const uBackwater = 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1200';
+    const uPalace = 'https://images.pexels.com/photos/3581364/pexels-photo-3581364.jpeg?auto=compress&cs=tinysrgb&w=1200';
+    const uLights = 'https://images.unsplash.com/photo-1519677100203-a0e668c92439?w=1200';
+    const uHoli = 'https://images.unsplash.com/photo-1580136608263-f526cf971b99?w=1200';
+    const uParty = 'https://images.pexels.com/photos/3171837/pexels-photo-3171837.jpeg?auto=compress&cs=tinysrgb&w=1200';
+
+    const galleryInserts = [
+      [IDS.photoGoa1, 'trip', IDS.upcomingTrip, IDS.alice, uBeach, 'seed/trips/goa/01.jpg', 'Shoreline', null],
+      [IDS.photoGoa2, 'trip', IDS.upcomingTrip, IDS.bob, uResort, 'seed/trips/goa/02.jpg', 'Resort pool', null],
+      [IDS.photoGoa3, 'trip', IDS.upcomingTrip, IDS.charlie, uLake, 'seed/trips/goa/03.jpg', 'Boat day', null],
+      [IDS.photoGoaAct, 'trip', IDS.upcomingTrip, IDS.bob, uBeach, 'seed/trips/goa/beach-day.jpg', 'Beach day', IDS.actUpcoming1],
+      [IDS.photoKerala1, 'trip', IDS.pastTrip, IDS.alice, uBackwater, 'seed/trips/kerala/01.jpg', 'Houseboat morning', null],
+      [IDS.photoKerala2, 'trip', IDS.pastTrip, IDS.bob, uLake, 'seed/trips/kerala/02.jpg', 'Canal cruise', null],
+      [IDS.photoUdaipur1, 'trip', IDS.udaipurTrip, IDS.grace, uPalace, 'seed/trips/udaipur/01.jpg', 'Old city', null],
+      [IDS.photoDiwali1, 'event', IDS.upcomingEvent, IDS.alice, uLights, 'seed/events/diwali/01.jpg', 'Lights setup', null],
+      [IDS.photoDiwali2, 'event', IDS.upcomingEvent, IDS.bob, uParty, 'seed/events/diwali/02.jpg', 'Stage area', null],
+      [IDS.photoHoli1, 'event', IDS.pastEvent, IDS.charlie, uHoli, 'seed/events/holi/01.jpg', 'Colours', null],
+      [IDS.photoNYE1, 'event', IDS.eventNYE, IDS.grace, uParty, 'seed/events/nye/01.jpg', 'Countdown deck', null],
+    ];
+    for (const [id, pType, pId, uploadedBy, fileUrl, s3Key, caption, actId] of galleryInserts) {
+      await client.query(
+        `INSERT INTO photos (id, parent_type, parent_id, uploaded_by, file_url, s3_key, caption, mime_type, activity_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'image/jpeg', $8)
+         ON CONFLICT (id) DO NOTHING`,
+        [id, pType, pId, uploadedBy, fileUrl, s3Key, caption, actId],
+      );
+    }
 
     // Expense 4: Ongoing trip — equal split, alice paid, ₹5000
     await client.query(
@@ -492,22 +603,44 @@ async function seed() {
 
     // UPCOMING event
     await client.query(
-      `INSERT INTO events (id, name, event_date, event_type, description, location_name, location_lat, location_lng, created_by)
+      `INSERT INTO events (id, name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url)
        VALUES ($1, 'Diwali Night 2026', '2026-10-20', 'Festival',
                'Annual Diwali celebration with fireworks and dinner.',
-               'Mumbai, India', 19.0760, 72.8777, $2)
-       ON CONFLICT (id) DO NOTHING`,
+               'Mumbai, India', 19.0760, 72.8777, $2,
+               'https://images.unsplash.com/photo-1519677100203-a0e668c92439')
+       ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
       [IDS.upcomingEvent, IDS.alice],
     );
 
     // PAST event
     await client.query(
-      `INSERT INTO events (id, name, event_date, event_type, description, location_name, location_lat, location_lng, created_by)
+      `INSERT INTO events (id, name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url)
        VALUES ($1, 'Holi 2024', '2024-03-25', 'Festival',
                NULL,
-               'Delhi, India', 28.6139, 77.2090, $2)
-       ON CONFLICT (id) DO NOTHING`,
+               'Delhi, India', 28.6139, 77.2090, $2,
+               'https://images.unsplash.com/photo-1580136608263-f526cf971b99')
+       ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
       [IDS.pastEvent, IDS.alice],
+    );
+
+    await client.query(
+      `INSERT INTO events (id, name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url)
+       VALUES ($1, 'NYE Party 2026', '2026-12-31', 'Party',
+               'Rooftop countdown, DJ, and midnight snacks.',
+               'Bandra, Mumbai', 19.0544, 72.8406, $2,
+               'https://images.pexels.com/photos/3171837/pexels-photo-3171837.jpeg?auto=compress&cs=tinysrgb&w=1400')
+       ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
+      [IDS.eventNYE, IDS.alice],
+    );
+
+    await client.query(
+      `INSERT INTO events (id, name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url)
+       VALUES ($1, 'Pune Tech Meetup', '2026-05-15', 'Networking',
+               'Founders & builders coffee meetup — 40 seats.',
+               'Koregaon Park, Pune', 18.5362, 73.8939, $2,
+               'https://images.unsplash.com/photo-1540575467063-178a50c2df87')
+       ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
+      [IDS.eventMeetup, IDS.bob],
     );
 
     // ── 13a. Event members ────────────────────────────────────────────────────
@@ -517,6 +650,13 @@ async function seed() {
       [IDS.upcomingEvent, IDS.bob,     'member'],
       [IDS.pastEvent,     IDS.alice,   'admin'],
       [IDS.pastEvent,     IDS.charlie, 'member'],
+      [IDS.eventNYE, IDS.alice,   'admin'],
+      [IDS.eventNYE, IDS.bob,     'member'],
+      [IDS.eventNYE, IDS.charlie, 'member'],
+      [IDS.eventNYE, IDS.grace,   'member'],
+      [IDS.eventMeetup, IDS.bob,   'admin'],
+      [IDS.eventMeetup, IDS.alice, 'member'],
+      [IDS.eventMeetup, IDS.henry, 'member'],
     ];
     for (const [eventId, userId, role] of eventMembers) {
       await client.query(
@@ -545,6 +685,18 @@ async function seed() {
        VALUES ($1, 'event_start',  '2026-10-20T03:30:00Z'),
               ($1, '1_day_before', '2026-10-19T03:30:00Z')`,
       [IDS.upcomingEvent],
+    );
+    await client.query(
+      `INSERT INTO event_reminders (event_id, reminder_type, scheduled_at)
+       VALUES ($1, 'event_start',  '2026-12-31T14:00:00Z'),
+              ($1, '1_day_before', '2026-12-30T14:00:00Z')`,
+      [IDS.eventNYE],
+    );
+    await client.query(
+      `INSERT INTO event_reminders (event_id, reminder_type, scheduled_at)
+       VALUES ($1, 'event_start',  '2026-05-15T04:30:00Z'),
+              ($1, '1_day_before', '2026-05-14T04:30:00Z')`,
+      [IDS.eventMeetup],
     );
 
     // ── 13d. Event expenses ───────────────────────────────────────────────────
@@ -642,23 +794,30 @@ async function seed() {
     console.log(`  Password : ${PASSWORD}\n`);
     console.log('  User             Email                     ID');
     console.log('  ───────────────────────────────────────────────────────');
-    console.log(`  alice (primary)  test@gathergo.com         ${IDS.alice}`);
-    console.log(`  bob              bob@gathergo.com          ${IDS.bob}`);
-    console.log(`  charlie          charlie@gathergo.com      ${IDS.charlie}`);
-    console.log(`  diana            diana@gathergo.com        ${IDS.diana}`);
-    console.log(`  eve              eve@gathergo.com          ${IDS.eve}`);
+    console.log(`  alice (primary)  test@gathergo.com         ${IDS.alice}  @alice_gg`);
+    console.log(`  bob              bob@gathergo.com          ${IDS.bob}  @bob_gg`);
+    console.log(`  charlie          charlie@gathergo.com      ${IDS.charlie}  @charlie_gg`);
+    console.log(`  diana            diana@gathergo.com        ${IDS.diana}  @diana_gg`);
+    console.log(`  eve              eve@gathergo.com          ${IDS.eve}  @eve_gg`);
+    console.log(`  frank            frank@gathergo.com        ${IDS.frank}  @frank_gg`);
+    console.log(`  grace            grace@gathergo.com        ${IDS.grace}  @grace_gg`);
+    console.log(`  henry            henry@gathergo.com        ${IDS.henry}  @henry_gg`);
     console.log('\n══════════════════════════════════════════════════════════');
     console.log('  TRIPS');
     console.log('══════════════════════════════════════════════════════════');
-    console.log(`  UPCOMING  Goa Trip 2027         ${IDS.upcomingTrip}  (bannerImageUrl set)`);
-    console.log(`  ONGOING   Manali Winter 2026    ${IDS.ongoingTrip}  (bannerImageUrl set)`);
-    console.log(`  PAST      Kerala Backwaters     ${IDS.pastTrip}  (bannerImageUrl set)`);
-    console.log(`  ARCHIVED  Kasol Trekking 2025   ${IDS.archivedTrip}  (archived_at set, hidden from normal lists)`);
+    console.log(`  UPCOMING  Goa Trip 2027           ${IDS.upcomingTrip}`);
+    console.log(`  UPCOMING  Udaipur Long Weekend  ${IDS.udaipurTrip}`);
+    console.log(`  ONGOING   Manali Winter 2026      ${IDS.ongoingTrip}`);
+    console.log(`  PAST      Kerala Backwaters       ${IDS.pastTrip}`);
+    console.log(`  PAST      Jaipur Heritage 2025    ${IDS.jaipurTrip}`);
+    console.log(`  ARCHIVED  Kasol Trekking 2025     ${IDS.archivedTrip}`);
     console.log('\n══════════════════════════════════════════════════════════');
     console.log('  EVENTS');
     console.log('══════════════════════════════════════════════════════════');
-    console.log(`  UPCOMING  Diwali Night 2026      ${IDS.upcomingEvent}  (alice admin, bob member)`);
-    console.log(`  PAST      Holi 2024              ${IDS.pastEvent}  (alice admin, charlie member)`);
+    console.log(`  UPCOMING  Diwali Night 2026       ${IDS.upcomingEvent}`);
+    console.log(`  UPCOMING  NYE Party 2026         ${IDS.eventNYE}`);
+    console.log(`  UPCOMING  Pune Tech Meetup       ${IDS.eventMeetup}`);
+    console.log(`  PAST      Holi 2024              ${IDS.pastEvent}`);
     console.log('\n══════════════════════════════════════════════════════════');
     console.log('  KEY IDs FOR POSTMAN');
     console.log('══════════════════════════════════════════════════════════');
@@ -666,6 +825,8 @@ async function seed() {
     console.log(`  trip_id (upcoming) : ${IDS.upcomingTrip}`);
     console.log(`  trip_id (archived) : ${IDS.archivedTrip}`);
     console.log(`  event_id (upcoming): ${IDS.upcomingEvent}`);
+    console.log(`  event_id (NYE)       : ${IDS.eventNYE}`);
+    console.log(`  photo_id (sample)    : ${IDS.photoGoa1}`);
     console.log(`  expense_id (trip)  : ${IDS.expense1}`);
     console.log(`  expense_id (event) : ${IDS.eventExpense1}`);
     console.log(`  activity_id        : ${IDS.actUpcoming1}`);
@@ -681,8 +842,10 @@ async function seed() {
     console.log('  FRIEND STATES (as alice)');
     console.log('══════════════════════════════════════════════════════════');
     console.log(`  bob     → accepted   (can invite to trip/event via friendIds)`);
-    console.log(`  charlie → accepted   (can invite to trip/event via friendIds)`);
-    console.log(`  diana   → pending    (alice sent — can test outgoing)`);
+    console.log(`  charlie → accepted   (also bob↔charlie, charlie↔diana, charlie↔henry)`);
+    console.log(`  frank   → accepted   (alice sent)`);
+    console.log(`  grace   → accepted   (grace sent to alice — accepted)`);
+    console.log(`  diana   → pending from alice; accepted with charlie`);
     console.log(`  eve     → pending    (eve sent  — alice can accept/decline)`);
     console.log('══════════════════════════════════════════════════════════\n');
 
