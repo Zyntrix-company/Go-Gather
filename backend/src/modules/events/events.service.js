@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
 const { sendEmail, wrapEmail } = require('../../utils/mailer');
 const { sendFCMNotification, notifyUsers } = require('../../utils/fcm.util');
-const { batchDeleteFromS3 } = require('../../utils/s3.util');
+const { batchDeleteFromS3, getPresignedDownloadUrl } = require('../../utils/s3.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
 const config = require('../../config');
 const logger = require('../../utils/logger');
@@ -29,6 +29,38 @@ const formatEvent = (e) => ({
   createdAt: e.created_at,
   updatedAt: e.updated_at,
 });
+
+// Returns true only for URLs stored in our own S3 bucket / CloudFront distribution
+const isOwnS3Url = (url) => {
+  if (!url) return false;
+  try {
+    const { hostname } = new URL(url);
+    if (config.s3.cloudfrontDomain && hostname === config.s3.cloudfrontDomain) return true;
+    if (config.s3.bucket && hostname.startsWith(config.s3.bucket)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+};
+
+// Generate a presigned URL for a banner stored in our S3 bucket.
+// External URLs pass through unchanged.
+const resolvePresignedBannerUrl = async (rawUrl) => {
+  if (!rawUrl || !isOwnS3Url(rawUrl)) return rawUrl || null;
+  try {
+    const key = new URL(rawUrl).pathname.replace(/^\//, '');
+    if (!key) return rawUrl;
+    return await getPresignedDownloadUrl(key);
+  } catch {
+    return rawUrl;
+  }
+};
+
+// Async wrapper — resolves presigned banner URL then merges into formatted event
+const enrichEvent = async (e) => {
+  const bannerImageUrl = await resolvePresignedBannerUrl(e.banner_image_url);
+  return { ...formatEvent(e), bannerImageUrl };
+};
 
 // ─── Create Event ─────────────────────────────────────────────────────────────
 
@@ -143,7 +175,7 @@ const createEvent = async (userId, body) => {
     const countResult = await db('SELECT COUNT(*) FROM event_members WHERE event_id = $1', [event.id]);
 
     return {
-      ...formatEvent(event),
+      ...(await enrichEvent(event)),
       memberCount: parseInt(countResult.rows[0].count, 10),
     };
   } catch (error) {
@@ -208,11 +240,13 @@ const getEvents = async (userId, { status, page = 1, limit = 20 } = {}) => {
   );
 
   const total = result.rows[0]?.total_count || 0;
-  const events = result.rows.map((e) => ({
-    ...formatEvent(e),
-    memberCount: e.member_count,
-    memberAvatars: e.member_avatars || [],
-  }));
+  const events = await Promise.all(
+    result.rows.map(async (e) => ({
+      ...(await enrichEvent(e)),
+      memberCount: e.member_count,
+      memberAvatars: e.member_avatars || [],
+    })),
+  );
 
   return { events, total, page, limit: safLimit };
 };
@@ -247,7 +281,7 @@ const getEventById = async (eventId) => {
   );
 
   return {
-    event: formatEvent(e),
+    event: await enrichEvent(e),
     members: membersResult.rows.map((m) => ({
       userId: m.user_id,
       name: m.name,
@@ -283,7 +317,7 @@ const updateEvent = async (eventId, updates) => {
 
   if (fields.length === 0) {
     const existing = await db('SELECT * FROM events WHERE id = $1', [eventId]);
-    return formatEvent(existing.rows[0]);
+    return enrichEvent(existing.rows[0]);
   }
 
   values.push(eventId);
@@ -323,7 +357,7 @@ const updateEvent = async (eventId, updates) => {
     }
   }
 
-  return formatEvent(event);
+  return enrichEvent(event);
 };
 
 // ─── Delete Event ─────────────────────────────────────────────────────────────
