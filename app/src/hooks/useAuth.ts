@@ -214,14 +214,13 @@ export default function useAuth() {
   async function uploadPhoto(fileUri: string, fileName: string, mimeType: string) {
     const res = await authApi.uploadPhoto(fileUri, fileName, mimeType);
     const photoUrl = res.photoUrl;
-    console.log('[useAuth.uploadPhoto] photoUrl from API:', photoUrl || '(EMPTY)');
     if (photoUrl) {
+      // Optimistically patch the store so the UI updates immediately
       useAuthStore.getState().updateUser({ photoUrl, avatarUrl: photoUrl });
-      console.log('[useAuth.uploadPhoto] Store updated with photoUrl');
     }
-    // Do NOT call refreshProfile here — it would fetch from server which may not have
-    // persisted the new URL yet, causing it to be overwritten with the old one.
-    // The photo URL returned from the upload API is already the correct one.
+    // Re-fetch from server to confirm the URL was persisted and sync the full user object
+    // (the upload writes to DB synchronously before returning, so this is safe)
+    await refreshProfile();
     return photoUrl;
   }
 
@@ -282,11 +281,10 @@ export default function useAuth() {
   }) {
     setLoading(true);
     try {
-      const updatedUser = await authApi.updateProfile(payload);
-      const token = (await storage.getToken()) || useAuthStore.getState().accessToken;
-      const refreshToken = (await storage.getRefreshToken()) || useAuthStore.getState().refreshToken;
-      // Update store immediately with the returned user data
-      setAuth(updatedUser, token, refreshToken);
+      await authApi.updateProfile(payload);
+      // Re-fetch full user from /auth/me so the store has every field including
+      // avatar_url, email, isVerified, etc. — updateProfile response is partial.
+      await refreshProfile();
     } finally {
       setLoading(false);
     }
