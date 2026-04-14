@@ -166,10 +166,24 @@ export default function useAuth() {
       const refreshToken = (await storage.getRefreshToken()) || useAuthStore.getState().refreshToken;
       setAuth(user, token, refreshToken);
       return user;
-    } catch {
-      // Token may be invalid — clear and force re-login
-      await storage.clearAll();
-      storeLogout();
+    } catch (err: any) {
+      // Only wipe tokens on 401 (token genuinely invalid/expired and refresh also failed).
+      // Network errors (no internet, timeout, 5xx) must NOT clear tokens — the user
+      // is still authenticated, the server was just unreachable temporarily.
+      const status = err?.response?.status;
+      if (status === 401) {
+        await storage.clearAll();
+        storeLogout();
+      } else {
+        // Network/server error — keep tokens, restore store from storage so
+        // RootNavigator still sees isAuthenticated = true.
+        const token = (await storage.getToken()) || useAuthStore.getState().accessToken;
+        const refreshToken = (await storage.getRefreshToken()) || useAuthStore.getState().refreshToken;
+        if (token) {
+          // Restore auth state without a user object — screens handle null user gracefully.
+          setAuth(null, token, refreshToken);
+        }
+      }
       return null;
     } finally {
       setLoading(false);

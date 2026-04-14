@@ -80,7 +80,7 @@ function daysUntil(isoDate: string): number {
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// Validate that date is within ±365 days from today
+// Validate that date is within 365 days from today
 function validateDateRange(date: Date): { isValid: boolean; error?: string } {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -376,7 +376,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
   const CARD_BANNER_W = SCREEN_W - 40;
   const CARD_BANNER_H = 144;
 
-  const cropScaleAnim  = useRef(new Animated.Value(1)).current;
+  const cropScaleAnim = useRef(new Animated.Value(1)).current;
   const cropTransXAnim = useRef(new Animated.Value(0)).current;
   const cropTransYAnim = useRef(new Animated.Value(0)).current;
   const cropState = useRef({ scale: 1, x: 0, y: 0, lastDist: 0, lastMidX: 0, lastMidY: 0, lastX: 0, lastY: 0 });
@@ -440,7 +440,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
         uri: f.user.avatarUrl ?? `https://i.pravatar.cc/150?u=${f.user.id}`,
       }));
       setApiFriends(mapped);
-    }).catch(() => {});
+    }).catch(() => { });
   }, [showInviteModal]);
 
   const filteredFriends = apiFriends.filter(f =>
@@ -722,9 +722,9 @@ export function CreateEventModal({ visible, onClose, onSave }: {
                 {fetchingLocation
                   ? <ActivityIndicator size="small" color="#0d9488" />
                   : <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                      <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
-                    </Svg>
+                    <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
+                  </Svg>
                 }
               </TouchableOpacity>
             </View>
@@ -1107,14 +1107,14 @@ export function CreateEventModal({ visible, onClose, onSave }: {
               const imgVisW = imgDisplayW * s.scale;
               const imgVisH = imgDisplayH * s.scale;
               const imgVisLeft = canvasCX + s.x - imgVisW / 2;
-              const imgVisTop  = canvasCY + s.y - imgVisH / 2;
+              const imgVisTop = canvasCY + s.y - imgVisH / 2;
               const cropLeft = canvasCX - cropBoxW / 2;
-              const cropTop  = canvasCY - cropBoxH / 2;
+              const cropTop = canvasCY - cropBoxH / 2;
               setBannerCropFraction({
                 imgFracW: imgVisW / cropBoxW,
                 imgFracH: imgVisH / cropBoxH,
                 imgFracX: (imgVisLeft - cropLeft) / cropBoxW,
-                imgFracY: (imgVisTop  - cropTop ) / cropBoxH,
+                imgFracY: (imgVisTop - cropTop) / cropBoxH,
               });
               setBannerImageUri(cropPreviewUri!);
               setCropPreviewUri(undefined);
@@ -1147,7 +1147,7 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
       setShowCreate(true);
       onCreateMountHandled?.();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openCreateOnMount]);
 
   async function loadEvents(silent = false) {
@@ -1232,13 +1232,6 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      {/* Outside-tap backdrop — closes any open three-dot menu */}
-      {openMenuId !== null && (
-        <Pressable
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }}
-          onPress={() => setOpenMenuId(null)}
-        />
-      )}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
@@ -1252,6 +1245,13 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
           />
         }
       >
+        {/* Tap-outside backdrop — inside ScrollView so it shares stacking context with menus */}
+        {openMenuId !== null && (
+          <Pressable
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }}
+            onPress={() => setOpenMenuId(null)}
+          />
+        )}
 
         {/* Hero section — always visible */}
         <View style={styles.heroSection}>
@@ -1352,10 +1352,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingTop: 4, paddingBottom: 12,
   },
-   eventListHeader: { marginBottom: 1, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 20},
+  eventListHeader: { marginBottom: 1, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 20 },
   eventListTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
   eventListSub: { fontSize: 13, color: '#64748b', marginTop: 2, marginBottom: 12 },
-   sectionLabel: {
+  sectionLabel: {
     fontSize: 13, fontWeight: '600', color: '#64748b', letterSpacing: 0.6,
     marginBottom: 10, marginTop: 4, textTransform: 'uppercase',
   },

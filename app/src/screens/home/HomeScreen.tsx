@@ -522,6 +522,9 @@ export default function HomeScreen({ navigation, route }: any) {
   // Carousel dot indices
   const [blogIndex, setBlogIndex] = useState(0);
   const [dealIndex, setDealIndex] = useState(0);
+  const blogListRef = useRef<FlatList>(null);
+  const blogIndexRef = useRef(0);
+  const blogResettingRef = useRef(false);
 
 
   // Refresh profile on mount so name/avatar are always up to date
@@ -530,9 +533,9 @@ export default function HomeScreen({ navigation, route }: any) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch blogs, deals, and upcoming events for the home feed
+  // Fetch blogs + deals once on mount (they don't change with archive/delete)
   useEffect(() => {
-    async function fetchHomeData() {
+    async function fetchStaticHomeData() {
       try {
         setBlogsLoading(true);
         const blogsRes = await fetch(`${API_BASE}/blogs`);
@@ -543,15 +546,46 @@ export default function HomeScreen({ navigation, route }: any) {
         const dealsRes = await fetch(`${API_BASE}/deals`);
         if (dealsRes.ok) setDeals(await dealsRes.json());
       } catch { /* silently fall back to empty */ } finally { setDealsLoading(false); }
-      try {
-        const evRes = await getEvents({ status: 'upcoming', limit: 10 });
-        setHomeEvents(evRes.events);
-      } catch { /* silently fall back to empty */ }
     }
-    fetchHomeData();
+    fetchStaticHomeData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-scroll Get Inspired carousel every 3 seconds — true circular loop.
+  // Data = [...blogs, blogs[0]] (clone of first item appended).
+  // Sequence: 0 → 1 → 2 → … → N(clone, animated) → [silent snap to 0] → 1 → …
+  // blogIndexRef is a plain mutable ref so the interval closure never goes stale.
+  // The snap-back uses scrollToIndex (not scrollToOffset) so padding is accounted for.
+  useEffect(() => {
+    if (blogs.length < 2) return;
+    blogIndexRef.current = 0;
+    setBlogIndex(0);
+
+    const timer = setInterval(() => {
+      const next = blogIndexRef.current + 1;
+      blogIndexRef.current = next;
+
+      // Scroll forward (animated). If next === blogs.length we're on the clone.
+      blogListRef.current?.scrollToIndex({ index: next, animated: true });
+      setBlogIndex(next >= blogs.length ? 0 : next);
+
+      if (next === blogs.length) {
+        // After the forward-scroll animation settles, silently jump to real index 0.
+        // Use scrollToIndex so getItemLayout handles the paddingLeft offset correctly.
+        setTimeout(() => {
+          blogResettingRef.current = true;
+          blogIndexRef.current = 0;
+          blogListRef.current?.scrollToIndex({ index: 0, animated: false });
+          setBlogIndex(0);
+          // Clear the flag after a short delay so normal user swipes work again
+          setTimeout(() => { blogResettingRef.current = false; }, 100);
+        }, 500);
+      }
+    }, 3000);
+
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blogs.length]);
 
   // Handle initialTab param when returning from detail screens
   useEffect(() => {
@@ -561,10 +595,15 @@ export default function HomeScreen({ navigation, route }: any) {
     }
   }, [route?.params?.initialTab, navigation]);
 
-  // Load trips on mount AND every time the screen comes back into focus
-  // (so edits made in TripDetailScreen are reflected immediately)
+  // Load trips AND upcoming events on mount AND every time screen gains focus
+  // so archive/delete actions in Events/Trips tabs are immediately reflected here
   const loadTripsRef = useRef<() => void>(() => {});
-  useFocusEffect(useCallback(() => { loadTripsRef.current(); }, []));
+  const loadHomeDataRef = useRef<() => void>(() => {});
+
+  useFocusEffect(useCallback(() => {
+    loadTripsRef.current();
+    loadHomeDataRef.current();
+  }, []));
 
   async function loadTrips(page: number = 1, replace: boolean = false) {
     setIsLoadingTrips(true);
@@ -578,8 +617,17 @@ export default function HomeScreen({ navigation, route }: any) {
       setIsLoadingTrips(false);
     }
   }
-  // Always keep the ref pointing at the latest loadTrips (so useFocusEffect always calls fresh version)
+
+  async function loadHomeEvents() {
+    try {
+      const evRes = await getEvents({ status: 'upcoming', limit: 10 });
+      setHomeEvents(evRes.events);
+    } catch { /* silently fall back to empty */ }
+  }
+
+  // Always keep refs pointing at latest functions (avoids stale closure in useFocusEffect)
   loadTripsRef.current = () => loadTrips(1, true);
+  loadHomeDataRef.current = () => loadHomeEvents();
 
   const user = rawUser ? {
     id: rawUser.id ?? rawUser.sub ?? '',
@@ -702,7 +750,7 @@ export default function HomeScreen({ navigation, route }: any) {
   const CARD_BLOG_TEXT_H = SCREEN_W * 0.08;   // ≈30px — black title strip
   const CARD_DEAL_W      = SCREEN_W * 0.317;  // ≈119px on 375px — Figma exact
   const CARD_DEAL_H      = SCREEN_W * 0.304;  // ≈114px on 375px — Figma exact
-  const DEAL_BG_COLORS   = ['#EDE7F6', '#FDEECB', '#D5EAF5'];
+  const DEAL_BG_COLORS   = ['#ffffff', '#ffffff', '#ffffff'];
 
   // ─── Reusable home-feed sub-components ─────────────────────────────────────
 
@@ -834,18 +882,18 @@ export default function HomeScreen({ navigation, route }: any) {
 
   const renderHomeTab = () => (
     <>
-      {/* Outside-tap backdrop — closes any open three-dot menu */}
-      {(showTripMenu !== null || showEventMenu !== null) && (
-        <Pressable
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }}
-          onPress={() => { setShowTripMenu(null); setShowEventMenu(null); }}
-        />
-      )}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 110 }}
         onScrollBeginDrag={() => { setShowTripMenu(null); setShowEventMenu(null); }}
       >
+        {/* Tap-outside backdrop — inside ScrollView so it shares stacking context with menus */}
+        {(showTripMenu !== null || showEventMenu !== null) && (
+          <Pressable
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }}
+            onPress={() => { setShowTripMenu(null); setShowEventMenu(null); }}
+          />
+        )}
         {/* ── 1. Welcome ── */}
         <Text style={{
           fontWeight: '500',
@@ -902,7 +950,7 @@ export default function HomeScreen({ navigation, route }: any) {
         </View>
 
         {/* ── 3. Action Buttons Row — all 3 in one row, flex:1 each ── */}
-        <View style={{ flexDirection: 'row', marginHorizontal: H_PAD, marginTop: 12, gap: 8 }}>
+        <View style={{ flexDirection: 'row', marginHorizontal: H_PAD, marginTop: 12, gap: 8, paddingVertical: 6 }}>
           <TouchableOpacity
             onPress={() => setShowCreateTripModal(true)}
             activeOpacity={0.85}
@@ -941,16 +989,26 @@ export default function HomeScreen({ navigation, route }: any) {
         ) : (
           <>
             <FlatList
-              data={blogs}
+              ref={blogListRef}
+              data={blogs.length > 0 ? [...blogs, blogs[0]] : blogs}
               horizontal
               showsHorizontalScrollIndicator={false}
               snapToInterval={CARD_BLOG_W + 10}
               snapToAlignment="start"
               decelerationRate="fast"
               contentContainerStyle={{ paddingLeft: H_PAD, paddingRight: 6 }}
-              keyExtractor={(item: any) => String(item.id)}
+              keyExtractor={(item: any, index: number) => `${item.id}-${index}`}
+              getItemLayout={(_: any, index: number) => ({
+                length: CARD_BLOG_W + 10,
+                offset: (CARD_BLOG_W + 10) * index,
+                index,
+              })}
               onMomentumScrollEnd={e => {
-                setBlogIndex(Math.round(e.nativeEvent.contentOffset.x / (CARD_BLOG_W + 10)));
+                if (blogResettingRef.current) return;
+                const idx = Math.round(e.nativeEvent.contentOffset.x / (CARD_BLOG_W + 10));
+                const clamped = idx >= blogs.length ? 0 : idx;
+                blogIndexRef.current = clamped;
+                setBlogIndex(clamped);
               }}
               renderItem={({ item }: { item: any }) => {
                 const imgUri = item.imageUrl ?? item.image_url ?? item.coverImage ?? item.thumbnail ?? item.image;
@@ -985,7 +1043,7 @@ export default function HomeScreen({ navigation, route }: any) {
                 );
               }}
             />
-            <CarouselDots total={blogs.length} active={blogIndex} />
+            <CarouselDots total={blogs.length} active={blogIndex >= blogs.length ? 0 : blogIndex} />
           </>
         )}
 

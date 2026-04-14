@@ -73,7 +73,7 @@ export default function DateInfoPopover({ visible, onClose, iconX = SCREEN_W / 2
             ]}
           />
           <View style={styles.content}>
-            <Text style={styles.text}>You can only select dates within ±365 days from today.</Text>
+            <Text style={styles.text}>You can only select dates within 365 days from today.</Text>
           </View>
           <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
             <Text style={styles.closeBtnText}>×</Text>

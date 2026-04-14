@@ -33,9 +33,8 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
   const ICON_SIZE   = Math.round(Math.min(Math.max(screenW * 0.09, 32), 56));
   const WORDMARK_H  = ICON_SIZE;
   const WORDMARK_W  = Math.round(ICON_SIZE * 4.5);
-  const GAP         = Math.round(screenW * 0.03);
+  const GAP          = Math.round(screenW * 0.03);
   const ICON_SHIFT_X = -((GAP + WORDMARK_W) / 2);
-  const BRAND_LEFT   = -(ICON_SIZE / 2) + ICON_SHIFT_X + ICON_SIZE + GAP;
 
   // ── Animated values ───────────────────────────────────────────────────
   // logoY starts at 0 so the icon is statically visible while permissions are requested.
@@ -47,19 +46,21 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
 
   // ── Styles (recalculate when screen size changes) ─────────────────────
   const dynStyles = useMemo(() => StyleSheet.create({
-    iconWrap: {
-      position: 'absolute',
-      top:  -(ICON_SIZE / 2),
-      left: -(ICON_SIZE / 2),
-    },
     icon: { width: ICON_SIZE, height: ICON_SIZE },
+    // Wordmark is absolutely positioned to the right of the icon.
+    // alignItems:'center' on the row handles vertical centering — no top math needed.
     wordmarkWrap: {
       position: 'absolute',
-      top:  -(WORDMARK_H / 2),
-      left: BRAND_LEFT,
+      left: ICON_SIZE + GAP,
+      // Stretch to icon height then center the image inside — matches icon mid-line
+      // regardless of internal whitespace in the wordmark asset.
+      top: 0,
+      bottom: 0,
+      justifyContent: 'center',
+      marginTop: Math.round(ICON_SIZE * 0.09),
     },
-    wordmark: { width: WORDMARK_W, height: WORDMARK_H },
-  }), [ICON_SIZE, WORDMARK_H, WORDMARK_W, BRAND_LEFT]);
+    wordmark: { width: WORDMARK_W, height: WORDMARK_H, marginTop: Math.round(ICON_SIZE * 0.07) },
+  }), [ICON_SIZE, WORDMARK_H, WORDMARK_W, GAP]);
 
   // ── Sequenced: permissions → animation → navigate ─────────────────────
   useEffect(() => {
@@ -73,14 +74,23 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
       if (!authDone || !animDone || resolved) return;
       resolved = true;
       onFinish?.();
-      if (!authUser) return navigation.replace('Login');
-      if (authUser.isVerified === false) {
-        return navigation.replace('OtpVerification', { email: authUser.email ?? '' });
-      }
-      if (authUser.isProfileComplete === false) {
-        setPendingProfileSetup(true);
+
+      // If RootNavigator already sees isAuthenticated = true (token was preserved
+      // despite a network error during getMe), let it render MainStack automatically —
+      // no explicit navigation needed.
+      const { isAuthenticated } = useAuthStore.getState();
+      if (isAuthenticated) {
+        if (authUser?.isVerified === false) {
+          return navigation.replace('OtpVerification', { email: authUser.email ?? '' });
+        }
+        if (authUser?.isProfileComplete === false) {
+          setPendingProfileSetup(true);
+        }
+        // RootNavigator handles the rest — MainStack or ProfileSetupNavigator.
         return;
       }
+
+      // No valid token at all → go to Login
       navigation.replace('Login');
     }
 
@@ -141,23 +151,27 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
     <BlobBackground>
       <View style={styles.screen}>
         {/*
-          Zero-size anchor at screen center.
-          All pieces absolutely positioned relative to this point.
-          Both icon and wordmark share the same `top` formula → same axis.
-        */}
-        <View style={styles.anchor}>
-          <Animated.View
-            style={[dynStyles.iconWrap, {
-              transform: [{ translateY: logoY }, { translateX: logoX }],
-            }]}
-          >
-            <Image
-              source={require('../../../assets/icon_only.png')}
-              style={dynStyles.icon}
-              resizeMode="contain"
-            />
-          </Animated.View>
+          Flex-row container centred on screen.
+          alignItems:'center' lets flexbox vertically align the icon and
+          wordmark on the same axis regardless of image asset padding — the
+          old zero-anchor/absolute-top approach depended on both assets
+          having identical bounding-box padding, which they don't.
 
+          The wordmark is position:'absolute' so it doesn't affect the row
+          width while it's invisible (icon stays centred on screen alone).
+          Horizontal animations (logoX, wordmarkX) are unchanged.
+        */}
+        <Animated.View
+          style={[
+            styles.logoRow,
+            { transform: [{ translateY: logoY }, { translateX: logoX }] },
+          ]}
+        >
+          <Image
+            source={require('../../../assets/icon_only.png')}
+            style={dynStyles.icon}
+            resizeMode="contain"
+          />
           <Animated.View
             style={[dynStyles.wordmarkWrap, {
               opacity: wordmarkOpacity,
@@ -170,7 +184,7 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
               resizeMode="contain"
             />
           </Animated.View>
-        </View>
+        </Animated.View>
       </View>
     </BlobBackground>
   );
@@ -182,8 +196,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  anchor: {
-    width: 0,
-    height: 0,
+  // Row that holds the icon (in flow) + wordmark (absolute).
+  // alignItems:'center' is the key — it vertically centres both children
+  // on the same axis without relying on image-asset bounding-box maths.
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
   },
 });

@@ -51,38 +51,38 @@ import useAuthStore from '../../store/authStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type DocItem    = { id: string; name: string; uri: string; mimeType?: string };
-type PhotoItem  = { id: string; uri: string; localUri?: string; name: string };
+type DocItem = { id: string; name: string; uri: string; mimeType?: string };
+type PhotoItem = { id: string; uri: string; localUri?: string; name: string };
 type EventMemberLocal = { userId: string; fullName: string; avatarUrl?: string; role: 'admin' | 'member' };
 type ExpenseLocal = { id: string; description: string; amount: number; category: string; paidBy: string; splitType: 'equally' | 'amount' | 'percent'; splitAmong: string[]; date: string; myAmount?: number };
-type PollLocal  = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null };
-type NoteLocal  = { id: string; title: string; body: string; category: 'general' | 'idea' | 'important' | 'todo'; date: string; pinned?: boolean };
-type DebtLocal  = { from: string; to: string; fromName: string; toName: string; amount: number };
+type PollLocal = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null };
+type NoteLocal = { id: string; title: string; body: string; category: 'general' | 'idea' | 'important' | 'todo'; date: string; pinned?: boolean };
+type DebtLocal = { from: string; to: string; fromName: string; toName: string; amount: number };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const EXPENSE_CATS = [
-  { label: 'General',       emoji: '📦' },
+  { label: 'General', emoji: '📦' },
   { label: 'Food & Dining', emoji: '🍽️' },
-  { label: 'Transport',     emoji: '🚗' },
-  { label: 'Stay',          emoji: '🏨' },
+  { label: 'Transport', emoji: '🚗' },
+  { label: 'Stay', emoji: '🏨' },
   { label: 'Entertainment', emoji: '🎭' },
-  { label: 'Shopping',      emoji: '🛍️' },
-  { label: 'Other',         emoji: '🌐' },
+  { label: 'Shopping', emoji: '🛍️' },
+  { label: 'Other', emoji: '🌐' },
 ];
 
 const NOTE_CATS = [
-  { key: 'general',   label: 'General',   emoji: '📝' },
-  { key: 'idea',      label: 'Idea',       emoji: '💡' },
-  { key: 'important', label: 'Important',  emoji: '⚠️' },
-  { key: 'todo',      label: 'To-Do',      emoji: '✅' },
+  { key: 'general', label: 'General', emoji: '📝' },
+  { key: 'idea', label: 'Idea', emoji: '💡' },
+  { key: 'important', label: 'Important', emoji: '⚠️' },
+  { key: 'todo', label: 'To-Do', emoji: '✅' },
 ];
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtDate(d: Date): string {
-  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
 function daysUntil(isoDate: string): number {
@@ -91,7 +91,7 @@ function daysUntil(isoDate: string): number {
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// Validate that date is within ±365 days from today
+// Validate that date is within 365 days from today
 function validateDateRange(date: Date): { isValid: boolean; error?: string } {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -122,12 +122,12 @@ function fmtEventDateLine(isoDate: string): string {
 function ActionIcon({ path, color }: { path: string; color: string }) {
   const s = { width: 22, height: 22 };
   switch (path) {
-    case 'docs':     return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M14 2v6h6M16 13H8M16 17H8" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
-    case 'members':  return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
-    case 'photos':   return <Svg {...s} viewBox="0 0 24 24" fill="none"><Rect x={3} y={3} width={18} height={18} rx={2} ry={2} stroke={color} strokeWidth={2} /><Circle cx={8.5} cy={8.5} r={1.5} fill={color} /><Path d="M21 15l-5-5L5 21" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
+    case 'docs': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M14 2v6h6M16 13H8M16 17H8" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
+    case 'members': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
+    case 'photos': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Rect x={3} y={3} width={18} height={18} rx={2} ry={2} stroke={color} strokeWidth={2} /><Circle cx={8.5} cy={8.5} r={1.5} fill={color} /><Path d="M21 15l-5-5L5 21" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
     case 'expenses': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
-    case 'polls':    return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M18 20V10M12 20V4M6 20v-6" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
-    case 'notes':    return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
+    case 'polls': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M18 20V10M12 20V4M6 20v-6" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
+    case 'notes': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
     default: return null;
   }
 }
@@ -136,7 +136,7 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const isSmall = SCREEN_W < 360;
 
 const DHeader = DetailDialogHeader;
-const TabBar   = DetailTabBar;
+const TabBar = DetailTabBar;
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -145,13 +145,13 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   // Derive display fields from whatever shape the event param has
   const [event, setEvent] = useState({
-    id:          rawEvent?.id          ?? 'e1',
-    name:        rawEvent?.name        ?? 'Spring Music Festival',
-    location:    rawEvent?.location    ?? 'Central Park, NY',
-    dateLine:    rawEvent?.fullDate    ?? rawEvent?.dateLine ?? '15 Mar 2026',
-    type:        rawEvent?.type        ?? 'Festival',
-    typeColor:   rawEvent?.typeColor   ?? '#fdf2f8',
-    dayCount:    rawEvent?.daysToGo    ?? rawEvent?.dayCount ?? 15,
+    id: rawEvent?.id ?? 'e1',
+    name: rawEvent?.name ?? 'Spring Music Festival',
+    location: rawEvent?.location ?? 'Central Park, NY',
+    dateLine: rawEvent?.fullDate ?? rawEvent?.dateLine ?? '15 Mar 2026',
+    type: rawEvent?.type ?? 'Festival',
+    typeColor: rawEvent?.typeColor ?? '#fdf2f8',
+    dayCount: rawEvent?.daysToGo ?? rawEvent?.dayCount ?? 15,
     description: rawEvent?.description ?? 'Join us for the annual Spring Music Festival in the heart of Central Park. Experience live performances from local and international artists across multiple stages.',
   });
 
@@ -159,27 +159,27 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
 
   // ── Modal visibility (declared before hooks that reference them) ──
-  const [showDocs,       setShowDocs]       = useState(false);
-  const [showMembers,    setShowMembers]    = useState(false);
-  const [showPhotos,     setShowPhotos]     = useState(false);
-  const [showExpenses,   setShowExpenses]   = useState(false);
-  const [showPolls,      setShowPolls]      = useState(false);
-  const [showNotes,      setShowNotes]      = useState(false);
-  const [showEditEvent,  setShowEditEvent]  = useState(false);
-  const [previewPhoto,   setPreviewPhoto]   = useState<PhotoItem | null>(null);
-  const [docPreviewUrl,  setDocPreviewUrl]  = useState<string | null>(null);
+  const [showDocs, setShowDocs] = useState(false);
+  const [showMembers, setShowMembers] = useState(false);
+  const [showPhotos, setShowPhotos] = useState(false);
+  const [showExpenses, setShowExpenses] = useState(false);
+  const [showPolls, setShowPolls] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [showEditEvent, setShowEditEvent] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
+  const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
 
   // ── Data state ──
   const [loadingDetail, setLoadingDetail] = useState(true);
-  const [members,  setMembers]  = useState<EventMemberLocal[]>([]);
+  const [members, setMembers] = useState<EventMemberLocal[]>([]);
   const [apiFriends, setApiFriends] = useState<{ id: string; name: string; avatar: string }[]>([]);
-  const [docs,     setDocs]     = useState<DocItem[]>([]);
-  const [photos,   setPhotos]   = useState<PhotoItem[]>([]);
+  const [docs, setDocs] = useState<DocItem[]>([]);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [expenses, setExpenses] = useState<ExpenseLocal[]>([]);
   const [balances, setBalances] = useState<DebtLocal[]>([]);
-  const [myBalance,setMyBalance]= useState(0);
-  const [polls,    setPolls]    = useState<PollLocal[]>([]);
-  const [notes,    setNotes]    = useState<NoteLocal[]>([]);
+  const [myBalance, setMyBalance] = useState(0);
+  const [polls, setPolls] = useState<PollLocal[]>([]);
+  const [notes, setNotes] = useState<NoteLocal[]>([]);
 
   // ── Load event detail and all modules from API on every focus ──
   useFocusEffect(
@@ -193,17 +193,17 @@ export default function EventDetailScreen({ route, navigation }: any) {
           const eventData = await getEventDetail(event.id);
           setEvent(prev => ({
             ...prev,
-            name:        eventData.event.name,
-            location:    eventData.event.location?.name ?? prev.location,
-            dateLine:    eventData.event.eventDate ? fmtEventDateLine(eventData.event.eventDate) : prev.dateLine,
-            type:        eventData.event.eventType ?? prev.type,
+            name: eventData.event.name,
+            location: eventData.event.location?.name ?? prev.location,
+            dateLine: eventData.event.eventDate ? fmtEventDateLine(eventData.event.eventDate) : prev.dateLine,
+            type: eventData.event.eventType ?? prev.type,
             description: eventData.event.description ?? prev.description,
           }));
           setMembers(eventData.members.map(m => ({
-            userId:    m.userId,
-            fullName:  m.fullName ?? (m as any).name ?? 'Member',
+            userId: m.userId,
+            fullName: m.fullName ?? (m as any).name ?? 'Member',
             avatarUrl: m.avatarUrl ?? undefined,
-            role:      m.role,
+            role: m.role,
           })));
 
           // Load all module data in parallel
@@ -308,63 +308,63 @@ export default function EventDetailScreen({ route, navigation }: any) {
         name: f.user.name,
         avatar: f.user.avatarUrl ?? '',
       })));
-    }).catch(() => {});
+    }).catch(() => { });
   }, [showMembers]);
 
   // ── Members modal ──
-  const [memberTab,       setMemberTab]       = useState<'From Friends' | 'Invite New'>('From Friends');
-  const [memberSearch,    setMemberSearch]    = useState('');
+  const [memberTab, setMemberTab] = useState<'From Friends' | 'Invite New'>('From Friends');
+  const [memberSearch, setMemberSearch] = useState('');
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
-  const [inviteMethod,    setInviteMethod]    = useState<'email' | 'sms' | 'whatsapp'>('email');
-  const [inviteInput,     setInviteInput]     = useState('');
+  const [inviteMethod, setInviteMethod] = useState<'email' | 'sms' | 'whatsapp'>('email');
+  const [inviteInput, setInviteInput] = useState('');
 
   // ── Expenses modal ──
-  const [expTab,          setExpTab]          = useState<'All Expenses' | 'Balances'>('All Expenses');
-  const [showAddExpense,  setShowAddExpense]  = useState(false);
-  const [expDesc,         setExpDesc]         = useState('');
-  const [expAmount,       setExpAmount]       = useState('');
-  const [expCategory,     setExpCategory]     = useState(EXPENSE_CATS[0]);
-  const [expPaidBy,       setExpPaidBy]       = useState('You');
-  const [expSplitType,    setExpSplitType]    = useState<'equally' | 'amount' | 'percent'>('equally');
-  const [expSplitAmong,   setExpSplitAmong]   = useState<string[]>(['You']);
-  const [expSplitDetails, setExpSplitDetails] = useState<{[k:string]:string}>({});
-  const [showExpCatDrop,  setShowExpCatDrop]  = useState(false);
-  const [showPaidByDrop,  setShowPaidByDrop]  = useState(false);
-  const [editingExpenseId,setEditingExpenseId]= useState<string | null>(null);
+  const [expTab, setExpTab] = useState<'All Expenses' | 'Balances'>('All Expenses');
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [expDesc, setExpDesc] = useState('');
+  const [expAmount, setExpAmount] = useState('');
+  const [expCategory, setExpCategory] = useState(EXPENSE_CATS[0]);
+  const [expPaidBy, setExpPaidBy] = useState('You');
+  const [expSplitType, setExpSplitType] = useState<'equally' | 'amount' | 'percent'>('equally');
+  const [expSplitAmong, setExpSplitAmong] = useState<string[]>(['You']);
+  const [expSplitDetails, setExpSplitDetails] = useState<{ [k: string]: string }>({});
+  const [showExpCatDrop, setShowExpCatDrop] = useState(false);
+  const [showPaidByDrop, setShowPaidByDrop] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
   // ── Polls modal ──
-  const [pollQuestion,   setPollQuestion]   = useState('');
-  const [pollOptions,    setPollOptions]    = useState<string[]>(['', '', '']);
-  const [votingPollId,   setVotingPollId]   = useState<string | null>(null);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState<string[]>(['', '', '']);
+  const [votingPollId, setVotingPollId] = useState<string | null>(null);
 
   // ── Notes modal ──
-  const [noteTitle,       setNoteTitle]       = useState('');
-  const [noteBody,        setNoteBody]        = useState('');
-  const [noteCategory,    setNoteCategory]    = useState<'general' | 'idea' | 'important' | 'todo'>('general');
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteBody, setNoteBody] = useState('');
+  const [noteCategory, setNoteCategory] = useState<'general' | 'idea' | 'important' | 'todo'>('general');
   const [showNoteCatDrop, setShowNoteCatDrop] = useState(false);
-  const [editingNoteId,   setEditingNoteId]   = useState<string | null>(null);
-  const [expandedNoteId,  setExpandedNoteId]  = useState<string | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
 
   // ── Inline description editing ──
-  const [editingDesc, setEditingDesc]   = useState(false);
-  const [descDraft,   setDescDraft]     = useState('');
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descDraft, setDescDraft] = useState('');
 
   // ── Edit Event form ──
-  const [editName,        setEditName]        = useState('');
-  const [editLocation,    setEditLocation]    = useState('');
-  const [editType,        setEditType]        = useState('');
-  const [editDateObj,     setEditDateObj]     = useState<Date | undefined>(undefined);
+  const [editName, setEditName] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editType, setEditType] = useState('');
+  const [editDateObj, setEditDateObj] = useState<Date | undefined>(undefined);
   const [showEditDatePicker, setShowEditDatePicker] = useState(false);
-  const [showEditTypeDrop,   setShowEditTypeDrop]   = useState(false);
-  const [editDateError,   setEditDateError]   = useState<string | null>(null);
+  const [showEditTypeDrop, setShowEditTypeDrop] = useState(false);
+  const [editDateError, setEditDateError] = useState<string | null>(null);
 
   const EVENT_TYPE_LIST = ['Wedding', 'Birthday', 'Party', 'Professional', 'Meetup', 'Festival', 'Family', 'Sports', 'Religious', 'Other'];
 
   // ── Derived ──
-  const memberCount  = members.length;
-  const totalExp     = expenses.reduce((s, e) => s + e.amount, 0);
+  const memberCount = members.length;
+  const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
-  const memberIdSet  = new Set(members.map(m => m.userId));
+  const memberIdSet = new Set(members.map(m => m.userId));
   const filteredFriends = apiFriends
     .filter(f => !memberIdSet.has(f.id) && f.name.toLowerCase().includes(memberSearch.toLowerCase()));
   const dayLabel = event.dayCount > 0 ? 'Days to go' : event.dayCount === 0 ? 'Today!' : 'Days ago';
@@ -524,20 +524,22 @@ export default function EventDetailScreen({ route, navigation }: any) {
   function handleDeleteExpense(eid: string) {
     Alert.alert('Delete', 'Remove this expense?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-        try {
-          await deleteEventExpense(event.id, eid);
-          setExpenses(p => p.filter(e => e.id !== eid));
-          // Refresh balances after deleting expense
-          const balData = await getEventBalances(event.id);
-          setBalances((balData.debts ?? []).map((d: any) => ({
-            from: d.from, to: d.to,
-            fromName: d.fromName ?? 'Member', toName: d.toName ?? 'Member',
-            amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
-          })));
-          setMyBalance(balData.myBalance ?? 0);
-        } catch (err) { handleApiError(err); }
-      }},
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await deleteEventExpense(event.id, eid);
+            setExpenses(p => p.filter(e => e.id !== eid));
+            // Refresh balances after deleting expense
+            const balData = await getEventBalances(event.id);
+            setBalances((balData.debts ?? []).map((d: any) => ({
+              from: d.from, to: d.to,
+              fromName: d.fromName ?? 'Member', toName: d.toName ?? 'Member',
+              amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
+            })));
+            setMyBalance(balData.myBalance ?? 0);
+          } catch (err) { handleApiError(err); }
+        }
+      },
     ]);
   }
 
@@ -648,12 +650,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
       const freshData = await getEventDetail(event.id);
       setEvent(prev => ({
         ...prev,
-        name:        freshData.event.name,
-        location:    freshData.event.location?.name ?? prev.location,
-        dateLine:    freshData.event.eventDate
+        name: freshData.event.name,
+        location: freshData.event.location?.name ?? prev.location,
+        dateLine: freshData.event.eventDate
           ? new Date(freshData.event.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
           : prev.dateLine,
-        type:        freshData.event.eventType ?? prev.type,
+        type: freshData.event.eventType ?? prev.type,
         description: freshData.event.description ?? prev.description,
       }));
     } catch (err) { handleApiError(err); }
@@ -714,9 +716,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
             {/* Row 1: Docs | Members | Photos | Expenses */}
             <View style={styles.actionsRow}>
               {[
-                { label: 'Docs',     bg: '#cffafe', ic: '#0e7490', p: 'docs',     fn: () => setShowDocs(true) },
-                { label: 'Members',  bg: '#ede9fe', ic: '#6d28d9', p: 'members',  fn: () => setShowMembers(true) },
-                { label: 'Photos',   bg: '#ffe4e6', ic: '#be123c', p: 'photos',   fn: () => setShowPhotos(true) },
+                { label: 'Docs', bg: '#cffafe', ic: '#0e7490', p: 'docs', fn: () => setShowDocs(true) },
+                { label: 'Members', bg: '#ede9fe', ic: '#6d28d9', p: 'members', fn: () => setShowMembers(true) },
+                { label: 'Photos', bg: '#ffe4e6', ic: '#be123c', p: 'photos', fn: () => setShowPhotos(true) },
                 { label: 'Expenses', bg: '#ffedd5', ic: '#c2410c', p: 'expenses', fn: () => setShowExpenses(true) },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
@@ -842,7 +844,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                             source={{ uri: p.localUri ?? p.uri }}
                             style={{ width: THUMB, height: THUMB, borderRadius: 10, backgroundColor: '#e2e8f0' }}
                             resizeMode="cover"
-                            onError={() => {}}
+                            onError={() => { }}
                           />
                         </TouchableOpacity>
                       ))}
@@ -1032,11 +1034,11 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         ? <View style={styles.ownerBadge}><Text style={styles.ownerTxt}>Admin</Text></View>
                         : m.userId !== currentUserId
                           ? <TouchableOpacity onPress={async () => {
-                              try { await removeEventMember(event.id, m.userId); setMembers(p => p.filter(x => x.userId !== m.userId)); }
-                              catch (err) { handleApiError(err); }
-                            }} activeOpacity={0.7}>
-                              <Text style={{ color: '#ef4444', fontSize: 12 }}>Remove</Text>
-                            </TouchableOpacity>
+                            try { await removeEventMember(event.id, m.userId); setMembers(p => p.filter(x => x.userId !== m.userId)); }
+                            catch (err) { handleApiError(err); }
+                          }} activeOpacity={0.7}>
+                            <Text style={{ color: '#ef4444', fontSize: 12 }}>Remove</Text>
+                          </TouchableOpacity>
                           : null}
                     </View>
                   ))}
@@ -1076,8 +1078,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     <Text style={styles.memberSectionLabel}>Invite new people to this event</Text>
                     <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
                       {[
-                        { key: 'email',    icon: (a: boolean) => <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke={a ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M22 6l-10 7L2 6" stroke={a ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg> },
-                        { key: 'sms',      icon: (a: boolean) => <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={a ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg> },
+                        { key: 'email', icon: (a: boolean) => <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke={a ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M22 6l-10 7L2 6" stroke={a ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg> },
+                        { key: 'sms', icon: (a: boolean) => <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={a ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg> },
                         { key: 'whatsapp', icon: (a: boolean) => <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" stroke={a ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg> },
                       ].map(m => (
                         <TouchableOpacity key={m.key} onPress={() => setInviteMethod(m.key as any)} style={[styles.inviteIconBtn, inviteMethod === m.key && styles.inviteIconBtnActive]} activeOpacity={0.7}>
@@ -1137,7 +1139,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {photos.map(ph => (
                         <TouchableOpacity key={ph.id} onPress={() => setPreviewPhoto(ph)} activeOpacity={0.85} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
-                          <Image source={{ uri: ph.localUri ?? ph.uri }} style={{ width: 80, height: 80 }} resizeMode="cover" onError={() => {}} />
+                          <Image source={{ uri: ph.localUri ?? ph.uri }} style={{ width: 80, height: 80 }} resizeMode="cover" onError={() => { }} />
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -1185,7 +1187,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
               </Svg>
             </TouchableOpacity>
             {previewPhoto && (
-              <Image source={{ uri: previewPhoto.localUri ?? previewPhoto.uri }} style={{ width: '100%', height: '75%' }} resizeMode="contain" onError={() => {}} />
+              <Image source={{ uri: previewPhoto.localUri ?? previewPhoto.uri }} style={{ width: '100%', height: '75%' }} resizeMode="contain" onError={() => { }} />
             )}
           </View>
         </Modal>
@@ -1205,11 +1207,11 @@ export default function EventDetailScreen({ route, navigation }: any) {
               return isImage
                 ? <Image source={{ uri: docPreviewUrl }} style={{ flex: 1 }} resizeMode="contain" />
                 : <WebView
-                    source={{ uri: `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(docPreviewUrl)}` }}
-                    style={{ flex: 1 }}
-                    startInLoadingState
-                    javaScriptEnabled
-                  />;
+                  source={{ uri: `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(docPreviewUrl)}` }}
+                  style={{ flex: 1 }}
+                  startInLoadingState
+                  javaScriptEnabled
+                />;
             })()}
           </SafeAreaView>
         </Modal>
@@ -1314,7 +1316,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     ) : (
                       <View style={{ marginTop: 12 }}>
                         {expenses.map(exp => {
-                          const myAmt   = exp.myAmount ?? 0;
+                          const myAmt = exp.myAmount ?? 0;
                           const balText = exp.paidBy === 'You'
                             ? `You lent ₹${(exp.amount - myAmt).toFixed(2)}`
                             : `You owe ₹${myAmt.toFixed(2)}`;
@@ -1419,8 +1421,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     <View key={poll.id} style={styles.pollCard}>
                       <Text style={styles.pollQ}>{poll.question}</Text>
                       {poll.options.map(opt => {
-                        const total    = poll.options.reduce((s, o) => s + o.voteCount, 0);
-                        const pct      = total > 0 ? Math.round((opt.voteCount / total) * 100) : 0;
+                        const total = poll.options.reduce((s, o) => s + o.voteCount, 0);
+                        const pct = total > 0 ? Math.round((opt.voteCount / total) * 100) : 0;
                         const isMyVote = opt.votedByMe || poll.myVoteOptionId === opt.id;
                         const isVoting = votingPollId === poll.id;
                         return (
@@ -1657,122 +1659,122 @@ export default function EventDetailScreen({ route, navigation }: any) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: 'transparent' },
-  topBar:       { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2 },
-  backBtn:      { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  scrollContent:{ paddingBottom: 150 },
+  container: { flex: 1, backgroundColor: 'transparent' },
+  topBar: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2 },
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  scrollContent: { paddingBottom: 150 },
 
-  actionsWrap:  { paddingHorizontal: 20, paddingVertical: 16, gap: 16, marginBottom: 6 },
-  actionsRow:   { flexDirection: 'row', justifyContent: 'space-between' },
-  actionBtn:    { alignItems: 'center', width: isSmall ? 60 : 72, gap: 6 },
-  actionCircle:     { width: isSmall ? 46 : 52, height: isSmall ? 46 : 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
-  actionLabel:      { fontSize: isSmall ? 10 : 11, fontWeight: '600', color: '#0f172a', textAlign: 'center', lineHeight: 14 },
+  actionsWrap: { paddingHorizontal: 20, paddingVertical: 16, gap: 16, marginBottom: 6 },
+  actionsRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  actionBtn: { alignItems: 'center', width: isSmall ? 60 : 72, gap: 6 },
+  actionCircle: { width: isSmall ? 46 : 52, height: isSmall ? 46 : 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  actionLabel: { fontSize: isSmall ? 10 : 11, fontWeight: '600', color: '#0f172a', textAlign: 'center', lineHeight: 14 },
 
-  section:          { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
-  sectionTitle:     { fontSize: 17, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
+  section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
+  sectionTitle: { fontSize: 17, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
 
-  descCard:       { backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
-  descText:       { fontSize: 14, color: '#475569', lineHeight: 21 },
-  descEditCard:   { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#0d9488' },
-  descInput:      { fontSize: 14, color: '#0f172a', lineHeight: 21, padding: 14, minHeight: 100, textAlignVertical: 'top' },
+  descCard: { backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
+  descText: { fontSize: 14, color: '#475569', lineHeight: 21 },
+  descEditCard: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#0d9488' },
+  descInput: { fontSize: 14, color: '#0f172a', lineHeight: 21, padding: 14, minHeight: 100, textAlignVertical: 'top' },
   descEditFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
-  descWordCount:  { fontSize: 11, color: '#94a3b8', fontWeight: '500' },
-  descCancelBtn:  { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: '#f1f5f9' },
-  descCancelTxt:  { fontSize: 13, color: '#64748b', fontWeight: '600' },
-  descSaveBtn:    { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 8, backgroundColor: '#0d9488' },
-  descSaveTxt:    { fontSize: 13, color: '#fff', fontWeight: '700' },
+  descWordCount: { fontSize: 11, color: '#94a3b8', fontWeight: '500' },
+  descCancelBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: '#f1f5f9' },
+  descCancelTxt: { fontSize: 13, color: '#64748b', fontWeight: '600' },
+  descSaveBtn: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 8, backgroundColor: '#0d9488' },
+  descSaveTxt: { fontSize: 13, color: '#fff', fontWeight: '700' },
 
-  emptyBox:   { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#e2e8f0', paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center' },
-  emptyCenter:{ alignItems: 'center', paddingVertical: 28 },
+  emptyBox: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#e2e8f0', paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center' },
+  emptyCenter: { alignItems: 'center', paddingVertical: 28 },
   emptyTitle: { fontSize: 13, color: '#64748b', fontWeight: '600', marginTop: 10 },
-  emptySub:   { fontSize: 12, color: '#94a3b8', marginTop: 4, textAlign: 'center' },
+  emptySub: { fontSize: 12, color: '#94a3b8', marginTop: 4, textAlign: 'center' },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
-  dialog:  { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '90%', overflow: 'hidden' },
+  dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '90%', overflow: 'hidden' },
 
-  dBody:        { padding: 16 },
-  dFooterSingle:{ padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
-  dFooterRow:   { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+  dBody: { padding: 16 },
+  dFooterSingle: { padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+  dFooterRow: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
 
-  fLabel:     { fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12 },
-  fInput:     { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#0f172a' },
-  fInputTouch:{ backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 },
+  fLabel: { fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12 },
+  fInput: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#0f172a' },
+  fInputTouch: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 },
 
   tealBtnFull: { flexDirection: 'row', backgroundColor: '#0d9488', borderRadius: 10, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  tealBtnTxt:  { color: '#fff', fontWeight: '700', fontSize: 14 },
-  cancelBtn:   { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-  cancelTxt:   { fontSize: 14, color: '#64748b', fontWeight: '600' },
+  tealBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
+  cancelTxt: { fontSize: 14, color: '#64748b', fontWeight: '600' },
 
   docRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
 
   memberSectionLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  memberRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
+  memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
-  memberAvatar:{ width: 40, height: 40, borderRadius: 20 },
-  memberName:  { fontSize: 14, fontWeight: '600', color: '#0f172a' },
-  ownerBadge:  { backgroundColor: '#f0fdfa', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#99f6e4' },
-  ownerTxt:    { fontSize: 11, color: '#0d9488', fontWeight: '700' },
-  searchBox:   { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 12, gap: 8 },
+  memberAvatar: { width: 40, height: 40, borderRadius: 20 },
+  memberName: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
+  ownerBadge: { backgroundColor: '#f0fdfa', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#99f6e4' },
+  ownerTxt: { fontSize: 11, color: '#0d9488', fontWeight: '700' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 12, gap: 8 },
   searchInput: { flex: 1, fontSize: 13, color: '#0f172a' },
   checkCircle: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
-  inviteIconBtn:      { width: 52, height: 52, borderRadius: 26, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
-  inviteIconBtnActive:{ borderColor: '#0d9488', backgroundColor: '#0d9488' },
-  sendBtn:     { backgroundColor: '#0d9488', borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  inviteIconBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
+  inviteIconBtnActive: { borderColor: '#0d9488', backgroundColor: '#0d9488' },
+  sendBtn: { backgroundColor: '#0d9488', borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
 
   uploadPhotosBtn: { flex: 1, flexDirection: 'row', backgroundColor: '#fff1f2', borderWidth: 1.5, borderColor: '#fecdd3', borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
   uploadPhotosTxt: { fontSize: 13, fontWeight: '600', color: '#be123c' },
-  takePhotoBtn:    { flex: 1, flexDirection: 'row', backgroundColor: '#ecfeff', borderWidth: 1.5, borderColor: '#a5f3fc', borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
-  takePhotoTxt:    { fontSize: 13, fontWeight: '600', color: '#0e7490' },
+  takePhotoBtn: { flex: 1, flexDirection: 'row', backgroundColor: '#ecfeff', borderWidth: 1.5, borderColor: '#a5f3fc', borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
+  takePhotoTxt: { fontSize: 13, fontWeight: '600', color: '#0e7490' },
 
-  expRow:    { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  expIconBox:{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
-  expName:   { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 2 },
-  expMeta:   { fontSize: 11, color: '#94a3b8', marginBottom: 1 },
-  expAmt:    { fontSize: 14, fontWeight: '700', color: '#0f172a', marginBottom: 2 },
-  dropdown:  { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, overflow: 'hidden', marginTop: 4 },
+  expRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  expIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
+  expName: { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 2 },
+  expMeta: { fontSize: 11, color: '#94a3b8', marginBottom: 1 },
+  expAmt: { fontSize: 14, fontWeight: '700', color: '#0f172a', marginBottom: 2 },
+  dropdown: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, overflow: 'hidden', marginTop: 4 },
   dropdownItem: { paddingVertical: 11, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  splitTypeBtn:       { flex: 1, paddingVertical: 9, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
+  splitTypeBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
   splitTypeBtnActive: { backgroundColor: '#0d9488' },
-  splitTypeTxt:       { fontSize: 12, color: '#64748b', fontWeight: '500' },
+  splitTypeTxt: { fontSize: 12, color: '#64748b', fontWeight: '500' },
   splitTypeTxtActive: { color: '#fff', fontWeight: '700' },
-  splitRow:       { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', marginVertical: 4 },
+  splitRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', marginVertical: 4 },
   splitRowActive: { borderColor: '#0d9488', backgroundColor: '#f0fdfa' },
-  splitCheck:       { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center' },
+  splitCheck: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center' },
   splitCheckActive: { backgroundColor: '#0d9488', borderColor: '#0d9488' },
 
-  balCard:  { flex: 1, backgroundColor: '#f8fafc', borderRadius: 10, padding: 10, alignItems: 'center' },
+  balCard: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 10, padding: 10, alignItems: 'center' },
   balLabel: { fontSize: 11, color: '#64748b', fontWeight: '500', marginBottom: 4 },
   balValue: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
 
-  pollCard:   { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  pollQ:      { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 10 },
+  pollCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
+  pollQ: { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 10 },
   pollOptRow: { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, marginBottom: 6, overflow: 'hidden' },
-  pollBar:    { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 8 },
+  pollBar: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 8 },
   pollOptTxt: { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500', zIndex: 1 },
-  pollVotes:  { fontSize: 12, color: '#64748b', fontWeight: '600', zIndex: 1 },
+  pollVotes: { fontSize: 12, color: '#64748b', fontWeight: '600', zIndex: 1 },
 
-  noteCard:  { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
+  noteCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
   noteTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a', flex: 1 },
-  noteBody:  { fontSize: 13, color: '#64748b', lineHeight: 18 },
-  catBtn:    { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  noteBody: { fontSize: 13, color: '#64748b', lineHeight: 18 },
+  catBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
 
   // ── Highlights sub-section styles ──
-  hlSubTitle:  { fontSize: 14, fontWeight: '700', color: '#0f172a' },
-  seeAllLink:  { fontSize: 12, color: '#0d9488', fontWeight: '600' },
+  hlSubTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  seeAllLink: { fontSize: 12, color: '#0d9488', fontWeight: '600' },
 
-  hlDocRow:    { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, gap: 10 },
-  hlDocIcon:   { width: 36, height: 36, borderRadius: 8, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center' },
-  hlDocName:   { flex: 1, fontSize: 13, fontWeight: '500', color: '#0f172a' },
+  hlDocRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, gap: 10 },
+  hlDocIcon: { width: 36, height: 36, borderRadius: 8, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center' },
+  hlDocName: { flex: 1, fontSize: 13, fontWeight: '500', color: '#0f172a' },
 
-  hlPollCard:          { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', padding: 14, gap: 8 },
-  hlPollQuestion:      { flex: 1, fontSize: 14, fontWeight: '700', color: '#0f172a', lineHeight: 20 },
-  hlPollOption:        { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, position: 'relative', overflow: 'hidden', backgroundColor: '#f8fafc' },
-  hlPollOptionVoted:   {},
+  hlPollCard: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', padding: 14, gap: 8 },
+  hlPollQuestion: { flex: 1, fontSize: 14, fontWeight: '700', color: '#0f172a', lineHeight: 20 },
+  hlPollOption: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, position: 'relative', overflow: 'hidden', backgroundColor: '#f8fafc' },
+  hlPollOptionVoted: {},
   hlPollOptionUnvoted: {},
-  hlPollBar:           { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 10 },
-  hlPollOptionInner:   { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  hlPollOptText:       { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500' },
-  hlPollPct:           { fontSize: 12, color: '#64748b', fontWeight: '600', marginLeft: 8 },
-  hlPollTotal:         { fontSize: 11, color: '#94a3b8', textAlign: 'right', marginTop: 2 },
+  hlPollBar: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 10 },
+  hlPollOptionInner: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hlPollOptText: { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500' },
+  hlPollPct: { fontSize: 12, color: '#64748b', fontWeight: '600', marginLeft: 8 },
+  hlPollTotal: { fontSize: 11, color: '#94a3b8', textAlign: 'right', marginTop: 2 },
 });

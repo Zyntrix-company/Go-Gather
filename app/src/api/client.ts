@@ -7,6 +7,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Toast from 'react-native-toast-message';
 import storage from '../utils/storage';
+import useAuthStore from '../store/authStore';
 
 // ─── Base URL ────────────────────────────────────────────────────────────────
 const REAL_BASE_URL = 'https://api.gatherrgo.com';
@@ -50,7 +51,6 @@ client.interceptors.request.use(
       let token = await storage.getToken();
       // Fallback: use in-memory store in case Keychain read fails (e.g. Android timing issue)
       if (!token) {
-        const { default: useAuthStore } = await import('../store/authStore');
         token = useAuthStore.getState().accessToken;
       }
       if (token && config.headers) {
@@ -110,7 +110,6 @@ client.interceptors.response.use(
         // Primary: read from secure storage; fallback to in-memory store
         let refreshToken = await storage.getRefreshToken();
         if (!refreshToken) {
-          const { default: useAuthStore } = await import('../store/authStore');
           refreshToken = useAuthStore.getState().refreshToken;
         }
         if (!refreshToken) throw new Error('No refresh token');
@@ -139,7 +138,6 @@ client.interceptors.response.use(
           text2: 'Please log in again.',
         });
 
-        const { default: useAuthStore } = await import('../store/authStore');
         useAuthStore.getState().logout();
 
         return Promise.reject(refreshError);

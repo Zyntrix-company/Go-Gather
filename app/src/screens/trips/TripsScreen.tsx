@@ -161,7 +161,7 @@ function daysUntil(isoDate: string): number {
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// Validate that date is within ±365 days from today
+// Validate that date is within 365 days from today
 function validateDateRange(date: Date): { isValid: boolean; error?: string } {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -521,7 +521,7 @@ export function CreateTripModal({
   const CARD_BANNER_W = SCREEN_W - 40; // scrollContent paddingHorizontal 20 each side
   const CARD_BANNER_H = 144;
 
-  const cropScaleAnim  = useRef(new Animated.Value(1)).current;
+  const cropScaleAnim = useRef(new Animated.Value(1)).current;
   const cropTransXAnim = useRef(new Animated.Value(0)).current;
   const cropTransYAnim = useRef(new Animated.Value(0)).current;
   // All mutable gesture state lives in a ref so PanResponder callbacks
@@ -724,7 +724,7 @@ export function CreateTripModal({
         uri: f.user.avatarUrl ?? `https://i.pravatar.cc/150?u=${f.user.id}`,
       }));
       setApiFriends(mapped);
-    }).catch(() => {});
+    }).catch(() => { });
   }, [showInviteModal]);
 
   const filteredFriends = apiFriends.filter(f =>
@@ -885,9 +885,9 @@ export function CreateTripModal({
                 {fetchingLocation
                   ? <ActivityIndicator size="small" color="#0d9488" />
                   : <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                      <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
-                    </Svg>
+                    <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
+                  </Svg>
                 }
               </TouchableOpacity>
             </View>
@@ -1333,16 +1333,16 @@ export function CreateTripModal({
               const imgVisW = imgDisplayW * s.scale;
               const imgVisH = imgDisplayH * s.scale;
               const imgVisLeft = canvasCX + s.x - imgVisW / 2;
-              const imgVisTop  = canvasCY + s.y - imgVisH / 2;
+              const imgVisTop = canvasCY + s.y - imgVisH / 2;
 
               const cropLeft = canvasCX - cropBoxW / 2;
-              const cropTop  = canvasCY - cropBoxH / 2;
+              const cropTop = canvasCY - cropBoxH / 2;
 
               // Correct fractions: image position/size relative to card dimensions
               const imgFracW = imgVisW / cropBoxW;
               const imgFracH = imgVisH / cropBoxH;
               const imgFracX = (imgVisLeft - cropLeft) / cropBoxW;
-              const imgFracY = (imgVisTop  - cropTop ) / cropBoxH;
+              const imgFracY = (imgVisTop - cropTop) / cropBoxH;
 
               setBannerCropFraction({ imgFracX, imgFracY, imgFracW, imgFracH });
               setBannerImageUri(cropPreviewUri!);
@@ -1381,7 +1381,7 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
 
   const { upcoming, ongoing, past } = categorizeTrips(trips);
 
-  const loadTripsRef = useRef<() => void>(() => {});
+  const loadTripsRef = useRef<() => void>(() => { });
   useFocusEffect(useCallback(() => { loadTripsRef.current(); }, []));
 
   // Open create trip modal if triggered from HomeScreen
@@ -1460,17 +1460,17 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      {/* Outside-tap backdrop — closes any open three-dot menu */}
-      {showTripMenu !== null && (
-        <Pressable
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }}
-          onPress={() => setShowTripMenu(null)}
-        />
-      )}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         onScrollBeginDrag={() => setShowTripMenu(null)}>
+        {/* Tap-outside backdrop — inside ScrollView so it shares stacking context with menus */}
+        {showTripMenu !== null && (
+          <Pressable
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }}
+            onPress={() => setShowTripMenu(null)}
+          />
+        )}
 
         {/* Always-visible CTA section */}
         <View style={styles.tripsCTA}>

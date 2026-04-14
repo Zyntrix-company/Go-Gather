@@ -5,6 +5,7 @@
 import client, { API_BASE } from './client';
 import storage from '../utils/storage';
 import Toast from 'react-native-toast-message';
+import useAuthStore from '../store/authStore';
 
 // ─── Multipart upload helper ──────────────────────────────────────────────────
 // Uses XMLHttpRequest instead of fetch — RN's XHR correctly resolves both
@@ -13,7 +14,6 @@ function uploadMultipart(path: string, formData: FormData): Promise<any> {
   return new Promise(async (resolve, reject) => {
     let token = await storage.getToken();
     if (!token) {
-      const { default: useAuthStore } = await import('../store/authStore');
       token = useAuthStore.getState().accessToken;
     }
     const xhr = new XMLHttpRequest();
