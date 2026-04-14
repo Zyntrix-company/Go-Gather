@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
 import DateInfoPopover from '../../components/common/DateInfoPopover';
+import StackedAvatars from '../../components/common/StackedAvatars';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -190,16 +191,12 @@ function EventCardFullLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
           </TouchableOpacity>
           {(event.memberAvatars.length > 0 || event.memberCount > 0) && (
             <View style={cardStyles.participantAvatars}>
-              {event.memberAvatars.slice(0, 3).map((uri, i) => (
-                <Image key={i} source={{ uri }} style={[cardStyles.miniAvatar as any, i === 0 ? { marginLeft: 0 } : { marginLeft: -8 }]} />
-              ))}
-              {event.memberCount - Math.min(event.memberAvatars.length, 3) > 0 && (
-                <View style={[cardStyles.moreCounter, event.memberAvatars.length === 0 && { marginLeft: 0 }]}>
-                  <Text style={cardStyles.moreCounterText}>
-                    +{event.memberAvatars.length === 0 ? event.memberCount : event.memberCount - Math.min(event.memberAvatars.length, 3)}
-                  </Text>
-                </View>
-              )}
+              <StackedAvatars
+                avatars={event.memberAvatars.map(uri => ({ uri }))}
+                totalCount={event.memberCount}
+                counterStyle="solid"
+                size={26}
+              />
             </View>
           )}
         </View>
@@ -248,9 +245,6 @@ function EventCardPastLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
   showMenu: boolean; onToggleMenu: () => void;
   onArchive: () => void; onDelete: () => void;
 }) {
-  const visibleAvatars = event.memberAvatars.slice(0, 3);
-  const extra = visibleAvatars.length === 0 ? event.memberCount : Math.max(0, event.memberCount - visibleAvatars.length);
-
   return (
     <View style={{ marginBottom: 10, zIndex: showMenu ? 100 : 1 }}>
       <TouchableOpacity style={cardStyles.pastCard} onPress={onPress} activeOpacity={0.85}>
@@ -273,16 +267,14 @@ function EventCardPastLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
         </View>
         <View style={cardStyles.pastCardRight}>
           <View style={cardStyles.pastAvatarsRow}>
-            {visibleAvatars.map((uri, i) => (
-              <Image key={i} source={{ uri }} style={[cardStyles.pastMiniAvatar as any, { marginLeft: i > 0 ? -8 : 0 }]} />
-            ))}
-            {extra > 0 && (
-              <View style={[cardStyles.pastExtraBadge, { marginLeft: visibleAvatars.length > 0 ? -8 : 0 }]}>
-                <Text style={cardStyles.pastExtraText}>+{extra}</Text>
-              </View>
-            )}
+            <StackedAvatars
+              avatars={event.memberAvatars.map(uri => ({ uri }))}
+              totalCount={event.memberCount}
+              counterStyle="soft"
+              size={22}
+            />
             <TouchableOpacity
-              style={[cardStyles.pastMoreBtn, { marginLeft: (visibleAvatars.length > 0 || extra > 0) ? 4 : 0 }]}
+              style={cardStyles.pastMoreBtn}
               onPress={onToggleMenu}
               activeOpacity={0.7}>
               <MoreIcon color="#64748b" />
@@ -474,6 +466,11 @@ export function CreateEventModal({ visible, onClose, onSave }: {
         reminders: true,
         ...(bannerCropFraction && { bannerCropFraction }),
       });
+      // Capture locals before async work / modal reset
+      const localBannerUri = bannerImageUri;
+      const isLocalUri = !!(localBannerUri && (localBannerUri.startsWith('file://') || localBannerUri.startsWith('content://')));
+      const capturedCrop = bannerCropFraction;
+
       const newEvent: EventItem = {
         id: result.event.id,
         name: result.event.name,
@@ -486,27 +483,11 @@ export function CreateEventModal({ visible, onClose, onSave }: {
         memberCount: result.memberCount ?? 1 + selectedFriendIds.length,
         memberAvatars: [],
         description: result.event.description ?? '',
-        bannerImageUrl: null,
-        bannerCropFraction: bannerCropFraction,
+        // Show local URI immediately so the card renders the image right away;
+        // the CDN URL will be patched in via onBannerUpdate once the upload finishes.
+        bannerImageUrl: isLocalUri ? localBannerUri : null,
+        bannerCropFraction: capturedCrop,
       };
-      // Upload banner → photos module → get CDN URL → save to banner_image_url
-      const localBannerUri = bannerImageUri;
-      const isLocalUri = localBannerUri && (localBannerUri.startsWith('file://') || localBannerUri.startsWith('content://'));
-      if (isLocalUri) {
-        newEvent.bannerImageUrl = localBannerUri; // show locally while uploading
-        try {
-          const ext = localBannerUri.split('.').pop()?.toLowerCase() ?? 'jpg';
-          const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', heic: 'image/heic', webp: 'image/webp' };
-          const mime = mimeMap[ext] ?? 'image/jpeg';
-          const photoRes = await uploadEventPhotos(newEvent.id, [{ uri: localBannerUri, type: mime, name: `banner.${ext}` }]);
-          const photo = photoRes.photos?.[0];
-          const permanentUrl = (photo as any)?.fileUrl as string ?? photo?.url;
-          if (permanentUrl) {
-            await apiUpdateEvent(newEvent.id, { bannerImageUrl: permanentUrl, ...(bannerCropFraction && { bannerCropFraction }) });
-            newEvent.bannerImageUrl = permanentUrl;
-          }
-        } catch (e) { console.warn('Banner upload failed:', e); }
-      }
       // Upload docs — images → photos module, everything else → docs module
       const extMime: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', txt: 'text/plain', csv: 'text/csv' };
       const docs = [...uploadedDocs];
@@ -525,9 +506,32 @@ export function CreateEventModal({ visible, onClose, onSave }: {
           Alert.alert('Upload Failed', `Could not upload "${file.name}": ${e?.message ?? 'Unknown error'}`);
         }
       }
+      // Add event to list and close modal immediately — user sees the local image
       onSave(newEvent);
       reset();
       onClose();
+
+      // Upload banner in the background so the CDN URL is persisted to the DB.
+      // We intentionally do NOT update local state here — the local URI already
+      // shows the image correctly. Switching to the CDN URL immediately would
+      // cause a white flash because S3 needs a moment to serve the newly-uploaded
+      // file. The next loadEvents() (on re-focus or pull-to-refresh) will replace
+      // the local URI with the CDN URL from the API response.
+      if (isLocalUri && localBannerUri) {
+        (async () => {
+          try {
+            const ext = localBannerUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+            const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', heic: 'image/heic', webp: 'image/webp' };
+            const mime = mimeMap[ext] ?? 'image/jpeg';
+            const photoRes = await uploadEventPhotos(newEvent.id, [{ uri: localBannerUri, type: mime, name: `banner.${ext}` }]);
+            const photo = photoRes.photos?.[0];
+            const permanentUrl = (photo as any)?.fileUrl as string ?? photo?.url;
+            if (permanentUrl) {
+              await apiUpdateEvent(newEvent.id, { bannerImageUrl: permanentUrl, ...(capturedCrop && { bannerCropFraction: capturedCrop }) });
+            }
+          } catch (e) { console.warn('Banner upload failed:', e); }
+        })();
+      }
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -1173,6 +1177,8 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
     const days = daysUntil(ev.dateISO);
     if (days >= 0) setUpcomingEvents(p => [ev, ...p]);
     else setPastEvents(p => [ev, ...p]);
+    // Refresh from server so memberAvatars are populated
+    loadEvents(true);
   }
 
   function archiveEvent(id: string, from: 'upcoming' | 'past') {

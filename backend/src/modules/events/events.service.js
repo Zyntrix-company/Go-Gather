@@ -218,12 +218,13 @@ const getEvents = async (userId, { status, page = 1, limit = 20 } = {}) => {
        COUNT(*) OVER()::int    AS total_count,
        COALESCE(
          (
-           SELECT json_agg(avatar_url)
+           SELECT json_agg(avatar)
            FROM (
-             SELECT p.avatar_url
+             SELECT COALESCE(p.avatar_url, 'https://i.pravatar.cc/150?u=' || emx.user_id::text) AS avatar
              FROM event_members emx
              JOIN profiles p ON p.user_id = emx.user_id
-             WHERE emx.event_id = e.id AND p.avatar_url IS NOT NULL
+             WHERE emx.event_id = e.id
+             ORDER BY emx.joined_at ASC
              LIMIT 5
            ) a
          ),

@@ -271,12 +271,13 @@ const getTrips = async (userId, { status, page = 1, limit = 20 } = {}) => {
        COUNT(*) OVER()::int    AS total_count,
        COALESCE(
          (
-           SELECT json_agg(avatar_url)
+           SELECT json_agg(avatar)
            FROM (
-             SELECT p.avatar_url
+             SELECT COALESCE(p.avatar_url, 'https://i.pravatar.cc/150?u=' || tmx.user_id::text) AS avatar
              FROM trip_members tmx
              JOIN profiles p ON p.user_id = tmx.user_id
-             WHERE tmx.trip_id = t.id AND p.avatar_url IS NOT NULL
+             WHERE tmx.trip_id = t.id
+             ORDER BY tmx.joined_at ASC
              LIMIT 5
            ) a
          ),

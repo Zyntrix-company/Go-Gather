@@ -55,6 +55,7 @@ import FriendsTab from './FriendsTab';
 import ChatTab, { SWEE_CHAT } from './ChatTab';
 import GalleryTab from './GalleryTab';
 import ProfileDropdown from './ProfileDropdown';
+import StackedAvatars from '../../components/common/StackedAvatars';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const INSIGHT_IMG_H = SCREEN_H < 700 ? 140 : SCREEN_H < 800 ? 160 : 192;
@@ -286,14 +287,12 @@ function TripCardFull({ trip, onPress, showMenu, onToggleMenu, onArchive, onDele
           </TouchableOpacity>
           {/* Avatars — bottom-right of image */}
           <View style={styles.participantAvatars}>
-            {trip.members.slice(0, 3).map((m, i) => (
-              <Image key={m.id} source={{ uri: m.uri }} style={[styles.miniAvatar as any, { marginLeft: i > 0 ? -10 : 0 }]} />
-            ))}
-            {trip.extraMembers > 0 && (
-              <View style={[styles.moreCounter, { marginLeft: -10 }]}>
-                <Text style={styles.moreCounterText}>+{trip.extraMembers}</Text>
-              </View>
-            )}
+            <StackedAvatars
+              avatars={trip.members}
+              totalCount={trip.members.length + trip.extraMembers}
+              counterStyle="solid"
+              size={26}
+            />
           </View>
         </View>
         <View style={styles.cardBody}>
@@ -362,11 +361,12 @@ function TripCardPast({ trip, onPress, showMenu, onToggleMenu, onArchive, onDele
         </View>
         <View style={styles.pastCardRight}>
           <View style={styles.pastAvatarsRow}>
-            <View style={styles.pastAvatars}>
-              {trip.members.slice(0, 3).map((m, i) => (
-                <Image key={m.id} source={{ uri: m.uri }} style={[styles.pastMiniAvatar as any, { marginLeft: i > 0 ? -8 : 0 }]} />
-              ))}
-            </View>
+            <StackedAvatars
+              avatars={trip.members}
+              totalCount={trip.members.length + trip.extraMembers}
+              counterStyle="soft"
+              size={22}
+            />
             <TouchableOpacity style={styles.pastMoreBtn} onPress={onToggleMenu} activeOpacity={0.7}>
               <MoreIcon color="#64748b" />
             </TouchableOpacity>
@@ -435,10 +435,10 @@ function mapApiTrip(t: any): Trip {
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
     bannerCropFraction: t.bannerCropFraction ?? null,
-    members: (t.memberAvatars || []).slice(0, 3).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
+    members: (t.memberAvatars || []).slice(0, 4).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
     extraMembers: (t.memberAvatars || []).length === 0
       ? (t.memberCount ?? 0)
-      : Math.max(0, (t.memberCount ?? 0) - Math.min((t.memberAvatars || []).length, 3)),
+      : Math.max(0, (t.memberCount ?? 0) - Math.min((t.memberAvatars || []).length, 4)),
   };
 }
 
@@ -796,10 +796,6 @@ export default function HomeScreen({ navigation, route }: any) {
     members?: { id: string; uri: string }[]; extraMembers?: number;
     onMorePress?: () => void; onPress?: () => void;
   }) {
-    // Show up to 3 avatars; use the API-provided extraMembers directly for +N badge
-    const allMembers = members ?? [];
-    const visibleMembers = allMembers.filter(m => !!m.uri).slice(0, 3);
-    const extra = extraMembers ?? 0;
     return (
       <TouchableOpacity
         onPress={onPress}
@@ -840,32 +836,12 @@ export default function HomeScreen({ navigation, route }: any) {
         </View>
         {/* Right: avatars cluster + three-dot, all in one row, vertically centred */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          {/* Overlapping avatars */}
-          {(visibleMembers.length > 0 || extra > 0) && (
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              {visibleMembers.map((m, i) => (
-                <Image
-                  key={m.id}
-                  source={{ uri: m.uri }}
-                  style={{
-                    width: 26, height: 26, borderRadius: 13,
-                    borderWidth: 2, borderColor: '#fff',
-                    marginLeft: i === 0 ? 0 : -8,
-                  }}
-                />
-              ))}
-              {extra > 0 && (
-                <View style={{
-                  width: 26, height: 26, borderRadius: 13,
-                  backgroundColor: '#E8F8F8', borderWidth: 2, borderColor: '#fff',
-                  marginLeft: visibleMembers.length > 0 ? -8 : 0,
-                  alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Text style={{ fontSize: 9, fontWeight: '700', color: '#0d9488' }}>+{extra}</Text>
-                </View>
-              )}
-            </View>
-          )}
+          <StackedAvatars
+            avatars={members ?? []}
+            totalCount={(members?.length ?? 0) + (extraMembers ?? 0)}
+            counterStyle="soft"
+            size={26}
+          />
           {/* Three-dot button — same row as avatars, horizontally centred with card */}
           <TouchableOpacity
             onPress={onMorePress}
@@ -1173,7 +1149,7 @@ export default function HomeScreen({ navigation, route }: any) {
         ) : (
           homeEvents.slice(0, 3).map((ev: any) => {
             const locName = typeof ev.location === 'string' ? ev.location : (ev.location?.name ?? '');
-            const rawAvatars: string[] = (ev.memberAvatars || []).slice(0, 3);
+            const rawAvatars: string[] = (ev.memberAvatars || []).slice(0, 4);
             const avatars: { id: string; uri: string }[] = rawAvatars.map((uri: string, i: number) => ({ id: `ev-av-${i}`, uri }));
             const evExtra = rawAvatars.length === 0
               ? (ev.memberCount ?? 0)
@@ -1306,6 +1282,8 @@ export default function HomeScreen({ navigation, route }: any) {
           } else {
             setTrips(p => [mapApiTrip(newTrip), ...p]);
           }
+          // Refresh trip list so memberAvatars are populated from the server
+          loadTrips(1, true);
           setTripBannerUri(undefined);
           setTripBannerCrop(null);
         }}
@@ -1320,6 +1298,8 @@ export default function HomeScreen({ navigation, route }: any) {
           // Add to homeEvents feed if upcoming
           const days = daysUntil(ev.dateISO);
           if (days >= 0) setHomeEvents(p => [ev, ...p]);
+          // Refresh events so memberAvatars are populated from the server
+          getEvents({ status: 'upcoming' }).then(res => setHomeEvents(res.events)).catch(() => {});
         }}
       />
     </>

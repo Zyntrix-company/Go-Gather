@@ -28,6 +28,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { launchImageLibrary } from 'react-native-image-picker';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { TripCardFull, TripCardPast, CardData } from '../../components/common/Cards';
+import StackedAvatars from '../../components/common/StackedAvatars';
 import Toast from 'react-native-toast-message';
 import DateInfoPopover from '../../components/common/DateInfoPopover';
 import {
@@ -232,8 +233,8 @@ function mapApiTrip(t: any): Trip {
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
     bannerCropFraction: t.bannerCropFraction ?? null,
-    members: (t.memberAvatars || []).slice(0, 3).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
-    extraMembers: (t.memberAvatars || []).length === 0 ? (t.memberCount ?? 0) : Math.max(0, (t.memberCount ?? 0) - 3),
+    members: (t.memberAvatars || []).slice(0, 4).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
+    extraMembers: (t.memberAvatars || []).length === 0 ? (t.memberCount ?? 0) : Math.max(0, (t.memberCount ?? 0) - Math.min((t.memberAvatars || []).length, 4)),
   };
 }
 
@@ -345,14 +346,12 @@ function TripCardFullLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
           </TouchableOpacity>
           {(trip.members.length > 0 || trip.extraMembers > 0) && (
             <View style={styles.participantAvatars}>
-              {trip.members.slice(0, 3).map((m, i) => (
-                <Image key={m.id} source={{ uri: m.uri }} style={[styles.miniAvatar as any, i === 0 ? { marginLeft: 0 } : { marginLeft: -8 }]} />
-              ))}
-              {trip.extraMembers > 0 && (
-                <View style={[styles.moreCounter, trip.members.length === 0 && { marginLeft: 0 }]}>
-                  <Text style={styles.moreCounterText}>+{trip.extraMembers}</Text>
-                </View>
-              )}
+              <StackedAvatars
+                avatars={trip.members}
+                totalCount={trip.members.length + trip.extraMembers}
+                counterStyle="solid"
+                size={26}
+              />
             </View>
           )}
         </View>
@@ -423,16 +422,13 @@ function TripCardPastLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
         </View>
         <View style={styles.pastCardRight}>
           <View style={styles.pastAvatarsRow}>
-            {/* Member avatars */}
-            {trip.members.slice(0, 3).map((m, i) => (
-              <Image key={m.id} source={{ uri: m.uri }} style={[styles.pastMiniAvatar as any, { marginLeft: i > 0 ? -8 : 0 }]} />
-            ))}
-            {trip.extraMembers > 0 && (
-              <View style={[styles.pastExtraBadge, { marginLeft: trip.members.length > 0 ? -8 : 0 }]}>
-                <Text style={styles.pastExtraText}>+{trip.extraMembers}</Text>
-              </View>
-            )}
-            <TouchableOpacity style={[styles.pastMoreBtn, { marginLeft: (trip.members.length > 0 || trip.extraMembers > 0) ? 4 : 0 }]} onPress={onToggleMenu} activeOpacity={0.7}>
+            <StackedAvatars
+              avatars={trip.members}
+              totalCount={trip.members.length + trip.extraMembers}
+              counterStyle="soft"
+              size={22}
+            />
+            <TouchableOpacity style={styles.pastMoreBtn} onPress={onToggleMenu} activeOpacity={0.7}>
               <MoreIcon color="#64748b" />
             </TouchableOpacity>
           </View>
@@ -1619,6 +1615,8 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
           } else {
             setTrips(p => [mapApiTrip(newTrip), ...p]);
           }
+          // Refresh trip list so memberAvatars are populated from the server
+          loadTrips(1, true);
           // Upload docs/photos attached during creation
           const extMime: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', txt: 'text/plain', csv: 'text/csv' };
           const docs = (data.uploadedDocs as { uri: string; name: string; type: string }[] | undefined) ?? [];

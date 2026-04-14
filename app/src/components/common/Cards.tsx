@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import StackedAvatars from './StackedAvatars';
 
 const { width: SW } = Dimensions.get('window');
 const isSmall = SW < 360;
@@ -54,14 +55,12 @@ export function TripCardFull({ trip, onPress, showMenu, onToggleMenu, onArchive,
             <MoreIcon />
           </TouchableOpacity>
           <View style={styles.participantAvatars}>
-            {trip.members.slice(0, 3).map((m, i) => (
-              <Image key={m.id} source={{ uri: m.uri }} style={[styles.miniAvatar as any, i === 0 && { marginLeft: 0 }]} />
-            ))}
-            {trip.extraMembers > 0 && (
-              <View style={[styles.moreCounter, trip.members.length === 0 && { marginLeft: 0 }]}>
-                <Text style={styles.moreCounterText}>+{trip.extraMembers}</Text>
-              </View>
-            )}
+            <StackedAvatars
+              avatars={trip.members}
+              totalCount={trip.members.length + trip.extraMembers}
+              counterStyle="solid"
+              size={26}
+            />
           </View>
         </View>
         <View style={styles.cardBody}>
@@ -129,15 +128,12 @@ export function TripCardPast({ trip, onPress, showMenu, onToggleMenu, onArchive,
         </View>
         <View style={styles.pastCardRight}>
           <View style={styles.pastAvatarsRow}>
-            {/* Member avatars */}
-            {trip.members.slice(0, 3).map((m, i) => (
-              <Image key={m.id} source={{ uri: m.uri }} style={[styles.pastMiniAvatar as any, { marginLeft: i > 0 ? -8 : 0 }]} />
-            ))}
-            {trip.extraMembers > 0 && (
-              <View style={[styles.pastExtraBadge, { marginLeft: trip.members.length > 0 ? -8 : 0 }]}>
-                <Text style={styles.pastExtraText}>+{trip.extraMembers}</Text>
-              </View>
-            )}
+            <StackedAvatars
+              avatars={trip.members}
+              totalCount={trip.members.length + trip.extraMembers}
+              counterStyle="soft"
+              size={22}
+            />
             <TouchableOpacity style={[styles.pastMoreBtn, { marginLeft: (trip.members.length > 0 || trip.extraMembers > 0) ? 4 : 0 }]} onPress={onToggleMenu} activeOpacity={0.7}>
               <MoreIcon color="#64748b" />
             </TouchableOpacity>
@@ -192,14 +188,12 @@ export function EventCard({ event, onPress, showMenu, onToggleMenu, onArchive, o
             <MoreIcon />
           </TouchableOpacity>
           <View style={styles.participantAvatars}>
-            {event.members.slice(0, 3).map((m, i) => (
-              <Image key={m.id} source={{ uri: m.uri }} style={[styles.miniAvatar as any, i === 0 && { marginLeft: 0 }]} />
-            ))}
-            {event.extraMembers > 0 && (
-              <View style={[styles.moreCounter, event.members.length === 0 && { marginLeft: 0 }]}>
-                <Text style={styles.moreCounterText}>+{event.extraMembers}</Text>
-              </View>
-            )}
+            <StackedAvatars
+              avatars={event.members}
+              totalCount={event.members.length + event.extraMembers}
+              counterStyle="solid"
+              size={26}
+            />
           </View>
         </View>
         <View style={styles.cardBody}>
@@ -268,15 +262,12 @@ export function EventCardPast({ event, onPress, showMenu, onToggleMenu, onArchiv
         </View>
         <View style={styles.pastCardRight}>
           <View style={styles.pastAvatarsRow}>
-            {/* Member avatars */}
-            {event.members.slice(0, 3).map((m, i) => (
-              <Image key={m.id} source={{ uri: m.uri }} style={[styles.pastMiniAvatar as any, { marginLeft: i > 0 ? -8 : 0 }]} />
-            ))}
-            {event.extraMembers > 0 && (
-              <View style={[styles.pastExtraBadge, { marginLeft: event.members.length > 0 ? -8 : 0 }]}>
-                <Text style={styles.pastExtraText}>+{event.extraMembers}</Text>
-              </View>
-            )}
+            <StackedAvatars
+              avatars={event.members}
+              totalCount={event.members.length + event.extraMembers}
+              counterStyle="soft"
+              size={22}
+            />
             <TouchableOpacity style={[styles.pastMoreBtn, { marginLeft: (event.members.length > 0 || event.extraMembers > 0) ? 4 : 0 }]} onPress={onToggleMenu} activeOpacity={0.7}>
               <MoreIcon color="#64748b" />
             </TouchableOpacity>
