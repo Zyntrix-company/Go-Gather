@@ -272,6 +272,7 @@ function EventCardPastLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
               totalCount={event.memberCount}
               counterStyle="soft"
               size={22}
+              maxVisible={3}
             />
             <TouchableOpacity
               style={cardStyles.pastMoreBtn}
@@ -1405,7 +1406,6 @@ const cardStyles = StyleSheet.create({
   },
   participantAvatars: {
     position: 'absolute', bottom: 10, right: 10, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 8, gap: 0,
   },
   miniAvatar: { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: '#fff' },
   moreCounter: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#0d9488', borderWidth: 1.5, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', marginLeft: -8 },

@@ -427,6 +427,7 @@ function TripCardPastLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
               totalCount={trip.members.length + trip.extraMembers}
               counterStyle="soft"
               size={22}
+              maxVisible={3}
             />
             <TouchableOpacity style={styles.pastMoreBtn} onPress={onToggleMenu} activeOpacity={0.7}>
               <MoreIcon color="#64748b" />
@@ -1690,7 +1691,6 @@ const styles = StyleSheet.create({
   },
   participantAvatars: {
     position: 'absolute', bottom: 10, right: 10, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 8, gap: 0,
   },
   miniAvatar: { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: '#fff' },
   moreCounter: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#0d9488', borderWidth: 1.5, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', marginLeft: -8 },

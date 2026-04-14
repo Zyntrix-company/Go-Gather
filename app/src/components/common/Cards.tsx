@@ -133,8 +133,9 @@ export function TripCardPast({ trip, onPress, showMenu, onToggleMenu, onArchive,
               totalCount={trip.members.length + trip.extraMembers}
               counterStyle="soft"
               size={22}
+              maxVisible={3}
             />
-            <TouchableOpacity style={[styles.pastMoreBtn, { marginLeft: (trip.members.length > 0 || trip.extraMembers > 0) ? 4 : 0 }]} onPress={onToggleMenu} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.pastMoreBtn} onPress={onToggleMenu} activeOpacity={0.7}>
               <MoreIcon color="#64748b" />
             </TouchableOpacity>
           </View>
@@ -267,8 +268,9 @@ export function EventCardPast({ event, onPress, showMenu, onToggleMenu, onArchiv
               totalCount={event.members.length + event.extraMembers}
               counterStyle="soft"
               size={22}
+              maxVisible={3}
             />
-            <TouchableOpacity style={[styles.pastMoreBtn, { marginLeft: (event.members.length > 0 || event.extraMembers > 0) ? 4 : 0 }]} onPress={onToggleMenu} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.pastMoreBtn} onPress={onToggleMenu} activeOpacity={0.7}>
               <MoreIcon color="#64748b" />
             </TouchableOpacity>
           </View>
@@ -351,11 +353,6 @@ const styles = StyleSheet.create({
     right: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    borderRadius: 20,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    gap: 0,
   },
   miniAvatar: {
     width: 26,
@@ -482,6 +479,7 @@ const styles = StyleSheet.create({
   pastAvatarsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
   },
   pastAvatars: {
     flexDirection: 'row',

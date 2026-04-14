@@ -366,6 +366,7 @@ function TripCardPast({ trip, onPress, showMenu, onToggleMenu, onArchive, onDele
               totalCount={trip.members.length + trip.extraMembers}
               counterStyle="soft"
               size={22}
+              maxVisible={3}
             />
             <TouchableOpacity style={styles.pastMoreBtn} onPress={onToggleMenu} activeOpacity={0.7}>
               <MoreIcon color="#64748b" />
@@ -1578,9 +1579,6 @@ const styles = StyleSheet.create({
     right: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 20,
-    padding: 3,
   },
   // Avatars at the bottom strip of the image (full-width, left-aligned)
   participantAvatarsBottom: {

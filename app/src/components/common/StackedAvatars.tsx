@@ -105,7 +105,7 @@ export default function StackedAvatars({
   const pool = useRef(
     Array.from({ length: POOL_SIZE }, () => ({
       opacity: new Animated.Value(useAnim ? 0 : 1),
-      tx: new Animated.Value(useAnim ? -10 : 0),
+      tx: new Animated.Value(useAnim ? 10 : 0),
     })),
   ).current;
 
@@ -113,7 +113,7 @@ export default function StackedAvatars({
     if (!useAnim || slotCount === 0) return;
     pool.slice(0, slotCount).forEach(slot => {
       slot.opacity.setValue(0);
-      slot.tx.setValue(-10);
+      slot.tx.setValue(10);
     });
     const animations = pool.slice(0, slotCount).map(slot =>
       Animated.parallel([
