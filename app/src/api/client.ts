@@ -114,7 +114,7 @@ client.interceptors.response.use(
         }
         if (!refreshToken) throw new Error('No refresh token');
 
-        const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken });
+        const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken }, { timeout: 15000 });
         const newAccessToken: string = data.accessToken;
         const newRefreshToken: string = data.refreshToken ?? refreshToken;
 
@@ -128,17 +128,24 @@ client.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         }
         return client(originalRequest);
-      } catch (refreshError) {
+      } catch (refreshError: any) {
         processQueue(refreshError, null);
-        await storage.clearAll();
 
-        Toast.show({
-          type: 'error',
-          text1: 'Session Expired',
-          text2: 'Please log in again.',
-        });
+        // Only wipe tokens if the refresh endpoint explicitly rejected them (401/403).
+        // Network errors, timeouts, or 5xx during refresh must NOT clear the session —
+        // the user is still authenticated, the server was just temporarily unreachable.
+        const refreshStatus = refreshError?.response?.status;
+        const isAuthFailure = refreshStatus === 401 || refreshStatus === 403;
 
-        useAuthStore.getState().logout();
+        if (isAuthFailure) {
+          await storage.clearAll();
+          useAuthStore.getState().logout();
+          Toast.show({
+            type: 'error',
+            text1: 'Session Expired',
+            text2: 'Please log in again.',
+          });
+        }
 
         return Promise.reject(refreshError);
       } finally {

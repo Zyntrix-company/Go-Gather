@@ -167,11 +167,20 @@ export default function useAuth() {
       setAuth(user, token, refreshToken);
       return user;
     } catch (err: any) {
-      // Only wipe tokens on 401 (token genuinely invalid/expired and refresh also failed).
-      // Network errors (no internet, timeout, 5xx) must NOT clear tokens — the user
-      // is still authenticated, the server was just unreachable temporarily.
+      // Only wipe tokens when the server explicitly rejects credentials (401/403)
+      // AND there is no network-level error (e.g. timeout, ECONNREFUSED).
+      // Network errors have no response object — err.response is undefined.
+      // Treat those as "server temporarily unreachable" and keep the session alive.
       const status = err?.response?.status;
-      if (status === 401) {
+      const isNetworkError = !err?.response && (
+        err?.code === 'ECONNABORTED' ||   // axios timeout
+        err?.code === 'ERR_NETWORK' ||    // no internet
+        err?.message?.includes('Network') ||
+        err?.message?.includes('timeout')
+      );
+      const isAuthFailure = (status === 401 || status === 403) && !isNetworkError;
+
+      if (isAuthFailure) {
         await storage.clearAll();
         storeLogout();
       } else {
@@ -180,7 +189,6 @@ export default function useAuth() {
         const token = (await storage.getToken()) || useAuthStore.getState().accessToken;
         const refreshToken = (await storage.getRefreshToken()) || useAuthStore.getState().refreshToken;
         if (token) {
-          // Restore auth state without a user object — screens handle null user gracefully.
           setAuth(null, token, refreshToken);
         }
       }
