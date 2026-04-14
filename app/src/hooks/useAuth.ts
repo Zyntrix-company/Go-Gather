@@ -215,12 +215,15 @@ export default function useAuth() {
     const res = await authApi.uploadPhoto(fileUri, fileName, mimeType);
     const photoUrl = res.photoUrl;
     if (photoUrl) {
-      // Optimistically patch the store so the UI updates immediately
-      useAuthStore.getState().updateUser({ photoUrl, avatarUrl: photoUrl });
+      // Cache-bust so React Native's Image component fetches the new photo
+      // instead of serving a stale entry for the same CDN URL key.
+      const bustedUrl = `${photoUrl}?t=${Date.now()}`;
+      useAuthStore.getState().updateUser({ photoUrl: bustedUrl, avatarUrl: bustedUrl });
+      // Do NOT call refreshProfile here — setAuth inside it replaces the entire
+      // user object and would wipe the cache-busted URL we just patched in.
+      // The upload endpoint writes to DB synchronously before returning, so the
+      // URL in the store is already the correct persisted value.
     }
-    // Re-fetch from server to confirm the URL was persisted and sync the full user object
-    // (the upload writes to DB synchronously before returning, so this is safe)
-    await refreshProfile();
     return photoUrl;
   }
 

@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 import client, { API_BASE } from './client';
 import { User } from '../types/user.types';
 import storage from '../utils/storage';
+import useAuthStore from '../store/authStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -213,13 +214,13 @@ const authApi = {
     // Android compatibility issues with content:// URIs and gives no progress info.
     // XHR handles multipart uploads more reliably across Android versions.
 
-    // Ensure the access token is fresh before the XHR fires. XHR bypasses the
-    // axios interceptor so it never triggers auto-refresh. A lightweight GET
-    // through the axios client will refresh the token via the interceptor if it
-    // has expired, so the token we read from storage next is always valid.
-    try { await client.get('/auth/me'); } catch { /* ignore — we only care about the side-effect of refreshing */ }
-
-    const token = await storage.getToken();
+    // XHR bypasses the axios interceptor — no auto-refresh. Read the token from
+    // the in-memory store first (always up-to-date after login/refresh), then
+    // fall back to secure storage. This avoids the stale-token 401 without
+    // adding an extra network round-trip.
+    const token =
+      useAuthStore.getState().accessToken ||
+      (await storage.getToken());
 
     console.log('[uploadPhoto] ── Starting XHR upload ──────────────────────────');
     console.log('[uploadPhoto] URI scheme :', fileUri.split('://')[0] + '://');

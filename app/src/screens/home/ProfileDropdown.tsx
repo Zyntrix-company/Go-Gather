@@ -27,19 +27,49 @@ const ArchiveIcon = () => (
   </Svg>
 );
 
+function AvatarOrInitial({ photoUrl, initial }: { photoUrl?: string; initial: string }) {
+  const [imgOk, setImgOk] = React.useState(false);
+
+  // Reset imgOk when the URL changes so a new photo re-evaluates
+  const prevUrl = React.useRef<string | undefined>(undefined);
+  if (prevUrl.current !== photoUrl) {
+    prevUrl.current = photoUrl;
+    // Can't call setState during render — schedule it
+    if (imgOk) setImgOk(false);
+  }
+
+  const Initials = (
+    <View style={[styles.dropdownAvatar, { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' }]}>
+      <Text style={{ fontSize: 18, fontWeight: '700', color: '#0d9488' }}>{initial}</Text>
+    </View>
+  );
+
+  if (!photoUrl) return Initials;
+
+  // Initials sit underneath as placeholder; image fades in on successful load
+  return (
+    <View style={styles.dropdownAvatar}>
+      <View style={[styles.dropdownAvatar, { position: 'absolute', backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' }]}>
+        <Text style={{ fontSize: 18, fontWeight: '700', color: '#0d9488' }}>{initial}</Text>
+      </View>
+      <Image
+        source={{ uri: photoUrl }}
+        style={[styles.dropdownAvatar, { opacity: imgOk ? 1 : 0 }]}
+        onLoad={() => setImgOk(true)}
+        onError={() => setImgOk(false)}
+      />
+    </View>
+  );
+}
+
 function ProfileDropdown({ user, firstName, onClose, onNavigateToAccount, onNavigateToArchived, onLogout }: any) {
+  const photoUrl = user?.photoUrl || user?.avatarUrl || user?.profile?.avatarUrl || '';
   return (
     <View style={styles.dropdownOverlay}>
       <TouchableOpacity style={styles.dropdownBackdrop} activeOpacity={1} onPress={onClose} />
       <View style={styles.profileDropdown}>
         <View style={styles.dropdownHeader}>
-          {user?.photoUrl ? (
-            <Image source={{ uri: user.photoUrl }} style={styles.dropdownAvatar} />
-          ) : (
-            <View style={[styles.dropdownAvatar, { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: '#0d9488' }}>{firstName[0]}</Text>
-            </View>
-          )}
+          <AvatarOrInitial photoUrl={photoUrl} initial={firstName?.[0] ?? '?'} />
           <View style={styles.dropdownUserText}>
             <Text style={styles.dropdownName}>{user?.fullName || 'User'}</Text>
             <Text style={styles.dropdownEmail} numberOfLines={1}>@{user?.username || user?.email || ''}</Text>
