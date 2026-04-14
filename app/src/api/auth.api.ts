@@ -212,6 +212,13 @@ const authApi = {
     // XMLHttpRequest is used instead of fetch because fetch+FormData has known
     // Android compatibility issues with content:// URIs and gives no progress info.
     // XHR handles multipart uploads more reliably across Android versions.
+
+    // Ensure the access token is fresh before the XHR fires. XHR bypasses the
+    // axios interceptor so it never triggers auto-refresh. A lightweight GET
+    // through the axios client will refresh the token via the interceptor if it
+    // has expired, so the token we read from storage next is always valid.
+    try { await client.get('/auth/me'); } catch { /* ignore — we only care about the side-effect of refreshing */ }
+
     const token = await storage.getToken();
 
     console.log('[uploadPhoto] ── Starting XHR upload ──────────────────────────');
