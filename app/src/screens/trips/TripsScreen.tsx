@@ -49,7 +49,7 @@ const { width: SCREEN_W } = Dimensions.get('window');
 // How the image is positioned/scaled relative to the card crop box.
 // All values are fractions of the target display dimensions so rendering
 // is fully resolution-independent.
-type BannerCropFraction = {
+export type BannerCropFraction = {
   imgFracX: number; // image left / targetWidth
   imgFracY: number; // image top  / targetHeight
   imgFracW: number; // image width  / targetWidth
@@ -423,12 +423,16 @@ function TripCardPastLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
         </View>
         <View style={styles.pastCardRight}>
           <View style={styles.pastAvatarsRow}>
-            <View style={styles.pastAvatars}>
-              {trip.members.slice(0, 3).map((m, i) => (
-                <Image key={m.id} source={{ uri: m.uri }} style={[styles.pastMiniAvatar as any, { marginLeft: i > 0 ? -8 : 0 }]} />
-              ))}
-            </View>
-            <TouchableOpacity style={styles.pastMoreBtn} onPress={onToggleMenu} activeOpacity={0.7}>
+            {/* Member avatars */}
+            {trip.members.slice(0, 3).map((m, i) => (
+              <Image key={m.id} source={{ uri: m.uri }} style={[styles.pastMiniAvatar as any, { marginLeft: i > 0 ? -8 : 0 }]} />
+            ))}
+            {trip.extraMembers > 0 && (
+              <View style={[styles.pastExtraBadge, { marginLeft: trip.members.length > 0 ? -8 : 0 }]}>
+                <Text style={styles.pastExtraText}>+{trip.extraMembers}</Text>
+              </View>
+            )}
+            <TouchableOpacity style={[styles.pastMoreBtn, { marginLeft: (trip.members.length > 0 || trip.extraMembers > 0) ? 4 : 0 }]} onPress={onToggleMenu} activeOpacity={0.7}>
               <MoreIcon color="#64748b" />
             </TouchableOpacity>
           </View>
@@ -455,7 +459,7 @@ function TripCardPastLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
 // ─── Create Trip Modal ────────────────────────────────────────────────────────
 
 // Props for lifted banner state (survives tab navigation & Android image-picker re-renders)
-type CreateTripModalProps = {
+export type CreateTripModalProps = {
   visible: boolean;
   onClose: () => void;
   onSave: (data: Record<string, unknown>) => Promise<void>;
@@ -468,7 +472,7 @@ type CreateTripModalProps = {
   setBannerCropFraction: (v: BannerCropFraction | null) => void;
 };
 
-function CreateTripModal({
+export function CreateTripModal({
   visible,
   onClose,
   onSave,
@@ -1456,7 +1460,17 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      {/* Outside-tap backdrop — closes any open three-dot menu */}
+      {showTripMenu !== null && (
+        <Pressable
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }}
+          onPress={() => setShowTripMenu(null)}
+        />
+      )}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        onScrollBeginDrag={() => setShowTripMenu(null)}>
 
         {/* Always-visible CTA section */}
         <View style={styles.tripsCTA}>
@@ -1718,6 +1732,14 @@ const styles = StyleSheet.create({
   pastMoreBtn: {
     width: 28, height: 28, borderRadius: 14, backgroundColor: '#f8fafc',
     alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  pastExtraBadge: {
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: '#E8F8F8', borderWidth: 1.5, borderColor: '#fff',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  pastExtraText: {
+    fontSize: 8, fontWeight: '700' as const, color: '#0d9488',
   },
 
   // Empty State

@@ -12,23 +12,45 @@ import {
   FlatList,
   Animated,
   PanResponder,
+  TextInput,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import LinearGradient from 'react-native-linear-gradient';
+import {
+  Search,
+  Sparkles,
+  PlaneTakeoff,
+  CalendarPlus,
+  HelpCircle,
+  Compass,
+  Settings2,
+  MapPin as LucideMapPin,
+  Calendar as LucideCalendar,
+  MoreVertical,
+  ChevronLeft,
+  PartyPopper,
+} from 'lucide-react-native';
 import BlobBackground from '../../components/common/BlobBackground';
 import AppHeader from '../../components/common/AppHeader';
 import useAuthStore from '../../store/authStore';
 import useAuth from '../../hooks/useAuth';
 import {
   getTrips,
+  createTrip as apiCreateTrip,
+  uploadTripPhotos,
+  updateTrip as apiUpdateTrip,
   archiveTrip as archiveTripApi,
   deleteTrip as apiDeleteTrip,
   handleApiError,
 } from '../../api/trips.api';
+import { getEvents, createEvent as apiCreateEvent, archiveEvent as apiArchiveEvent, deleteEvent as apiDeleteEvent } from '../../api/events.api';
+import { API_BASE } from '../../api/client';
 import Toast from 'react-native-toast-message';
-import TripsScreen from '../trips/TripsScreen';
-import EventsScreen from '../events/EventsScreen';
+import TripsScreen, { CreateTripModal, BannerCropFraction as TripBannerCropFraction } from '../trips/TripsScreen';
+import EventsScreen, { CreateEventModal } from '../events/EventsScreen';
 import FriendsTab from './FriendsTab';
 import ChatTab, { SWEE_CHAT } from './ChatTab';
 import GalleryTab from './GalleryTab';
@@ -97,26 +119,6 @@ const MOCK_TRIPS: Trip[] = [
   },
 ];
 
-const TRAVEL_INSIGHTS = [
-  {
-    id: '1',
-    title: 'Top 10 Adventure Destinations for 2026',
-    readTime: '5 min read',
-    image: require('../../assets/images/goa_beach.png'),
-  },
-  {
-    id: '2',
-    title: 'Budget Travel Tips for Group Trips',
-    readTime: '3 min read',
-    image: require('../../assets/images/music_festival.png'),
-  },
-  {
-    id: '3',
-    title: 'How to Plan the Perfect Beach Getaway',
-    readTime: '4 min read',
-    image: require('../../assets/images/goa_beach.png'),
-  },
-];
 
 // ─── Date Helpers ─────────────────────────────────────────────────────────────
 
@@ -433,8 +435,10 @@ function mapApiTrip(t: any): Trip {
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
     bannerCropFraction: t.bannerCropFraction ?? null,
-    members: (t.memberAvatars || []).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
-    extraMembers: Math.max(0, (t.memberCount ?? 1) - 1),
+    members: (t.memberAvatars || []).slice(0, 3).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
+    extraMembers: (t.memberAvatars || []).length === 0
+      ? (t.memberCount ?? 0)
+      : Math.max(0, (t.memberCount ?? 0) - Math.min((t.memberAvatars || []).length, 3)),
   };
 }
 
@@ -487,13 +491,38 @@ export default function HomeScreen({ navigation, route }: any) {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showTripMenu, setShowTripMenu] = useState<string | null>(null);
+  const [showEventMenu, setShowEventMenu] = useState<string | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [isLoadingTrips, setIsLoadingTrips] = useState(false);
   const [triggerCreateTrip, setTriggerCreateTrip] = useState(false);
+  const [showCreateEvent, setShowCreateEvent] = useState(false);
 
-  const [insightIndex, setInsightIndex] = useState(0);
-  const insightRef = useRef<FlatList>(null);
-  const [pressedArrow, setPressedArrow] = useState<'left' | 'right' | null>(null);
+  // Home-screen modal overlays (no tab switch)
+  const [showCreateTripModal, setShowCreateTripModal] = useState(false);
+  const [showCreateEventModal, setShowCreateEventModal] = useState(false);
+
+  // Lifted banner state for CreateTripModal
+  const [tripBannerUri, setTripBannerUri] = useState<string | undefined>(undefined);
+  const [tripBannerType, setTripBannerType] = useState<string>('image/jpeg');
+  const [tripBannerCrop, setTripBannerCrop] = useState<TripBannerCropFraction | null>(null);
+
+  // Blogs + Deals for home feed
+  const [blogs, setBlogs] = useState<any[]>([]);
+  const [deals, setDeals] = useState<any[]>([]);
+  const [blogsLoading, setBlogsLoading] = useState(true);
+  const [dealsLoading, setDealsLoading] = useState(true);
+
+  // Blog detail modal
+  const [blogDetailVisible, setBlogDetailVisible] = useState(false);
+  const [selectedBlog, setSelectedBlog] = useState<any>(null);
+
+  // Upcoming events for home feed
+  const [homeEvents, setHomeEvents] = useState<any[]>([]);
+
+  // Carousel dot indices
+  const [blogIndex, setBlogIndex] = useState(0);
+  const [dealIndex, setDealIndex] = useState(0);
+
 
   // Refresh profile on mount so name/avatar are always up to date
   useEffect(() => {
@@ -501,17 +530,28 @@ export default function HomeScreen({ navigation, route }: any) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-scroll Travel Insights every 5 seconds
+  // Fetch blogs, deals, and upcoming events for the home feed
   useEffect(() => {
-    const timer = setInterval(() => {
-      setInsightIndex(prev => {
-        const next = (prev + 1) % TRAVEL_INSIGHTS.length;
-        insightRef.current?.scrollToIndex({ index: next, animated: true });
-        return next;
-      });
-    }, 5000);
-    return () => clearInterval(timer);
+    async function fetchHomeData() {
+      try {
+        setBlogsLoading(true);
+        const blogsRes = await fetch(`${API_BASE}/blogs`);
+        if (blogsRes.ok) setBlogs(await blogsRes.json());
+      } catch { /* silently fall back to empty */ } finally { setBlogsLoading(false); }
+      try {
+        setDealsLoading(true);
+        const dealsRes = await fetch(`${API_BASE}/deals`);
+        if (dealsRes.ok) setDeals(await dealsRes.json());
+      } catch { /* silently fall back to empty */ } finally { setDealsLoading(false); }
+      try {
+        const evRes = await getEvents({ status: 'upcoming', limit: 10 });
+        setHomeEvents(evRes.events);
+      } catch { /* silently fall back to empty */ }
+    }
+    fetchHomeData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
 
   // Handle initialTab param when returning from detail screens
   useEffect(() => {
@@ -601,169 +641,630 @@ export default function HomeScreen({ navigation, route }: any) {
   }
 
   function toggleTripMenu(id: string) {
+    setShowEventMenu(null);
     setShowTripMenu(prev => prev === id ? null : id);
+  }
+
+  function toggleEventMenu(id: string) {
+    setShowTripMenu(null);
+    setShowEventMenu(prev => prev === id ? null : id);
+  }
+
+  function archiveHomeEvent(ev: any) {
+    setShowEventMenu(null);
+    Alert.alert('Archive Event', `Archive "${ev.name}"? You can restore it anytime.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Archive', onPress: async () => {
+          try {
+            await apiArchiveEvent(ev.id);
+            setHomeEvents(p => p.filter(e => e.id !== ev.id));
+          } catch (err) { handleApiError(err); }
+        },
+      },
+    ]);
+  }
+
+  function deleteHomeEvent(ev: any) {
+    setShowEventMenu(null);
+    Alert.alert('Delete Event?', 'This action cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await apiDeleteEvent(ev.id);
+            setHomeEvents(p => p.filter(e => e.id !== ev.id));
+          } catch (err) { handleApiError(err); }
+        },
+      },
+    ]);
+  }
+
+  function navigateToEventDetail(ev: any) {
+    const locName = typeof ev.location === 'string' ? ev.location : (ev.location?.name ?? '');
+    navigation.navigate('EventDetail', {
+      event: {
+        id: ev.id, name: ev.name,
+        type: ev.eventType ?? ev.type ?? 'Other',
+        typeColor: ev.typeColor ?? '#f8fafc',
+        location: locName,
+        fullDate: fmtFullDate(ev.eventDate ?? ''),
+        daysToGo: daysUntil(ev.eventDate ?? ''),
+        description: ev.description ?? '',
+      },
+    });
+  }
+
+  // ─── Home-feed constants ────────────────────────────────────────────────────
+  const H_PAD = 16;
+  const CARD_BLOG_W      = SCREEN_W * 0.485;  // ≈182px on 375px — Figma exact
+  const CARD_BLOG_H      = SCREEN_W * 0.362;  // ≈136px on 375px — Figma exact
+  const CARD_BLOG_TEXT_H = SCREEN_W * 0.08;   // ≈30px — black title strip
+  const CARD_DEAL_W      = SCREEN_W * 0.317;  // ≈119px on 375px — Figma exact
+  const CARD_DEAL_H      = SCREEN_W * 0.304;  // ≈114px on 375px — Figma exact
+  const DEAL_BG_COLORS   = ['#EDE7F6', '#FDEECB', '#D5EAF5'];
+
+  // ─── Reusable home-feed sub-components ─────────────────────────────────────
+
+  const SectionHeader = ({
+    icon,
+    title,
+    color = '#1a1a2e',
+  }: {
+    icon: React.ReactNode;
+    title: string;
+    color?: string;
+  }) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 12 }}>
+      {icon}
+      <Text style={{ fontSize: 16, fontWeight: '700', color }}>{title}</Text>
+    </View>
+  );
+
+  const CarouselDots = ({ total, active }: { total: number; active: number }) => (
+    <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 10, marginBottom: 2 }}>
+      {Array.from({ length: Math.min(total, 5) }).map((_, i) => (
+        <View
+          key={i}
+          style={{
+            width: i === active ? 16 : 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: i === active ? '#0d9488' : '#D1CBC0',
+          }}
+        />
+      ))}
+    </View>
+  );
+
+  // Shared compact card used by both Upcoming Trips and Upcoming Events
+  function HomeCompactCard({
+    title, imageSource, line1Icon, line1Text,
+    line2Icon, line2Text, members, extraMembers, onMorePress, onPress,
+  }: {
+    title: string; imageSource: any;
+    line1Icon: React.ReactNode; line1Text: string;
+    line2Icon: React.ReactNode; line2Text: string;
+    members?: { id: string; uri: string }[]; extraMembers?: number;
+    onMorePress?: () => void; onPress?: () => void;
+  }) {
+    // Show up to 3 avatars; use the API-provided extraMembers directly for +N badge
+    const allMembers = members ?? [];
+    const visibleMembers = allMembers.filter(m => !!m.uri).slice(0, 3);
+    const extra = extraMembers ?? 0;
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.87}
+        style={{
+          backgroundColor: '#fff',
+          borderRadius: 16,
+          marginHorizontal: H_PAD,
+          marginBottom: 10,
+          paddingVertical: 12,
+          paddingHorizontal: 12,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.06,
+          shadowRadius: 6,
+          elevation: 2,
+        }}>
+        {/* Thumbnail */}
+        <Image
+          source={imageSource}
+          style={{ width: 72, height: 72, borderRadius: 12, flexShrink: 0 }}
+          resizeMode="cover"
+        />
+        {/* Middle: title + two info rows */}
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#1a1a2e', lineHeight: 20 }} numberOfLines={1}>{title}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {line1Icon}
+            <Text style={{ fontSize: 12, color: '#64748b', flex: 1 }} numberOfLines={1}>{line1Text}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {line2Icon}
+            <Text style={{ fontSize: 12, color: '#64748b', flex: 1 }} numberOfLines={1}>{line2Text}</Text>
+          </View>
+        </View>
+        {/* Right: avatars cluster + three-dot, all in one row, vertically centred */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {/* Overlapping avatars */}
+          {(visibleMembers.length > 0 || extra > 0) && (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {visibleMembers.map((m, i) => (
+                <Image
+                  key={m.id}
+                  source={{ uri: m.uri }}
+                  style={{
+                    width: 26, height: 26, borderRadius: 13,
+                    borderWidth: 2, borderColor: '#fff',
+                    marginLeft: i === 0 ? 0 : -8,
+                  }}
+                />
+              ))}
+              {extra > 0 && (
+                <View style={{
+                  width: 26, height: 26, borderRadius: 13,
+                  backgroundColor: '#E8F8F8', borderWidth: 2, borderColor: '#fff',
+                  marginLeft: visibleMembers.length > 0 ? -8 : 0,
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Text style={{ fontSize: 9, fontWeight: '700', color: '#0d9488' }}>+{extra}</Text>
+                </View>
+              )}
+            </View>
+          )}
+          {/* Three-dot button — same row as avatars, horizontally centred with card */}
+          <TouchableOpacity
+            onPress={onMorePress}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' }}>
+            <MoreVertical size={15} color="#64748b" strokeWidth={1.8} />
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    );
   }
 
   // ─── HOME TAB (Main Dashboard) ─────────────────────────────────────────────
 
   const renderHomeTab = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
-      {/* Welcome Section — no avatar here */}
-      <View style={styles.welcomeCenter}>
-        <Text style={styles.welcomeTitle}>Welcome, {firstName}!</Text>
-        <Text style={styles.welcomeSubtitle}>Gather your crew & make memories</Text>
-      </View>
-
-      {/* Create New Trip CTA */}
-      <TouchableOpacity
-        style={styles.createTripBtn1}
-        onPress={() => setTriggerCreateTrip(true)}
-        activeOpacity={0.9}>
-        <Text style={styles.createTripBtnText}>Create New Trip</Text>
-      </TouchableOpacity>
-
-      {/* Ask Swee */}
-      <View style={styles.sweeBox}>
-        <Text style={styles.sweeBoxText}>Need help planning your adventure?</Text>
-        <TouchableOpacity
-          style={styles.askSweeBtn}
-          onPress={() => navigateToChat(SWEE_CHAT)}
-          activeOpacity={0.8}>
-          <SparklesIcon size={14} color="#f97316" />
-          <Text style={styles.askSweeBtnText}>Ask Swee</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Travel Insights — always visible */}
-      <Text style={styles.sectionTitle}>Travel Insights</Text>
-      <View style={styles.insightCarousel}>
-        {/* Left arrow — teal only when user taps, grey otherwise */}
-        <TouchableOpacity
-          style={[styles.insightArrowLeft, pressedArrow === 'left' ? styles.insightArrowActive : styles.insightArrowInactive]}
-          onPressIn={() => setPressedArrow('left')}
-          onPressOut={() => setPressedArrow(null)}
-          onPress={() => {
-            if (insightIndex > 0) {
-              const next = insightIndex - 1;
-              setInsightIndex(next);
-              insightRef.current?.scrollToIndex({ index: next, animated: true });
-            }
-          }}
-          activeOpacity={1}>
-          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-            <Path d="M15 18l-6-6 6-6" stroke={pressedArrow === 'left' ? '#fff' : '#64748b'} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-        </TouchableOpacity>
-        {/* Right arrow — teal only when user taps, grey otherwise */}
-        <TouchableOpacity
-          style={[styles.insightArrowRight, pressedArrow === 'right' ? styles.insightArrowActive : styles.insightArrowInactive]}
-          onPressIn={() => setPressedArrow('right')}
-          onPressOut={() => setPressedArrow(null)}
-          onPress={() => {
-            if (insightIndex < TRAVEL_INSIGHTS.length - 1) {
-              const next = insightIndex + 1;
-              setInsightIndex(next);
-              insightRef.current?.scrollToIndex({ index: next, animated: true });
-            }
-          }}
-          activeOpacity={1}>
-          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-            <Path d="M9 18l6-6-6-6" stroke={pressedArrow === 'right' ? '#fff' : '#64748b'} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-        </TouchableOpacity>
-        <FlatList
-          ref={insightRef}
-          data={TRAVEL_INSIGHTS}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={SCREEN_W - 60}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          contentContainerStyle={{ paddingHorizontal: 20 }}
-          keyExtractor={item => item.id}
-          onMomentumScrollEnd={e => {
-            const idx = Math.round(e.nativeEvent.contentOffset.x / (SCREEN_W - 60));
-            setInsightIndex(Math.max(0, Math.min(idx, TRAVEL_INSIGHTS.length - 1)));
-          }}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.insightSlide} activeOpacity={0.9}>
-              <Image source={item.image} style={styles.insightImage} resizeMode="cover" />
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.72)']}
-                style={styles.insightOverlay}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-              >
-                <View style={styles.insightReadTimePill}>
-                  <Text style={styles.insightReadTimeText}>{item.readTime}</Text>
-                </View>
-                <Text style={styles.insightTitle} numberOfLines={2}>{item.title}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
+    <>
+      {/* Outside-tap backdrop — closes any open three-dot menu */}
+      {(showTripMenu !== null || showEventMenu !== null) && (
+        <Pressable
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50 }}
+          onPress={() => { setShowTripMenu(null); setShowEventMenu(null); }}
         />
-        {/* No dots — use arrow buttons only */}
-      </View>
-
-      {/* Ongoing / Active Trips — shown first */}
-      {ongoing.length > 0 && (
-        <>
-          <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>Active Trips</Text>
-            {ongoing.length > 1 && (
-              <TouchableOpacity onPress={() => setActiveTab('trips')} activeOpacity={0.7}>
-                <Text style={styles.seeAll}>See All</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          {ongoing.slice(0, 1).map(trip => (
-            <TripCardFull
-              key={trip.id}
-              trip={trip}
-              onPress={() => navigateToTrip(trip)}
-              showMenu={showTripMenu === trip.id}
-              onToggleMenu={() => toggleTripMenu(trip.id)}
-              onArchive={() => archiveTrip(trip)}
-              onDelete={() => deleteTrip(trip)}
-            />
-          ))}
-        </>
       )}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 110 }}
+        onScrollBeginDrag={() => { setShowTripMenu(null); setShowEventMenu(null); }}
+      >
+        {/* ── 1. Welcome ── */}
+        <Text style={{
+          fontWeight: '500',
+          fontSize: 24,
+          lineHeight: 32,
+          color: '#45556C',
+          textAlign: 'center',
+          marginTop: 12,
+        }}>
+          Welcome, {firstName}!
+        </Text>
+        <Text style={{
+          fontSize: 15,
+          color: '#45556C',
+          fontWeight: '400',
+          textAlign: 'left',
+          marginTop: 6,
+          marginBottom: 14,
+          paddingHorizontal: H_PAD,
+        }}>
+          Ready for your next trip?
+        </Text>
 
-      {/* Upcoming Trips */}
-      {upcoming.length > 0 && (
-        <>
-          <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>Upcoming Trips</Text>
-            {upcoming.length > 1 && (
-              <TouchableOpacity onPress={() => setActiveTab('trips')} activeOpacity={0.7}>
-                <Text style={styles.seeAll}>See All</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          {upcoming.slice(0, 1).map(trip => (
-            <TripCardFull
-              key={trip.id}
-              trip={trip}
-              onPress={() => navigateToTrip(trip)}
-              showMenu={showTripMenu === trip.id}
-              onToggleMenu={() => toggleTripMenu(trip.id)}
-              onArchive={() => archiveTrip(trip)}
-              onDelete={() => deleteTrip(trip)}
-            />
-          ))}
-        </>
-      )}
-
-      {/* No trips yet — friendly empty state */}
-      {!isLoadingTrips && trips.length === 0 && (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateTitle}>No trips yet</Text>
-          <Text style={styles.emptyStateSubtitle}>Create your first trip and start planning with friends!</Text>
+        {/* ── 2. Search Bar ── */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          height: 48,
+          borderRadius: 999,
+          borderWidth: 1.5,
+          borderColor: '#E0DBD3',
+          backgroundColor: '#fff',
+          marginHorizontal: H_PAD,
+          paddingHorizontal: 12,
+          gap: 8,
+        }}>
+          <Search size={18} color="#94a3b8" />
+          <TextInput
+            style={{ flex: 1, fontSize: 14, color: '#1a1a2e', paddingVertical: 0 }}
+            placeholder="Where should we go?"
+            placeholderTextColor="#94a3b8"
+          />
+          <TouchableOpacity
+            onPress={() => navigateToChat(SWEE_CHAT)}
+            activeOpacity={0.85}
+            style={{
+              flexDirection: 'row', alignItems: 'center',
+              backgroundColor: '#009788', borderRadius: 999,
+              paddingHorizontal: 12, paddingVertical: 7, gap: 5,
+            }}>
+            <Sparkles size={13} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>Ask Swee</Text>
+          </TouchableOpacity>
         </View>
-      )}
-    </ScrollView>
+
+        {/* ── 3. Action Buttons Row — all 3 in one row, flex:1 each ── */}
+        <View style={{ flexDirection: 'row', marginHorizontal: H_PAD, marginTop: 12, gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => setShowCreateTripModal(true)}
+            activeOpacity={0.85}
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#009788', borderRadius: 999, paddingVertical: 9, gap: 5 }}>
+            <PlaneTakeoff size={15} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>Create Trip</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setShowCreateEventModal(true)}
+            activeOpacity={0.85}
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#61BFCE', borderRadius: 999, paddingVertical: 9, gap: 5 }}>
+            <CalendarPlus size={15} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>Create Event</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFA76A', borderRadius: 999, paddingVertical: 9, gap: 5 }}>
+            <HelpCircle size={15} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>How it works</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── 4. Get Inspired (Blogs Carousel) ── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 20, marginBottom: 10 }}>
+          <Compass size={19} color="#000000" strokeWidth={1.8} />
+          <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Get Inspired</Text>
+        </View>
+        {blogsLoading ? (
+          <View style={{ flexDirection: 'row', paddingLeft: H_PAD, gap: 10 }}>
+            {[0, 1].map(i => (
+              <View key={i} style={{ width: CARD_BLOG_W, height: CARD_BLOG_H, borderRadius: 14, backgroundColor: '#E8E4DF' }} />
+            ))}
+          </View>
+        ) : blogs.length === 0 ? (
+          <Text style={{ color: '#94a3b8', fontSize: 14, textAlign: 'center', marginTop: 4 }}>No blogs available</Text>
+        ) : (
+          <>
+            <FlatList
+              data={blogs}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={CARD_BLOG_W + 10}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              contentContainerStyle={{ paddingLeft: H_PAD, paddingRight: 6 }}
+              keyExtractor={(item: any) => String(item.id)}
+              onMomentumScrollEnd={e => {
+                setBlogIndex(Math.round(e.nativeEvent.contentOffset.x / (CARD_BLOG_W + 10)));
+              }}
+              renderItem={({ item }: { item: any }) => {
+                const imgUri = item.imageUrl ?? item.image_url ?? item.coverImage ?? item.thumbnail ?? item.image;
+                return (
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => { setSelectedBlog(item); setBlogDetailVisible(true); }}
+                    style={{ width: CARD_BLOG_W, height: CARD_BLOG_H, borderRadius: 14, overflow: 'hidden', marginRight: 10 }}>
+                    {/* Full-bleed background image */}
+                    {imgUri ? (
+                      <Image
+                        source={{ uri: imgUri }}
+                        style={{ width: '100%', height: '100%', position: 'absolute' }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={{ width: '100%', height: '100%', position: 'absolute', backgroundColor: '#E8E4DF' }} />
+                    )}
+                    {/* 75% opacity black strip at bottom — Figma exact */}
+                    <View style={{
+                      position: 'absolute', bottom: 0, left: 0, right: 0,
+                      height: CARD_BLOG_TEXT_H,
+                      backgroundColor: 'rgba(0,0,0,0.75)',
+                      justifyContent: 'center',
+                      paddingHorizontal: 8,
+                    }}>
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600', lineHeight: 14 }} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+            <CarouselDots total={blogs.length} active={blogIndex} />
+          </>
+        )}
+
+        {/* ── 5. Explore Amazing Deals — horizontal scrollable carousel ── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 12 }}>
+          <Settings2 size={19} color="#000000" strokeWidth={1.8} />
+          <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Explore Amazing Deals</Text>
+        </View>
+        {dealsLoading ? (
+          <View style={{ flexDirection: 'row', paddingLeft: H_PAD, gap: 10 }}>
+            {[0, 1, 2].map(i => (
+              <View key={i} style={{ width: CARD_DEAL_W, height: CARD_DEAL_H, borderRadius: 14, backgroundColor: '#E8E4DF' }} />
+            ))}
+          </View>
+        ) : deals.length === 0 ? (
+          <Text style={{ color: '#94a3b8', fontSize: 14, textAlign: 'center', marginTop: 4 }}>No deals available</Text>
+        ) : (
+          <>
+            <FlatList
+              data={deals}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={CARD_DEAL_W + 10}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              contentContainerStyle={{ paddingLeft: H_PAD, paddingRight: 6 }}
+              keyExtractor={(item: any) => String(item.id)}
+              onMomentumScrollEnd={e => {
+                setDealIndex(Math.round(e.nativeEvent.contentOffset.x / (CARD_DEAL_W + 10)));
+              }}
+              renderItem={({ item, index }: { item: any; index: number }) => {
+                const imgUri = item.imageUrl ?? item.image_url ?? item.coverImage ?? item.thumbnail ?? item.image;
+                // Figma exact: image area 115×68 px on 375px screen
+                const IMG_H = SCREEN_W * 0.181; // ≈68px
+                return (
+                  <TouchableOpacity
+                    activeOpacity={0.87}
+                    style={{
+                      width: CARD_DEAL_W,         // SCREEN_W * 0.317 ≈ 119px
+                      borderRadius: 14,
+                      backgroundColor: item.bgColor || DEAL_BG_COLORS[index % 3],
+                      alignItems: 'center',
+                      paddingTop: 10,
+                      paddingBottom: 10,
+                      paddingHorizontal: 8,
+                      marginRight: 10,
+                    }}>
+                    {/* Image container — rounded with overflow clip */}
+                    <View style={{
+                      width: '100%',
+                      height: IMG_H,
+                      borderRadius: 10,
+                      overflow: 'hidden',
+                      backgroundColor: 'transparent',
+                    }}>
+                      {imgUri ? (
+                        <Image
+                          source={{ uri: imgUri }}
+                          style={{ width: '100%', height: '100%' }}
+                          resizeMode="contain"
+                        />
+                      ) : null}
+                    </View>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#1a1a2e', textAlign: 'center', marginTop: 8 }} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    {item.subtitle ? (
+                      <Text style={{ fontSize: 10, color: '#64748b', textAlign: 'center', marginTop: 2 }} numberOfLines={1}>
+                        {item.subtitle}
+                      </Text>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+            <CarouselDots total={deals.length} active={dealIndex} />
+          </>
+        )}
+
+        {/* ── 6. Upcoming Trips ── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 10 }}>
+          <LucideMapPin size={19} color="#000000" strokeWidth={1.8} />
+          <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Upcoming Trips</Text>
+        </View>
+        {[...ongoing, ...upcoming].length === 0 && !isLoadingTrips ? (
+          <Text style={{ color: '#94a3b8', fontSize: 14, textAlign: 'center', marginTop: 4 }}>No upcoming trips</Text>
+        ) : (
+          [...ongoing, ...upcoming].slice(0, 3).map(trip => (
+            <View key={trip.id} style={{ zIndex: showTripMenu === trip.id ? 100 : 1 }}>
+              <HomeCompactCard
+                title={trip.name}
+                imageSource={trip.bannerImageUrl ? { uri: trip.bannerImageUrl } : trip.image}
+                line1Icon={<LucideMapPin size={12} color="#0d9488" strokeWidth={1.8} />}
+                line1Text={trip.location}
+                line2Icon={<LucideCalendar size={12} color="#f97316" strokeWidth={1.8} />}
+                line2Text={`${trip.startDate} - ${trip.endDate}`}
+                members={trip.members}
+                extraMembers={trip.extraMembers}
+                onMorePress={() => toggleTripMenu(trip.id)}
+                onPress={() => navigateToTrip(trip)}
+              />
+              {showTripMenu === trip.id && (
+                <View style={styles.tripMenuDropdown}>
+                  <TouchableOpacity style={styles.tripMenuItem} onPress={() => archiveTrip(trip)} activeOpacity={0.8}>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                      <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                    <Text style={styles.tripMenuItemText}>Archive Trip</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.tripMenuItem, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]} onPress={() => deleteTrip(trip)} activeOpacity={0.8}>
+                    <TrashIcon />
+                    <Text style={[styles.tripMenuItemText, { color: '#ef4444' }]}>Delete Trip</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          ))
+        )}
+
+        {/* ── 7. Upcoming Events ── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 10 }}>
+          <PartyPopper size={19} color="#000000" strokeWidth={1.8} />
+          <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Upcoming Events</Text>
+        </View>
+        {homeEvents.length === 0 ? (
+          <Text style={{ color: '#94a3b8', fontSize: 14, textAlign: 'center', marginTop: 4 }}>No upcoming events</Text>
+        ) : (
+          homeEvents.slice(0, 3).map((ev: any) => {
+            const locName = typeof ev.location === 'string' ? ev.location : (ev.location?.name ?? '');
+            const rawAvatars: string[] = (ev.memberAvatars || []).slice(0, 3);
+            const avatars: { id: string; uri: string }[] = rawAvatars.map((uri: string, i: number) => ({ id: `ev-av-${i}`, uri }));
+            const evExtra = rawAvatars.length === 0
+              ? (ev.memberCount ?? 0)
+              : Math.max(0, (ev.memberCount ?? 0) - rawAvatars.length);
+            return (
+              <View key={ev.id} style={{ zIndex: showEventMenu === ev.id ? 100 : 1 }}>
+                <HomeCompactCard
+                  title={ev.name}
+                  imageSource={ev.bannerImageUrl ? { uri: ev.bannerImageUrl } : require('../../assets/images/goa_beach.png')}
+                  line1Icon={<LucideMapPin size={12} color="#0d9488" strokeWidth={1.8} />}
+                  line1Text={locName || 'Location TBD'}
+                  line2Icon={<LucideCalendar size={12} color="#f97316" strokeWidth={1.8} />}
+                  line2Text={fmtFullDate(ev.eventDate ?? '')}
+                  members={avatars}
+                  extraMembers={evExtra}
+                  onMorePress={() => toggleEventMenu(ev.id)}
+                  onPress={() => navigateToEventDetail(ev)}
+                />
+                {showEventMenu === ev.id && (
+                  <View style={styles.tripMenuDropdown}>
+                    <TouchableOpacity style={styles.tripMenuItem} onPress={() => archiveHomeEvent(ev)} activeOpacity={0.8}>
+                      <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                        <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      </Svg>
+                      <Text style={styles.tripMenuItemText}>Archive Event</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.tripMenuItem, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]} onPress={() => deleteHomeEvent(ev)} activeOpacity={0.8}>
+                      <TrashIcon />
+                      <Text style={[styles.tripMenuItemText, { color: '#ef4444' }]}>Delete Event</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          })
+        )}
+      </ScrollView>
+
+      {/* ── Blog Detail Full-Screen Modal ── */}
+      <Modal
+        visible={blogDetailVisible}
+        animationType="slide"
+        onRequestClose={() => setBlogDetailVisible(false)}
+        statusBarTranslucent>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+            <TouchableOpacity onPress={() => setBlogDetailVisible(false)} style={{ marginRight: 12 }}>
+              <ChevronLeft size={24} color="#1a1a2e" />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#1a1a2e', flex: 1 }} numberOfLines={1}>
+              {selectedBlog?.title}
+            </Text>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {(() => {
+              const uri = selectedBlog?.imageUrl ?? selectedBlog?.image_url ?? selectedBlog?.coverImage ?? selectedBlog?.thumbnail ?? selectedBlog?.image;
+              return uri ? (
+                <Image source={{ uri }} style={{ width: '100%', height: SCREEN_W * 0.55 }} resizeMode="cover" />
+              ) : (
+                <View style={{ width: '100%', height: SCREEN_W * 0.55, backgroundColor: '#E8E4DF' }} />
+              );
+            })()}
+            <View style={{ padding: 20 }}>
+              {selectedBlog?.category && (
+                <View style={{ backgroundColor: '#E0F7F4', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: 12 }}>
+                  <Text style={{ color: '#0d9488', fontSize: 12, fontWeight: '600' }}>{selectedBlog.category}</Text>
+                </View>
+              )}
+              <Text style={{ fontSize: SCREEN_W < 360 ? 18 : 22, fontWeight: '700', color: '#1a1a2e', lineHeight: 30, marginBottom: 8 }}>
+                {selectedBlog?.title}
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                {selectedBlog?.authorAvatar && (
+                  <Image source={{ uri: selectedBlog.authorAvatar }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                )}
+                <Text style={{ fontSize: 13, color: '#64748b' }}>
+                  {selectedBlog?.author ?? selectedBlog?.authorName ?? ''}
+                  {selectedBlog?.publishedAt ? `  ·  ${selectedBlog.publishedAt}` : ''}
+                  {selectedBlog?.readTime ? `  ·  ${selectedBlog.readTime}` : ''}
+                </Text>
+              </View>
+              <Text style={{ fontSize: 15, color: '#334155', lineHeight: 24 }}>
+                {selectedBlog?.content ?? selectedBlog?.body ?? selectedBlog?.description ?? ''}
+              </Text>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── Create Trip Modal overlay — no tab switch ── */}
+      <CreateTripModal
+        visible={showCreateTripModal}
+        onClose={() => setShowCreateTripModal(false)}
+        bannerImageUri={tripBannerUri}
+        setBannerImageUri={setTripBannerUri}
+        bannerImageType={tripBannerType}
+        setBannerImageType={setTripBannerType}
+        bannerCropFraction={tripBannerCrop}
+        setBannerCropFraction={setTripBannerCrop}
+        onSave={async (data) => {
+          const cropFraction = data.bannerCropFraction as TripBannerCropFraction | null;
+          const res = await apiCreateTrip({
+            name: data.name as string,
+            startDate: (data.startDateISO ?? data.startDate ?? '') as string,
+            endDate: (data.endDateISO ?? data.endDate ?? '') as string,
+            location: { name: (data.location as string) || 'TBD' },
+            friendIds: (data.friendIds as string[] | undefined)?.length ? data.friendIds as string[] : undefined,
+            emails: data.inviteEmail ? [data.inviteEmail as string] : undefined,
+            ...(cropFraction ? { bannerCropFraction: cropFraction } : {}),
+          });
+          let newTrip = res.trip;
+          const localUri = data.bannerImageUrl as string | undefined;
+          const isLocalUri = localUri && (localUri.startsWith('file://') || localUri.startsWith('content://'));
+          if (isLocalUri) {
+            setTrips(p => [{ ...mapApiTrip(newTrip), bannerImageUrl: localUri, bannerCropFraction: cropFraction || null }, ...p]);
+            try {
+              const photoRes = await uploadTripPhotos(newTrip.id, [{
+                uri: localUri,
+                type: (data.bannerImageType as string) ?? 'image/jpeg',
+                name: `banner.${((data.bannerImageType as string) ?? 'image/jpeg').split('/')[1] ?? 'jpg'}`,
+              }]);
+              const photo = photoRes.photos?.[0];
+              const permanentUrl = (photo as any)?.fileUrl ?? photo?.url;
+              if (permanentUrl) {
+                const updated = await apiUpdateTrip(newTrip.id, { bannerImageUrl: permanentUrl, ...(cropFraction ? { bannerCropFraction: cropFraction } : {}) });
+                newTrip = updated.trip;
+                setTrips(p => p.map(t => t.id === newTrip.id ? { ...t, bannerImageUrl: newTrip.bannerImageUrl ?? permanentUrl } : t));
+              }
+            } catch (e) { console.warn('Banner upload failed:', e); }
+          } else {
+            setTrips(p => [mapApiTrip(newTrip), ...p]);
+          }
+          setTripBannerUri(undefined);
+          setTripBannerCrop(null);
+        }}
+      />
+
+      {/* ── Create Event Modal overlay — no tab switch ── */}
+      <CreateEventModal
+        visible={showCreateEventModal}
+        onClose={() => setShowCreateEventModal(false)}
+        onSave={(ev) => {
+          setShowCreateEventModal(false);
+          // Add to homeEvents feed if upcoming
+          const days = daysUntil(ev.dateISO);
+          if (days >= 0) setHomeEvents(p => [ev, ...p]);
+        }}
+      />
+    </>
   );
 
 
@@ -791,13 +1292,13 @@ export default function HomeScreen({ navigation, route }: any) {
         )}
 
         {activeTab === 'home' && renderHomeTab()}
-        {/* Keep TripsScreen mounted to allow modal to open from HomeScreen */}
+        {/* Keep TripsScreen mounted to allow nav from other places */}
         <View style={{ flex: 1, display: activeTab === 'trips' ? 'flex' : 'none' }}>
           <TripsScreen openCreateOnMount={triggerCreateTrip} onCreateMountHandled={() => setTriggerCreateTrip(false)} />
         </View>
         {/* Keep EventsScreen mounted to preserve local state across tab switches */}
         <View style={{ flex: 1, display: activeTab === 'events' ? 'flex' : 'none' }}>
-          <EventsScreen />
+          <EventsScreen openCreateOnMount={showCreateEvent} onCreateMountHandled={() => setShowCreateEvent(false)} />
         </View>
         {activeTab === 'friends' && <FriendsTab />}
         {activeTab === 'chat' && <ChatTab onNavigateToChat={navigateToChat} />}
@@ -814,7 +1315,7 @@ export default function HomeScreen({ navigation, route }: any) {
         {/* Draggable Swee FAB */}
         <SweeFab onPress={() => navigateToChat(SWEE_CHAT)} />
 
-        {/* Bottom Tab Bar — Home is NOT listed here; tap logo to return home */}
+        {/* Bottom Tab Bar */}
         <View style={styles.tabBar}>
           {(['trips', 'events', 'friends', 'chat', 'gallery'] as Tab[]).map(tab => (
             <NavIcon key={tab} name={tab} active={activeTab === tab} onPress={() => setActiveTab(tab)} />
@@ -1275,4 +1776,132 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
   modalTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
+});
+
+// ─── Home-tab styles ──────────────────────────────────────────────────────────
+
+const hStyles = StyleSheet.create({
+  scrollContent: { paddingBottom: 100 },
+
+  welcomeTitle: { fontSize: 26, fontWeight: '700', color: '#1a1a1a', textAlign: 'center', marginTop: 16 },
+  welcomeSub:   { fontSize: 15, color: '#555', textAlign: 'center', marginTop: 4 },
+
+  // Search row
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    marginHorizontal: 16,
+    gap: 8,
+  },
+  searchBar: {
+    flex: 1,
+    height: 48,
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#E0DBD3',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+  },
+  searchPlaceholder: { fontSize: 14, color: '#94a3b8', flex: 1 },
+  askSweeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0d9488',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  askSweeBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+
+  // Action buttons row
+  actionBtnsRow:    { marginTop: 14 },
+  actionBtnsContent: { paddingHorizontal: 16, gap: 10 },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    height: 38,
+  },
+  actionBtnText: { fontSize: 13, fontWeight: '600' },
+
+  // Section headers
+  sectionHeader: { fontSize: 16, fontWeight: '700', color: '#1a1a1a', marginLeft: 16, marginTop: 24, marginBottom: 12 },
+
+  // Skeleton placeholders
+  skeletonRow: { flexDirection: 'row', gap: 10, paddingLeft: 16, marginBottom: 8 },
+  skeletonCard: { borderRadius: 16, backgroundColor: '#E8E4DF' },
+
+  // Blog carousel card
+  blogCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#ccc',
+  },
+  blogGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    justifyContent: 'flex-end',
+    padding: 10,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  blogTitle: { fontSize: 13, fontWeight: '700', color: '#fff' },
+
+  // Deal carousel card
+  dealCard: {
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 12,
+    overflow: 'hidden',
+  },
+  dealTitle:    { fontSize: 14, fontWeight: '700', color: '#1a1a1a', paddingHorizontal: 10, marginTop: 8, textAlign: 'center' },
+  dealSubtitle: { fontSize: 12, color: '#666', paddingHorizontal: 10, textAlign: 'center' },
+
+  // Pagination dots
+  dotsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4, marginTop: 8, marginBottom: 4 },
+  dot:     { borderRadius: 3 },
+
+  // Trip/Event compact card
+  teCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 12,
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  teCardImg:  { width: 72, height: 72, borderRadius: 12 },
+  teCardBody: { flex: 1 },
+  teCardName: { fontSize: 15, fontWeight: '700', color: '#0d9488', marginBottom: 4 },
+  teCardRow:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  teCardMeta: { fontSize: 13, color: '#64748b', flex: 1 },
+  teCardRight: { alignItems: 'center', justifyContent: 'center' },
+  teAvatarsRow: { flexDirection: 'row', alignItems: 'center' },
+  teAvatar: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: '#fff' },
+  teExtraCounter: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#e0f7f4', borderWidth: 2, borderColor: '#fff',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  teExtraText: { fontSize: 9, color: '#0d9488', fontWeight: '700' },
+
+  emptyLabel: { fontSize: 13, color: '#94a3b8', marginLeft: 16, marginBottom: 8 },
 });

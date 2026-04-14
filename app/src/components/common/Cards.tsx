@@ -129,12 +129,16 @@ export function TripCardPast({ trip, onPress, showMenu, onToggleMenu, onArchive,
         </View>
         <View style={styles.pastCardRight}>
           <View style={styles.pastAvatarsRow}>
-            <View style={styles.pastAvatars}>
-              {trip.members.slice(0, 3).map((m, i) => (
-                <Image key={m.id} source={{ uri: m.uri }} style={[styles.pastMiniAvatar as any, { marginLeft: i > 0 ? -8 : 0 }]} />
-              ))}
-            </View>
-            <TouchableOpacity style={styles.pastMoreBtn} onPress={onToggleMenu} activeOpacity={0.7}>
+            {/* Member avatars */}
+            {trip.members.slice(0, 3).map((m, i) => (
+              <Image key={m.id} source={{ uri: m.uri }} style={[styles.pastMiniAvatar as any, { marginLeft: i > 0 ? -8 : 0 }]} />
+            ))}
+            {trip.extraMembers > 0 && (
+              <View style={[styles.pastExtraBadge, { marginLeft: trip.members.length > 0 ? -8 : 0 }]}>
+                <Text style={styles.pastExtraText}>+{trip.extraMembers}</Text>
+              </View>
+            )}
+            <TouchableOpacity style={[styles.pastMoreBtn, { marginLeft: (trip.members.length > 0 || trip.extraMembers > 0) ? 4 : 0 }]} onPress={onToggleMenu} activeOpacity={0.7}>
               <MoreIcon color="#64748b" />
             </TouchableOpacity>
           </View>
@@ -264,12 +268,16 @@ export function EventCardPast({ event, onPress, showMenu, onToggleMenu, onArchiv
         </View>
         <View style={styles.pastCardRight}>
           <View style={styles.pastAvatarsRow}>
-            <View style={styles.pastAvatars}>
-              {event.members.slice(0, 3).map((m, i) => (
-                <Image key={m.id} source={{ uri: m.uri }} style={[styles.pastMiniAvatar as any, { marginLeft: i > 0 ? -8 : 0 }]} />
-              ))}
-            </View>
-            <TouchableOpacity style={styles.pastMoreBtn} onPress={onToggleMenu} activeOpacity={0.7}>
+            {/* Member avatars */}
+            {event.members.slice(0, 3).map((m, i) => (
+              <Image key={m.id} source={{ uri: m.uri }} style={[styles.pastMiniAvatar as any, { marginLeft: i > 0 ? -8 : 0 }]} />
+            ))}
+            {event.extraMembers > 0 && (
+              <View style={[styles.pastExtraBadge, { marginLeft: event.members.length > 0 ? -8 : 0 }]}>
+                <Text style={styles.pastExtraText}>+{event.extraMembers}</Text>
+              </View>
+            )}
+            <TouchableOpacity style={[styles.pastMoreBtn, { marginLeft: (event.members.length > 0 || event.extraMembers > 0) ? 4 : 0 }]} onPress={onToggleMenu} activeOpacity={0.7}>
               <MoreIcon color="#64748b" />
             </TouchableOpacity>
           </View>
@@ -498,9 +506,23 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    marginLeft: 4,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  pastExtraBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#E8F8F8',
+    borderWidth: 1.5,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pastExtraText: {
+    fontSize: 8,
+    fontWeight: '700' as const,
+    color: '#0d9488',
   },
   eventTypePill: {
     position: 'absolute',
