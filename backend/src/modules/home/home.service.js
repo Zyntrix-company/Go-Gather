@@ -21,12 +21,18 @@ const getHomeDashboard = async (userId) => {
       (t.start_date::date - CURRENT_DATE) AS "daysToGo",
       COALESCE(
         (
-          SELECT json_agg(avatar_url)
+          SELECT json_agg(avatar)
           FROM (
-            SELECT p.avatar_url
+            SELECT json_build_object(
+              'id', tm2.user_id::text,
+              'uri', COALESCE(
+                CASE WHEN p.avatar_url IS NOT NULL AND p.avatar_url NOT LIKE 'https://undefined/%' AND p.avatar_url NOT LIKE '%/undefined%' THEN p.avatar_url ELSE NULL END,
+                'https://i.pravatar.cc/150?u=' || tm2.user_id::text
+              )
+            ) AS avatar
             FROM trip_members tm2
             JOIN profiles p ON p.user_id = tm2.user_id
-            WHERE tm2.trip_id = t.id AND p.avatar_url IS NOT NULL
+            WHERE tm2.trip_id = t.id
             LIMIT 5
           ) avatars
         ),

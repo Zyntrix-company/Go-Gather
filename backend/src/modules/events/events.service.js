@@ -220,7 +220,13 @@ const getEvents = async (userId, { status, page = 1, limit = 20 } = {}) => {
          (
            SELECT json_agg(avatar)
            FROM (
-             SELECT COALESCE(p.avatar_url, 'https://i.pravatar.cc/150?u=' || emx.user_id::text) AS avatar
+             SELECT json_build_object(
+               'id', emx.user_id::text,
+               'uri', COALESCE(
+                 CASE WHEN p.avatar_url IS NOT NULL AND p.avatar_url NOT LIKE 'https://undefined/%' AND p.avatar_url NOT LIKE '%/undefined%' THEN p.avatar_url ELSE NULL END,
+                 'https://i.pravatar.cc/150?u=' || emx.user_id::text
+               )
+             ) AS avatar
              FROM event_members emx
              JOIN profiles p ON p.user_id = emx.user_id
              WHERE emx.event_id = e.id

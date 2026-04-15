@@ -15,6 +15,7 @@ import {
   TextInput,
   Modal,
   Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
@@ -436,7 +437,9 @@ function mapApiTrip(t: any): Trip {
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
     bannerCropFraction: t.bannerCropFraction ?? null,
-    members: (t.memberAvatars || []).slice(0, 4).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
+    members: (t.memberAvatars || []).slice(0, 4).map((av: any, idx: number) =>
+      typeof av === 'string' ? { id: av || `av-${idx}`, uri: av } : { id: String(av.id ?? `av-${idx}`), uri: av.uri ?? '' }
+    ),
     extraMembers: (t.memberAvatars || []).length === 0
       ? (t.memberCount ?? 0)
       : Math.max(0, (t.memberCount ?? 0) - Math.min((t.memberAvatars || []).length, 4)),
@@ -517,6 +520,7 @@ export default function HomeScreen({ navigation, route }: any) {
   // Blog detail modal
   const [blogDetailVisible, setBlogDetailVisible] = useState(false);
   const [selectedBlog, setSelectedBlog] = useState<any>(null);
+  const [blogDetailLoading, setBlogDetailLoading] = useState(false);
 
   // Upcoming events for home feed
   const [homeEvents, setHomeEvents] = useState<any[]>([]);
@@ -993,7 +997,16 @@ export default function HomeScreen({ navigation, route }: any) {
                 return (
                   <TouchableOpacity
                     activeOpacity={0.9}
-                    onPress={() => { setSelectedBlog(item); setBlogDetailVisible(true); }}
+                    onPress={async () => {
+                      setSelectedBlog(item);
+                      setBlogDetailVisible(true);
+                      setBlogDetailLoading(true);
+                      try {
+                        const res = await fetch(`${API_BASE}/blogs/${item.id}`);
+                        if (res.ok) setSelectedBlog(await res.json());
+                      } catch { /* keep partial metadata */ }
+                      finally { setBlogDetailLoading(false); }
+                    }}
                     style={{ width: CARD_BLOG_W, height: CARD_BLOG_H, borderRadius: 14, overflow: 'hidden', marginRight: 10 }}>
                     {/* Full-bleed background image */}
                     {imgUri ? (
@@ -1151,8 +1164,10 @@ export default function HomeScreen({ navigation, route }: any) {
         ) : (
           homeEvents.slice(0, 3).map((ev: any) => {
             const locName = typeof ev.location === 'string' ? ev.location : (ev.location?.name ?? '');
-            const rawAvatars: string[] = (ev.memberAvatars || []).slice(0, 4);
-            const avatars: { id: string; uri: string }[] = rawAvatars.map((uri: string, i: number) => ({ id: `ev-av-${i}`, uri }));
+            const rawAvatars: any[] = (ev.memberAvatars || []).slice(0, 4);
+            const avatars: { id: string; uri: string }[] = rawAvatars.map((av: any, i: number) =>
+              typeof av === 'string' ? { id: av || `ev-av-${i}`, uri: av } : { id: String(av.id ?? `ev-av-${i}`), uri: av.uri ?? '' }
+            );
             const evExtra = rawAvatars.length === 0
               ? (ev.memberCount ?? 0)
               : Math.max(0, (ev.memberCount ?? 0) - rawAvatars.length);
@@ -1194,49 +1209,128 @@ export default function HomeScreen({ navigation, route }: any) {
       <Modal
         visible={blogDetailVisible}
         animationType="slide"
-        onRequestClose={() => setBlogDetailVisible(false)}
+        onRequestClose={() => { setBlogDetailVisible(false); setSelectedBlog(null); }}
         statusBarTranslucent>
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
-            <TouchableOpacity onPress={() => setBlogDetailVisible(false)} style={{ marginRight: 12 }}>
-              <ChevronLeft size={24} color="#1a1a2e" />
+          {/* Header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+            <TouchableOpacity
+              onPress={() => { setBlogDetailVisible(false); setSelectedBlog(null); }}
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+              <ChevronLeft size={20} color="#1a1a2e" />
             </TouchableOpacity>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#1a1a2e', flex: 1 }} numberOfLines={1}>
-              {selectedBlog?.title}
+            <Text style={{ fontSize: 15, fontWeight: '700', color: '#1a1a2e', flex: 1 }} numberOfLines={1}>
+              {selectedBlog?.title ?? 'Article'}
             </Text>
           </View>
-          <ScrollView showsVerticalScrollIndicator={false}>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+            {/* Hero image */}
             {(() => {
               const uri = selectedBlog?.imageUrl ?? selectedBlog?.image_url ?? selectedBlog?.coverImage ?? selectedBlog?.thumbnail ?? selectedBlog?.image;
               return uri ? (
-                <Image source={{ uri }} style={{ width: '100%', height: SCREEN_W * 0.55 }} resizeMode="cover" />
+                <Image source={{ uri }} style={{ width: '100%', height: SCREEN_W * 0.58 }} resizeMode="cover" />
               ) : (
-                <View style={{ width: '100%', height: SCREEN_W * 0.55, backgroundColor: '#E8E4DF' }} />
+                <View style={{ width: '100%', height: SCREEN_W * 0.58, backgroundColor: '#e8f5f3' }} />
               );
             })()}
-            <View style={{ padding: 20 }}>
+
+            <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
+              {/* Category badge */}
               {selectedBlog?.category && (
-                <View style={{ backgroundColor: '#E0F7F4', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: 12 }}>
+                <View style={{ backgroundColor: '#e0f7f4', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: 12 }}>
                   <Text style={{ color: '#0d9488', fontSize: 12, fontWeight: '600' }}>{selectedBlog.category}</Text>
                 </View>
               )}
-              <Text style={{ fontSize: SCREEN_W < 360 ? 18 : 22, fontWeight: '700', color: '#1a1a2e', lineHeight: 30, marginBottom: 8 }}>
+
+              {/* Title */}
+              <Text style={{ fontSize: SCREEN_W < 360 ? 19 : 22, fontWeight: '800', color: '#0f172a', lineHeight: 32, marginBottom: 12 }}>
                 {selectedBlog?.title}
               </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                {selectedBlog?.authorAvatar && (
-                  <Image source={{ uri: selectedBlog.authorAvatar }} style={{ width: 28, height: 28, borderRadius: 14 }} />
-                )}
-                <Text style={{ fontSize: 13, color: '#64748b' }}>
-                  {selectedBlog?.author ?? selectedBlog?.authorName ?? ''}
-                  {selectedBlog?.publishedAt ? `  ·  ${selectedBlog.publishedAt}` : ''}
-                  {selectedBlog?.readTime ? `  ·  ${selectedBlog.readTime}` : ''}
+
+              {/* Meta row */}
+              {(selectedBlog?.author ?? selectedBlog?.authorName ?? selectedBlog?.publishedAt ?? selectedBlog?.readTime) ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                  {selectedBlog?.authorAvatar ? (
+                    <Image source={{ uri: selectedBlog.authorAvatar }} style={{ width: 26, height: 26, borderRadius: 13 }} />
+                  ) : (
+                    <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#e0f7f4', alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#0d9488' }}>G</Text>
+                    </View>
+                  )}
+                  <Text style={{ fontSize: 13, color: '#64748b', flex: 1 }}>
+                    {selectedBlog?.author ?? selectedBlog?.authorName ?? 'GatherrGo'}
+                    {selectedBlog?.publishedAt ? `  ·  ${selectedBlog.publishedAt}` : ''}
+                    {selectedBlog?.readTime ? `  ·  ${selectedBlog.readTime}` : ''}
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ height: 1, backgroundColor: '#f1f5f9', marginBottom: 20 }} />
+              )}
+
+              {/* Content — loading state or article body */}
+              {blogDetailLoading ? (
+                <View style={{ paddingVertical: 40, alignItems: 'center', gap: 12 }}>
+                  <ActivityIndicator color="#0d9488" size="small" />
+                  <Text style={{ fontSize: 13, color: '#94a3b8' }}>Loading article…</Text>
+                </View>
+              ) : (() => {
+                const raw = selectedBlog?.content ?? selectedBlog?.body ?? selectedBlog?.description ?? selectedBlog?.excerpt ?? '';
+                if (!raw) return null;
+                // Split on one or more blank lines to get paragraphs, keep single-line breaks intact
+                const paragraphs = raw.split(/\n{2,}/).map((p: string) => p.trim()).filter(Boolean);
+                return paragraphs.map((para: string, i: number) => {
+                  // Lines that start with an emoji are treated as section headings
+                  const isHeading = /^\p{Emoji}/u.test(para) && para.split('\n')[0].length < 80;
+                  if (isHeading) {
+                    const [heading, ...rest] = para.split('\n');
+                    return (
+                      <View key={i} style={{ marginBottom: 16 }}>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#0f172a', lineHeight: 24, marginBottom: rest.length ? 6 : 0 }}>
+                          {heading}
+                        </Text>
+                        {rest.length > 0 && (
+                          <Text style={{ fontSize: 15, color: '#334155', lineHeight: 26 }}>
+                            {rest.join('\n')}
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  }
+                  return (
+                    <Text key={i} style={{ fontSize: 15, color: '#334155', lineHeight: 26, marginBottom: 16 }}>
+                      {para}
+                    </Text>
+                  );
+                });
+              })()}
+            </View>
+
+            {/* ── Footer CTA ── */}
+            {!blogDetailLoading && (
+              <View style={{ marginHorizontal: 20, marginTop: 24 }}>
+                <View style={{ backgroundColor: '#f0fdfa', borderRadius: 20, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#ccfbf1' }}>
+                  <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                    <Compass size={22} color="#fff" />
+                  </View>
+                  <Text style={{ fontSize: 17, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 6 }}>
+                    Ready to plan this trip?
+                  </Text>
+                  <Text style={{ fontSize: 13, color: '#64748b', textAlign: 'center', lineHeight: 20, marginBottom: 16 }}>
+                    Organize itineraries, coordinate with your group, and track expenses — all in one place.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => { setBlogDetailVisible(false); setSelectedBlog(null); }}
+                    style={{ backgroundColor: '#0d9488', borderRadius: 999, paddingHorizontal: 32, paddingVertical: 12 }}
+                    activeOpacity={0.85}>
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Start Planning  →</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ textAlign: 'center', fontSize: 11, color: '#cbd5e1', marginTop: 20 }}>
+                  © 2025 GatherrGo · Made with ♥ for travellers
                 </Text>
               </View>
-              <Text style={{ fontSize: 15, color: '#334155', lineHeight: 24 }}>
-                {selectedBlog?.content ?? selectedBlog?.body ?? selectedBlog?.description ?? ''}
-              </Text>
-            </View>
+            )}
           </ScrollView>
         </SafeAreaView>
       </Modal>

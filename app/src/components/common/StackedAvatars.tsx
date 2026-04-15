@@ -6,6 +6,8 @@ import {
   Animated,
   StyleSheet,
   ViewStyle,
+  StyleProp,
+  ImageStyle,
 } from 'react-native';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -50,28 +52,32 @@ function normalize(a: AvatarInput): { id: string; uri: string } {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-/** Single avatar: tries to load the photo, falls back to a coloured circle */
+/** Single avatar: coloured circle base, photo overlaid and faded in once loaded. */
 function AvatarCircle({ uri, size, index }: { uri: string; size: number; index: number }) {
-  const [failed, setFailed] = useState(false);
+  const [imgOk, setImgOk] = useState(false);
   const r = size / 2;
+  const bg = FALLBACK_COLORS[index % FALLBACK_COLORS.length];
 
-  if (failed) {
-    return (
-      <View
-        style={[
-          st.circle,
-          { width: size, height: size, borderRadius: r, backgroundColor: FALLBACK_COLORS[index % FALLBACK_COLORS.length] },
-        ]}
-      />
-    );
-  }
+  // Reset visibility when the URI changes (component reused via same key)
+  const prevUri = useRef(uri);
+  useEffect(() => {
+    if (prevUri.current !== uri) {
+      prevUri.current = uri;
+      setImgOk(false);
+    }
+  }, [uri]);
 
   return (
-    <Image
-      source={{ uri }}
-      style={[st.circle, { width: size, height: size, borderRadius: r }]}
-      onError={() => setFailed(true)}
-    />
+    <View style={[st.circle, { width: size, height: size, borderRadius: r, backgroundColor: bg }]}>
+      {!!uri && (
+        <Image
+          source={{ uri }}
+          style={[StyleSheet.absoluteFill, { borderRadius: r, opacity: imgOk ? 1 : 0 }] as StyleProp<ImageStyle>}
+          onLoad={() => setImgOk(true)}
+          onError={() => setImgOk(false)}
+        />
+      )}
+    </View>
   );
 }
 

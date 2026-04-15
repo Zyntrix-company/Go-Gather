@@ -132,6 +132,14 @@ const IDS = {
   photoDiwali2:  'a5000000-0000-4000-8000-000000000009',
   photoHoli1:    'a5000000-0000-4000-8000-00000000000a',
   photoNYE1:     'a5000000-0000-4000-8000-00000000000b',
+  photoManali1:  'a5000000-0000-4000-8000-00000000000c',
+  photoManali2:  'a5000000-0000-4000-8000-00000000000d',
+  photoKasol1:   'a5000000-0000-4000-8000-00000000000e',
+  photoKasol2:   'a5000000-0000-4000-8000-00000000000f',
+  photoJaipur1:  'a5000000-0000-4000-8000-000000000010',
+  photoJaipur2:  'a5000000-0000-4000-8000-000000000011',
+  photoMeetup1:  'a5000000-0000-4000-8000-000000000012',
+  photoNYE2:     'a5000000-0000-4000-8000-000000000013',
 
   // Event expenses
   eventExpense1: 'e2000000-0000-4000-8000-000000000001', // Venue, equal, alice paid
@@ -296,7 +304,7 @@ async function seed() {
       `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
        VALUES ($1, 'Jaipur Heritage 2025', '2025-01-10', '2025-01-14',
                'Jaipur, Rajasthan', 26.9124336, 75.7872709, $2,
-               'https://images.unsplash.com/photo-1524492412937-b28074a5d7da')
+               'https://images.unsplash.com/photo-1599661046289-e31897846e41')
        ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
       [IDS.jaipurTrip, IDS.alice],
     );
@@ -445,27 +453,58 @@ async function seed() {
 
     // ── 9b. Gallery photos (shared `photos` — photoCount on /users/:id/gallery)
     console.log('  Seeding gallery photos…');
-    const uBeach = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1200';
-    const uResort = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200';
-    const uLake = 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=1200';
-    const uBackwater = 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1200';
-    const uPalace = 'https://images.pexels.com/photos/3581364/pexels-photo-3581364.jpeg?auto=compress&cs=tinysrgb&w=1200';
-    const uLights = 'https://images.unsplash.com/photo-1519677100203-a0e668c92439?w=1200';
-    const uHoli = 'https://images.unsplash.com/photo-1580136608263-f526cf971b99?w=1200';
-    const uParty = 'https://images.pexels.com/photos/3171837/pexels-photo-3171837.jpeg?auto=compress&cs=tinysrgb&w=1200';
+    // Goa
+    const uBeach    = 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=1200'; // Goa beach shoreline
+    const uResort   = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200'; // Goa resort pool
+    const uGoaBoat  = 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=1200';    // Goa harbour / fishing boats
+    // Kerala
+    const uBackwater  = 'https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=1200'; // Kerala backwaters (houseboat)
+    const uKeralaCanal= 'https://images.unsplash.com/photo-1593693411515-c20261bcad6e?w=1200'; // Kerala canal / coconut palms
+    // Udaipur
+    const uPalace   = 'https://images.pexels.com/photos/3581364/pexels-photo-3581364.jpeg?auto=compress&cs=tinysrgb&w=1200'; // Udaipur City Palace
+    // Manali
+    const uManali   = 'https://images.unsplash.com/photo-1508193638397-1c4234db14d8?w=1200'; // Manali snowy peaks
+    const uSolang   = 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=1200'; // Solang Valley snow
+    // Kasol / Parvati Valley
+    const uKasol    = 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1200'; // Parvati Valley forest trail
+    const uKasolRiver = 'https://images.unsplash.com/photo-1455156218388-5e61b526818b?w=1200'; // mountain river trek
+    // Jaipur
+    const uHawaMahal = 'https://images.unsplash.com/photo-1599661046289-e31897846e41?w=1200'; // Hawa Mahal, Jaipur
+    const uAmberFort = 'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=1200'; // Amber Fort, Jaipur
+    // Events
+    const uLights   = 'https://images.unsplash.com/photo-1519677100203-a0e668c92439?w=1200'; // Diwali festival lights
+    const uHoli     = 'https://images.unsplash.com/photo-1580136608263-f526cf971b99?w=1200'; // Holi colours
+    const uParty    = 'https://images.pexels.com/photos/3171837/pexels-photo-3171837.jpeg?auto=compress&cs=tinysrgb&w=1200'; // NYE rooftop party
+    const uMumbaiNight = 'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=1200'; // Mumbai skyline at night
+    const uMeetup   = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200'; // tech conference / meetup
 
     const galleryInserts = [
-      [IDS.photoGoa1, 'trip', IDS.upcomingTrip, IDS.alice, uBeach, 'seed/trips/goa/01.jpg', 'Shoreline', null],
-      [IDS.photoGoa2, 'trip', IDS.upcomingTrip, IDS.bob, uResort, 'seed/trips/goa/02.jpg', 'Resort pool', null],
-      [IDS.photoGoa3, 'trip', IDS.upcomingTrip, IDS.charlie, uLake, 'seed/trips/goa/03.jpg', 'Boat day', null],
-      [IDS.photoGoaAct, 'trip', IDS.upcomingTrip, IDS.bob, uBeach, 'seed/trips/goa/beach-day.jpg', 'Beach day', IDS.actUpcoming1],
-      [IDS.photoKerala1, 'trip', IDS.pastTrip, IDS.alice, uBackwater, 'seed/trips/kerala/01.jpg', 'Houseboat morning', null],
-      [IDS.photoKerala2, 'trip', IDS.pastTrip, IDS.bob, uLake, 'seed/trips/kerala/02.jpg', 'Canal cruise', null],
-      [IDS.photoUdaipur1, 'trip', IDS.udaipurTrip, IDS.grace, uPalace, 'seed/trips/udaipur/01.jpg', 'Old city', null],
-      [IDS.photoDiwali1, 'event', IDS.upcomingEvent, IDS.alice, uLights, 'seed/events/diwali/01.jpg', 'Lights setup', null],
-      [IDS.photoDiwali2, 'event', IDS.upcomingEvent, IDS.bob, uParty, 'seed/events/diwali/02.jpg', 'Stage area', null],
-      [IDS.photoHoli1, 'event', IDS.pastEvent, IDS.charlie, uHoli, 'seed/events/holi/01.jpg', 'Colours', null],
-      [IDS.photoNYE1, 'event', IDS.eventNYE, IDS.grace, uParty, 'seed/events/nye/01.jpg', 'Countdown deck', null],
+      // Goa trip
+      [IDS.photoGoa1,    'trip',  IDS.upcomingTrip,  IDS.alice,   uBeach,       'seed/trips/goa/01.jpg',          'Shoreline at Baga',          null],
+      [IDS.photoGoa2,    'trip',  IDS.upcomingTrip,  IDS.bob,     uResort,      'seed/trips/goa/02.jpg',          'Resort pool',                null],
+      [IDS.photoGoa3,    'trip',  IDS.upcomingTrip,  IDS.charlie, uGoaBoat,     'seed/trips/goa/03.jpg',          'Fishing boats at harbour',   null],
+      [IDS.photoGoaAct,  'trip',  IDS.upcomingTrip,  IDS.bob,     uBeach,       'seed/trips/goa/beach-day.jpg',   'Beach day',                  IDS.actUpcoming1],
+      // Kerala trip
+      [IDS.photoKerala1, 'trip',  IDS.pastTrip,      IDS.alice,   uBackwater,   'seed/trips/kerala/01.jpg',       'Houseboat morning',          null],
+      [IDS.photoKerala2, 'trip',  IDS.pastTrip,      IDS.bob,     uKeralaCanal, 'seed/trips/kerala/02.jpg',       'Canal cruise through palms', null],
+      // Udaipur trip
+      [IDS.photoUdaipur1,'trip',  IDS.udaipurTrip,   IDS.grace,   uPalace,      'seed/trips/udaipur/01.jpg',      'City Palace view',           null],
+      // Manali ongoing trip
+      [IDS.photoManali1, 'trip',  IDS.ongoingTrip,   IDS.alice,   uManali,      'seed/trips/manali/01.jpg',       'Snow peaks at Manali',       null],
+      [IDS.photoManali2, 'trip',  IDS.ongoingTrip,   IDS.charlie, uSolang,      'seed/trips/manali/02.jpg',       'Solang Valley',              IDS.actOngoing1],
+      // Kasol archived trip
+      [IDS.photoKasol1,  'trip',  IDS.archivedTrip,  IDS.alice,   uKasol,       'seed/trips/kasol/01.jpg',        'Parvati Valley trail',       null],
+      [IDS.photoKasol2,  'trip',  IDS.archivedTrip,  IDS.bob,     uKasolRiver,  'seed/trips/kasol/02.jpg',        'Mountain river crossing',    null],
+      // Jaipur past trip
+      [IDS.photoJaipur1, 'trip',  IDS.jaipurTrip,    IDS.alice,   uHawaMahal,   'seed/trips/jaipur/01.jpg',       'Hawa Mahal, Pink City',      null],
+      [IDS.photoJaipur2, 'trip',  IDS.jaipurTrip,    IDS.frank,   uAmberFort,   'seed/trips/jaipur/02.jpg',       'Amber Fort at sunrise',      null],
+      // Events
+      [IDS.photoDiwali1, 'event', IDS.upcomingEvent, IDS.alice,   uLights,      'seed/events/diwali/01.jpg',      'Diwali lights setup',        null],
+      [IDS.photoDiwali2, 'event', IDS.upcomingEvent, IDS.bob,     uParty,       'seed/events/diwali/02.jpg',      'Stage and decorations',      null],
+      [IDS.photoHoli1,   'event', IDS.pastEvent,     IDS.charlie, uHoli,        'seed/events/holi/01.jpg',        'Colours flying high',        null],
+      [IDS.photoNYE1,    'event', IDS.eventNYE,      IDS.grace,   uParty,       'seed/events/nye/01.jpg',         'Countdown deck',             null],
+      [IDS.photoNYE2,    'event', IDS.eventNYE,      IDS.alice,   uMumbaiNight, 'seed/events/nye/02.jpg',         'Mumbai skyline midnight',    null],
+      [IDS.photoMeetup1, 'event', IDS.eventMeetup,   IDS.bob,     uMeetup,      'seed/events/meetup/01.jpg',      'Pune Tech Meetup stage',     null],
     ];
     for (const [id, pType, pId, uploadedBy, fileUrl, s3Key, caption, actId] of galleryInserts) {
       await client.query(
