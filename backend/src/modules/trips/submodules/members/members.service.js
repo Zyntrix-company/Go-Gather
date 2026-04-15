@@ -4,7 +4,8 @@ const logger = require('../../../../utils/logger');
 const getMembers = async (tripId) => {
   const result = await db(
     `SELECT tm.user_id, tm.role, tm.joined_at,
-            p.full_name AS name, p.avatar_url,
+            p.full_name AS name,
+            COALESCE(p.avatar_url, 'https://i.pravatar.cc/150?u=' || tm.user_id::text) AS avatar_url,
             u.email
      FROM trip_members tm
      LEFT JOIN profiles p ON p.user_id = tm.user_id
