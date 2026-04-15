@@ -180,7 +180,7 @@ function PhotosModal({
         source={{ uri: ph.uri }}
         style={styles.thumbImg}
         resizeMode="cover"
-        onError={() => {}}
+        onError={() => console.warn('[GalleryTab] Failed to load photo:', ph.uri)}
       />
     </TouchableOpacity>
   );

@@ -71,7 +71,8 @@
       "Bash(taskkill //F //IM java.exe //T)",
       "Bash(taskkill //F //IM studio64.exe //T)",
       "Bash(ls .git/rebase-merge/)",
-      "Bash(ls .git/rebase-apply/)"
+      "Bash(ls .git/rebase-apply/)",
+      "Bash(./gradlew assembleRelease)"
     ]
   }
 }

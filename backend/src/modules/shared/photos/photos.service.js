@@ -24,8 +24,9 @@ const uploadPhotos = async ({ parentType, parentId }, userId, files, { activityI
        RETURNING *`,
       [parentType, parentId, userId, fileUrl, s3Key, file.mimetype, activityId],
     );
-    // Generate presigned URL (1hr) so the client can display the photo immediately
-    const presignedUrl = await getPresignedDownloadUrl(s3Key);
+    // If CloudFront is configured, the file_url is already a usable CDN URL — skip presigning
+    // (presigned S3 URLs fail when the bucket uses OAC, which blocks direct S3 access)
+    const presignedUrl = config.s3.cloudfrontDomain ? null : await getPresignedDownloadUrl(s3Key);
     // activity_title not available on INSERT RETURNING — set null; GET endpoint joins it
     uploaded.push(formatPhoto({ ...result.rows[0], activity_title: null }, presignedUrl));
   }
@@ -52,7 +53,9 @@ const getPhotos = async ({ parentType, parentId }, { page = 1, limit = 30 } = {}
   const total = result.rows[0]?.total_count || 0;
   const photos = await Promise.all(
     result.rows.map(async (row) => {
-      const presignedUrl = await getPresignedDownloadUrl(row.s3_key);
+      // If CloudFront is configured, the stored file_url is already a usable CDN URL — skip presigning
+      // (presigned S3 URLs fail when the bucket uses OAC, which blocks direct S3 access)
+      const presignedUrl = config.s3.cloudfrontDomain ? null : await getPresignedDownloadUrl(row.s3_key);
       return formatPhoto(row, presignedUrl);
     }),
   );
