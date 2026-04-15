@@ -5,7 +5,7 @@ Backend: fully built and live at `https://api.gatherrgo.com`
 
 ---
 
-## How it works (user flow)
+## How it works User flow
 
 1. Inside the trip's **Docs** modal, user taps "Extract from Email"
 2. App shows a sheet: **Gmail** or **Outlook**

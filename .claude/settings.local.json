@@ -61,7 +61,15 @@
       "Bash(echo \"# Google Gemini API key \\(free at aistudio.google.com\\)\")",
       "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQWQEBMCOS AWS_SECRET_ACCESS_KEY=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 aws ec2 describe-instances:*)",
       "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQWQEBMCOS AWS_SECRET_ACCESS_KEY=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 aws ec2-instance-connect send-ssh-public-key --region ap-south-1 --instance-id i-0b68d4de037f37441 --instance-os-user ubuntu --ssh-public-key file:///tmp/ec2_temp_key.pub)",
-      "Bash(ssh-keygen -t rsa -b 2048 -f /tmp/ec2_temp_key -N \"\")"
+      "Bash(ssh-keygen -t rsa -b 2048 -f /tmp/ec2_temp_key -N \"\")",
+      "Bash(grep -v \"StyleSheet\\\\|: {$\\\\|: \\\\{$\")",
+      "Bash(npx react-native:*)",
+      "Bash(./gradlew clean:*)",
+      "Bash(./gradlew --stop)",
+      "Bash(taskkill /F /IM \"java.exe\" /T)",
+      "Bash(taskkill /F /IM \"studio64.exe\" /T)",
+      "Bash(taskkill //F //IM java.exe //T)",
+      "Bash(taskkill //F //IM studio64.exe //T)"
     ]
   }
 }
