@@ -3,7 +3,7 @@ const controller = require('./controller');
 const validators = require('./validators');
 const validate = require('../../middleware/validate');
 const authenticateJWT = require('../../middleware/authenticate');
-const upload = require('../../middleware/upload');
+const { avatarUpload, handleMulterError } = require('../../middleware/upload.middleware');
 
 const router = Router();
 
@@ -31,7 +31,8 @@ router.put(
 router.put(
   '/photo',
   authenticateJWT,
-  upload.single('photo'),
+  avatarUpload.single('photo'),
+  handleMulterError,
   controller.uploadPhoto,
 );
 

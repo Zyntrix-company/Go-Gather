@@ -215,12 +215,16 @@ export default function useAuth() {
     const res = await authApi.uploadPhoto(fileUri, fileName, mimeType);
     const photoUrl = res.photoUrl;
     if (photoUrl) {
-      // Cache-bust so React Native's Image component fetches the new photo
-      // instead of serving a stale entry for the same CDN URL key.
-      const bustedUrl = `${photoUrl}?t=${Date.now()}`;
-      useAuthStore.getState().updateUser({ photoUrl: bustedUrl, avatarUrl: bustedUrl });
+      // If the URL is a presigned S3 URL it already contains unique query params
+      // (X-Amz-*), so it won't hit a stale React Native Image cache — no extra
+      // cache-bust param needed. For plain CDN URLs we still append one.
+      const isPresigned = photoUrl.includes('X-Amz-');
+      const displayUrl = isPresigned
+        ? photoUrl
+        : `${photoUrl}${photoUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+      useAuthStore.getState().updateUser({ photoUrl: displayUrl, avatarUrl: displayUrl });
       // Do NOT call refreshProfile here — setAuth inside it replaces the entire
-      // user object and would wipe the cache-busted URL we just patched in.
+      // user object and would wipe the URL we just patched in.
       // The upload endpoint writes to DB synchronously before returning, so the
       // URL in the store is already the correct persisted value.
     }

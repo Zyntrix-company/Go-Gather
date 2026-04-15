@@ -123,8 +123,10 @@ const saveProfile = async (userId, profileData) => {
 };
 
 /**
- * PUT /users/photo — Upload profile photo (file already on S3 via multer-s3).
- * Constructs CloudFront URL and updates the profile record.
+ * PUT /users/photo — Upload profile photo.
+ * Accepts a file with buffer (memory storage) OR an already-uploaded multer-s3 file.
+ * Stores a CloudFront / S3 URL in the DB and returns a short-lived presigned URL
+ * for immediate display in the client (bypasses any CloudFront distribution restrictions).
  */
 const uploadPhoto = async (userId, file) => {
   if (!file) {
@@ -134,12 +136,25 @@ const uploadPhoto = async (userId, file) => {
     throw err;
   }
 
-  // Build URL: prefer CloudFront CDN when configured, otherwise fall back to direct S3 URL.
-  // Without this guard, an unconfigured CloudFront domain produces "https://undefined/..."
-  // which gets stored in the DB and silently fails to load in the app.
-  const cdnUrl = config.s3.cloudfrontDomain
-    ? `https://${config.s3.cloudfrontDomain}/${file.key}`
-    : `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${file.key}`;
+  const { v4: uuidv4 } = require('uuid');
+  const path = require('path');
+  const { uploadToS3, getPresignedDownloadUrl } = require('../../utils/s3.util');
+
+  let cdnUrl;
+  let s3Key;
+
+  if (file.buffer) {
+    // Memory-storage path: upload buffer to S3 directly (same as gallery photos)
+    const ext = path.extname(file.originalname || 'photo.jpg').toLowerCase() || '.jpg';
+    s3Key = `avatars/${uuidv4()}${ext}`;
+    cdnUrl = await uploadToS3(file.buffer, s3Key, file.mimetype);
+  } else {
+    // multer-s3 path: file was streamed to S3; key is already available
+    s3Key = file.key;
+    cdnUrl = config.s3.cloudfrontDomain
+      ? `https://${config.s3.cloudfrontDomain}/${file.key}`
+      : `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${file.key}`;
+  }
 
   await db.query(
     `UPDATE profiles SET avatar_url = $1, updated_at = NOW()
@@ -147,9 +162,21 @@ const uploadPhoto = async (userId, file) => {
     [cdnUrl, userId],
   );
 
-  logger.info('Profile photo uploaded', { userId, cdnUrl });
+  logger.info('Profile photo uploaded', { userId, cdnUrl, s3Key });
 
-  return { avatarUrl: cdnUrl };
+  // Generate a presigned URL so the client can display the photo immediately
+  // without any CloudFront cache/access restrictions.
+  let presignedUrl = null;
+  try {
+    presignedUrl = await getPresignedDownloadUrl(s3Key, 3600);
+  } catch {
+    // Non-fatal — client will fall back to the CDN URL
+  }
+
+  return {
+    avatarUrl: presignedUrl || cdnUrl,  // presigned preferred; CDN as fallback
+    cdnUrl,                              // permanent URL stored in DB
+  };
 };
 
 /**
