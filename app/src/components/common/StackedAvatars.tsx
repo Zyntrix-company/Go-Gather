@@ -78,6 +78,11 @@ function AvatarCircle({ uri, size, index }: { uri: string; size: number; index: 
 // Pre-allocate 5 animation slots: max 4 avatars + 1 counter bubble.
 const POOL_SIZE = 5;
 
+// Module-level flag — survives component unmount/remount (FlatList recycling, data
+// refreshes, etc.). Once any StackedAvatars instance has animated, all future
+// instances skip the animation for the rest of the app session.
+let hasEverAnimated = false;
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function StackedAvatars({
@@ -102,15 +107,19 @@ export default function StackedAvatars({
   const slotCount = !hasContent ? 0 : onlyCounter ? 1 : visible.length + (showCounter && extra > 0 ? 1 : 0);
 
   // ─── Hooks — ALWAYS called before any early return ────────────────────────
+  // Always start fully visible. The effect resets to 0 and animates only for the
+  // very first instance ever mounted, guarded by the module-level flag.
   const pool = useRef(
     Array.from({ length: POOL_SIZE }, () => ({
-      opacity: new Animated.Value(useAnim ? 0 : 1),
-      tx: new Animated.Value(useAnim ? 10 : 0),
+      opacity: new Animated.Value(1),
+      tx: new Animated.Value(0),
     })),
   ).current;
 
   useEffect(() => {
-    if (!useAnim || slotCount === 0) return;
+    if (!useAnim || slotCount === 0 || hasEverAnimated) return;
+    hasEverAnimated = true;
+    // Reset to hidden, then animate in.
     pool.slice(0, slotCount).forEach(slot => {
       slot.opacity.setValue(0);
       slot.tx.setValue(10);

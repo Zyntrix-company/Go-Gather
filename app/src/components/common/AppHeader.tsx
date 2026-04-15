@@ -12,7 +12,7 @@ type AppHeaderProps = {
 
 function BellIcon() {
   return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
       <Path
         d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"
         stroke="#0d9488"
@@ -26,7 +26,7 @@ function BellIcon() {
 
 function HamburgerIcon() {
   return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
       <Path
         d="M3 12h18M3 6h18M3 18h18"
         stroke="#0d9488"
@@ -42,7 +42,7 @@ export default function AppHeader({ notificationCount = 0, onLogoPress, onBellPr
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-      <TouchableOpacity onPress={onLogoPress} activeOpacity={0.8} disabled={!onLogoPress}>
+      <TouchableOpacity style={styles.iconBtn} onPress={onLogoPress} activeOpacity={0.8} disabled={!onLogoPress}>
         <Image
           source={require('../../../assets/icon_only.png')}
           style={styles.logo}
@@ -78,8 +78,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   logo: {
-    width: 22,
-    height: 22,
+    width: 28,
+    height: 28,
   },
   rightSection: {
     flexDirection: 'row',

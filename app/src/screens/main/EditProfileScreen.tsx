@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Logo from '../../components/common/Logo';
 import DobPicker from '../../components/common/DobPicker';
 import BlobBackground from '../../components/common/BlobBackground';
@@ -156,6 +157,7 @@ const pickerStyles = StyleSheet.create({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function EditProfileScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const { uploadPhoto, editProfile, refreshProfile } = useAuth();
   const isLoading = useAuthStore((s) => s.isLoading);
   const user = useAuthStore((s) => s.user);
@@ -277,7 +279,7 @@ export default function EditProfileScreen({ navigation }: any) {
       />
 
       <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 16 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
           {/* Header row with back button */}
           <View style={styles.logoRow}>
@@ -447,7 +449,7 @@ export default function EditProfileScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   kav: { flex: 1, zIndex: 10 },
-  scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 100 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 100 },
   logoRow: { marginBottom: 56, alignItems: 'flex-start' },
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
   title: { fontSize: 28, fontWeight: '400', color: '#0f172a', textAlign: 'center', marginBottom: 6 },

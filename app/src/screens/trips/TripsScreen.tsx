@@ -27,6 +27,7 @@ import Geolocation from '@react-native-community/geolocation';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { Plane } from 'lucide-react-native';
 import { TripCardFull, TripCardPast, CardData } from '../../components/common/Cards';
 import StackedAvatars from '../../components/common/StackedAvatars';
 import Toast from 'react-native-toast-message';
@@ -1456,7 +1457,7 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
   }
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <View style={{ flex: 1 }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -1479,8 +1480,9 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
           <TouchableOpacity
             style={styles.createTripBtn}
             onPress={() => setShowCreateTrip(true)}
-            activeOpacity={0.9}>
-            <Text style={styles.createTripBtnText}>Create New Trip</Text>
+            activeOpacity={0.85}>
+            <Plane size={15} color="#fff" />
+            <Text style={styles.createTripBtnText}>Create Trip</Text>
           </TouchableOpacity>
         </View>
 
@@ -1642,7 +1644,7 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
           setBannerCropFraction(null);
         }}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1661,11 +1663,12 @@ const styles = StyleSheet.create({
   tripsCTATitle: { fontSize: 20, fontWeight: '600', color: '#0f172a', textAlign: 'center', marginBottom: 10, paddingHorizontal: 24 },
   tripsCTASub: { fontSize: 14, color: '#64748b', marginBottom: 26, textAlign: 'center' },
   createTripBtn: {
-    backgroundColor: '#0d9488', borderRadius: 999, paddingVertical: 11, paddingHorizontal: 32,
-    alignSelf: 'center', marginBottom: 1,
-    shadowColor: '#0d9488', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#009788', borderRadius: 999,
+    paddingVertical: 9, paddingHorizontal: 32,
+    alignSelf: 'center', marginBottom: 1, gap: 5,
   },
-  createTripBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  createTripBtnText: { color: '#fff', fontSize: 13, fontWeight: '500' },
   tripsListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
   tripsListTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
   tripsListSub: { fontSize: 13, color: '#64748b', marginTop: 2 },

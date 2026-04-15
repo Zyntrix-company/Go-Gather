@@ -522,6 +522,12 @@ const getMe = async (userId) => {
   }
 
   const row = result.rows[0];
+
+  // Sanitise avatar_url: strip any malformed URLs (e.g. "https://undefined/...")
+  // that were stored before the CloudFront domain guard was added.
+  const rawAvatar = row.avatar_url;
+  const avatarUrl = (rawAvatar && !rawAvatar.includes('https://undefined')) ? rawAvatar : null;
+
   return {
     id: row.id,
     email: row.email,
@@ -538,7 +544,7 @@ const getMe = async (userId) => {
       gender: row.gender,
       country: row.country,
       bio: row.bio,
-      avatarUrl: row.avatar_url,
+      avatarUrl,
     },
   };
 };

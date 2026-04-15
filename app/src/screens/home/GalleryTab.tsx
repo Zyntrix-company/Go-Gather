@@ -85,10 +85,7 @@ function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
         </View>
       )}
       <View style={styles.gridCardOverlay}>
-        <Text style={styles.gridCardText} numberOfLines={2}>{item.name}</Text>
-        {item.photoCount > 0 && (
-          <Text style={styles.gridCardPhotoCount}>{item.photoCount} photo{item.photoCount !== 1 ? 's' : ''}</Text>
-        )}
+        <Text style={styles.gridCardText} numberOfLines={1}>{item.name}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -348,31 +345,38 @@ export default function GalleryTab({
 
         {/* ── Profile card ── */}
         <View style={styles.profileCard}>
-          <View style={styles.avatarWrap}>
-            {user?.photoUrl && !avatarError ? (
-              <Image
-                source={{ uri: user.photoUrl }}
-                style={styles.avatar}
-                onError={() => setAvatarError(true)}
-              />
-            ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <Text style={styles.avatarInitial}>{displayName ? displayName[0].toUpperCase() : '?'}</Text>
-              </View>
-            )}
-            <TouchableOpacity style={styles.editBtn} onPress={onEditProfile} activeOpacity={0.8}>
-              <EditIcon />
-            </TouchableOpacity>
+          {/* Top row: avatar left, info right */}
+          <View style={styles.profileRow}>
+            <View style={styles.avatarWrap}>
+              {user?.photoUrl && !avatarError ? (
+                <Image
+                  source={{ uri: user.photoUrl }}
+                  style={styles.avatar}
+                  onError={() => setAvatarError(true)}
+                />
+              ) : (
+                <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                  <Text style={styles.avatarInitial}>{displayName ? displayName[0].toUpperCase() : '?'}</Text>
+                </View>
+              )}
+              <TouchableOpacity style={styles.editBtn} onPress={onEditProfile} activeOpacity={0.8}>
+                <EditIcon />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.profileInfo}>
+              {displayName ? <Text style={styles.name}>{displayName}</Text> : null}
+              {handle ? <Text style={styles.handle}>@{handle}</Text> : null}
+              {user?.country ? (
+                <View style={styles.locationRow}>
+                  <PinIcon color="#0d9488" size={13} />
+                  <Text style={styles.locationText}>{user.country}</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
 
-          {displayName ? <Text style={styles.name}>{displayName}</Text> : null}
-          {handle ? <Text style={styles.handle}>@{handle}</Text> : null}
-          {user?.country ? (
-            <View style={styles.locationRow}>
-              <PinIcon color="#0d9488" size={14} />
-              <Text style={styles.locationText}>{user.country}</Text>
-            </View>
-          ) : null}
+          {/* Bio below, centered */}
           {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
         </View>
 
@@ -443,23 +447,25 @@ export default function GalleryTab({
 const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 4 },
 
-  profileCard: { alignItems: 'center', marginTop: 8, marginBottom: 24 },
-  avatarWrap: { position: 'relative', marginBottom: 12 },
-  avatar: { width: 100, height: 100, borderRadius: 50, borderWidth: 3, borderColor: '#0d9488' },
+  profileCard: { marginTop: 14, marginBottom: 28, alignItems: 'center' },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32 },
+  avatarWrap: { position: 'relative' },
+  profileInfo: { justifyContent: 'center', gap: 8 },
+  avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 3, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 36, fontWeight: '700', color: '#0d9488' },
+  avatarInitial: { fontSize: 38, fontWeight: '700', color: '#0d9488' },
   editBtn: {
     position: 'absolute', bottom: 2, right: -4,
-    width: 28, height: 28, borderRadius: 14,
+    width: 30, height: 30, borderRadius: 15,
     backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1, shadowRadius: 4, elevation: 2,
   },
-  name: { fontSize: 20, fontWeight: '700', color: '#0f172a' },
-  handle: { fontSize: 13, color: '#0d9488', fontWeight: '500', marginTop: 2 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  locationText: { fontSize: 13, color: '#64748b' },
-  bio: { fontSize: 14, color: '#334155', textAlign: 'center', marginTop: 8, paddingHorizontal: 20, lineHeight: 20 },
+  name: { fontSize: 21, fontWeight: '700', color: '#0f172a' },
+  handle: { fontSize: 15, color: '#0d9488', fontWeight: '500' },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  locationText: { fontSize: 15, color: '#64748b' },
+  bio: { fontSize: 14, color: '#334155', textAlign: 'center', marginTop: 16, lineHeight: 22 },
 
   loadingRow: { alignItems: 'center', marginBottom: 12 },
 
@@ -482,10 +488,12 @@ const styles = StyleSheet.create({
   gridCardPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
   gridCardOverlay: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(0,0,0,0.45)', padding: 8,
+    height: 32,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
-  gridCardText: { color: '#fff', fontSize: 12, fontWeight: '600', lineHeight: 16 },
-  gridCardPhotoCount: { color: 'rgba(255,255,255,0.75)', fontSize: 10, marginTop: 2 },
+  gridCardText: { color: '#fff', fontSize: 12, fontWeight: '600', lineHeight: 15 },
 
   emptyCard: {
     width: CARD_W, height: 140, borderRadius: 14,

@@ -134,8 +134,12 @@ const uploadPhoto = async (userId, file) => {
     throw err;
   }
 
-  // Build CloudFront CDN URL from the S3 key
-  const cdnUrl = `https://${config.s3.cloudfrontDomain}/${file.key}`;
+  // Build URL: prefer CloudFront CDN when configured, otherwise fall back to direct S3 URL.
+  // Without this guard, an unconfigured CloudFront domain produces "https://undefined/..."
+  // which gets stored in the DB and silently fails to load in the app.
+  const cdnUrl = config.s3.cloudfrontDomain
+    ? `https://${config.s3.cloudfrontDomain}/${file.key}`
+    : `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${file.key}`;
 
   await db.query(
     `UPDATE profiles SET avatar_url = $1, updated_at = NOW()

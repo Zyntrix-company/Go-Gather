@@ -5,6 +5,7 @@ import {
   RefreshControl, NativeModules, Animated, PanResponder, Dimensions, SafeAreaView, Pressable,
 } from 'react-native';
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
+import { CalendarPlus } from 'lucide-react-native';
 import DateInfoPopover from '../../components/common/DateInfoPopover';
 import StackedAvatars from '../../components/common/StackedAvatars';
 
@@ -1238,7 +1239,7 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
   const isEmpty = upcomingEvents.length === 0 && pastEvents.length === 0;
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <View style={{ flex: 1 }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
@@ -1275,7 +1276,8 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
           </View>
           <Text style={styles.heroTitle}>{"Let's get social! \uD83C\uDF89 Plan your\nfirst gathering"}</Text>
           <Text style={styles.heroSub}>Create another memorable event</Text>
-          <TouchableOpacity style={[styles.newEventBtn, { marginTop: 8 }]} activeOpacity={0.8} onPress={() => setShowCreate(true)}>
+          <TouchableOpacity style={[styles.newEventBtn, { marginTop: 8 }]} activeOpacity={0.85} onPress={() => setShowCreate(true)}>
+            <CalendarPlus size={15} color="#fff" />
             <Text style={styles.newEventBtnText}>Create Event</Text>
           </TouchableOpacity>
         </View>
@@ -1346,7 +1348,7 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
         onClose={() => setShowCreate(false)}
         onSave={handleCreateEvent}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1367,12 +1369,11 @@ const styles = StyleSheet.create({
     marginBottom: 10, marginTop: 4, textTransform: 'uppercase',
   },
   newEventBtn: {
-    backgroundColor: colors.accent, borderRadius: 999,
-    paddingVertical: 11, paddingHorizontal: 22,
-    shadowColor: colors.accent, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#61BFCE', borderRadius: 999,
+    paddingVertical: 9, paddingHorizontal: 22, gap: 5,
   },
-  newEventBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  newEventBtnText: { color: '#fff', fontSize: 13, fontWeight: '500' },
 
   heroSection: { alignItems: 'center', marginTop: 18, marginBottom: 1, gap: 10 },
   calendarCircle: {

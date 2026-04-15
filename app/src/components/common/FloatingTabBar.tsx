@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type TabType = 'trips' | 'events' | 'friends' | 'chat' | 'gallery';
 
@@ -55,20 +56,19 @@ function NavIcon({ name, active, onPress }: { name: TabType; active: boolean; on
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function FloatingTabBar({ activeTab, navigation }: FloatingTabBarProps) {
+  const insets = useSafeAreaInsets();
   const tabs: TabType[] = ['trips', 'events', 'friends', 'chat', 'gallery'];
 
   const handleTabPress = (tabName: TabType) => {
     if (tabName === activeTab) {
-      // Pressing active tab goes back
       navigation.goBack();
     } else {
-      // Pressing different tab navigates to Home with that tab active
       navigation.navigate('Home', { initialTab: tabName });
     }
   };
 
   return (
-    <View style={styles.tabBar}>
+    <View style={[styles.tabBar, { paddingBottom: insets.bottom + 6, height: 58 + insets.bottom }]}>
       {tabs.map(tab => (
         <NavIcon
           key={tab}
@@ -87,12 +87,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 58,
     backgroundColor: '#f0fdfa',
     flexDirection: 'row',
     justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingBottom: 6,
+    alignItems: 'flex-start',
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
     shadowColor: '#000',

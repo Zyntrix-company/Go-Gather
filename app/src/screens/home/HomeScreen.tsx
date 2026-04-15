@@ -16,13 +16,13 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import LinearGradient from 'react-native-linear-gradient';
 import {
   Search,
   Sparkles,
-  PlaneTakeoff,
+  Plane,
   CalendarPlus,
   HelpCircle,
   Compass,
@@ -487,6 +487,7 @@ function SweeFab({ onPress }: { onPress: () => void }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function HomeScreen({ navigation, route }: any) {
+  const insets = useSafeAreaInsets();
   const { logout, refreshProfile } = useAuth();
   const rawUser = useAuthStore((s) => s.user) as any;
   const [activeTab, setActiveTab] = useState<Tab>('home');
@@ -861,7 +862,7 @@ export default function HomeScreen({ navigation, route }: any) {
     <>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 110 }}
+        contentContainerStyle={{ paddingBottom: 74 + insets.bottom }}
         onScrollBeginDrag={() => { setShowTripMenu(null); setShowEventMenu(null); }}
       >
         {/* Tap-outside backdrop — inside ScrollView so it shares stacking context with menus */}
@@ -932,7 +933,7 @@ export default function HomeScreen({ navigation, route }: any) {
             onPress={() => setShowCreateTripModal(true)}
             activeOpacity={0.85}
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#009788', borderRadius: 999, paddingVertical: 9, gap: 5 }}>
-            <PlaneTakeoff size={15} color="#fff" />
+            <Plane size={15} color="#fff" />
             <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>Create Trip</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -1355,7 +1356,7 @@ export default function HomeScreen({ navigation, route }: any) {
         <SweeFab onPress={() => navigateToChat(SWEE_CHAT)} />
 
         {/* Bottom Tab Bar */}
-        <View style={styles.tabBar}>
+        <View style={[styles.tabBar, { paddingBottom: insets.bottom + 6, height: 58 + insets.bottom }]}>
           {(['trips', 'events', 'friends', 'chat', 'gallery'] as Tab[]).map(tab => (
             <NavIcon key={tab} name={tab} active={activeTab === tab} onPress={() => setActiveTab(tab)} />
           ))}
@@ -1726,12 +1727,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 58,
     backgroundColor: '#f0fdfa',
     flexDirection: 'row',
     justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingBottom: 6,
+    alignItems: 'flex-start', // icons sit at top of bar; padding fills the bottom safe area
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
     shadowColor: '#000',
