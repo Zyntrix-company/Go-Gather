@@ -1,43 +1,48 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { BookOpen, ArrowRight, Calendar, Clock } from 'lucide-react';
+import { BookOpen, ArrowRight, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '../components/SEO';
-
-const posts = [
-  {
-    slug: 'how-to-plan-a-group-trip',
-    title: 'How to Plan a Group Trip Without the Chaos',
-    excerpt: 'Planning a trip with friends can feel overwhelming — different preferences, budgets, and schedules. Here\'s how to keep everyone on the same page from day one.',
-    date: '10 April 2026',
-    readTime: '5 min read',
-    category: 'Travel Tips',
-  },
-  {
-    slug: 'split-expenses-fairly',
-    title: 'The Right Way to Split Travel Expenses with Friends',
-    excerpt: 'Money conversations can get awkward on group trips. We break down the fairest methods for splitting costs and how GatherrGo makes it effortless.',
-    date: '3 April 2026',
-    readTime: '4 min read',
-    category: 'Finance',
-  },
-  {
-    slug: 'group-travel-memories',
-    title: 'Why Shared Memories Make Group Travel Worth It',
-    excerpt: 'Beyond the itinerary and the expenses, the photos and moments you capture together are what last. Here\'s why we built a dedicated space for them.',
-    date: '25 March 2026',
-    readTime: '3 min read',
-    category: 'Product',
-  },
-];
-
-const categoryColors: Record<string, string> = {
-  'Travel Tips': 'bg-teal-100 text-teal-700',
-  'Finance': 'bg-blue-100 text-blue-700',
-  'Product': 'bg-violet-100 text-violet-700',
-};
+import { fetchBlogs, formatBlogDate, type BlogListItem } from '../lib/blogsApi';
 
 export default function Blogs() {
+  const [posts, setPosts] = React.useState<BlogListItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    fetchBlogs()
+      .then((list) => {
+        if (!cancelled) {
+          const sorted = [...list].sort(
+            (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+          );
+          setPosts(sorted);
+        }
+      })
+      .catch((e: Error) => {
+        if (!cancelled) {
+          setPosts([]);
+          setError(
+            e.message.includes('VITE_API_URL')
+              ? 'Blog feed is not configured (missing VITE_API_URL).'
+              : e.message || 'Could not load blogs.',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="pt-8 md:pt-16 pb-20 px-6 max-w-4xl mx-auto">
       <SEO
@@ -46,7 +51,6 @@ export default function Blogs() {
         canonical="/blogs"
       />
 
-      {/* Header */}
       <motion.section
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -65,7 +69,18 @@ export default function Blogs() {
         </p>
       </motion.section>
 
-      {/* Posts */}
+      {loading && (
+        <p className="text-center text-slate-500 text-sm py-12">Loading posts…</p>
+      )}
+
+      {error && !loading && (
+        <p className="text-center text-red-600 text-sm py-12 max-w-lg mx-auto">{error}</p>
+      )}
+
+      {!loading && !error && posts.length === 0 && (
+        <p className="text-center text-slate-500 text-sm py-12">No posts yet.</p>
+      )}
+
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -74,40 +89,48 @@ export default function Blogs() {
       >
         {posts.map((post, i) => (
           <motion.article
-            key={post.slug}
+            key={post.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 + i * 0.08 }}
-            className="group relative rounded-3xl bg-white/60 backdrop-blur-xl border border-white/60 shadow-lg shadow-teal-900/5 p-8 hover:shadow-xl hover:shadow-teal-900/10 transition-all"
+            transition={{ delay: 0.1 + i * 0.06 }}
+            className="group relative rounded-3xl bg-white/60 backdrop-blur-xl border border-white/60 shadow-lg shadow-teal-900/5 overflow-hidden hover:shadow-xl hover:shadow-teal-900/10 transition-all"
           >
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${categoryColors[post.category] ?? 'bg-slate-100 text-slate-600'}`}>
-                {post.category}
-              </span>
-              <span className="flex items-center gap-1.5 text-xs text-slate-400">
-                <Calendar className="w-3.5 h-3.5" />
-                {post.date}
-              </span>
-              <span className="flex items-center gap-1.5 text-xs text-slate-400">
-                <Clock className="w-3.5 h-3.5" />
-                {post.readTime}
-              </span>
+            <div className="flex flex-col md:flex-row md:items-stretch gap-0">
+              <div className="md:w-2/5 shrink-0">
+                <img
+                  src={post.image}
+                  alt=""
+                  className="h-48 md:h-full w-full object-cover"
+                  loading="lazy"
+                />
+              </div>
+              <div className="p-8 flex-1 flex flex-col">
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                  <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#008080]/10 text-[#008080] uppercase tracking-wide">
+                    {post.category}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <Calendar className="w-3.5 h-3.5" />
+                    {formatBlogDate(post.publishedAt)}
+                  </span>
+                </div>
+
+                <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-3 group-hover:text-teal-700 transition-colors">
+                  {post.title}
+                </h2>
+                <p className="text-slate-600 text-base leading-relaxed mb-6 flex-1">
+                  {post.excerpt}
+                </p>
+
+                <Link
+                  to={`/blogs/${post.slug}`}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-teal-600 hover:text-teal-700 transition-colors mt-auto"
+                >
+                  Read more
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </div>
             </div>
-
-            <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-3 group-hover:text-teal-700 transition-colors">
-              {post.title}
-            </h2>
-            <p className="text-slate-600 text-base leading-relaxed mb-6">
-              {post.excerpt}
-            </p>
-
-            <Link
-              to={`/blogs/${post.slug}`}
-              className="inline-flex items-center gap-2 text-sm font-semibold text-teal-600 hover:text-teal-700 transition-colors"
-            >
-              Read more
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </Link>
           </motion.article>
         ))}
       </motion.div>

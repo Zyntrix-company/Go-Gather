@@ -2,7 +2,7 @@ const express = require('express');
 
 const router = express.Router();
 
-const BLOGS = [
+const BLOGS_RAW = [
   {
     id: 1,
     slug: 'scuba-diving-andaman-guide',
@@ -723,15 +723,40 @@ Because Goa is meant to be experienced—not managed.`,
   },
 ];
 
+/** Display fields for list + detail (matches public blog UI). */
+const BLOG_META = {
+  1: { category: 'ADVENTURE', author: 'Vihaan Khanna', publishedAt: '2024-05-18' },
+  2: { category: 'TRAVEL TIPS', author: 'Vihaan Khanna', publishedAt: '2024-06-02' },
+  3: { category: 'GUIDES', author: 'Vihaan Khanna', publishedAt: '2024-07-08' },
+  4: { category: 'GENERAL', author: 'Vihaan Khanna', publishedAt: '2024-04-20' },
+  5: { category: 'NIGHTLIFE', author: 'Vihaan Khanna', publishedAt: '2024-08-22' },
+  6: { category: 'BUDGET', author: 'Vihaan Khanna', publishedAt: '2024-09-10' },
+};
+
+const BLOGS = BLOGS_RAW.map((b) => ({ ...b, ...BLOG_META[b.id] }));
+
 // GET /blogs — list of all blogs (no content, just metadata)
 router.get('/', (_req, res) => {
-  const list = BLOGS.map(({ id, slug, image, title, excerpt }) => ({ id, slug, image, title, excerpt }));
+  const list = BLOGS.map(
+    ({ id, slug, image, title, excerpt, category, author, publishedAt }) => ({
+      id,
+      slug,
+      image,
+      title,
+      excerpt,
+      category,
+      author,
+      publishedAt,
+    }),
+  );
   res.json(list);
 });
 
-// GET /blogs/:id — single blog by id
-router.get('/:id', (req, res) => {
-  const blog = BLOGS.find((b) => b.id === Number(req.params.id));
+// GET /blogs/:idOrSlug — single blog by numeric id or slug
+router.get('/:idOrSlug', (req, res) => {
+  const param = req.params.idOrSlug;
+  const asNum = Number(param);
+  const blog = BLOGS.find((b) => (!Number.isNaN(asNum) && b.id === asNum) || b.slug === param);
   if (!blog) {
     return res.status(404).json({ error: 'Blog not found' });
   }

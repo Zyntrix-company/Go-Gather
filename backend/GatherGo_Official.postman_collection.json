@@ -5045,9 +5045,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/blogs",
+							"raw": "{{base_url}}/blogs",
 							"host": [
-								"{{baseUrl}}"
+								"{{base_url}}"
 							],
 							"path": [
 								"blogs"
@@ -5062,7 +5062,8 @@
 									"pm.test('Status 200', () => pm.response.to.have.status(200));",
 									"pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));",
 									"pm.test('Has 6 blogs', () => pm.expect(pm.response.json()).to.have.lengthOf(6));",
-									"pm.test('Has image', () => pm.expect(pm.response.json()[0]).to.have.property('image'));"
+									"pm.test('Has image', () => pm.expect(pm.response.json()[0]).to.have.property('image'));",
+									"pm.test('Has category', () => pm.expect(pm.response.json()[0]).to.have.property('category'));"
 								],
 								"type": "text/javascript"
 							}
@@ -5075,9 +5076,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/blogs/1",
+							"raw": "{{base_url}}/blogs/1",
 							"host": [
-								"{{baseUrl}}"
+								"{{base_url}}"
 							],
 							"path": [
 								"blogs",
@@ -5105,9 +5106,9 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/blogs/999",
+							"raw": "{{base_url}}/blogs/999",
 							"host": [
-								"{{baseUrl}}"
+								"{{base_url}}"
 							],
 							"path": [
 								"blogs",
@@ -5121,6 +5122,36 @@
 							"script": {
 								"exec": [
 									"pm.test('Status 404', () => pm.response.to.have.status(404));"
+								],
+								"type": "text/javascript"
+							}
+						}
+					]
+				},
+				{
+					"name": "Get Blog by Slug",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/blogs/top-apps-group-travel-planning",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"blogs",
+								"top-apps-group-travel-planning"
+							]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status 200', () => pm.response.to.have.status(200));",
+									"const j = pm.response.json();",
+									"pm.test('Slug matches', () => pm.expect(j.slug).to.eql('top-apps-group-travel-planning'));"
 								],
 								"type": "text/javascript"
 							}
