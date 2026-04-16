@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
 
   title: {
     fontSize: SCREEN_W < 375 ? 23 : 28,
-    fontWeight: '700',
+    fontWeight: '400',
     color: '#0f172a',
     textAlign: 'center',
     marginBottom: 10,

@@ -28,8 +28,6 @@ import {
   Compass,
   Settings2,
   MapPin as LucideMapPin,
-  Calendar as LucideCalendar,
-  MoreVertical,
   ChevronLeft,
   PartyPopper,
 } from 'lucide-react-native';
@@ -56,6 +54,7 @@ import ChatTab, { SWEE_CHAT } from './ChatTab';
 import GalleryTab from './GalleryTab';
 import ProfileDropdown from './ProfileDropdown';
 import StackedAvatars from '../../components/common/StackedAvatars';
+import { UnifiedCard } from '../../components/common/Cards';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const INSIGHT_IMG_H = SCREEN_H < 700 ? 140 : SCREEN_H < 800 ? 160 : 192;
@@ -267,74 +266,27 @@ function TripCardFull({ trip, onPress, showMenu, onToggleMenu, onArchive, onDele
   onArchive: () => void; onDelete: () => void;
 }) {
   const days = daysUntil(trip.startDateISO);
-  const isOngoing = days <= 0 && daysUntil(trip.endDateISO) >= 0;
-
   return (
-    <View style={{ marginBottom: 18, zIndex: showMenu ? 100 : 1 }}>
-      <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
-        <View style={styles.cardMedia}>
-          {trip.bannerImageUrl
-            ? <Image source={{ uri: trip.bannerImageUrl }} style={styles.cardImage as any} resizeMode="cover" />
-            : <Image source={trip.image} style={styles.cardImage as any} resizeMode="cover" />
-          }
-          {isOngoing && (
-            <View style={styles.ongoingBadge}>
-              <Text style={styles.ongoingBadgeText}>Ongoing</Text>
-            </View>
-          )}
-          <TouchableOpacity style={styles.cardMoreBtn} onPress={onToggleMenu} activeOpacity={0.8}>
-            <MoreIcon />
-          </TouchableOpacity>
-          {/* Avatars — bottom-right of image */}
-          <View style={styles.participantAvatars}>
-            <StackedAvatars
-              avatars={trip.members}
-              totalCount={trip.members.length + trip.extraMembers}
-              counterStyle="solid"
-              size={26}
-            />
-          </View>
-        </View>
-        <View style={styles.cardBody}>
-          <View style={styles.cardMain}>
-            <Text style={styles.cardTitle}>{trip.name}</Text>
-            <View style={styles.infoItem}>
-              <PinIcon color="#0d9488" />
-              <Text style={styles.infoText}>{trip.location}</Text>
-            </View>
-            <View style={[styles.infoItem, { marginTop: 4 }]}>
-              <CalendarIcon color="#f97316" />
-              <Text style={styles.infoText}>{trip.startDate} – {trip.endDate}</Text>
-            </View>
-          </View>
-          {!isOngoing && days > 0 && (
-            <View style={styles.daysBadge}>
-              <Text style={styles.daysNumber}>{days}</Text>
-              <Text style={styles.daysLabel}>DAYS{'\n'}TO GO</Text>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
-      {/* Inline dropdown menu */}
-      {showMenu && (
-        <View style={styles.tripMenuDropdown}>
-          <TouchableOpacity style={styles.tripMenuItem} onPress={onArchive} activeOpacity={0.8}>
-            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-              <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
-            <Text style={styles.tripMenuItemText}>Archive Trip</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.tripMenuItem, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]} onPress={onDelete} activeOpacity={0.8}>
-            <TrashIcon />
-            <Text style={[styles.tripMenuItemText, { color: '#ef4444' }]}>Delete Trip</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
+    <UnifiedCard
+      imageUri={trip.bannerImageUrl}
+      imageFallback={trip.image}
+      name={trip.name}
+      location={trip.location}
+      dateLabel={`${trip.startDate} – ${trip.endDate}`}
+      members={trip.members}
+      extraMembers={trip.extraMembers}
+      daysToGo={days > 0 ? days : undefined}
+      onPress={onPress}
+      onToggleMenu={onToggleMenu}
+      showMenu={showMenu}
+      archiveLabel="Archive Trip"
+      onArchive={onArchive}
+      onDelete={onDelete}
+    />
   );
 }
 
-// ─── Past Trip Card (Compact) ─────────────────────────────────────────────────
+// ─── Past Trip Card ───────────────────────────────────────────────────────────
 
 function TripCardPast({ trip, onPress, showMenu, onToggleMenu, onArchive, onDelete }: {
   trip: Trip; onPress: () => void;
@@ -342,54 +294,22 @@ function TripCardPast({ trip, onPress, showMenu, onToggleMenu, onArchive, onDele
   onArchive: () => void; onDelete: () => void;
 }) {
   return (
-    <View style={{ marginBottom: 10, zIndex: showMenu ? 100 : 1 }}>
-      <TouchableOpacity style={styles.pastCard} onPress={onPress} activeOpacity={0.85}>
-        {trip.bannerImageUrl
-          ? <Image source={{ uri: trip.bannerImageUrl }} style={styles.pastCardImage as any} resizeMode="cover" />
-          : <Image source={trip.image} style={styles.pastCardImage as any} resizeMode="cover" />
-        }
-        <View style={styles.pastCardInfo}>
-          <Text style={styles.pastCardTitle} numberOfLines={1}>{trip.name}</Text>
-          <View style={styles.infoItem}>
-            <PinIcon color="#0d9488" size={12} />
-            <Text style={[styles.infoText, { fontSize: 11 }]}>{trip.location}</Text>
-          </View>
-          <View style={[styles.infoItem, { marginTop: 2 }]}>
-            <CalendarIcon color="#f97316" size={12} />
-            <Text style={[styles.infoText, { fontSize: 11 }]}>{trip.fullStartDate} – {trip.fullEndDate}</Text>
-          </View>
-        </View>
-        <View style={styles.pastCardRight}>
-          <View style={styles.pastAvatarsRow}>
-            <StackedAvatars
-              avatars={trip.members}
-              totalCount={trip.members.length + trip.extraMembers}
-              counterStyle="soft"
-              size={22}
-              maxVisible={3}
-            />
-            <TouchableOpacity style={styles.pastMoreBtn} onPress={onToggleMenu} activeOpacity={0.7}>
-              <MoreIcon color="#64748b" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableOpacity>
-      {/* Inline dropdown menu */}
-      {showMenu && (
-        <View style={[styles.tripMenuDropdown, { right: 8 }]}>
-          <TouchableOpacity style={styles.tripMenuItem} onPress={onArchive} activeOpacity={0.8}>
-            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-              <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
-            <Text style={styles.tripMenuItemText}>Archive Trip</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.tripMenuItem, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]} onPress={onDelete} activeOpacity={0.8}>
-            <TrashIcon />
-            <Text style={[styles.tripMenuItemText, { color: '#ef4444' }]}>Delete Trip</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
+    <UnifiedCard
+      imageUri={trip.bannerImageUrl}
+      imageFallback={trip.image}
+      name={trip.name}
+      location={trip.location}
+      dateLabel={`${trip.fullStartDate} – ${trip.fullEndDate}`}
+      members={trip.members}
+      extraMembers={trip.extraMembers}
+      onPress={onPress}
+      onToggleMenu={onToggleMenu}
+      showMenu={showMenu}
+      archiveLabel="Archive Trip"
+      onArchive={onArchive}
+      onDelete={onDelete}
+      mb={10}
+    />
   );
 }
 
@@ -767,7 +687,7 @@ export default function HomeScreen({ navigation, route }: any) {
   }) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 12 }}>
       {icon}
-      <Text style={{ fontSize: 16, fontWeight: '700', color }}>{title}</Text>
+      <Text style={{ fontSize: 16, fontWeight: '500', color }}>{title}</Text>
     </View>
   );
 
@@ -786,75 +706,6 @@ export default function HomeScreen({ navigation, route }: any) {
       ))}
     </View>
   );
-
-  // Shared compact card used by both Upcoming Trips and Upcoming Events
-  function HomeCompactCard({
-    title, imageSource, line1Icon, line1Text,
-    line2Icon, line2Text, members, extraMembers, onMorePress, onPress,
-  }: {
-    title: string; imageSource: any;
-    line1Icon: React.ReactNode; line1Text: string;
-    line2Icon: React.ReactNode; line2Text: string;
-    members?: { id: string; uri: string }[]; extraMembers?: number;
-    onMorePress?: () => void; onPress?: () => void;
-  }) {
-    return (
-      <TouchableOpacity
-        onPress={onPress}
-        activeOpacity={0.87}
-        style={{
-          backgroundColor: '#fff',
-          borderRadius: 16,
-          marginHorizontal: H_PAD,
-          marginBottom: 10,
-          paddingVertical: 12,
-          paddingHorizontal: 12,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 12,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.06,
-          shadowRadius: 6,
-          elevation: 2,
-        }}>
-        {/* Thumbnail */}
-        <Image
-          source={imageSource}
-          style={{ width: 72, height: 72, borderRadius: 12, flexShrink: 0 }}
-          resizeMode="cover"
-        />
-        {/* Middle: title + two info rows */}
-        <View style={{ flex: 1, gap: 4 }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#1a1a2e', lineHeight: 20 }} numberOfLines={1}>{title}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            {line1Icon}
-            <Text style={{ fontSize: 12, color: '#64748b', flex: 1 }} numberOfLines={1}>{line1Text}</Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            {line2Icon}
-            <Text style={{ fontSize: 12, color: '#64748b', flex: 1 }} numberOfLines={1}>{line2Text}</Text>
-          </View>
-        </View>
-        {/* Right: avatars cluster + three-dot, all in one row, vertically centred */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <StackedAvatars
-            avatars={members ?? []}
-            totalCount={(members?.length ?? 0) + (extraMembers ?? 0)}
-            counterStyle="soft"
-            size={26}
-          />
-          {/* Three-dot button — same row as avatars, horizontally centred with card */}
-          <TouchableOpacity
-            onPress={onMorePress}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#F5F5F5', alignItems: 'center', justifyContent: 'center' }}>
-            <MoreVertical size={15} color="#64748b" strokeWidth={1.8} />
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    );
-  }
 
   // ─── HOME TAB (Main Dashboard) ─────────────────────────────────────────────
 
@@ -1109,36 +960,31 @@ export default function HomeScreen({ navigation, route }: any) {
         {[...ongoing, ...upcoming].length === 0 && !isLoadingTrips ? (
           <Text style={{ color: '#94a3b8', fontSize: 14, textAlign: 'center', marginTop: 4 }}>No upcoming trips</Text>
         ) : (
-          [...ongoing, ...upcoming].slice(0, 3).map(trip => (
-            <View key={trip.id} style={{ zIndex: showTripMenu === trip.id ? 100 : 1 }}>
-              <HomeCompactCard
-                title={trip.name}
-                imageSource={trip.bannerImageUrl ? { uri: trip.bannerImageUrl } : trip.image}
-                line1Icon={<LucideMapPin size={12} color="#0d9488" strokeWidth={1.8} />}
-                line1Text={trip.location}
-                line2Icon={<LucideCalendar size={12} color="#f97316" strokeWidth={1.8} />}
-                line2Text={`${trip.startDate} - ${trip.endDate}`}
-                members={trip.members}
-                extraMembers={trip.extraMembers}
-                onMorePress={() => toggleTripMenu(trip.id)}
-                onPress={() => navigateToTrip(trip)}
-              />
-              {showTripMenu === trip.id && (
-                <View style={styles.tripMenuDropdown}>
-                  <TouchableOpacity style={styles.tripMenuItem} onPress={() => archiveTrip(trip)} activeOpacity={0.8}>
-                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                      <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                    <Text style={styles.tripMenuItemText}>Archive Trip</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.tripMenuItem, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]} onPress={() => deleteTrip(trip)} activeOpacity={0.8}>
-                    <TrashIcon />
-                    <Text style={[styles.tripMenuItemText, { color: '#ef4444' }]}>Delete Trip</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          ))
+          [...ongoing, ...upcoming].slice(0, 3).map(trip => {
+            const days = trip.startDateISO
+              ? Math.ceil((new Date(trip.startDateISO).getTime() - Date.now()) / 86400000)
+              : 0;
+            return (
+              <View key={trip.id} style={{ marginHorizontal: H_PAD, marginBottom: 8, zIndex: showTripMenu === trip.id ? 100 : 1 }}>
+                <UnifiedCard
+                  imageUri={trip.bannerImageUrl}
+                  imageFallback={trip.image}
+                  name={trip.name}
+                  location={trip.location}
+                  dateLabel={`${trip.startDate} – ${trip.endDate}`}
+                  members={trip.members}
+                  extraMembers={trip.extraMembers}
+                  daysToGo={days > 0 ? days : undefined}
+                  onPress={() => navigateToTrip(trip)}
+                  onToggleMenu={() => toggleTripMenu(trip.id)}
+                  showMenu={showTripMenu === trip.id}
+                  archiveLabel="Archive Trip"
+                  onArchive={() => archiveTrip(trip)}
+                  onDelete={() => deleteTrip(trip)}
+                />
+              </View>
+            );
+          })
         )}
 
         {/* ── 7. Upcoming Events ── */}
@@ -1156,34 +1002,27 @@ export default function HomeScreen({ navigation, route }: any) {
             const evExtra = rawAvatars.length === 0
               ? (ev.memberCount ?? 0)
               : Math.max(0, (ev.memberCount ?? 0) - rawAvatars.length);
+            const days = ev.eventDate
+              ? Math.ceil((new Date(ev.eventDate).getTime() - Date.now()) / 86400000)
+              : 0;
             return (
-              <View key={ev.id} style={{ zIndex: showEventMenu === ev.id ? 100 : 1 }}>
-                <HomeCompactCard
-                  title={ev.name}
-                  imageSource={ev.bannerImageUrl ? { uri: ev.bannerImageUrl } : require('../../assets/images/goa_beach.png')}
-                  line1Icon={<LucideMapPin size={12} color="#0d9488" strokeWidth={1.8} />}
-                  line1Text={locName || 'Location TBD'}
-                  line2Icon={<LucideCalendar size={12} color="#f97316" strokeWidth={1.8} />}
-                  line2Text={fmtFullDate(ev.eventDate ?? '')}
+              <View key={ev.id} style={{ marginHorizontal: H_PAD, marginBottom: 8, zIndex: showEventMenu === ev.id ? 100 : 1 }}>
+                <UnifiedCard
+                  imageUri={ev.bannerImageUrl}
+                  imageFallback={require('../../assets/images/goa_beach.png')}
+                  name={ev.name}
+                  location={locName || 'Location TBD'}
+                  dateLabel={fmtFullDate(ev.eventDate ?? '')}
                   members={avatars}
                   extraMembers={evExtra}
-                  onMorePress={() => toggleEventMenu(ev.id)}
+                  daysToGo={days > 0 ? days : undefined}
                   onPress={() => navigateToEventDetail(ev)}
+                  onToggleMenu={() => toggleEventMenu(ev.id)}
+                  showMenu={showEventMenu === ev.id}
+                  archiveLabel="Archive Event"
+                  onArchive={() => archiveHomeEvent(ev)}
+                  onDelete={() => deleteHomeEvent(ev)}
                 />
-                {showEventMenu === ev.id && (
-                  <View style={styles.tripMenuDropdown}>
-                    <TouchableOpacity style={styles.tripMenuItem} onPress={() => archiveHomeEvent(ev)} activeOpacity={0.8}>
-                      <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                        <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      </Svg>
-                      <Text style={styles.tripMenuItemText}>Archive Event</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.tripMenuItem, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]} onPress={() => deleteHomeEvent(ev)} activeOpacity={0.8}>
-                      <TrashIcon />
-                      <Text style={[styles.tripMenuItemText, { color: '#ef4444' }]}>Delete Event</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
               </View>
             );
           })
@@ -1377,7 +1216,7 @@ const styles = StyleSheet.create({
   // responsive: tighten spacing on small screens so Travel Insights is visible in first viewport
   welcomeCenter: { alignItems: 'center', marginTop: SCREEN_H < 700 ? 4 : 8, marginBottom: SCREEN_H < 700 ? 14 : 20 },
   // Figma: text-2xl font-bold text-slate-600 — reduced from 24 to 20
-  welcomeTitle: { fontSize: SCREEN_W < 375 ? 18 : 20, fontWeight: '700', color: '#475569', textAlign: 'center', marginBottom: 8 },
+  welcomeTitle: { fontSize: SCREEN_W < 375 ? 18 : 20, fontWeight: '500', color: '#45556C', textAlign: 'center', marginBottom: 8 },
   // Figma: text-lg font-normal text-slate-900 — reduced from 18 to 15
   welcomeSubtitle: { fontSize: SCREEN_W < 375 ? 13 : 15, fontWeight: '400', color: '#0f172a', textAlign: 'center', lineHeight: 20 },
 
@@ -1521,13 +1360,13 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   // Figma: text-xl font-semibold
-  tripsCTATitle: { fontSize: 20, fontWeight: '600', color: '#0f172a', textAlign: 'center', marginBottom: 10, paddingHorizontal: 24 },
+  tripsCTATitle: { fontSize: 20, fontWeight: '500', color: '#45556C', textAlign: 'center', marginBottom: 10, paddingHorizontal: 24 },
   // Figma: text-sm text-slate-600
   tripsCTASub: { fontSize: 14, color: '#64748b', marginBottom: 26, textAlign: 'center' },
 
   tripsListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
   // Figma: text-lg font-bold
-  tripsListTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
+  tripsListTitle: { fontSize: 18, fontWeight: '500', color: '#45556C' },
   tripsListSub: { fontSize: 13, color: '#64748b', marginTop: 2 },
 
   // Figma: text-sm font-semibold text-slate-500 uppercase tracking-wide
@@ -1600,7 +1439,7 @@ const styles = StyleSheet.create({
   cardBody: { padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardMain: { flex: 1, paddingRight: 8 },
   // Figma: text-base font-bold text-slate-900
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginBottom: 4, lineHeight: 22 },
+  cardTitle: { fontSize: 16, fontWeight: '600', color: '#45556C', marginBottom: 4, lineHeight: 22 },
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   // Figma: text-xs text-slate-600
   infoText: { fontSize: 12, color: '#475569', fontWeight: '400' },
@@ -1613,28 +1452,28 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 48,
-    width: 176,
+    width: 148,
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 12,
+    elevation: 10,
     overflow: 'hidden',
     zIndex: 200,
   },
   tripMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   tripMenuItemText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#334155',
     fontWeight: '500',
   },
@@ -1656,7 +1495,7 @@ const styles = StyleSheet.create({
   },
   pastCardImage: { width: 66, height: 66, borderRadius: 12, resizeMode: 'cover', flexShrink: 0 },
   pastCardInfo: { flex: 1, gap: 3 },
-  pastCardTitle: { fontSize: 14, fontWeight: '700', color: '#1e293b', marginBottom: 2 },
+  pastCardTitle: { fontSize: 14, fontWeight: '600', color: '#45556C', marginBottom: 2 },
   pastCardRight: { alignItems: 'center', justifyContent: 'flex-end' },
   pastAvatarsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pastAvatars: { flexDirection: 'row' },
@@ -1683,12 +1522,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
-  emptyStateTitle: { fontSize: 18, fontWeight: '700', color: '#334155' },
+  emptyStateTitle: { fontSize: 18, fontWeight: '500', color: '#45556C' },
   emptyStateSubtitle: { fontSize: 14, color: '#94a3b8', textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
 
   // ── Tab header rows (Events/Friends/Chat) ──
   tabHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: 4 },
-  tabScreenTitle: { fontSize: 24, fontWeight: '700', color: '#1e293b' },
+  tabScreenTitle: { fontSize: 24, fontWeight: '500', color: '#45556C' },
   fabInline: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1819,7 +1658,7 @@ const styles = StyleSheet.create({
 const hStyles = StyleSheet.create({
   scrollContent: { paddingBottom: 100 },
 
-  welcomeTitle: { fontSize: 26, fontWeight: '700', color: '#1a1a1a', textAlign: 'center', marginTop: 16 },
+  welcomeTitle: { fontSize: 26, fontWeight: '500', color: '#45556C', textAlign: 'center', marginTop: 16 },
   welcomeSub:   { fontSize: 15, color: '#555', textAlign: 'center', marginTop: 4 },
 
   // Search row

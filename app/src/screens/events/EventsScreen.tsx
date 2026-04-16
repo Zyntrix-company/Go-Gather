@@ -8,6 +8,7 @@ import Svg, { Rect, Path, Circle } from 'react-native-svg';
 import { CalendarPlus } from 'lucide-react-native';
 import DateInfoPopover from '../../components/common/DateInfoPopover';
 import StackedAvatars from '../../components/common/StackedAvatars';
+import { UnifiedCard } from '../../components/common/Cards';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -161,7 +162,7 @@ const TrashIcon = () => (
   </Svg>
 );
 
-// ─── Event Card Full (mirrors TripCardFullLocal exactly) ─────────────────────
+// ─── Event Card Full ──────────────────────────────────────────────────────────
 
 function EventCardFullLocal({ event, onPress, showMenu, onToggleMenu, onArchive, onDelete }: {
   event: EventItem; onPress: () => void;
@@ -169,77 +170,27 @@ function EventCardFullLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
   onArchive: () => void; onDelete: () => void;
 }) {
   const days = daysUntil(event.dateISO);
-  const isOngoing = days <= 0 && daysUntil(event.dateISO) >= 0;
-
   return (
-    <View style={{ marginBottom: 18, zIndex: showMenu ? 100 : 1 }}>
-      <TouchableOpacity style={cardStyles.card} onPress={onPress} activeOpacity={0.9}>
-        <View style={cardStyles.cardMedia}>
-          <BannerImage
-            uri={event.bannerImageUrl}
-            fallback={require('../../assets/images/music_festival.png')}
-            crop={event.bannerCropFraction}
-            style={cardStyles.cardImage as any}
-          />
-          {/* Event type pill — mirrors TripsScreen ongoing badge position */}
-          {event.type ? (
-            <View style={cardStyles.ongoingBadge}>
-              <Text style={cardStyles.ongoingBadgeText}>{event.type}</Text>
-            </View>
-          ) : null}
-          <TouchableOpacity style={cardStyles.cardMoreBtn} onPress={onToggleMenu} activeOpacity={0.8}>
-            <MoreIcon />
-          </TouchableOpacity>
-          {(event.memberAvatars.length > 0 || event.memberCount > 0) && (
-            <View style={cardStyles.participantAvatars}>
-              <StackedAvatars
-                avatars={event.memberAvatars.map(uri => ({ uri }))}
-                totalCount={event.memberCount}
-                counterStyle="solid"
-                size={26}
-              />
-            </View>
-          )}
-        </View>
-        <View style={cardStyles.cardBody}>
-          <View style={cardStyles.cardMain}>
-            <Text style={cardStyles.cardTitle}>{event.name}</Text>
-            <View style={cardStyles.infoItem}>
-              <PinIcon color="#0d9488" />
-              <Text style={cardStyles.infoText}>{event.location || 'Location TBD'}</Text>
-            </View>
-            <View style={[cardStyles.infoItem, { marginTop: 4 }]}>
-              <CalendarIcon color="#f97316" />
-              <Text style={cardStyles.infoText}>{event.dateDisplay}</Text>
-            </View>
-          </View>
-          {days > 0 && (
-            <View style={cardStyles.daysBadge}>
-              <Text style={cardStyles.daysNumber}>{days}</Text>
-              <Text style={cardStyles.daysLabel}>DAYS{'\n'}TO GO</Text>
-            </View>
-          )}
-        </View>
-      </TouchableOpacity>
-      {showMenu && (
-        <View style={cardStyles.tripMenuDropdown}>
-          <TouchableOpacity style={cardStyles.tripMenuItem} onPress={onArchive} activeOpacity={0.8}>
-            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-              <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
-            <Text style={cardStyles.tripMenuItemText}>Archive Event</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[cardStyles.tripMenuItem, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]} onPress={onDelete} activeOpacity={0.8}>
-            <TrashIcon />
-            <Text style={[cardStyles.tripMenuItemText, { color: '#ef4444' }]}>Delete Event</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
+    <UnifiedCard
+      imageUri={event.bannerImageUrl}
+      imageFallback={require('../../assets/images/music_festival.png')}
+      name={event.name}
+      location={event.location || 'Location TBD'}
+      dateLabel={event.dateDisplay}
+      members={event.memberAvatars.map(uri => ({ id: uri, uri }))}
+      extraMembers={Math.max(0, event.memberCount - event.memberAvatars.length)}
+      daysToGo={days > 0 ? days : undefined}
+      onPress={onPress}
+      onToggleMenu={onToggleMenu}
+      showMenu={showMenu}
+      archiveLabel="Archive Event"
+      onArchive={onArchive}
+      onDelete={onDelete}
+    />
   );
 }
 
-// ─── Event Card Past (mirrors TripCardPastLocal exactly) ─────────────────────
+// ─── Event Card Past ──────────────────────────────────────────────────────────
 
 function EventCardPastLocal({ event, onPress, showMenu, onToggleMenu, onArchive, onDelete }: {
   event: EventItem; onPress: () => void;
@@ -247,58 +198,22 @@ function EventCardPastLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
   onArchive: () => void; onDelete: () => void;
 }) {
   return (
-    <View style={{ marginBottom: 10, zIndex: showMenu ? 100 : 1 }}>
-      <TouchableOpacity style={cardStyles.pastCard} onPress={onPress} activeOpacity={0.85}>
-        <BannerImage
-          uri={event.bannerImageUrl}
-          fallback={require('../../assets/images/music_festival.png')}
-          crop={event.bannerCropFraction}
-          style={cardStyles.pastCardImage as any}
-        />
-        <View style={cardStyles.pastCardInfo}>
-          <Text style={cardStyles.pastCardTitle} numberOfLines={1}>{event.name}</Text>
-          <View style={cardStyles.infoItem}>
-            <PinIcon color="#0d9488" size={12} />
-            <Text style={[cardStyles.infoText, { fontSize: 11 }]}>{event.location || 'Location TBD'}</Text>
-          </View>
-          <View style={[cardStyles.infoItem, { marginTop: 2 }]}>
-            <CalendarIcon color="#f97316" size={12} />
-            <Text style={[cardStyles.infoText, { fontSize: 11 }]}>{event.dateDisplay}</Text>
-          </View>
-        </View>
-        <View style={cardStyles.pastCardRight}>
-          <View style={cardStyles.pastAvatarsRow}>
-            <StackedAvatars
-              avatars={event.memberAvatars.map(uri => ({ uri }))}
-              totalCount={event.memberCount}
-              counterStyle="soft"
-              size={22}
-              maxVisible={3}
-            />
-            <TouchableOpacity
-              style={cardStyles.pastMoreBtn}
-              onPress={onToggleMenu}
-              activeOpacity={0.7}>
-              <MoreIcon color="#64748b" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableOpacity>
-      {showMenu && (
-        <View style={[cardStyles.tripMenuDropdown, { right: 8 }]}>
-          <TouchableOpacity style={cardStyles.tripMenuItem} onPress={onArchive} activeOpacity={0.8}>
-            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-              <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
-            <Text style={cardStyles.tripMenuItemText}>Archive Event</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[cardStyles.tripMenuItem, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]} onPress={onDelete} activeOpacity={0.8}>
-            <TrashIcon />
-            <Text style={[cardStyles.tripMenuItemText, { color: '#ef4444' }]}>Delete Event</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
+    <UnifiedCard
+      imageUri={event.bannerImageUrl}
+      imageFallback={require('../../assets/images/music_festival.png')}
+      name={event.name}
+      location={event.location || 'Location TBD'}
+      dateLabel={event.dateDisplay}
+      members={event.memberAvatars.map(uri => ({ id: uri, uri }))}
+      extraMembers={Math.max(0, event.memberCount - event.memberAvatars.length)}
+      onPress={onPress}
+      onToggleMenu={onToggleMenu}
+      showMenu={showMenu}
+      archiveLabel="Archive Event"
+      onArchive={onArchive}
+      onDelete={onDelete}
+      mb={10}
+    />
   );
 }
 
@@ -1362,7 +1277,7 @@ const styles = StyleSheet.create({
     paddingTop: 4, paddingBottom: 12,
   },
   eventListHeader: { marginBottom: 1, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 20 },
-  eventListTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
+  eventListTitle: { fontSize: 18, fontWeight: '500', color: '#45556C' },
   eventListSub: { fontSize: 13, color: '#64748b', marginTop: 2, marginBottom: 12 },
   sectionLabel: {
     fontSize: 13, fontWeight: '600', color: '#64748b', letterSpacing: 0.6,
@@ -1381,7 +1296,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   heroTitle: {
-    fontSize: 20, fontWeight: '600', color: colors.textPrimary,
+    fontSize: 20, fontWeight: '500', color: '#45556C',
     textAlign: 'center', lineHeight: 28,
   },
   heroSub: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
@@ -1413,20 +1328,20 @@ const cardStyles = StyleSheet.create({
   moreCounterText: { color: '#fff', fontSize: 9, fontWeight: '800' },
   cardBody: { padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardMain: { flex: 1, paddingRight: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginBottom: 4, lineHeight: 22 },
+  cardTitle: { fontSize: 16, fontWeight: '600', color: '#45556C', marginBottom: 4, lineHeight: 22 },
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   infoText: { fontSize: 12, color: '#475569', fontWeight: '400' },
   daysBadge: { alignItems: 'flex-end', justifyContent: 'center', minWidth: 44 },
   daysNumber: { fontSize: 28, fontWeight: '700', color: '#0d9488', lineHeight: 32 },
   daysLabel: { fontSize: 8, color: '#94a3b8', fontWeight: '600', textAlign: 'right', letterSpacing: 0.5 },
   tripMenuDropdown: {
-    position: 'absolute', top: 12, right: 48, width: 176,
-    backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 16,
-    elevation: 12, overflow: 'hidden', zIndex: 200,
+    position: 'absolute', top: 12, right: 48, width: 148,
+    backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.10, shadowRadius: 12,
+    elevation: 10, overflow: 'hidden', zIndex: 200,
   },
-  tripMenuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 11 },
-  tripMenuItemText: { fontSize: 14, color: '#334155', fontWeight: '500' },
+  tripMenuItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  tripMenuItemText: { fontSize: 12, color: '#334155', fontWeight: '500' },
   pastCard: {
     backgroundColor: '#fff', borderRadius: 14, padding: 12, marginBottom: 12,
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -1434,7 +1349,7 @@ const cardStyles = StyleSheet.create({
   },
   pastCardImage: { width: 66, height: 66, borderRadius: 12, resizeMode: 'cover', flexShrink: 0 },
   pastCardInfo: { flex: 1, gap: 3 },
-  pastCardTitle: { fontSize: 14, fontWeight: '700', color: '#1e293b', marginBottom: 2 },
+  pastCardTitle: { fontSize: 14, fontWeight: '600', color: '#45556C', marginBottom: 2 },
   pastCardRight: { alignItems: 'center', justifyContent: 'flex-end' },
   pastAvatarsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pastMiniAvatar: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: '#fff' },
