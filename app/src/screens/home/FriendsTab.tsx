@@ -57,7 +57,7 @@ function FriendsTab() {
 const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 4 },
   tabHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: 4 },
-  tabScreenTitle: { fontSize: 24, fontWeight: '700', color: '#1e293b' },
+  tabScreenTitle: { fontSize: 24, fontWeight: '500', color: '#45556C' },
   fabInline: {
     flexDirection: 'row',
     alignItems: 'center',
