@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
   Alert,
   ActivityIndicator,
   RefreshControl,
@@ -14,7 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
-import { getArchivedEvents, unarchiveEvent, handleApiError } from '../../api/events.api';
+import { getArchivedEvents, unarchiveEvent, deleteEvent, handleApiError } from '../../api/events.api';
+import { UnifiedCard } from '../../components/common/Cards';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +33,7 @@ export default function ArchivedEventsScreen() {
   const [events, setEvents] = useState<ArchivedEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   async function loadArchived(silent = false) {
     if (!silent) setLoading(true);
@@ -45,7 +46,7 @@ export default function ArchivedEventsScreen() {
         fullDate: e.eventDate
           ? new Date(e.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
           : '',
-        bannerImageUrl: null,
+        bannerImageUrl: e.bannerImageUrl ?? null,
       })));
     } catch (err) {
       handleApiError(err);
@@ -58,9 +59,10 @@ export default function ArchivedEventsScreen() {
   useFocusEffect(useCallback(() => { loadArchived(); }, []));
 
   function handleUnarchive(event: ArchivedEvent) {
+    setOpenMenuId(null);
     Alert.alert(
       'Restore Event',
-      `Move "${event.name}" back to your events?`,
+      `Restore "${event.name}" to your events?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -70,6 +72,30 @@ export default function ArchivedEventsScreen() {
               await unarchiveEvent(event.id);
               setEvents(prev => prev.filter(e => e.id !== event.id));
               Toast.show({ type: 'success', text1: 'Restored', text2: `"${event.name}" moved back to events.` });
+            } catch (err) {
+              handleApiError(err);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  function handleDeleteEvent(event: ArchivedEvent) {
+    setOpenMenuId(null);
+    Alert.alert(
+      'Delete Event',
+      `Permanently delete "${event.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteEvent(event.id);
+              setEvents(prev => prev.filter(e => e.id !== event.id));
+              Toast.show({ type: 'success', text1: 'Deleted', text2: `"${event.name}" has been deleted.` });
             } catch (err) {
               handleApiError(err);
             }
@@ -96,6 +122,7 @@ export default function ArchivedEventsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        onScrollBeginDrag={() => setOpenMenuId(null)}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -116,34 +143,26 @@ export default function ArchivedEventsScreen() {
             <Text style={styles.emptyText}>Events you archive will appear here.</Text>
           </View>
         ) : (
-          events.map(event => (
-            <View key={event.id} style={styles.card}>
-              {event.bannerImageUrl ? (
-                <Image source={{ uri: event.bannerImageUrl }} style={styles.banner} resizeMode="cover" />
-              ) : (
-                <View style={[styles.banner, styles.bannerPlaceholder]}>
-                  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-                    <Path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                </View>
-              )}
-
-              <View style={styles.cardBody}>
-                <View style={styles.cardInfo}>
-                  <Text style={styles.cardName} numberOfLines={1}>{event.name}</Text>
-                  <Text style={styles.cardMeta} numberOfLines={1}>{event.location}</Text>
-                  <Text style={styles.cardMeta}>{event.fullDate}</Text>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.restoreBtn}
-                  onPress={() => handleUnarchive(event)}
-                  activeOpacity={0.8}>
-                  <Text style={styles.restoreBtnText}>Move to Events</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
+          <>
+            <Text style={styles.sectionTitle}>ARCHIVED EVENTS</Text>
+            {events.map(event => (
+              <UnifiedCard
+                key={event.id}
+                imageUri={event.bannerImageUrl}
+                name={event.name}
+                location={event.location}
+                dateLabel={event.fullDate}
+                members={[]}
+                extraMembers={0}
+                onPress={() => {}}
+                onToggleMenu={() => setOpenMenuId(openMenuId === event.id ? null : event.id)}
+                showMenu={openMenuId === event.id}
+                archiveLabel="Restore"
+                onArchive={() => handleUnarchive(event)}
+                onDelete={() => handleDeleteEvent(event)}
+              />
+            ))}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -173,7 +192,15 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#0f172a',
+    color: '#45556C',
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#45556C',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 12,
   },
   scroll: {
     flex: 1,
@@ -181,57 +208,6 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 40,
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    marginBottom: 14,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  banner: {
-    width: '100%',
-    height: 120,
-  },
-  bannerPlaceholder: {
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardBody: {
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cardInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  cardName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 4,
-  },
-  cardMeta: {
-    fontSize: 12,
-    color: '#64748b',
-    marginBottom: 2,
-  },
-  restoreBtn: {
-    backgroundColor: '#0d9488',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  restoreBtnText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',
