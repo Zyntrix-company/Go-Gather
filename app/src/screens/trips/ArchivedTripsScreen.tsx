@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, Alert,
+  ScrollView, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
-import { getArchivedTrips, unarchiveTrip, handleApiError } from '../../api/trips.api';
+import { getArchivedTrips, unarchiveTrip, deleteTrip, handleApiError } from '../../api/trips.api';
 import { UnifiedCard } from '../../components/common/Cards';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -57,6 +57,7 @@ export default function ArchivedTripsScreen() {
   const [trips, setTrips] = useState<ArchivedTrip[]>([]);
   const [loading, setLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -75,17 +76,40 @@ export default function ArchivedTripsScreen() {
   async function handleUnarchive(trip: ArchivedTrip) {
     setOpenMenuId(null);
     Alert.alert(
-      'Move to Trips',
+      'Restore Trip',
       `Restore "${trip.name}" to your trips?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Move to Trips',
+          text: 'Restore',
           onPress: async () => {
             try {
               await unarchiveTrip(trip.id);
               setTrips(prev => prev.filter(t => t.id !== trip.id));
               Toast.show({ type: 'success', text1: 'Restored', text2: `"${trip.name}" moved back to trips.` });
+            } catch (err) {
+              handleApiError(err);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleDeleteTrip(trip: ArchivedTrip) {
+    Alert.alert(
+      'Delete Trip',
+      `Permanently delete "${trip.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteTrip(trip.id);
+              setTrips(prev => prev.filter(t => t.id !== trip.id));
+              Toast.show({ type: 'success', text1: 'Deleted', text2: `"${trip.name}" has been deleted.` });
             } catch (err) {
               handleApiError(err);
             }
@@ -111,8 +135,9 @@ export default function ArchivedTripsScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        onScrollBeginDrag={() => setOpenMenuId(null)}
       >
-        {loading && <Text style={styles.emptyText}>Loading archived trips...</Text>}
+        {loading && <ActivityIndicator size="large" color="#0d9488" style={{ marginTop: 60 }} />}
 
         {!loading && trips.length === 0 && (
           <View style={styles.emptyState}>
@@ -124,22 +149,28 @@ export default function ArchivedTripsScreen() {
           </View>
         )}
 
-        {trips.map(trip => (
-          <UnifiedCard
-            key={trip.id}
-            imageUri={trip.bannerImageUrl}
-            name={trip.name}
-            location={trip.location}
-            dateLabel={`${trip.startDate} – ${trip.endDate}`}
-            members={[]}
-            extraMembers={trip.memberCount}
-            onPress={() => {}}
-            onToggleMenu={() => setOpenMenuId(openMenuId === trip.id ? null : trip.id)}
-            showMenu={openMenuId === trip.id}
-            archiveLabel="Move to Trips"
-            onArchive={() => handleUnarchive(trip)}
-          />
-        ))}
+        {!loading && trips.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>ARCHIVED TRIPS</Text>
+            {trips.map(trip => (
+              <UnifiedCard
+                key={trip.id}
+                imageUri={trip.bannerImageUrl}
+                name={trip.name}
+                location={trip.location}
+                dateLabel={`${trip.startDate} – ${trip.endDate}`}
+                members={[]}
+                extraMembers={trip.memberCount}
+                onPress={() => {}}
+                onToggleMenu={() => setOpenMenuId(openMenuId === trip.id ? null : trip.id)}
+                showMenu={openMenuId === trip.id}
+                archiveLabel="Restore"
+                onArchive={() => handleUnarchive(trip)}
+                onDelete={() => handleDeleteTrip(trip)}
+              />
+            ))}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -155,10 +186,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
   },
   backBtn: { width: 40, height: 40, justifyContent: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '600', color: '#45556C' },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#45556C' },
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 40 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#45556C', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 12 },
   emptyState: { alignItems: 'center', paddingTop: 80, gap: 12 },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#45556C' },
+  emptyTitle: { fontSize: 16, fontWeight: '600', color: '#334155' },
   emptyText: { fontSize: 13, color: '#94a3b8', textAlign: 'center', marginTop: 8 },
 });

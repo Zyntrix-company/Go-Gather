@@ -42,7 +42,7 @@ function CardMenu({
   extraItems?: { label: string; onPress: () => void; color?: string }[];
 }) {
   return (
-    <View style={s.menuDropdown}>
+    <View style={s.menuDropdown} onStartShouldSetResponder={() => true}>
       {extraItems?.map((item, i) => (
         <TouchableOpacity
           key={i}

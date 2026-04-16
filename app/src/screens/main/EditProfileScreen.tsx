@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 100 },
   logoRow: { marginBottom: 56, alignItems: 'flex-start' },
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
-  title: { fontSize: 28, fontWeight: '400', color: '#0f172a', textAlign: 'center', marginBottom: 6 },
+  title: { fontSize: 28, fontWeight: '400', color: '#45556C', textAlign: 'center', marginBottom: 6 },
   subtitle: { fontSize: 14, color: '#64748b', textAlign: 'center', marginBottom: 28 },
   avatarSection: { alignItems: 'center', marginBottom: 24 },
   avatarOuter: { width: 112, height: 112, borderRadius: 56, backgroundColor: 'rgba(226,232,240,0.5)', alignItems: 'center', justifyContent: 'center' },

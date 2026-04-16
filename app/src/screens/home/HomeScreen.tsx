@@ -50,7 +50,7 @@ import { API_BASE } from '../../api/client';
 import Toast from 'react-native-toast-message';
 import TripsScreen, { CreateTripModal, BannerCropFraction as TripBannerCropFraction } from '../trips/TripsScreen';
 import EventsScreen, { CreateEventModal } from '../events/EventsScreen';
-import FriendsTab from './FriendsTab';
+import FriendsScreen from './FriendsScreen';
 import ChatTab, { SWEE_CHAT } from './ChatTab';
 import GalleryTab from './GalleryTab';
 import ProfileDropdown from './ProfileDropdown';
@@ -1273,7 +1273,7 @@ export default function HomeScreen({ navigation, route }: any) {
         <View style={{ flex: 1, display: activeTab === 'events' ? 'flex' : 'none' }}>
           <EventsScreen openCreateOnMount={showCreateEvent} onCreateMountHandled={() => setShowCreateEvent(false)} />
         </View>
-        {activeTab === 'friends' && <FriendsTab />}
+        {activeTab === 'friends' && <FriendsScreen />}
         {activeTab === 'chat' && <ChatTab onNavigateToChat={navigateToChat} />}
         {activeTab === 'gallery' && (
           <GalleryTab
