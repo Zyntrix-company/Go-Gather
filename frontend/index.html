@@ -4,51 +4,52 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- ── Favicon ────────────────────────────────────────────────────── -->
-    <!-- favicon.svg lives in /public and is served at /favicon.svg       -->
+    <!-- ── Favicon ──────────────────────────────────────────────────────── -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
-    <!-- apple-touch-icon.png: create a 180×180 PNG in /public            -->
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="720x720" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#009788" />
 
-    <!-- ── Primary Meta Tags ─────────────────────────────────────────── -->
-    <!-- These are static fallbacks. react-helmet-async overrides them    -->
-    <!-- for JS-enabled clients. Scrapers (WhatsApp, Slack, iMessage)     -->
-    <!-- read this raw HTML and do NOT execute JavaScript.                -->
-    <title>GatherrGo — Group Travel Planning App</title>
-    <meta name="description" content="Plan unforgettable group adventures with GatherrGo. Coordinate itineraries, split expenses, and create lasting memories with friends and family." />
-    <meta name="keywords" content="GatherrGo, group travel, travel planning, group trip planner, travel coordination, split expenses, group itinerary, travel app, trip organizer, group vacation planner" />
+    <!-- ── PWA / Mobile App ─────────────────────────────────────────────── -->
+    <meta name="application-name" content="GatherrGo" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="GatherrGo" />
+
+    <!-- ── Primary Meta Tags ────────────────────────────────────────────── -->
+    <!-- Static fallbacks — react-helmet-async overrides for JS clients.    -->
+    <!-- Scrapers (WhatsApp, Slack, iMessage) read this raw HTML only.      -->
+    <title>GatherrGo — Plan Group Trips & Split Expenses</title>
+    <meta name="description" content="Plan unforgettable group trips with GatherrGo. Coordinate itineraries, split expenses, and capture memories — all in one private space for your crew." />
+    <meta name="keywords" content="GatherrGo, group travel, travel planning, group trip planner, split expenses, group itinerary, travel app, trip organizer, group vacation planner" />
     <meta name="author" content="GatherrGo" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://www.gatherrgo.com/" />
 
-    <!-- ── Open Graph (WhatsApp, Facebook, iMessage, Slack) ──────────── -->
+    <!-- ── Open Graph (WhatsApp, Facebook, iMessage, Slack) ────────────── -->
+    <meta property="og:locale" content="en_US" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="GatherrGo" />
     <meta property="og:url" content="https://www.gatherrgo.com/" />
-    <meta property="og:title" content="GatherrGo — Group Travel Planning App" />
-    <meta property="og:description" content="Plan unforgettable group adventures with GatherrGo. Coordinate itineraries, split expenses, and create lasting memories with friends and family." />
-    <!--
-      og:image — ACTION REQUIRED:
-      Create a 1200×630 PNG at /public/og-image.png.
-      Use your brand colours (#009788 teal) and the GatherrGo logo.
-      Until then the logo banner is used as a temporary stand-in.
-    -->
+    <meta property="og:title" content="GatherrGo — Plan Group Trips & Split Expenses" />
+    <meta property="og:description" content="Plan unforgettable group trips with GatherrGo. Coordinate itineraries, split expenses, and capture memories — all in one private space for your crew." />
     <meta property="og:image" content="https://www.gatherrgo.com/og-image.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
+    <meta property="og:image:secure_url" content="https://www.gatherrgo.com/og-image.png" />
+    <meta property="og:image:width" content="4800" />
+    <meta property="og:image:height" content="2520" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:alt" content="GatherrGo — Group Travel Planning App" />
 
-    <!-- ── Twitter / X Card ──────────────────────────────────────────── -->
+    <!-- ── Twitter / X Card ─────────────────────────────────────────────── -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@gatherrgo" />
-    <meta name="twitter:title" content="GatherrGo — Group Travel Planning App" />
-    <meta name="twitter:description" content="Plan unforgettable group adventures with GatherrGo. Coordinate itineraries, split expenses, and create lasting memories." />
+    <meta name="twitter:site" content="@GatherrGo" />
+    <meta name="twitter:creator" content="@GatherrGo" />
+    <meta name="twitter:title" content="GatherrGo — Plan Group Trips & Split Expenses" />
+    <meta name="twitter:description" content="Plan unforgettable group trips with GatherrGo. Coordinate itineraries, split expenses, and capture memories." />
     <meta name="twitter:image" content="https://www.gatherrgo.com/og-image.png" />
 
-    <!-- ── Structured Data (static — always sent to crawlers) ────────── -->
+    <!-- ── Structured Data ──────────────────────────────────────────────── -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -66,9 +67,15 @@
       "contactPoint": {
         "@type": "ContactPoint",
         "contactType": "customer support",
+        "email": "Hello@GatherrGo.com",
         "url": "https://www.gatherrgo.com/contact"
       },
-      "sameAs": []
+      "sameAs": [
+        "https://x.com/GatherrGo",
+        "https://www.instagram.com/GatherrGo",
+        "https://www.linkedin.com/company/gatherrgo/",
+        "https://www.youtube.com/@GatherrGo"
+      ]
     }
     </script>
 
@@ -82,7 +89,51 @@
       "description": "Group Travel Planning App — plan trips, split expenses, coordinate with friends.",
       "publisher": {
         "@id": "https://www.gatherrgo.com/#organization"
+      },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://www.gatherrgo.com/blogs?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
       }
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "MobileApplication",
+      "@id": "https://www.gatherrgo.com/#app",
+      "name": "GatherrGo",
+      "description": "The all-in-one group travel planning app. Plan trips, coordinate itineraries, split expenses, and capture memories together.",
+      "applicationCategory": "TravelApplication",
+      "operatingSystem": "ANDROID, IOS",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "publisher": {
+        "@id": "https://www.gatherrgo.com/#organization"
+      }
+    }
+    </script>
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "name": "GatherrGo Site Navigation",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "About", "url": "https://www.gatherrgo.com/about" },
+        { "@type": "ListItem", "position": 2, "name": "Careers", "url": "https://www.gatherrgo.com/careers" },
+        { "@type": "ListItem", "position": 3, "name": "Blog", "url": "https://www.gatherrgo.com/blogs" },
+        { "@type": "ListItem", "position": 4, "name": "Contact", "url": "https://www.gatherrgo.com/contact" },
+        { "@type": "ListItem", "position": 5, "name": "Privacy Policy", "url": "https://www.gatherrgo.com/privacy" },
+        { "@type": "ListItem", "position": 6, "name": "Terms & Conditions", "url": "https://www.gatherrgo.com/terms" }
+      ]
     }
     </script>
   </head>

@@ -1,9 +1,9 @@
 User-agent: *
 Allow: /
 
-# Disallow utility/legal pages that add no search value
-Disallow: /privacy
-Disallow: /terms
+# Disallow utility pages that add no search value
 Disallow: /data-deletion
+Disallow: /careers/social-media-manager
+Disallow: /careers/design-intern
 
 Sitemap: https://www.gatherrgo.com/sitemap.xml

@@ -26,7 +26,7 @@ export default function Career() {
     <div className="pt-2 md:pt-8 pb-16 px-6 max-w-7xl mx-auto space-y-8 md:space-y-12">
       <SEO
         title="Careers at GatherrGo — Join Our Team"
-        description="Join the GatherrGo team. We're hiring passionate people for remote roles in Marketing, Design, and Engineering. Help us shape the future of group travel planning."
+        description="Join GatherrGo — we're hiring for remote roles in Marketing, Design, and Engineering. Help us shape the future of group travel planning."
         canonical="/careers"
       />
       

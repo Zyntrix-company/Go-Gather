@@ -11,6 +11,7 @@ import Contact from './pages/Contact';
 import SocialMediaManager from './pages/SocialMediaManager';
 import DesignIntern from './pages/DesignIntern';
 import DataDeletion from './pages/DataDeletion';
+import Blogs from './pages/Blogs';
 
 // ScrollToTop component to handle scroll position on route change
 function ScrollToTop() {
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="careers/design-intern" element={<DesignIntern />} />
           <Route path="privacy" element={<Privacy />} />
           <Route path="terms" element={<Terms />} />
+          <Route path="blogs" element={<Blogs />} />
           <Route path="contact" element={<Contact />} />
           <Route path="data-deletion" element={<DataDeletion />} />
           <Route path="*" element={<Home />} />

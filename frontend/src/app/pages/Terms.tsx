@@ -10,7 +10,6 @@ export default function Terms() {
         title="Terms & Conditions — GatherrGo"
         description="Review GatherrGo's Terms and Conditions. Understand your rights and responsibilities when using our group travel planning platform."
         canonical="/terms"
-        noIndex={true}
       />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -27,7 +26,7 @@ export default function Terms() {
           </h1>
         </div>
         <p className="text-base text-slate-600 font-normal">
-          Last updated: 11 March 2026
+          Last updated: 16 April 2026
         </p>
       </motion.div>
 
@@ -242,7 +241,7 @@ export default function Terms() {
           <div className="space-y-4 text-base text-slate-600 font-normal pl-4 border-l-2 border-teal-100">
             <p>For questions or support, you can reach out to us at:</p>
             <div className="mt-4 p-6 bg-teal-50/50 rounded-2xl border border-teal-100">
-              <p>Email: <a href="mailto:Support@GatherrGo.com" className="text-teal-600 hover:text-teal-700 transition-colors">Support@GatherrGo.com</a></p>
+              <p>Email: <a href="mailto:Hello@GatherrGo.com" className="text-teal-600 hover:text-teal-700 transition-colors">Hello@GatherrGo.com</a></p>
             </div>
           </div>
         </section>

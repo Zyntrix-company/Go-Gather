@@ -1,5 +1,4 @@
 import React from 'react';
-import appInterfaceImg from '../../assets/53e7132bf38b5b94e6dd7fc10b102b88fbcb45a3.png';
 
 export const PhoneMockup = () => {
   return (
@@ -8,9 +7,9 @@ export const PhoneMockup = () => {
        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-6 bg-slate-900 rounded-b-xl z-20"></div>
 
        {/* Screen Content - Fits the frame to the image */}
-       <img 
-          src={appInterfaceImg}
-          alt="App Interface" 
+       <img
+          src="/image.png"
+          alt="App Interface"
           className="w-full h-auto block"
        />
     </div>

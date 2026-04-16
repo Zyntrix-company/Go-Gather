@@ -26,10 +26,10 @@ const Navbar = () => {
 
   const links = [
     { name: 'Home', path: '/' },
-    { name: 'About Us', path: '/about' },
+    { name: 'About', path: '/about' },
+    { name: 'Careers', path: '/careers' },
+    { name: 'Blogs', path: '/blogs' },
     { name: 'Contact', path: '/contact' },
-    { name: 'Privacy Policy', path: '/privacy' },
-    { name: 'Terms', path: '/terms' },
   ];
 
   return (
@@ -120,6 +120,7 @@ const Footer = () => {
             <ul className="space-y-3 text-sm">
               <li><Link to="/contact" className="text-slate-500 hover:text-teal-600 transition-colors flex items-center h-5">Contact</Link></li>
               <li><Link to="/careers" className="text-slate-500 hover:text-teal-600 transition-colors flex items-center h-5">Careers</Link></li>
+              <li><Link to="/blogs" className="text-slate-500 hover:text-teal-600 transition-colors flex items-center h-5">Blog</Link></li>
               <li><Link to="/privacy" className="text-slate-500 hover:text-teal-600 transition-colors flex items-center h-5">Privacy</Link></li>
               <li><Link to="/terms" className="text-slate-500 hover:text-teal-600 transition-colors flex items-center h-5">Terms</Link></li>
               <li><Link to="/data-deletion" className="text-slate-500 hover:text-teal-600 transition-colors flex items-center h-5">Data Deletion</Link></li>
@@ -130,25 +131,25 @@ const Footer = () => {
             <div className="w-fit">
               <ul className="space-y-3 text-sm">
                 <li>
-                  <a href="#" className="flex items-center gap-2.5 text-slate-500 hover:text-teal-600 transition-colors w-max h-5">
+                  <a href="https://www.instagram.com/GatherrGo" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-slate-500 hover:text-teal-600 transition-colors w-max h-5">
                     <Instagram className="w-4 h-4" />
                     <span>Instagram</span>
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="flex items-center gap-2.5 text-slate-500 hover:text-teal-600 transition-colors w-max h-5">
+                  <a href="https://x.com/GatherrGo" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-slate-500 hover:text-teal-600 transition-colors w-max h-5">
                     <Twitter className="w-4 h-4" />
-                    <span>Twitter</span>
+                    <span>Twitter / X</span>
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="flex items-center gap-2.5 text-slate-500 hover:text-teal-600 transition-colors w-max h-5">
+                  <a href="https://www.linkedin.com/company/gatherrgo/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-slate-500 hover:text-teal-600 transition-colors w-max h-5">
                     <Linkedin className="w-4 h-4" />
                     <span>LinkedIn</span>
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="flex items-center gap-2.5 text-slate-500 hover:text-teal-600 transition-colors w-max h-5">
+                  <a href="https://www.youtube.com/@GatherrGo" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-slate-500 hover:text-teal-600 transition-colors w-max h-5">
                     <Youtube className="w-4 h-4" />
                     <span>YouTube</span>
                   </a>

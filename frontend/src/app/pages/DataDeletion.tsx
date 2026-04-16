@@ -11,10 +11,10 @@ const steps = [
       <>
         Email us at{' '}
         <a
-          href="mailto:Support@GatherrGo.com?subject=Data Deletion Request"
+          href="mailto:Hello@GatherrGo.com?subject=Data Deletion Request"
           className="text-teal-600 hover:text-teal-700 underline underline-offset-4 decoration-teal-600/30 transition-colors"
         >
-          Support@GatherrGo.com
+          Hello@GatherrGo.com
         </a>{' '}
         with the subject line <span className="font-semibold text-slate-700">"Data Deletion Request"</span>.
       </>
@@ -203,7 +203,7 @@ export default function DataDeletion() {
       >
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Submit a Deletion Request</h2>
-          <p className="text-sm text-slate-500 mt-1">Fill out the form below or email us directly at <a href="mailto:Support@GatherrGo.com?subject=Data Deletion Request" className="text-teal-600 hover:underline">Support@GatherrGo.com</a></p>
+          <p className="text-sm text-slate-500 mt-1">Fill out the form below or email us directly at <a href="mailto:Hello@GatherrGo.com?subject=Data Deletion Request" className="text-teal-600 hover:underline">Hello@GatherrGo.com</a></p>
         </div>
 
         {submitted ? (
@@ -290,8 +290,8 @@ export default function DataDeletion() {
         className="text-center text-slate-500 text-sm"
       >
         Still have questions?{' '}
-        <a href="mailto:Support@GatherrGo.com" className="text-teal-600 hover:text-teal-700 underline underline-offset-4 transition-colors">
-          Email us at Support@GatherrGo.com
+        <a href="mailto:Hello@GatherrGo.com" className="text-teal-600 hover:text-teal-700 underline underline-offset-4 transition-colors">
+          Email us at Hello@GatherrGo.com
         </a>
       </motion.div>
     </div>

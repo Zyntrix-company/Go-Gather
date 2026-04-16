@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(npm install:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(ls -la \"E:/Go Gather/frontend/public/Frame\"*)",
+      "Bash(powershell *)",
+      "Bash(cp \"E:/Go Gather/frontend/public/Frame 84.png\" \"E:/Go Gather/frontend/public/og-image.png\")",
+      "Bash(cp \"E:/Go Gather/frontend/public/Frame 85.png\" \"E:/Go Gather/frontend/public/apple-touch-icon.png\")",
+      "Bash(node *)"
     ]
   }
 }

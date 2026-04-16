@@ -72,7 +72,13 @@
       "Bash(taskkill //F //IM studio64.exe //T)",
       "Bash(ls .git/rebase-merge/)",
       "Bash(ls .git/rebase-apply/)",
-      "Bash(./gradlew assembleRelease)"
+      "Bash(./gradlew assembleRelease)",
+      "Bash(grep -h \"CREATE TABLE\" backend/migrations/*.sql)",
+      "Bash(sed 's/.*CREATE TABLE\\\\s*//')",
+      "Bash(sed 's/\\\\s.*//')",
+      "Bash(sed 's/\\($//')",
+      "Bash(grep -h \"CREATE TABLE\\\\|CREATE TABLE IF NOT EXISTS\" backend/migrations/*.sql)",
+      "Bash(awk '{print $NF}')"
     ]
   }
 }

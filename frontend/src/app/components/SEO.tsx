@@ -35,20 +35,23 @@ export default function SEO({
       <meta name="robots" content={noIndex ? 'noindex, nofollow' : 'index, follow'} />
 
       {/* Open Graph */}
+      <meta property="og:locale" content="en_US" />
       <meta property="og:type" content="website" />
       <meta property="og:site_name" content="GatherrGo" />
       <meta property="og:url" content={canonicalUrl} />
       <meta property="og:title" content={fullTitle} />
       <meta property="og:description" content={description} />
       <meta property="og:image" content={ogImage} />
-      <meta property="og:image:width" content="1200" />
-      <meta property="og:image:height" content="630" />
+      <meta property="og:image:secure_url" content={ogImage} />
+      <meta property="og:image:width" content="4800" />
+      <meta property="og:image:height" content="2520" />
       <meta property="og:image:type" content="image/png" />
       <meta property="og:image:alt" content={fullTitle} />
 
       {/* Twitter / X */}
       <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:site" content="@gatherrgo" />
+      <meta name="twitter:site" content="@GatherrGo" />
+      <meta name="twitter:creator" content="@GatherrGo" />
       <meta name="twitter:url" content={canonicalUrl} />
       <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={description} />

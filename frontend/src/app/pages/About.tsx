@@ -27,7 +27,7 @@ export default function About() {
     <div className="pt-8 pb-16 px-6 max-w-7xl mx-auto space-y-16">
       <SEO
         title="About GatherrGo — Our Story, Mission & Team"
-        description="Meet the team behind GatherrGo. Founded by Ankan Nandi and Akash Yadav with 30+ years of combined MAANG experience, we're making group travel planning effortless."
+        description="Meet the team behind GatherrGo — founded by Ankan Nandi and Akash Yadav with 30+ years of MAANG experience, building the future of group travel."
         canonical="/about"
       />
       
