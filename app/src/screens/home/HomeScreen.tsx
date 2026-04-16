@@ -966,14 +966,13 @@ export default function HomeScreen({ navigation, route }: any) {
         )}
 
         {/* ── 6. Upcoming Trips ── */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 10 }}>
-          <LucideMapPin size={19} color="#000000" strokeWidth={1.8} />
-          <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Upcoming Trips</Text>
-        </View>
-        {[...ongoing, ...upcoming].length === 0 && !isLoadingTrips ? (
-          <Text style={{ color: '#94a3b8', fontSize: 14, textAlign: 'center', marginTop: 4 }}>No upcoming trips</Text>
-        ) : (
-          [...ongoing, ...upcoming].slice(0, 3).map(trip => {
+        {[...ongoing, ...upcoming].length > 0 && (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 10 }}>
+              <LucideMapPin size={19} color="#000000" strokeWidth={1.8} />
+              <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Upcoming Trips</Text>
+            </View>
+            {[...ongoing, ...upcoming].slice(0, 3).map(trip => {
             const days = trip.startDateISO
               ? Math.ceil((new Date(trip.startDateISO).getTime() - Date.now()) / 86400000)
               : 0;
@@ -997,18 +996,19 @@ export default function HomeScreen({ navigation, route }: any) {
                 />
               </View>
             );
-          })
+            })
+            }
+          </>
         )}
 
         {/* ── 7. Upcoming Events ── */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 10 }}>
-          <PartyPopper size={19} color="#000000" strokeWidth={1.8} />
-          <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Upcoming Events</Text>
-        </View>
-        {homeEvents.length === 0 ? (
-          <Text style={{ color: '#94a3b8', fontSize: 14, textAlign: 'center', marginTop: 4 }}>No upcoming events</Text>
-        ) : (
-          homeEvents.slice(0, 3).map((ev: any) => {
+        {homeEvents.length > 0 && (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 10 }}>
+              <PartyPopper size={19} color="#000000" strokeWidth={1.8} />
+              <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Upcoming Events</Text>
+            </View>
+            {homeEvents.slice(0, 3).map((ev: any) => {
             const locName = typeof ev.location === 'string' ? ev.location : (ev.location?.name ?? '');
             const rawAvatars: any[] = (ev.memberAvatars || []).slice(0, 4);
             const avatars: { id: string; uri: string }[] = rawAvatars.map((av: any, i: number) =>
@@ -1040,7 +1040,9 @@ export default function HomeScreen({ navigation, route }: any) {
                 />
               </View>
             );
-          })
+            })
+            }
+          </>
         )}
       </ScrollView>
 
