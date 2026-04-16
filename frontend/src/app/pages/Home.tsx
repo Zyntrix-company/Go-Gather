@@ -36,7 +36,7 @@ const homeSchemas = [
     '@id': 'https://www.gatherrgo.com/#website',
     url: 'https://www.gatherrgo.com/',
     name: 'GatherrGo',
-    description: 'Group Travel Planning App — plan trips, split expenses, coordinate with friends.',
+    description: 'All-in-One Group Travel & Event Collaboration App — plan trips, manage itineraries, store bookings, split expenses, and share memories.',
     publisher: { '@id': 'https://www.gatherrgo.com/#organization' },
     potentialAction: {
       '@type': 'SearchAction',
@@ -52,7 +52,7 @@ const homeSchemas = [
     '@type': 'MobileApplication',
     '@id': 'https://www.gatherrgo.com/#app',
     name: 'GatherrGo',
-    description: 'The all-in-one group travel planning app. Plan trips, coordinate itineraries, split expenses, and capture memories together.',
+    description: 'GatherrGo is the all-in-one group travel and event collaboration app. Plan, organize, and experience trips together — manage itineraries, store bookings, split expenses, and share memories.',
     applicationCategory: 'TravelApplication',
     operatingSystem: 'ANDROID, IOS',
     offers: {
@@ -74,7 +74,7 @@ const homeSchemas = [
       width: 1042,
       height: 212,
     },
-    description: 'GatherrGo is the all-in-one group travel planning app.',
+    description: 'GatherrGo is the all-in-one group travel and event collaboration app. Plan, organize, and experience trips together — manage itineraries, store bookings, split expenses, and share memories.',
     contactPoint: {
       '@type': 'ContactPoint',
       contactType: 'customer support',
@@ -96,7 +96,7 @@ const homeSchemas = [
     name: 'GatherrGo — Group Travel Planning App',
     isPartOf: { '@id': 'https://www.gatherrgo.com/#website' },
     about: { '@id': 'https://www.gatherrgo.com/#organization' },
-    description: 'GatherrGo is the all-in-one group travel app. Plan trips, coordinate itineraries, split expenses, and capture memories.',
+    description: 'GatherrGo is the all-in-one group travel and event collaboration app. Plan, organize, and experience trips together — manage itineraries, store bookings, split expenses, and share memories.',
   },
   {
     '@context': 'https://schema.org',
@@ -117,8 +117,8 @@ export default function Home() {
   return (
     <div className="relative flex flex-col gap-8 pb-16 overflow-x-hidden bg-transparent -mt-24 pt-24">
       <SEO
-        title="GatherrGo — Plan Group Trips & Split Expenses"
-        description="Plan unforgettable group trips with GatherrGo. Coordinate itineraries, split expenses, and capture memories — all in one private space for your crew."
+        title="GatherrGo - All-in-One Group Travel & Event Collaboration App"
+        description="Plan, organize, and experience trips with GatherrGo. Manage itineraries, store bookings, split expenses, share memories, and collaborate with your group."
         canonical="/"
         jsonLd={homeSchemas}
       />
