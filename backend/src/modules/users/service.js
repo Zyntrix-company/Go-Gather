@@ -2,6 +2,7 @@ const db = require('../../config/database');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const { sendWelcomeEmail } = require('../../utils/mailer');
+const { sendFCMNotification } = require('../../utils/fcm.util');
 
 /**
  * Derive a URL-safe slug from a full name and find a DB-unique variant.
@@ -92,10 +93,29 @@ const saveProfile = async (userId, profileData) => {
 
     const row = result.rows[0];
 
-    // Fire welcome email — non-blocking, failure does not affect the response
+    // Fire welcome email — non-blocking
     sendWelcomeEmail(row.email, row.full_name).catch((err) => {
       logger.error('Failed to send welcome email', { userId, error: err.message });
     });
+
+    // Fire welcome push notification — non-blocking
+    const firstName = row.full_name?.split(' ')[0] || 'there';
+    db.query('SELECT fcm_token FROM users WHERE id = $1', [userId]).then(({ rows }) => {
+      const token = rows[0]?.fcm_token;
+      if (token) {
+        sendFCMNotification(
+          token,
+          {
+            title: 'Welcome to GatherGo! 🎉',
+            body: `Hey ${firstName}, your account is all set. Start planning your first trip!`,
+          },
+          { type: 'WELCOME' },
+        ).catch((err) => {
+          logger.error('Failed to send welcome push', { userId, error: err.message });
+        });
+      }
+    }).catch(() => {});
+
 
     return {
       id: row.id,
