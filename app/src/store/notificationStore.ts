@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type AppNotification = {
   id: string;
@@ -16,33 +18,41 @@ type NotificationState = {
   markAllRead: () => void;
 };
 
-const useNotificationStore = create<NotificationState>((set) => ({
-  notifications: [],
+const useNotificationStore = create<NotificationState>()(
+  persist(
+    (set) => ({
+      notifications: [],
 
-  addNotification: (n) =>
-    set((state) => ({
-      notifications: [
-        {
-          ...n,
-          id: Date.now().toString(),
-          receivedAt: Date.now(),
-          read: false,
-        },
-        ...state.notifications,
-      ],
-    })),
+      addNotification: (n) =>
+        set((state) => ({
+          notifications: [
+            {
+              ...n,
+              id: Date.now().toString(),
+              receivedAt: Date.now(),
+              read: false,
+            },
+            ...state.notifications,
+          ],
+        })),
 
-  markRead: (id) =>
-    set((state) => ({
-      notifications: state.notifications.map((n) =>
-        n.id === id ? { ...n, read: true } : n
-      ),
-    })),
+      markRead: (id) =>
+        set((state) => ({
+          notifications: state.notifications.map((n) =>
+            n.id === id ? { ...n, read: true } : n
+          ),
+        })),
 
-  markAllRead: () =>
-    set((state) => ({
-      notifications: state.notifications.map((n) => ({ ...n, read: true })),
-    })),
-}));
+      markAllRead: () =>
+        set((state) => ({
+          notifications: state.notifications.map((n) => ({ ...n, read: true })),
+        })),
+    }),
+    {
+      name: 'gathergo-notifications',
+      storage: createJSONStorage(() => AsyncStorage),
+    }
+  )
+);
 
 export default useNotificationStore;
