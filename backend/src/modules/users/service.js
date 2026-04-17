@@ -114,7 +114,9 @@ const saveProfile = async (userId, profileData) => {
           logger.error('Failed to send welcome push', { userId, error: err.message });
         });
       }
-    }).catch(() => {});
+    }).catch((err) => {
+      logger.error('Failed to send welcome push', { userId, error: err.message });
+    });
 
 
     return {

@@ -44,49 +44,41 @@ const getAccessToken = async () => {
 const sendFCMNotification = async (token, notification, data = {}) => {
   if (!token) return;
 
-  const accessToken = await getAccessToken();
-  if (!accessToken) {
-    logger.warn('GOOGLE_APPLICATION_CREDENTIALS not set — skipping push notification');
-    return;
-  }
+  try {
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      logger.warn('GOOGLE_APPLICATION_CREDENTIALS not set — skipping push notification');
+      return;
+    }
 
-  // FCM v1 requires all data values to be strings
-  const stringData = Object.fromEntries(
-    Object.entries(data).map(([k, v]) => [k, String(v)])
-  );
+    // FCM v1 requires all data values to be strings
+    const stringData = Object.fromEntries(
+      Object.entries(data).map(([k, v]) => [k, String(v)])
+    );
 
-  const message = {
-    message: {
-      token,
-      notification: {
-        title: notification.title,
-        body: notification.body,
-      },
-      data: stringData,
-      // Android config
-      android: {
-        priority: 'high',
+    const message = {
+      message: {
+        token,
         notification: {
-          sound: 'default',
-          channel_id: 'default',
+          title: notification.title,
+          body: notification.body,
         },
-      },
-      // iOS config — ready for when iOS is added
-      apns: {
-        headers: {
-          'apns-priority': '10',
-        },
-        payload: {
-          aps: {
+        data: stringData,
+        android: {
+          priority: 'high',
+          notification: {
             sound: 'default',
-            badge: 1,
+            channel_id: 'default',
           },
         },
+        // iOS — ready when APNs cert is added in Firebase console
+        apns: {
+          headers: { 'apns-priority': '10' },
+          payload: { aps: { sound: 'default', badge: 1 } },
+        },
       },
-    },
-  };
+    };
 
-  try {
     await axios.post(FCM_URL, message, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -97,7 +89,7 @@ const sendFCMNotification = async (token, notification, data = {}) => {
     logger.info('FCM notification sent', { tokenSuffix: token.slice(-8) });
   } catch (error) {
     const detail = error.response?.data ?? error.message;
-    logger.error('FCM notification failed', { detail });
+    logger.error('FCM notification failed', { detail, token: token?.slice(-8) });
   }
 };
 
