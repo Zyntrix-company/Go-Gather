@@ -36,6 +36,8 @@ jobs:
 
     - name: Deploy to EC2 via SSH
       uses: appleboy/ssh-action@v1.0.3
+      env:
+        FIREBASE_SERVICE_ACCOUNT_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
