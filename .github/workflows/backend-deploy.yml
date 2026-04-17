@@ -50,12 +50,12 @@ jobs:
             | docker login --username AWS --password-stdin 092201262561.dkr.ecr.ap-south-1.amazonaws.com
 
           # ── 2. Inject Firebase credentials into .env (idempotent) ─────────────
-          # Credentials are passed as base64-encoded JSON — no file/volume needed.
           ENV_FILE=/home/ubuntu/Go-Gather/backend/.env
+          # Always remove stale Firebase/Google credential lines first
+          sed -i '/^GOOGLE_APPLICATION_CREDENTIALS=/d' "$ENV_FILE" || true
+          sed -i '/^FIREBASE_SERVICE_ACCOUNT_B64=/d' "$ENV_FILE" || true
+          sed -i '/^FIREBASE_PROJECT_ID=/d' "$ENV_FILE" || true
           if [ -n "$FIREBASE_SERVICE_ACCOUNT_B64" ]; then
-            # Remove any old Firebase lines then re-add with current values
-            sed -i '/^FIREBASE_SERVICE_ACCOUNT_B64=/d' "$ENV_FILE" || true
-            sed -i '/^FIREBASE_PROJECT_ID=/d' "$ENV_FILE" || true
             echo "FIREBASE_SERVICE_ACCOUNT_B64=$FIREBASE_SERVICE_ACCOUNT_B64" >> "$ENV_FILE"
             echo "FIREBASE_PROJECT_ID=gatherrgo" >> "$ENV_FILE"
             echo "Firebase credentials injected into .env"
