@@ -41,6 +41,7 @@ jobs:
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         request_pty: true
+        envs: FIREBASE_SERVICE_ACCOUNT_JSON
         script: |
           set -e
 
@@ -48,10 +49,33 @@ jobs:
           aws ecr get-login-password --region ap-south-1 \
             | docker login --username AWS --password-stdin 092201262561.dkr.ecr.ap-south-1.amazonaws.com
 
-          # ── 2. Pull new image ──────────────────────────────────────────────────
+          # ── 2. Write Firebase service account JSON from GitHub Secret ──────────
+          # FIREBASE_SERVICE_ACCOUNT_JSON secret holds the raw JSON content.
+          # Written once and reused across deploys — only updates if secret changes.
+          FIREBASE_JSON_PATH=/home/ubuntu/Go-Gather/backend/firebase-service-account.json
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$FIREBASE_JSON_PATH"
+            chmod 600 "$FIREBASE_JSON_PATH"
+            echo "Firebase service account JSON written to $FIREBASE_JSON_PATH"
+          else
+            echo "WARNING: FIREBASE_SERVICE_ACCOUNT_JSON secret not set — skipping"
+          fi
+
+          # ── 3. Ensure Firebase env vars are in .env (idempotent) ───────────────
+          ENV_FILE=/home/ubuntu/Go-Gather/backend/.env
+          if ! grep -q 'FIREBASE_PROJECT_ID' "$ENV_FILE"; then
+            echo "" >> "$ENV_FILE"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-service-account.json" >> "$ENV_FILE"
+            echo "FIREBASE_PROJECT_ID=gatherrgo" >> "$ENV_FILE"
+            echo "Firebase env vars added to .env"
+          else
+            echo "Firebase env vars already present in .env"
+          fi
+
+          # ── 4. Pull new image ──────────────────────────────────────────────────
           docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
-          # ── 3. Remove old container ────────────────────────────────────────────
+          # ── 5. Remove old container ────────────────────────────────────────────
           # docker stop/kill are broken on kernel 6.17 + cgroup v2 + Docker 28.
           # Workaround:
           #   1. Disable restart policy FIRST (so Docker won't revive it after kill)
@@ -69,27 +93,28 @@ jobs:
             docker rm gathergo-container 2>/dev/null || true
           fi
 
-          # ── 4. Verify clean slate ──────────────────────────────────────────────
+          # ── 6. Verify clean slate ──────────────────────────────────────────────
           if docker ps -a --format '{{.Names}}' | grep -q '^gathergo-container$'; then
             echo "ERROR: container still exists after cleanup"
             docker inspect gathergo-container --format 'Status={{.State.Status}} Pid={{.State.Pid}}' || true
             exit 1
           fi
 
-          # ── 5. Start new container ─────────────────────────────────────────────
+          # ── 7. Start new container ─────────────────────────────────────────────
           cd /home/ubuntu/Go-Gather/backend
           docker run -d \
             --name gathergo-container \
             --restart unless-stopped \
             -p 3000:3000 \
             --env-file .env \
+            -v /home/ubuntu/Go-Gather/backend/firebase-service-account.json:/app/firebase-service-account.json:ro \
             092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
-          # ── 6. Confirm running ─────────────────────────────────────────────────
+          # ── 8. Confirm running ─────────────────────────────────────────────────
           sleep 3
           docker ps --filter name=gathergo-container --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
 
-          # ── 7. Ensure nginx allows large uploads (50 MB) ───────────────────────
+          # ── 9. Ensure nginx allows large uploads (50 MB) ───────────────────────
           NGINX_SNIPPET=/etc/nginx/conf.d/upload_limit.conf
           if ! grep -q 'client_max_body_size' "$NGINX_SNIPPET" 2>/dev/null; then
             echo 'client_max_body_size 50M;' | sudo tee "$NGINX_SNIPPET" > /dev/null

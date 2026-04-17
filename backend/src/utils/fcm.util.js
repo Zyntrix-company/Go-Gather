@@ -1,62 +1,105 @@
+const { GoogleAuth } = require('google-auth-library');
 const axios = require('axios');
-const config = require('../config');
 const logger = require('./logger');
 
+const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
+const FCM_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'gatherrgo';
+const FCM_URL = `https://fcm.googleapis.com/v1/projects/${FCM_PROJECT_ID}/messages:send`;
+
+let _auth = null;
+
+const getAuth = () => {
+  if (!_auth) {
+    const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    if (!keyFile) return null;
+    _auth = new GoogleAuth({ keyFile, scopes: [FCM_SCOPE] });
+  }
+  return _auth;
+};
+
+const getAccessToken = async () => {
+  const auth = getAuth();
+  if (!auth) return null;
+  const client = await auth.getClient();
+  const tokenResult = await client.getAccessToken();
+  return tokenResult.token;
+};
+
 /**
- * Send a push notification via FCM (Firebase Cloud Messaging) legacy API.
+ * Send a push notification via FCM v1 HTTP API.
+ * Supports Android now; iOS (APNS) config is already included — just needs
+ * GoogleService-Info.plist + APNs cert set up in Firebase console when ready.
+ *
  * Fire-and-forget — failures are logged but do NOT propagate.
  *
- * @param {string|string[]} tokens  - FCM device token(s)
- * @param {object} notification
- * @param {string} notification.title
- * @param {string} notification.body
- * @param {object} [data]            - Optional data payload
+ * @param {string} token                     FCM device token
+ * @param {{title: string, body: string}} notification
+ * @param {object} [data]                    Optional data payload (values auto-stringified)
  */
-const sendFCMNotification = async (tokens, notification, data = {}) => {
-  const fcmKey = config.fcm && config.fcm.serverKey;
-  if (!fcmKey) {
-    logger.warn('FCM_SERVER_KEY not configured — skipping push notification');
+const sendFCMNotification = async (token, notification, data = {}) => {
+  if (!token) return;
+
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    logger.warn('GOOGLE_APPLICATION_CREDENTIALS not set — skipping push notification');
     return;
   }
 
-  const tokenList = Array.isArray(tokens) ? tokens : [tokens];
-  const validTokens = tokenList.filter(Boolean);
-  if (validTokens.length === 0) return;
+  // FCM v1 requires all data values to be strings
+  const stringData = Object.fromEntries(
+    Object.entries(data).map(([k, v]) => [k, String(v)])
+  );
 
-  const payload = {
-    notification: {
-      title: notification.title,
-      body: notification.body,
-      sound: 'default',
+  const message = {
+    message: {
+      token,
+      notification: {
+        title: notification.title,
+        body: notification.body,
+      },
+      data: stringData,
+      // Android config
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default',
+          channel_id: 'default',
+        },
+      },
+      // iOS config — ready for when iOS is added
+      apns: {
+        headers: {
+          'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+            badge: 1,
+          },
+        },
+      },
     },
-    data,
-    registration_ids: validTokens,
   };
 
   try {
-    const response = await axios.post(
-      'https://fcm.googleapis.com/fcm/send',
-      payload,
-      {
-        headers: {
-          Authorization: `key=${fcmKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 5000,
+    await axios.post(FCM_URL, message, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
       },
-    );
-    logger.info('FCM notification sent', {
-      tokenCount: validTokens.length,
-      successCount: response.data.success,
+      timeout: 5000,
     });
+    logger.info('FCM notification sent', { tokenSuffix: token.slice(-8) });
   } catch (error) {
-    // Fire-and-forget: log but do not throw
-    logger.error('FCM notification failed', { error: error.message });
+    const detail = error.response?.data ?? error.message;
+    logger.error('FCM notification failed', { detail });
   }
 };
 
 /**
- * Notify a list of users (by their stored FCM tokens from DB) about an event.
+ * Notify multiple users by their stored FCM tokens.
+ * FCM v1 does not support multi-token batching — sends one request per token.
+ *
  * @param {Array<{fcm_token: string}>} users
  * @param {{title: string, body: string}} notification
  * @param {object} [data]
@@ -64,7 +107,9 @@ const sendFCMNotification = async (tokens, notification, data = {}) => {
 const notifyUsers = async (users, notification, data = {}) => {
   const tokens = users.map((u) => u.fcm_token).filter(Boolean);
   if (tokens.length === 0) return;
-  return sendFCMNotification(tokens, notification, data);
+  await Promise.allSettled(
+    tokens.map((token) => sendFCMNotification(token, notification, data))
+  );
 };
 
 module.exports = { sendFCMNotification, notifyUsers };

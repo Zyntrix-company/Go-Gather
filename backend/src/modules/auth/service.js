@@ -13,7 +13,6 @@ const {
   sendVerificationOTPEmail,
   sendPasswordResetOTPEmail,
 } = require('../../utils/mailer');
-const { registerDeviceEndpoint } = require('../../utils/sns');
 const logger = require('../../utils/logger');
 
 const { getPresignedDownloadUrl } = require('../../utils/s3.util');
@@ -50,22 +49,20 @@ const issueTokenPair = async (user) => {
 };
 
 /**
- * Register / update SNS device endpoint on login and store the ARN.
+ * Save the raw FCM device token on login.
+ * platform is stored for future iOS-specific handling (APNS channel, badge resets, etc.)
  */
 const handleDeviceRegistration = async (userId, deviceToken, platform) => {
-  if (!deviceToken || !platform) return;
+  if (!deviceToken) return;
 
   try {
-    const endpointArn = await registerDeviceEndpoint(deviceToken, platform);
-    if (endpointArn) {
-      await db.query(
-        'UPDATE users SET sns_endpoint_arn = $1, updated_at = NOW() WHERE id = $2',
-        [endpointArn, userId],
-      );
-    }
+    await db.query(
+      'UPDATE users SET fcm_token = $1, platform = $2, updated_at = NOW() WHERE id = $3',
+      [deviceToken, platform || null, userId],
+    );
+    logger.info('FCM token saved', { userId, platform });
   } catch (error) {
-    // Non-fatal — log and continue
-    logger.error('Device registration failed', { userId, error: error.message });
+    logger.error('FCM token save failed', { userId, error: error.message });
   }
 };
 

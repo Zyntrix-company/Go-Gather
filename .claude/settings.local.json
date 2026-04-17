@@ -78,7 +78,8 @@
       "Bash(sed 's/\\\\s.*//')",
       "Bash(sed 's/\\($//')",
       "Bash(grep -h \"CREATE TABLE\\\\|CREATE TABLE IF NOT EXISTS\" backend/migrations/*.sql)",
-      "Bash(awk '{print $NF}')"
+      "Bash(awk '{print $NF}')",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Project:', d['project_info']['project_id']\\); print\\('Package:', d['client'][0]['client_info']['android_client_info']['package_name']\\)\")"
     ]
   }
 }

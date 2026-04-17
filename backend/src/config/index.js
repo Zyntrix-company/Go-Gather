@@ -84,9 +84,12 @@ module.exports = {
   passwordResetUrl: process.env.PASSWORD_RESET_URL || 'http://localhost:3001/reset-password',
   appDeepLinkBaseUrl: process.env.APP_DEEP_LINK_BASE_URL || 'https://gathergo.app',
 
-  // ─── FCM ─────────────────────────────────────
-  fcm: {
-    serverKey: process.env.FCM_SERVER_KEY,
+  // ─── Firebase / FCM v1 ───────────────────────
+  // GOOGLE_APPLICATION_CREDENTIALS = path to Firebase service account JSON
+  // FIREBASE_PROJECT_ID = Firebase project id (default: gatherrgo)
+  firebase: {
+    projectId: process.env.FIREBASE_PROJECT_ID || 'gatherrgo',
+    credentialsPath: process.env.GOOGLE_APPLICATION_CREDENTIALS,
   },
 
   // ─── AI Provider ─────────────────────────────

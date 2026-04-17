@@ -35,10 +35,10 @@ const processReminders = async () => {
       try {
         // Get all trip members with FCM tokens
         const membersResult = await db(
-          `SELECT u.sns_endpoint_arn AS fcm_token
+          `SELECT u.fcm_token
            FROM trip_members tm
            JOIN users u ON u.id = tm.user_id
-           WHERE tm.trip_id = $1 AND u.sns_endpoint_arn IS NOT NULL`,
+           WHERE tm.trip_id = $1 AND u.fcm_token IS NOT NULL`,
           [reminder.trip_id],
         );
 
