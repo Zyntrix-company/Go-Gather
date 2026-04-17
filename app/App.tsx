@@ -13,11 +13,14 @@ import RootNavigator from './src/navigation/RootNavigator';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import Geolocation from '@react-native-community/geolocation';
 import Toast from 'react-native-toast-message';
+import { usePushNotifications } from './src/hooks/usePushNotifications';
 
 // Configure geolocation to use native Android location provider
 Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLevel: 'whenInUse' });
 
 function App() {
+  usePushNotifications();
+
   useEffect(() => {
     // TODO: replace with actual webClientId from Google Cloud console
     try {

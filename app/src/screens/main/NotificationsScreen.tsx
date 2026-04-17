@@ -9,73 +9,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
+import useNotificationStore from '../../store/notificationStore';
 
-const NOTIFICATIONS = [
-  {
-    id: '1',
-    type: 'trip_invite',
-    title: 'Trip Invitation',
-    message: 'Alex invited you to join "Goa Birthday Trip"',
-    time: '2 min ago',
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'expense_added',
-    title: 'New Expense',
-    message: 'Sam added ₹1,200 for "Hotel booking" in Goa Birthday Trip',
-    time: '1 hour ago',
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'poll_created',
-    title: 'New Poll',
-    message: 'A new poll was created in Spring Music Festival: "Which day works best?"',
-    time: '3 hours ago',
-    read: true,
-  },
-  {
-    id: '4',
-    type: 'member_joined',
-    title: 'Member Joined',
-    message: 'Priya joined your trip "Goa Birthday Trip"',
-    time: '5 hours ago',
-    read: true,
-  },
-  {
-    id: '5',
-    type: 'reminder',
-    title: 'Trip Reminder',
-    message: 'Your trip "Goa Birthday Trip" is in 63 days. Start planning!',
-    time: '1 day ago',
-    read: true,
-  },
-  {
-    id: '6',
-    type: 'document_uploaded',
-    title: 'Document Uploaded',
-    message: 'Alex uploaded "Flight_Tickets.pdf" to Goa Birthday Trip',
-    time: '2 days ago',
-    read: true,
-  },
-  {
-    id: '7',
-    type: 'trip_invite',
-    title: 'Trip Invitation',
-    message: 'Jordan invited you to "Winter Ski Trip in Manali"',
-    time: '3 days ago',
-    read: true,
-  },
-  {
-    id: '8',
-    type: 'expense_added',
-    title: 'Expense Settled',
-    message: 'Sam marked ₹600 as settled in Spring Music Festival',
-    time: '4 days ago',
-    read: true,
-  },
-];
+function getRelativeTime(ts: number): string {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return 'Just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hour${Math.floor(diff / 3600) > 1 ? 's' : ''} ago`;
+  return `${Math.floor(diff / 86400)} day${Math.floor(diff / 86400) > 1 ? 's' : ''} ago`;
+}
 
 function getNotificationIcon(type: string) {
   switch (type) {
@@ -133,21 +75,13 @@ function getIconBg(type: string) {
 
 export default function NotificationsScreen({ navigation }: any) {
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  const [notifications, setNotifications] = useState(NOTIFICATIONS);
+  const { notifications, markRead, markAllRead } = useNotificationStore();
 
   const displayed = filter === 'unread'
     ? notifications.filter(n => !n.read)
     : notifications;
 
   const unreadCount = notifications.filter(n => !n.read).length;
-
-  function markAllRead() {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  }
-
-  function markRead(id: string) {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  }
 
   return (
     <BlobBackground>
@@ -217,7 +151,7 @@ export default function NotificationsScreen({ navigation }: any) {
                   {!item.read && <View style={styles.unreadDot} />}
                 </View>
                 <Text style={styles.notifMessage} numberOfLines={2}>{item.message}</Text>
-                <Text style={styles.notifTime}>{item.time}</Text>
+                <Text style={styles.notifTime}>{getRelativeTime(item.receivedAt)}</Text>
               </View>
             </TouchableOpacity>
           )}

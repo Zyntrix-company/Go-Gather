@@ -98,25 +98,28 @@ const saveProfile = async (userId, profileData) => {
       logger.error('Failed to send welcome email', { userId, error: err.message });
     });
 
-    // Fire welcome push notification — non-blocking
+    // Fire welcome push notification after 100s delay (gives time to background the app for testing)
+    // TODO: remove delay before production launch
     const firstName = row.full_name?.split(' ')[0] || 'there';
-    db.query('SELECT fcm_token FROM users WHERE id = $1', [userId]).then(({ rows }) => {
-      const token = rows[0]?.fcm_token;
-      if (token) {
-        sendFCMNotification(
-          token,
-          {
-            title: 'Welcome to GatherGo! 🎉',
-            body: `Hey ${firstName}, your account is all set. Start planning your first trip!`,
-          },
-          { type: 'WELCOME' },
-        ).catch((err) => {
-          logger.error('Failed to send welcome push', { userId, error: err.message });
-        });
-      }
-    }).catch((err) => {
-      logger.error('Failed to send welcome push', { userId, error: err.message });
-    });
+    setTimeout(() => {
+      db.query('SELECT fcm_token FROM users WHERE id = $1', [userId]).then(({ rows }) => {
+        const token = rows[0]?.fcm_token;
+        if (token) {
+          sendFCMNotification(
+            token,
+            {
+              title: 'Welcome to GatherGo! 🎉',
+              body: `Hey ${firstName}, your account is all set. Start planning your first trip!`,
+            },
+            { type: 'WELCOME' },
+          ).catch((err) => {
+            logger.error('Failed to send welcome push', { userId, error: err.message });
+          });
+        }
+      }).catch((err) => {
+        logger.error('Failed to send welcome push', { userId, error: err.message });
+      });
+    }, 100_000);
 
 
     return {

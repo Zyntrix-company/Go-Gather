@@ -35,6 +35,7 @@ import {
 import BlobBackground from '../../components/common/BlobBackground';
 import AppHeader from '../../components/common/AppHeader';
 import useAuthStore from '../../store/authStore';
+import useNotificationStore from '../../store/notificationStore';
 import useAuth from '../../hooks/useAuth';
 import {
   getTrips,
@@ -413,6 +414,7 @@ export default function HomeScreen({ navigation, route }: any) {
   const insets = useSafeAreaInsets();
   const { logout, refreshProfile } = useAuth();
   const rawUser = useAuthStore((s) => s.user) as any;
+  const unreadCount = useNotificationStore((s) => s.notifications.filter(n => !n.read).length);
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showTripMenu, setShowTripMenu] = useState<string | null>(null);
@@ -1249,7 +1251,7 @@ export default function HomeScreen({ navigation, route }: any) {
     <BlobBackground>
       <SafeAreaView style={styles.container}>
         <AppHeader
-          notificationCount={2}
+          notificationCount={unreadCount}
           onLogoPress={() => setActiveTab('home')}
           onBellPress={() => navigation.navigate('Notifications')}
           onMenuPress={() => setShowProfileMenu(true)}
