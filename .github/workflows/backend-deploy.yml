@@ -41,7 +41,7 @@ jobs:
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         request_pty: true
-        envs: FIREBASE_SERVICE_ACCOUNT_JSON
+        envs: FIREBASE_SERVICE_ACCOUNT_B64
         script: |
           set -e
 
@@ -49,30 +49,21 @@ jobs:
           aws ecr get-login-password --region ap-south-1 \
             | docker login --username AWS --password-stdin 092201262561.dkr.ecr.ap-south-1.amazonaws.com
 
-          # ── 2. Write Firebase service account JSON from GitHub Secret ──────────
-          # FIREBASE_SERVICE_ACCOUNT_JSON secret holds the raw JSON content.
-          # Written once and reused across deploys — only updates if secret changes.
-          FIREBASE_JSON_PATH=/home/ubuntu/Go-Gather/backend/firebase-service-account.json
-          if [ -n "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
-            echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$FIREBASE_JSON_PATH"
-            chmod 600 "$FIREBASE_JSON_PATH"
-            echo "Firebase service account JSON written to $FIREBASE_JSON_PATH"
-          else
-            echo "WARNING: FIREBASE_SERVICE_ACCOUNT_JSON secret not set — skipping"
-          fi
-
-          # ── 3. Ensure Firebase env vars are in .env (idempotent) ───────────────
+          # ── 2. Inject Firebase credentials into .env (idempotent) ─────────────
+          # Credentials are passed as base64-encoded JSON — no file/volume needed.
           ENV_FILE=/home/ubuntu/Go-Gather/backend/.env
-          if ! grep -q 'FIREBASE_PROJECT_ID' "$ENV_FILE"; then
-            echo "" >> "$ENV_FILE"
-            echo "GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-service-account.json" >> "$ENV_FILE"
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT_B64" ]; then
+            # Remove any old Firebase lines then re-add with current values
+            sed -i '/^FIREBASE_SERVICE_ACCOUNT_B64=/d' "$ENV_FILE" || true
+            sed -i '/^FIREBASE_PROJECT_ID=/d' "$ENV_FILE" || true
+            echo "FIREBASE_SERVICE_ACCOUNT_B64=$FIREBASE_SERVICE_ACCOUNT_B64" >> "$ENV_FILE"
             echo "FIREBASE_PROJECT_ID=gatherrgo" >> "$ENV_FILE"
-            echo "Firebase env vars added to .env"
+            echo "Firebase credentials injected into .env"
           else
-            echo "Firebase env vars already present in .env"
+            echo "WARNING: FIREBASE_SERVICE_ACCOUNT_B64 secret not set — push notifications disabled"
           fi
 
-          # ── 4. Pull new image ──────────────────────────────────────────────────
+          # ── 3. Pull new image ──────────────────────────────────────────────────
           docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
           # ── 5. Remove old container ────────────────────────────────────────────
@@ -107,7 +98,6 @@ jobs:
             --restart unless-stopped \
             -p 3000:3000 \
             --env-file .env \
-            -v /home/ubuntu/Go-Gather/backend/firebase-service-account.json:/app/firebase-service-account.json:ro \
             092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
           # ── 8. Confirm running ─────────────────────────────────────────────────

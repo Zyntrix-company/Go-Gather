@@ -10,15 +10,28 @@ const FCM_URL = `https://fcm.googleapis.com/v1/projects/${FCM_PROJECT_ID}/messag
 let _auth = null;
 
 const getAuth = () => {
-  if (!_auth) {
-    const rawPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    if (!rawPath) return null;
-    // Resolve relative paths from backend root (2 levels up from src/utils/)
-    const keyFile = path.isAbsolute(rawPath)
-      ? rawPath
-      : path.resolve(__dirname, '../../', rawPath);
-    _auth = new GoogleAuth({ keyFile, scopes: [FCM_SCOPE] });
+  if (_auth) return _auth;
+
+  // Production: credentials passed as base64-encoded JSON env var (no file needed)
+  const b64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64;
+  if (b64) {
+    try {
+      const credentials = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+      _auth = new GoogleAuth({ credentials, scopes: [FCM_SCOPE] });
+      return _auth;
+    } catch (e) {
+      logger.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_B64', { error: e.message });
+      return null;
+    }
   }
+
+  // Local dev fallback: file path via GOOGLE_APPLICATION_CREDENTIALS
+  const rawPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (!rawPath) return null;
+  const keyFile = path.isAbsolute(rawPath)
+    ? rawPath
+    : path.resolve(__dirname, '../../', rawPath);
+  _auth = new GoogleAuth({ keyFile, scopes: [FCM_SCOPE] });
   return _auth;
 };
 
