@@ -1,3 +1,4 @@
+const path = require('path');
 const { GoogleAuth } = require('google-auth-library');
 const axios = require('axios');
 const logger = require('./logger');
@@ -10,8 +11,12 @@ let _auth = null;
 
 const getAuth = () => {
   if (!_auth) {
-    const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    if (!keyFile) return null;
+    const rawPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    if (!rawPath) return null;
+    // Resolve relative paths from backend root (2 levels up from src/utils/)
+    const keyFile = path.isAbsolute(rawPath)
+      ? rawPath
+      : path.resolve(__dirname, '../../', rawPath);
     _auth = new GoogleAuth({ keyFile, scopes: [FCM_SCOPE] });
   }
   return _auth;
