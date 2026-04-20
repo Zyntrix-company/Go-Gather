@@ -3,7 +3,9 @@ import {
   View, Text, TouchableOpacity, ScrollView, Image,
   Dimensions, StyleSheet, ActivityIndicator, Modal,
 } from 'react-native';
+import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { Plane, CalendarDays } from 'lucide-react-native';
 import { getUserGallery } from '../../api/ai.api';
 import { getTripPhotos } from '../../api/trips.api';
 import { getEventPhotos } from '../../api/events.api';
@@ -40,12 +42,14 @@ const CloseIcon = () => (
   </Svg>
 );
 
+
 // ─── Section header ─────────────────────────────────────────────────────────
 
-function SectionHeader({ title, count, onAdd }: { title: string; count: number; onAdd?: () => void }) {
+function SectionHeader({ title, count, onAdd, icon }: { title: string; count: number; onAdd?: () => void; icon?: React.ReactNode }) {
   return (
     <View style={styles.sectionHeader}>
       <View style={styles.sectionTitleRow}>
+        {icon && <View style={styles.sectionIcon}>{icon}</View>}
         <Text style={styles.sectionTitle}>{title}</Text>
         {count > 0 && (
           <View style={styles.countBadge}>
@@ -73,8 +77,8 @@ function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
   return (
     <TouchableOpacity style={styles.gridCard} onPress={onPress} activeOpacity={0.85}>
       {hasImage ? (
-        <Image
-          source={{ uri: item.bannerImageUrl }}
+        <CachedImage
+          uri={item.bannerImageUrl}
           style={styles.gridCardImage}
           resizeMode="cover"
           onError={() => setImgError(true)}
@@ -110,6 +114,67 @@ type PhotoItem = {
   activityId?: string | null;
   activityTitle?: string | null;
 };
+
+// ─── Photo thumbnail with loading state ──────────────────────────────────────
+
+function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.thumb}>
+      {!failed ? (
+        <>
+          <CachedImage
+            uri={photo.uri}
+            style={styles.thumbImg}
+            resizeMode="cover"
+            onLoad={() => setLoading(false)}
+            onError={() => { setLoading(false); setFailed(true); }}
+          />
+          {loading && (
+            <View style={styles.thumbLoader}>
+              <ActivityIndicator size="small" color="#0d9488" />
+            </View>
+          )}
+        </>
+      ) : (
+        <View style={styles.thumbError}>
+          <CameraIcon />
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+// ─── Full-screen preview with loading indicator ───────────────────────────────
+
+function PreviewModal({ photo, onClose }: { photo: PhotoItem | null; onClose: () => void }) {
+  const [previewLoading, setPreviewLoading] = useState(true);
+  useEffect(() => { if (photo) setPreviewLoading(true); }, [photo?.uri]);
+  return (
+    <View style={styles.previewBg}>
+      <TouchableOpacity onPress={onClose} style={styles.previewClose} activeOpacity={0.8}>
+        <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+          <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      </TouchableOpacity>
+      {photo && (
+        <>
+          <CachedImage
+            uri={photo.uri}
+            style={styles.previewImg}
+            resizeMode="contain"
+            onLoad={() => setPreviewLoading(false)}
+            onError={() => setPreviewLoading(false)}
+          />
+          {previewLoading && (
+            <ActivityIndicator style={styles.previewLoader} size="large" color="#fff" />
+          )}
+        </>
+      )}
+    </View>
+  );
+}
 
 // ─── Photos modal ─────────────────────────────────────────────────────────────
 
@@ -167,19 +232,7 @@ function PhotosModal({
   });
 
   const renderThumb = (ph: PhotoItem) => (
-    <TouchableOpacity
-      key={ph.id}
-      onPress={() => setPreviewPhoto(ph)}
-      activeOpacity={0.85}
-      style={styles.thumb}
-    >
-      <Image
-        source={{ uri: ph.uri }}
-        style={styles.thumbImg}
-        resizeMode="cover"
-        onError={() => console.warn('[GalleryTab] Failed to load photo:', ph.uri)}
-      />
-    </TouchableOpacity>
+    <PhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewPhoto(ph)} />
   );
 
   return (
@@ -257,24 +310,7 @@ function PhotosModal({
 
       {/* Full-screen preview */}
       <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
-        <View style={styles.previewBg}>
-          <TouchableOpacity
-            onPress={() => setPreviewPhoto(null)}
-            style={styles.previewClose}
-            activeOpacity={0.8}
-          >
-            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-              <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
-          </TouchableOpacity>
-          {previewPhoto && (
-            <Image
-              source={{ uri: previewPhoto.uri }}
-              style={styles.previewImg}
-              resizeMode="contain"
-            />
-          )}
-        </View>
+        <PreviewModal photo={previewPhoto} onClose={() => setPreviewPhoto(null)} />
       </Modal>
     </>
   );
@@ -392,6 +428,7 @@ export default function GalleryTab({
           title="Gallery of Trips"
           count={displayTrips.length}
           onAdd={() => onSetActiveTab('trips')}
+          icon={<Plane size={20} color="#0d9488" />}
         />
         <View style={styles.grid}>
           {displayTrips.length > 0
@@ -412,6 +449,7 @@ export default function GalleryTab({
           title="Gallery of Events"
           count={galleryEvents.length}
           onAdd={() => onSetActiveTab('events')}
+          icon={<CalendarDays size={20} color="#f59e0b" />}
         />
         <View style={styles.grid}>
           {galleryEvents.length > 0
@@ -471,6 +509,7 @@ const styles = StyleSheet.create({
 
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionIcon: { alignItems: 'center', justifyContent: 'center' },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: '#1e293b' },
   countBadge: {
     backgroundColor: '#f0fdfa', borderRadius: 10,
@@ -523,6 +562,8 @@ const styles = StyleSheet.create({
   thumbRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   thumb: { width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' },
   thumbImg: { width: 80, height: 80, borderRadius: 8 },
+  thumbLoader: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' },
+  thumbError: { width: 80, height: 80, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' },
 
   // Full-screen preview
   previewBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' },
@@ -533,4 +574,5 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   previewImg: { width: SCREEN_W, height: SCREEN_W * 1.2 },
+  previewLoader: { position: 'absolute' },
 });

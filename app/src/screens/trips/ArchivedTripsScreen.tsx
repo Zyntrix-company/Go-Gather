@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, Alert, ActivityIndicator,
+  ScrollView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 import { getArchivedTrips, unarchiveTrip, deleteTrip, handleApiError } from '../../api/trips.api';
+import { showConfirm } from '../../store/alertStore';
 import { UnifiedCard } from '../../components/common/Cards';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -75,48 +76,37 @@ export default function ArchivedTripsScreen() {
 
   async function handleUnarchive(trip: ArchivedTrip) {
     setOpenMenuId(null);
-    Alert.alert(
-      'Restore Trip',
-      `Restore "${trip.name}" to your trips?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Restore',
-          onPress: async () => {
-            try {
-              await unarchiveTrip(trip.id);
-              setTrips(prev => prev.filter(t => t.id !== trip.id));
-              Toast.show({ type: 'success', text1: 'Restored', text2: `"${trip.name}" moved back to trips.` });
-            } catch (err) {
-              handleApiError(err);
-            }
-          },
-        },
-      ],
-    );
+    showConfirm({
+      title: 'Restore Trip',
+      message: `Restore "${trip.name}" to your trips?`,
+      confirmText: 'Restore',
+      onConfirm: async () => {
+        try {
+          await unarchiveTrip(trip.id);
+          setTrips(prev => prev.filter(t => t.id !== trip.id));
+          Toast.show({ type: 'success', text1: 'Restored', text2: `"${trip.name}" moved back to trips.` });
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
   }
 
   async function handleDeleteTrip(trip: ArchivedTrip) {
-    Alert.alert(
-      'Delete Trip',
-      `Permanently delete "${trip.name}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteTrip(trip.id);
-              setTrips(prev => prev.filter(t => t.id !== trip.id));
-              Toast.show({ type: 'success', text1: 'Deleted', text2: `"${trip.name}" has been deleted.` });
-            } catch (err) {
-              handleApiError(err);
-            }
-          },
-        },
-      ],
-    );
+    showConfirm({
+      title: 'Delete Trip',
+      message: `Permanently delete "${trip.name}"? This cannot be undone.`,
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteTrip(trip.id);
+          setTrips(prev => prev.filter(t => t.id !== trip.id));
+          Toast.show({ type: 'success', text1: 'Deleted', text2: `"${trip.name}" has been deleted.` });
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
   }
 
   return (

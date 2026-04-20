@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
-  TextInput, Alert, Animated, PanResponder, Image, Platform, Linking, NativeModules,
+  TextInput, Animated, PanResponder, Image, Platform, Linking, NativeModules,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
@@ -12,9 +13,11 @@ import { WebView } from 'react-native-webview';
 // DocumentPicker loaded dynamically to avoid crash if native module not yet linked
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import BlobBackground from '../../components/common/BlobBackground';
+import CachedImage from '../../components/common/CachedImage';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
 import useAuthStore from '../../store/authStore';
+import { showAlert, showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
 import {
   getTripDetail,
@@ -320,16 +323,87 @@ function TabBar({ tabs, active, onSelect }: { tabs: string[]; active: string; on
   );
 }
 
+// ─── Photo helper components ──────────────────────────────────────────────────
+
+function TripPhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const uri = photo.localUri ?? photo.uri;
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
+      {!failed ? (
+        <>
+          <CachedImage
+            uri={uri}
+            style={{ width: 80, height: 80, borderRadius: 8 }}
+            resizeMode="cover"
+            onLoad={() => setLoading(false)}
+            onError={() => { setLoading(false); setFailed(true); }}
+          />
+          {loading && (
+            <View style={{ ...StyleSheet.absoluteFillObject as any, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' }}>
+              <ActivityIndicator size="small" color="#0d9488" />
+            </View>
+          )}
+        </>
+      ) : (
+        <View style={{ width: 80, height: 80, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' }}>
+          <Text style={{ fontSize: 22 }}>🖼️</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function TripPhotoPreview({ photo }: { photo: PhotoItem }) {
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { setLoading(true); }, [photo.uri]);
+  return (
+    <>
+      <CachedImage
+        uri={photo.localUri ?? photo.uri}
+        style={{ width: '100%', height: '75%' }}
+        resizeMode="contain"
+        onLoad={() => setLoading(false)}
+        onError={() => setLoading(false)}
+      />
+      {loading && <ActivityIndicator style={{ position: 'absolute' }} size="large" color="#fff" />}
+      {photo.activityTitle && (
+        <View style={{ marginTop: 16, paddingHorizontal: 20, alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(13,148,136,0.25)', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#0d9488' }} />
+            <Text style={{ color: '#5eead4', fontSize: 13, fontWeight: '600' }}>{photo.activityTitle}</Text>
+          </View>
+        </View>
+      )}
+    </>
+  );
+}
+
+function FriendAvatar({ uri, name, style }: { uri: string; name: string; style: any }) {
+  const [failed, setFailed] = useState(false);
+  if (!uri || failed) {
+    return (
+      <View style={[style, { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }]}>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: '#94a3b8' }}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
+      </View>
+    );
+  }
+  return <CachedImage uri={uri} style={style} resizeMode="cover" onError={() => setFailed(true)} />;
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function TripDetailScreen({ route, navigation }: any) {
   const [trip, setTrip] = useState(route?.params?.trip);
   const rawUser = useAuthStore(s => s.user) as any;
   const currentUserId: string = rawUser?.id ?? '';
+  const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
 
   // ── API-driven state ──
   const [role, setRole] = useState<'admin' | 'member'>('member');
   const [members, setMembers] = useState<TripMember[]>([]);
+  const [failedAvatarIds, setFailedAvatarIds] = useState<Set<string>>(new Set());
   const [balances, setBalances] = useState<Debt[]>([]);
   const [myBalance, setMyBalance] = useState<number>(0);
   const [totalExpenses, setTotalExpenses] = useState<string>('0.00');
@@ -462,7 +536,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
         setTrip((prev: any) => ({ ...prev, ...detailRes.trip, location: locStr }));
         setRole(detailRes.role);
         if ((detailRes as any).stats) setApiStats((detailRes as any).stats);
-        setMembers(membersRes.members);
+        const freshUrl = useAuthStore.getState().user?.photoUrl || useAuthStore.getState().user?.avatarUrl || null;
+        setMembers(membersRes.members.map((m: TripMember) =>
+          m.userId === currentUserId && freshUrl ? { ...m, avatarUrl: freshUrl } : m
+        ));
         // Balance — handles both old and new backend formats
         const balParsed = parseBalanceResponse(balRes, currentUserId, membersRes.members);
         setBalances(balParsed.debts);
@@ -630,9 +707,25 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── Load members + friends when members modal opens ──
   useEffect(() => {
     if (!showMembers || !tripId) return;
-    getTripMembers(tripId).then(res => setMembers(res.members)).catch(handleApiError);
+    getTripMembers(tripId).then(res => {
+      const freshUrl = useAuthStore.getState().user?.photoUrl || useAuthStore.getState().user?.avatarUrl || null;
+      setMembers(res.members.map((m: TripMember) =>
+        m.userId === currentUserId && freshUrl ? { ...m, avatarUrl: freshUrl } : m
+      ));
+    }).catch(handleApiError);
     getFriends().then(res => setApiFriends(res.friends.map(f => ({ id: f.user.id, name: f.user.name, avatarUrl: f.user.avatarUrl })))).catch(() => { });
   }, [showMembers, tripId]);
+
+  // ── Re-patch current user's avatar when photo is updated ──
+  useEffect(() => {
+    if (avatarUpdatedAt === 0) return;
+    const freshUrl = useAuthStore.getState().user?.photoUrl || useAuthStore.getState().user?.avatarUrl || null;
+    if (!freshUrl) return;
+    setMembers(prev => prev.map(m =>
+      m.userId === currentUserId ? { ...m, avatarUrl: freshUrl } : m
+    ));
+    setFailedAvatarIds(new Set());
+  }, [avatarUpdatedAt, currentUserId]);
 
   // ── Derived ──
   const days = trip?.startDateISO ? daysUntilISO(trip.startDateISO) : 0;
@@ -670,7 +763,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── Activity handlers (API-backed) ──
 
   async function handleAddActivity() {
-    if (!actTitle.trim()) { Alert.alert('Error', 'Please enter a title'); return; }
+    if (!actTitle.trim()) { showAlert({ title: 'Error', message: 'Please enter a title' }); return; }
     if (isSubmitting) return;
     // Validate activity date is within trip date range
     if (actDate) {
@@ -828,17 +921,17 @@ export default function TripDetailScreen({ route, navigation }: any) {
   }
 
   async function handleDeleteActivity(actId: string) {
-    Alert.alert('Delete', 'Remove this activity?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            await deleteActivity(tripId, actId);
-            setActivities(p => p.filter(a => a.id !== actId));
-          } catch (err) { handleApiError(err); }
-        }
+    showConfirm({
+      title: 'Delete',
+      message: 'Remove this activity?',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteActivity(tripId, actId);
+          setActivities(p => p.filter(a => a.id !== actId));
+        } catch (err) { handleApiError(err); }
       },
-    ]);
+    });
   }
 
   // ── Photo handlers (API-backed) ──
@@ -924,7 +1017,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── Expense handlers (API-backed) ──
 
   async function handleAddExpense() {
-    if (!expDesc.trim() || !expAmount) { Alert.alert('Error', 'Please fill description and amount'); return; }
+    if (!expDesc.trim() || !expAmount) { showAlert({ title: 'Error', message: 'Please fill description and amount' }); return; }
     if (isSubmitting) return;
 
     const amount = parseFloat(expAmount) || 0;
@@ -942,14 +1035,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
     if (apiSplitType === 'amount') {
       const sum = (splitAmong as any[]).reduce((s: number, x: any) => s + (x.amount ?? 0), 0);
       if (Math.abs(sum - amount) > 0.01) {
-        Alert.alert('Validation Error', 'Split amounts must sum to the total expense amount.');
+        showAlert({ title: 'Validation Error', message: 'Split amounts must sum to the total expense amount.' });
         return;
       }
     }
     if (apiSplitType === 'percentage') {
       const sum = (splitAmong as any[]).reduce((s: number, x: any) => s + (x.percentage ?? 0), 0);
       if (Math.abs(sum - 100) > 0.01) {
-        Alert.alert('Validation Error', 'Percentages must sum to 100.');
+        showAlert({ title: 'Validation Error', message: 'Percentages must sum to 100.' });
         return;
       }
     }
@@ -1029,22 +1122,21 @@ export default function TripDetailScreen({ route, navigation }: any) {
       Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'You can only delete your own expenses.' });
       return;
     }
-    Alert.alert('Delete', 'Remove this expense?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            const res = await deleteExpense(tripId, eid);
-            setExpenses(p => p.filter(e => e.id !== eid));
-            if (res.balances) setBalances(normalizeDebtArray(res.balances, currentUserId, members));
-            // Refresh myBalance after deleting expense
-            const balData = await getBalances(tripId);
-            setMyBalance(balData.myBalance ?? 0);
-            setTotalExpenses(balData.totalExpenses ?? '0');
-          } catch (err) { handleApiError(err); }
-        }
+    showConfirm({
+      title: 'Delete',
+      message: 'Remove this expense?',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          const res = await deleteExpense(tripId, eid);
+          setExpenses(p => p.filter(e => e.id !== eid));
+          if (res.balances) setBalances(normalizeDebtArray(res.balances, currentUserId, members));
+          const balData = await getBalances(tripId);
+          setMyBalance(balData.myBalance ?? 0);
+          setTotalExpenses(balData.totalExpenses ?? '0');
+        } catch (err) { handleApiError(err); }
       },
-    ]);
+    });
   }
 
   async function handleSettleDebt(withUserId: string, amount: number) {
@@ -1059,7 +1151,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   async function handleCreatePoll() {
     const valid = pollOptions.filter(o => o.trim());
-    if (!pollQuestion.trim() || valid.length < 2) { Alert.alert('Error', 'Enter a question and at least 2 options'); return; }
+    if (!pollQuestion.trim() || valid.length < 2) { showAlert({ title: 'Error', message: 'Enter a question and at least 2 options' }); return; }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
@@ -1093,7 +1185,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── Note handlers (API-backed) ──
 
   async function handleAddNote() {
-    if (!noteTitle.trim()) { Alert.alert('Error', 'Please enter a title'); return; }
+    if (!noteTitle.trim()) { showAlert({ title: 'Error', message: 'Please enter a title' }); return; }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
@@ -1169,7 +1261,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   }
 
   async function handleSaveTrip() {
-    if (!editName.trim()) { Alert.alert('Error', 'Trip name is required'); return; }
+    if (!editName.trim()) { showAlert({ title: 'Error', message: 'Trip name is required' }); return; }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
@@ -1202,7 +1294,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     const emailsToInvite = inviteInput.trim() ? [inviteInput.trim()] : [];
     const friendsToAdd = selectedFriends.length ? selectedFriends : [];
     if (!emailsToInvite.length && !friendsToAdd.length) {
-      Alert.alert('Error', 'Select friends or enter an email to invite');
+      showAlert({ title: 'Error', message: 'Select friends or enter an email to invite' });
       return;
     }
     if (isSubmitting) return;
@@ -1217,7 +1309,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       Toast.show({ type: 'success', text1: `${addedCount} added, ${invitedCount} invite(s) sent` });
       if (res.invited?.length) {
         const url = res.invited[0].branchUrl;
-        Alert.alert('Invite Link', `Share this link:\n${url}`);
+        showAlert({ title: 'Invite Link', message: `Share this link:\n${url}` });
       }
       // Refresh members list
       const membersRes = await getTripMembers(tripId);
@@ -1259,15 +1351,15 @@ export default function TripDetailScreen({ route, navigation }: any) {
           />
           {role === 'admin' && (
             <TouchableOpacity
-              onPress={() => Alert.alert('Delete Trip', 'This will permanently delete the trip and all its data.', [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete', style: 'destructive', onPress: async () => {
-                    try { await apiDeleteTrip(tripId); navigation.goBack(); }
-                    catch (err) { handleApiError(err); }
-                  }
+              onPress={() => showConfirm({
+                title: 'Delete Trip',
+                message: 'This will permanently delete the trip and all its data.',
+                destructive: true,
+                onConfirm: async () => {
+                  try { await apiDeleteTrip(tripId); navigation.goBack(); }
+                  catch (err) { handleApiError(err); }
                 },
-              ])}
+              })}
               style={{ alignSelf: 'flex-end', marginRight: 16, marginBottom: 4, marginTop: -2 }}
               activeOpacity={0.7}>
               <Text style={{ fontSize: 11, color: '#ef4444', fontWeight: '600' }}>Delete Trip</Text>
@@ -1580,7 +1672,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           if (actExpDesc.trim() && actExpAmount) {
                             setActExpConfirmed(true);
                             setShowActExp(false);
-                          } else { Alert.alert('Error', 'Enter description and amount'); }
+                          } else { showAlert({ title: 'Error', message: 'Enter description and amount' }); }
                         }} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>Confirm</Text></TouchableOpacity>
                       </View>
                     </View>
@@ -1669,7 +1761,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     </View>
                   ) : docs.map(doc => (
                     <TouchableOpacity key={doc.id} style={styles.docRow} activeOpacity={0.7}
-                      onPress={() => doc.uri ? setDocPreviewUrl(doc.uri) : Alert.alert('Error', 'Document URL not available.')}>
+                      onPress={() => doc.uri ? setDocPreviewUrl(doc.uri) : showAlert({ title: 'Error', message: 'Document URL not available.' })}>
                       <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
                         <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                         <Path d="M14 2v6h6M16 13H8M16 17H8" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -1702,8 +1794,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <Text style={styles.memberSectionLabel}>Current Members</Text>
                   {members.map(m => (
                     <View key={m.userId} style={styles.memberRow}>
-                      {m.avatarUrl
-                        ? <Image source={{ uri: m.avatarUrl }} style={styles.memberAvatar as any} />
+                      {m.avatarUrl && !failedAvatarIds.has(m.userId)
+                        ? <Image
+                            source={{ uri: m.avatarUrl }}
+                            style={styles.memberAvatar as any}
+                            onError={() => setFailedAvatarIds(prev => { const s = new Set(prev); s.add(m.userId); return s; })}
+                          />
                         : <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>}
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={styles.memberName}>{m.fullName || (m as any).name || 'Member'}{m.userId === currentUserId ? ' (You)' : ''}</Text>
@@ -1732,7 +1828,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       const sel = selectedFriends.includes(f.id);
                       return (
                         <TouchableOpacity key={f.id} style={styles.memberRow} onPress={() => setSelectedFriends(p => p.includes(f.id) ? p.filter(x => x !== f.id) : [...p, f.id])} activeOpacity={0.8}>
-                          <Image source={{ uri: f.avatar }} style={styles.memberAvatar as any} />
+                          <FriendAvatar uri={f.avatar} name={f.name} style={styles.memberAvatar as any} />
                           <View style={{ flex: 1, marginLeft: 10 }}>
                             <Text style={styles.memberName}>{f.name}</Text>
                           </View>
@@ -1825,14 +1921,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     });
 
                     const renderPhotoThumb = (ph: PhotoItem) => (
-                      <TouchableOpacity key={ph.id} onPress={() => setPreviewPhoto(ph)} activeOpacity={0.85} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
-                        <Image
-                          source={{ uri: ph.localUri ?? ph.uri }}
-                          style={{ width: 80, height: 80, borderRadius: 8 }}
-                          resizeMode="cover"
-                          onError={() => { }}
-                        />
-                      </TouchableOpacity>
+                      <TripPhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewPhoto(ph)} />
                     );
 
                     return (
@@ -1894,16 +1983,15 @@ export default function TripDetailScreen({ route, navigation }: any) {
               <TouchableOpacity
                 onPress={() => {
                   if (!previewPhoto) return;
-                  Alert.alert('Delete Photo', 'Remove this photo?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Delete', style: 'destructive',
-                      onPress: async () => {
-                        await handleDeletePhoto(previewPhoto.id, previewPhoto.uploadedBy ?? '');
-                        setPreviewPhoto(null);
-                      },
+                  showConfirm({
+                    title: 'Delete Photo',
+                    message: 'Remove this photo?',
+                    destructive: true,
+                    onConfirm: async () => {
+                      await handleDeletePhoto(previewPhoto.id, previewPhoto.uploadedBy ?? '');
+                      setPreviewPhoto(null);
                     },
-                  ]);
+                  });
                 }}
                 style={{ position: 'absolute', top: 48, right: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(239,68,68,0.85)', alignItems: 'center', justifyContent: 'center' }}
                 activeOpacity={0.8}
@@ -1914,22 +2002,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
               </TouchableOpacity>
             )}
             {previewPhoto && (
-              <>
-                <Image
-                  source={{ uri: previewPhoto.localUri ?? previewPhoto.uri }}
-                  style={{ width: '100%', height: '75%' }}
-                  resizeMode="contain"
-                  onError={() => { }}
-                />
-                {previewPhoto.activityTitle && (
-                  <View style={{ marginTop: 16, paddingHorizontal: 20, alignItems: 'center' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(13,148,136,0.25)', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 }}>
-                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#0d9488' }} />
-                      <Text style={{ color: '#5eead4', fontSize: 13, fontWeight: '600' }}>{previewPhoto.activityTitle}</Text>
-                    </View>
-                  </View>
-                )}
-              </>
+              <TripPhotoPreview photo={previewPhoto} />
             )}
           </View>
         </Modal>

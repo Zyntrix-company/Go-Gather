@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  Alert,
   Dimensions,
   FlatList,
   Animated,
@@ -35,6 +34,7 @@ import {
 import BlobBackground from '../../components/common/BlobBackground';
 import AppHeader from '../../components/common/AppHeader';
 import useAuthStore from '../../store/authStore';
+import { showConfirm } from '../../store/alertStore';
 import useNotificationStore from '../../store/notificationStore';
 import useAuth from '../../hooks/useAuth';
 import {
@@ -336,6 +336,15 @@ function fmtFullDate(iso: string): string {
   if (isNaN(d.getTime())) return 'TBD';
   return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} ${d.getFullYear()}`;
 }
+function patchAvatarUri(rawUri: string, prevUrl: string, freshUrl: string): string {
+  if (!rawUri || !freshUrl) return rawUri;
+  if (prevUrl && rawUri === prevUrl) return freshUrl;
+  try {
+    if (new URL(rawUri).pathname === new URL(freshUrl).pathname) return freshUrl;
+  } catch { /* malformed URL — fall through */ }
+  return rawUri;
+}
+
 function mapApiTrip(t: any): Trip {
   const locName = typeof t.location === 'string'
     ? t.location
@@ -358,9 +367,13 @@ function mapApiTrip(t: any): Trip {
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
     bannerCropFraction: t.bannerCropFraction ?? null,
-    members: (t.memberAvatars || []).slice(0, 4).map((av: any, idx: number) =>
-      typeof av === 'string' ? { id: av || `av-${idx}`, uri: av } : { id: String(av.id ?? `av-${idx}`), uri: av.uri ?? '' }
-    ),
+    members: (t.memberAvatars || []).slice(0, 4).map((av: any, idx: number) => {
+      const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
+      const { prevAvatarUrl, user } = useAuthStore.getState();
+      const freshUrl = user?.photoUrl || user?.avatarUrl || '';
+      const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
+      return { id: uri || `av-${idx}`, uri };
+    }),
     extraMembers: (t.memberAvatars || []).length === 0
       ? (t.memberCount ?? 0)
       : Math.max(0, (t.memberCount ?? 0) - Math.min((t.memberAvatars || []).length, 4)),
@@ -414,6 +427,7 @@ export default function HomeScreen({ navigation, route }: any) {
   const insets = useSafeAreaInsets();
   const { logout, refreshProfile } = useAuth();
   const rawUser = useAuthStore((s) => s.user) as any;
+  const avatarUpdatedAt = useAuthStore((s) => s.avatarUpdatedAt);
   const unreadCount = useNotificationStore((s) => s.notifications.filter(n => !n.read).length);
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -557,6 +571,12 @@ export default function HomeScreen({ navigation, route }: any) {
   loadTripsRef.current = () => loadTrips(1, true);
   loadHomeDataRef.current = () => loadHomeEvents();
 
+  useEffect(() => {
+    if (avatarUpdatedAt === 0) return;
+    loadTripsRef.current();
+    loadHomeDataRef.current();
+  }, [avatarUpdatedAt]);
+
   const user = rawUser ? {
     id: rawUser.id ?? rawUser.sub ?? '',
     fullName: rawUser.fullName ?? rawUser.full_name ?? '',
@@ -575,45 +595,37 @@ export default function HomeScreen({ navigation, route }: any) {
 
   function archiveTrip(trip: Trip) {
     setShowTripMenu(null);
-    Alert.alert(
-      'Archive Trip',
-      `Archive "${trip.name}"? You can restore it from Archived Trips anytime.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Archive', onPress: async () => {
-            try {
-              await archiveTripApi(trip.id);
-              setTrips(p => p.filter(t => t.id !== trip.id));
-              Toast.show({ type: 'success', text1: 'Archived', text2: `"${trip.name}" moved to archive.` });
-            } catch (err) {
-              handleApiError(err);
-            }
-          },
-        },
-      ],
-    );
+    showConfirm({
+      title: 'Archive Trip',
+      message: `Archive "${trip.name}"? You can restore it from Archived Trips anytime.`,
+      confirmText: 'Archive',
+      onConfirm: async () => {
+        try {
+          await archiveTripApi(trip.id);
+          setTrips(p => p.filter(t => t.id !== trip.id));
+          Toast.show({ type: 'success', text1: 'Archived', text2: `"${trip.name}" moved to archive.` });
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
   }
 
   function deleteTrip(trip: Trip) {
     setShowTripMenu(null);
-    Alert.alert(
-      'Delete Trip',
-      `Delete "${trip.name}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive', onPress: async () => {
-            try {
-              await apiDeleteTrip(trip.id);
-              setTrips(p => p.filter(t => t.id !== trip.id));
-            } catch (err) {
-              handleApiError(err);
-            }
-          },
-        },
-      ],
-    );
+    showConfirm({
+      title: 'Delete Trip',
+      message: `Delete "${trip.name}"? This cannot be undone.`,
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await apiDeleteTrip(trip.id);
+          setTrips(p => p.filter(t => t.id !== trip.id));
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
   }
 
   function toggleTripMenu(id: string) {
@@ -628,32 +640,32 @@ export default function HomeScreen({ navigation, route }: any) {
 
   function archiveHomeEvent(ev: any) {
     setShowEventMenu(null);
-    Alert.alert('Archive Event', `Archive "${ev.name}"? You can restore it anytime.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Archive', onPress: async () => {
-          try {
-            await apiArchiveEvent(ev.id);
-            setHomeEvents(p => p.filter(e => e.id !== ev.id));
-          } catch (err) { handleApiError(err); }
-        },
+    showConfirm({
+      title: 'Archive Event',
+      message: `Archive "${ev.name}"? You can restore it anytime.`,
+      confirmText: 'Archive',
+      onConfirm: async () => {
+        try {
+          await apiArchiveEvent(ev.id);
+          setHomeEvents(p => p.filter(e => e.id !== ev.id));
+        } catch (err) { handleApiError(err); }
       },
-    ]);
+    });
   }
 
   function deleteHomeEvent(ev: any) {
     setShowEventMenu(null);
-    Alert.alert('Delete Event?', 'This action cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            await apiDeleteEvent(ev.id);
-            setHomeEvents(p => p.filter(e => e.id !== ev.id));
-          } catch (err) { handleApiError(err); }
-        },
+    showConfirm({
+      title: 'Delete Event?',
+      message: 'This action cannot be undone.',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await apiDeleteEvent(ev.id);
+          setHomeEvents(p => p.filter(e => e.id !== ev.id));
+        } catch (err) { handleApiError(err); }
       },
-    ]);
+    });
   }
 
   function navigateToEventDetail(ev: any) {
@@ -1013,9 +1025,13 @@ export default function HomeScreen({ navigation, route }: any) {
             {homeEvents.slice(0, 3).map((ev: any) => {
             const locName = typeof ev.location === 'string' ? ev.location : (ev.location?.name ?? '');
             const rawAvatars: any[] = (ev.memberAvatars || []).slice(0, 4);
-            const avatars: { id: string; uri: string }[] = rawAvatars.map((av: any, i: number) =>
-              typeof av === 'string' ? { id: av || `ev-av-${i}`, uri: av } : { id: String(av.id ?? `ev-av-${i}`), uri: av.uri ?? '' }
-            );
+            const avatars: { id: string; uri: string }[] = rawAvatars.map((av: any, i: number) => {
+              const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
+              const { prevAvatarUrl, user } = useAuthStore.getState();
+              const freshUrl = user?.photoUrl || user?.avatarUrl || '';
+              const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
+              return { id: uri || `ev-av-${i}`, uri };
+            });
             const evExtra = rawAvatars.length === 0
               ? (ev.memberCount ?? 0)
               : Math.max(0, (ev.memberCount ?? 0) - rawAvatars.length);
@@ -1254,7 +1270,7 @@ export default function HomeScreen({ navigation, route }: any) {
           notificationCount={unreadCount}
           onLogoPress={() => setActiveTab('home')}
           onBellPress={() => navigation.navigate('Notifications')}
-          onMenuPress={() => setShowProfileMenu(true)}
+          onMenuPress={() => { setShowProfileMenu(true); refreshProfile(); }}
         />
 
         {showProfileMenu && (

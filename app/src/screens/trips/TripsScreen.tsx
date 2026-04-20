@@ -10,7 +10,6 @@ import {
   Image,
   Modal,
   TextInput,
-  Alert,
   Dimensions,
   FlatList,
   Animated,
@@ -29,8 +28,10 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { Plane } from 'lucide-react-native';
 import { UnifiedCard } from '../../components/common/Cards';
+import CachedImage from '../../components/common/CachedImage';
 import StackedAvatars from '../../components/common/StackedAvatars';
 import Toast from 'react-native-toast-message';
+import useAuthStore from '../../store/authStore';
 import DateInfoPopover from '../../components/common/DateInfoPopover';
 import {
   getTrips,
@@ -43,6 +44,7 @@ import {
   getFriends,
   handleApiError,
 } from '../../api/trips.api';
+import { showAlert, showConfirm } from '../../store/alertStore';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -211,6 +213,15 @@ function fmtDateNoYear(iso: string): string {
   return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
 }
 
+function patchAvatarUri(rawUri: string, prevUrl: string, freshUrl: string): string {
+  if (!rawUri || !freshUrl) return rawUri;
+  if (prevUrl && rawUri === prevUrl) return freshUrl;
+  try {
+    if (new URL(rawUri).pathname === new URL(freshUrl).pathname) return freshUrl;
+  } catch { /* malformed URL — fall through */ }
+  return rawUri;
+}
+
 function mapApiTrip(t: any): Trip {
   const locName = typeof t.location === 'string'
     ? t.location
@@ -234,7 +245,13 @@ function mapApiTrip(t: any): Trip {
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
     bannerCropFraction: t.bannerCropFraction ?? null,
-    members: (t.memberAvatars || []).slice(0, 4).map((uri: string, idx: number) => ({ id: `av-${idx}`, uri })),
+    members: (t.memberAvatars || []).slice(0, 4).map((av: any, idx: number) => {
+      const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
+      const { prevAvatarUrl, user } = useAuthStore.getState();
+      const freshUrl = user?.photoUrl || user?.avatarUrl || '';
+      const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
+      return { id: uri || `av-${idx}`, uri };
+    }),
     extraMembers: (t.memberAvatars || []).length === 0 ? (t.memberCount ?? 0) : Math.max(0, (t.memberCount ?? 0) - Math.min((t.memberAvatars || []).length, 4)),
   };
 }
@@ -269,7 +286,7 @@ const MoreIcon = ({ color = '#fff' }) => (
   </Svg>
 );
 
-const PlaneIcon = ({ color = '#0d9488', size = 44 }) => (
+const PlaneIcon = ({ color = '#0d9488', size = 40 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path
       d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"
@@ -341,6 +358,7 @@ function TripCardFullLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
       archiveLabel="Archive Trip"
       onArchive={onArchive}
       onDelete={onDelete}
+      mb={8}
     />
   );
 }
@@ -367,7 +385,7 @@ function TripCardPastLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
       archiveLabel="Archive Trip"
       onArchive={onArchive}
       onDelete={onDelete}
-      mb={10}
+      mb={8}
     />
   );
 }
@@ -534,7 +552,7 @@ export function CreateTripModal({
   }
 
   async function handleSave() {
-    if (!name.trim()) { Alert.alert('Error', 'Please enter a trip name'); return; }
+    if (!name.trim()) { showAlert({ title: 'Error', message: 'Please enter a trip name' }); return; }
     setIsSubmitting(true);
     try {
       await onSave({
@@ -562,7 +580,7 @@ export function CreateTripModal({
     try {
       const FilePicker = NativeModules.FilePicker;
       if (!FilePicker) {
-        Alert.alert('Not Available', 'File picker requires a fresh build.');
+        showAlert({ title: 'Not Available', message: 'File picker requires a fresh build.' });
         return;
       }
       const file: { uri: string; name: string; type: string } = await FilePicker.pick();
@@ -570,7 +588,7 @@ export function CreateTripModal({
       setUploadedDocs(p => [...p, { uri: file.uri, name: file.name ?? `file_${Date.now()}`, type: file.type ?? 'application/octet-stream' }]);
     } catch (err: any) {
       if (err?.code === 'CANCELLED' || err?.message === 'User cancelled') return;
-      Alert.alert('Error', 'Could not open file picker.');
+      showAlert({ title: 'Error', message: 'Could not open file picker.' });
     }
   }
 
@@ -582,11 +600,11 @@ export function CreateTripModal({
           { title: 'Location Permission', message: 'GoGather needs access to your location to fill in the trip location.', buttonPositive: 'Allow', buttonNegative: 'Deny' }
         );
         if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          Alert.alert('Permission Denied', 'Location permission was denied. Please type your location manually.');
+          showAlert({ title: 'Permission Denied', message: 'Location permission was denied. Please type your location manually.' });
           return;
         }
       } catch {
-        Alert.alert('Permission Error', 'Could not request location permission. Please type your location manually.');
+        showAlert({ title: 'Permission Error', message: 'Could not request location permission. Please type your location manually.' });
         return;
       }
     }
@@ -617,9 +635,9 @@ export function CreateTripModal({
         setFetchingLocation(false);
         const msg = err.message || '';
         if (msg.includes('provider') || msg.includes('No location') || msg.includes('disabled')) {
-          Alert.alert('Location Unavailable', 'Please enable GPS / Location Services on your device, then try again. Or type your location manually.');
+          showAlert({ title: 'Location Unavailable', message: 'Please enable GPS / Location Services on your device, then try again. Or type your location manually.' });
         } else {
-          Alert.alert('Location Error', 'Could not get location. Please type it manually.');
+          showAlert({ title: 'Location Error', message: 'Could not get location. Please type it manually.' });
         }
       },
       { enableHighAccuracy: false, timeout: 15000, maximumAge: 120000 }
@@ -665,8 +683,11 @@ export function CreateTripModal({
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.ctScrollContent}>
 
             {/* Trip Name */}
-            <Text style={styles.ctLabel}>Trip Name</Text>
-            <TextInput style={styles.ctInput} placeholder="e.g., Tokyo Getaway" placeholderTextColor="#94a3b8" value={name} onChangeText={setName} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.ctLabel}>Trip Name</Text>
+              <Text style={{ fontSize: 11, color: name.length >= 20 ? '#ef4444' : '#94a3b8' }}>{name.length}/20</Text>
+            </View>
+            <TextInput style={styles.ctInput} placeholder="e.g., Tokyo Getaway" placeholderTextColor="#94a3b8" value={name} onChangeText={setName} maxLength={20} />
 
             {/* Start / End Date row */}
             <View style={styles.ctDateRow}>
@@ -1013,7 +1034,7 @@ export function CreateTripModal({
                           const sel = selectedFriendIds.includes(friend.id);
                           return (
                             <TouchableOpacity key={friend.id} style={[styles.friendSelectRow, sel && { backgroundColor: '#f0fdfa' }]} onPress={() => toggleFriend(friend.id)} activeOpacity={0.8}>
-                              <Image source={{ uri: friend.uri }} style={styles.friendSelectAvatar as any} />
+                              <FriendSelectAvatar uri={friend.uri} name={friend.name} style={styles.friendSelectAvatar as any} />
                               <View style={{ flex: 1 }}>
                                 <Text style={styles.friendName}>{friend.name}</Text>
                                 <Text style={[styles.friendHandle, { fontSize: 12 }]}>{friend.email}</Text>
@@ -1035,7 +1056,7 @@ export function CreateTripModal({
                     <>
                       <Text style={[styles.ctLabel, { marginTop: 0 }]}>Email Address</Text>
                       <TextInput style={styles.ctInput} placeholder="Enter email address" placeholderTextColor="#94a3b8" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
-                      <TouchableOpacity style={[styles.ctCreateBtn, { alignSelf: 'stretch', marginTop: 8 }]} onPress={() => { if (inviteEmail.trim()) { Alert.alert('Invite sent!', `Invitation sent to ${inviteEmail}`); setInviteEmail(''); } }} activeOpacity={0.85}>
+                      <TouchableOpacity style={[styles.ctCreateBtn, { alignSelf: 'stretch', marginTop: 8 }]} onPress={() => { if (inviteEmail.trim()) { showAlert({ title: 'Invite sent!', message: `Invitation sent to ${inviteEmail}` }); setInviteEmail(''); } }} activeOpacity={0.85}>
                         <Text style={styles.ctCreateBtnText}>Send Invitation</Text>
                       </TouchableOpacity>
                     </>
@@ -1084,7 +1105,7 @@ export function CreateTripModal({
                   <TouchableOpacity style={[styles.ctCreateBtn, { flex: 1, backgroundColor: '#f1f5f9' }]} onPress={() => setShowEmailModal(false)} activeOpacity={0.85}>
                     <Text style={[styles.ctCreateBtnText, { color: '#0f172a' }]}>Cancel</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.ctCreateBtn, { flex: 1, backgroundColor: '#ea580c' }]} onPress={() => { setShowEmailModal(false); Alert.alert('Success', 'Extracted 2 documents from email!'); }} activeOpacity={0.85}>
+                  <TouchableOpacity style={[styles.ctCreateBtn, { flex: 1, backgroundColor: '#ea580c' }]} onPress={() => { setShowEmailModal(false); showAlert({ title: 'Success', message: 'Extracted 2 documents from email!' }); }} activeOpacity={0.85}>
                     <Text style={styles.ctCreateBtnText}>Extract Docs</Text>
                   </TouchableOpacity>
                 </View>
@@ -1278,6 +1299,20 @@ export function CreateTripModal({
   );
 }
 
+// ─── Friend avatar with fallback ─────────────────────────────────────────────
+
+function FriendSelectAvatar({ uri, name, style }: { uri: string; name: string; style: any }) {
+  const [failed, setFailed] = useState(false);
+  if (!uri || failed) {
+    return (
+      <View style={[style, { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }]}>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: '#94a3b8' }}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
+      </View>
+    );
+  }
+  return <CachedImage uri={uri} style={style} resizeMode="cover" onError={() => setFailed(true)} />;
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function TripsScreen({ openCreateOnMount = false, onCreateMountHandled }: { openCreateOnMount?: boolean; onCreateMountHandled?: () => void } = {}) {
@@ -1297,8 +1332,13 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
 
   const { upcoming, ongoing, past } = categorizeTrips(trips);
 
+  const avatarUpdatedAt = useAuthStore((s) => s.avatarUpdatedAt);
   const loadTripsRef = useRef<() => void>(() => { });
   useFocusEffect(useCallback(() => { loadTripsRef.current(); }, []));
+  useEffect(() => {
+    if (avatarUpdatedAt === 0) return;
+    loadTripsRef.current();
+  }, [avatarUpdatedAt]);
 
   // Open create trip modal if triggered from HomeScreen
   useEffect(() => {
@@ -1329,45 +1369,37 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
 
   function archiveTrip(trip: Trip) {
     setShowTripMenu(null);
-    Alert.alert(
-      'Archive Trip',
-      `Archive "${trip.name}"? You can restore it from Archived Trips anytime.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Archive', onPress: async () => {
-            try {
-              await archiveTripApi(trip.id);
-              setTrips(p => p.filter(t => t.id !== trip.id));
-              Toast.show({ type: 'success', text1: 'Archived', text2: `"${trip.name}" moved to archive.` });
-            } catch (err) {
-              handleApiError(err);
-            }
-          },
-        },
-      ],
-    );
+    showConfirm({
+      title: 'Archive Trip',
+      message: `Archive "${trip.name}"? You can restore it from Archived Trips anytime.`,
+      confirmText: 'Archive',
+      onConfirm: async () => {
+        try {
+          await archiveTripApi(trip.id);
+          setTrips(p => p.filter(t => t.id !== trip.id));
+          Toast.show({ type: 'success', text1: 'Archived', text2: `"${trip.name}" moved to archive.` });
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
   }
 
   function deleteTrip(trip: Trip) {
     setShowTripMenu(null);
-    Alert.alert(
-      'Delete Trip',
-      `Delete "${trip.name}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive', onPress: async () => {
-            try {
-              await apiDeleteTrip(trip.id);
-              setTrips(p => p.filter(t => t.id !== trip.id));
-            } catch (err) {
-              handleApiError(err);
-            }
-          },
-        },
-      ],
-    );
+    showConfirm({
+      title: 'Delete Trip',
+      message: `Delete "${trip.name}"? This cannot be undone.`,
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await apiDeleteTrip(trip.id);
+          setTrips(p => p.filter(t => t.id !== trip.id));
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
   }
 
   function toggleTripMenu(id: string) {
@@ -1553,7 +1585,7 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
               }
             } catch (e: any) {
               console.warn('Doc/photo upload failed:', e);
-              Alert.alert('Upload Failed', `Could not upload "${file.name}": ${e?.message ?? 'Unknown error'}`);
+              showAlert({ title: 'Upload Failed', message: `Could not upload "${file.name}": ${e?.message ?? 'Unknown error'}` });
             }
           }
           // Clear banner only after the trip is successfully created
@@ -1572,24 +1604,23 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingBottom: 120, paddingTop: 4 },
 
   // Trips Tab
-  tripsCTA: { alignItems: 'center', paddingVertical: 1, marginBottom: 8 },
+  tripsCTA: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 10 },
   tripsPlaneCircle: {
-    width: 83, height: 83, borderRadius: 40,
+    width: 88, height: 88, borderRadius: 44,
     backgroundColor: '#cbfbf1',
-    alignItems: 'center', justifyContent: 'center', marginBottom: 18,
+    alignItems: 'center', justifyContent: 'center',
   },
-  tripsCTATitle: { fontSize: 20, fontWeight: '500', color: '#45556C', textAlign: 'center', marginBottom: 10, paddingHorizontal: 24 },
-  tripsCTASub: { fontSize: 14, color: '#64748b', marginBottom: 26, textAlign: 'center' },
+  tripsCTATitle: { fontSize: 20, fontWeight: '500', color: '#45556C', textAlign: 'center', lineHeight: 28, paddingHorizontal: 24 },
+  tripsCTASub: { fontSize: 14, color: '#64748b', textAlign: 'center' },
   createTripBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#009788', borderRadius: 999,
-    paddingVertical: 9, paddingHorizontal: 32,
-    alignSelf: 'center', marginBottom: 1, gap: 5,
+    paddingVertical: 9, paddingHorizontal: 32, gap: 5,
   },
   createTripBtnText: { color: '#fff', fontSize: 13, fontWeight: '500' },
   tripsListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
   tripsListTitle: { fontSize: 18, fontWeight: '500', color: '#45556C' },
-  tripsListSub: { fontSize: 13, color: '#64748b', marginTop: 2 },
+  tripsListSub: { fontSize: 13, color: '#64748b', marginTop: 2, marginBottom: 8 },
   sectionLabel: {
     fontSize: 13, fontWeight: '600', color: '#64748b', letterSpacing: 0.6,
     marginBottom: 10, marginTop: 4, textTransform: 'uppercase',

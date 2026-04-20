@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   Dimensions,
 } from 'react-native';
+import LegalModal from '../../components/common/LegalModal';
 import Svg, { Path } from 'react-native-svg';
 import Logo from '../../components/common/Logo';
 import BlobBackground from '../../components/common/BlobBackground';
@@ -69,6 +70,7 @@ export default function LoginScreen({ navigation }: any) {
   const [showPassword, setShowPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null);
 
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(loginSchema),
@@ -171,6 +173,16 @@ export default function LoginScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <LegalModal
+        visible={legalModal === 'terms'}
+        type="terms"
+        onClose={() => setLegalModal(null)}
+      />
+      <LegalModal
+        visible={legalModal === 'privacy'}
+        type="privacy"
+        onClose={() => setLegalModal(null)}
+      />
       <BlobBackground>
         <KeyboardAvoidingView
           style={styles.kav}
@@ -319,6 +331,17 @@ export default function LoginScreen({ navigation }: any) {
                 onPress={() => navigation.navigate('Signup')}
                 activeOpacity={0.7}>
                 <Text style={styles.linkUnderline}>Create account</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Terms & Privacy */}
+            <View style={[styles.linkRow, { flexWrap: 'wrap', marginTop: 12 }]}>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => setLegalModal('terms')}>
+                <Text style={styles.legalLink}>Terms &amp; Conditions</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalSep}>{'  ·  '}</Text>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => setLegalModal('privacy')}>
+                <Text style={styles.legalLink}>Privacy Policy</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -488,5 +511,15 @@ const styles = StyleSheet.create({
     width: '60%',
     height: 1,
     backgroundColor: '#e2e8f0',
+  },
+
+  legalLink: {
+    fontSize: SCREEN_W < 375 ? 11 : 12,
+    color: '#0d9488',
+    textDecorationLine: 'underline',
+  },
+  legalSep: {
+    fontSize: SCREEN_W < 375 ? 11 : 12,
+    color: '#94a3b8',
   },
 });

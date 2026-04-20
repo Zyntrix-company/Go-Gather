@@ -13,6 +13,7 @@ import RootNavigator from './src/navigation/RootNavigator';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import Geolocation from '@react-native-community/geolocation';
 import Toast from 'react-native-toast-message';
+import ThemedAlert from './src/components/common/ThemedAlert';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 
 // Configure geolocation to use native Android location provider
@@ -40,6 +41,7 @@ function App() {
       <NavigationContainer theme={{ dark: false, colors: { primary: '#0d9488', background: 'transparent', card: 'transparent', text: '#0f172a', border: 'transparent', notification: '#0d9488' }, fonts: { regular: { fontFamily: 'System', fontWeight: '400' }, medium: { fontFamily: 'System', fontWeight: '500' }, bold: { fontFamily: 'System', fontWeight: '700' }, heavy: { fontFamily: 'System', fontWeight: '900' } } }}>
         <StatusBar barStyle="dark-content" />
         <RootNavigator />
+        <ThemedAlert />
         <Toast />
       </NavigationContainer>
     </SafeAreaProvider>

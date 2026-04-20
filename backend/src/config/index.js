@@ -92,21 +92,9 @@ module.exports = {
     credentialsPath: process.env.GOOGLE_APPLICATION_CREDENTIALS,
   },
 
-  // ─── AI Provider ─────────────────────────────
-  // Set AI_PROVIDER=openai to switch to OpenAI GPT-4o once the client key is ready.
-  // Default is 'gemini' (free tier, no client dependency).
-  ai: {
-    provider: process.env.AI_PROVIDER || 'gemini',
-  },
-
-  // ─── Google Gemini ────────────────────────────
+  // ─── Google Gemini 2.5 Flash ──────────────────
   gemini: {
     apiKey: process.env.GEMINI_API_KEY,
-  },
-
-  // ─── OpenAI (pending client key) ─────────────
-  openai: {
-    apiKey: process.env.OPENAI_API_KEY,
   },
 
   // ─── Branch.io ───────────────────────────────

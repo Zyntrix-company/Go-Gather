@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -22,6 +21,7 @@ import {
   handleApiError,
 } from '../../api/trips.api';
 import { getArchivedEvents, unarchiveEvent, deleteEvent } from '../../api/events.api';
+import { showConfirm } from '../../store/alertStore';
 import { UnifiedCard } from '../../components/common/Cards';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -114,80 +114,74 @@ export default function ArchivedScreen() {
 
   function handleUnarchiveTrip(trip: ArchivedTrip) {
     setOpenMenuId(null);
-    Alert.alert('Restore Trip', `Restore "${trip.name}" to your trips?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Restore',
-        onPress: async () => {
-          try {
-            await unarchiveTrip(trip.id);
-            toast('Restored', `"${trip.name}" moved back to trips.`);
-            setTrips(p => p.filter(t => t.id !== trip.id));
-          } catch (err) {
-            handleApiError(err);
-          }
-        },
+    showConfirm({
+      title: 'Restore Trip',
+      message: `Restore "${trip.name}" to your trips?`,
+      confirmText: 'Restore',
+      onConfirm: async () => {
+        try {
+          await unarchiveTrip(trip.id);
+          toast('Restored', `"${trip.name}" moved back to trips.`);
+          setTrips(p => p.filter(t => t.id !== trip.id));
+        } catch (err) {
+          handleApiError(err);
+        }
       },
-    ]);
+    });
   }
 
   function handleDeleteTrip(trip: ArchivedTrip) {
     setOpenMenuId(null);
-    Alert.alert('Delete Trip', `Permanently delete "${trip.name}"? This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteTrip(trip.id);
-            toast('Deleted', `"${trip.name}" has been deleted.`);
-            setTrips(p => p.filter(t => t.id !== trip.id));
-          } catch (err) {
-            handleApiError(err);
-          }
-        },
+    showConfirm({
+      title: 'Delete Trip',
+      message: `Permanently delete "${trip.name}"? This cannot be undone.`,
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteTrip(trip.id);
+          toast('Deleted', `"${trip.name}" has been deleted.`);
+          setTrips(p => p.filter(t => t.id !== trip.id));
+        } catch (err) {
+          handleApiError(err);
+        }
       },
-    ]);
+    });
   }
 
   function handleUnarchiveEvent(event: ArchivedEvent) {
     setOpenMenuId(null);
-    Alert.alert('Restore Event', `Restore "${event.name}" to your events?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Restore',
-        onPress: async () => {
-          try {
-            await unarchiveEvent(event.id);
-            toast('Restored', `"${event.name}" moved back to events.`);
-            setEvents(p => p.filter(e => e.id !== event.id));
-          } catch (err) {
-            handleApiError(err);
-          }
-        },
+    showConfirm({
+      title: 'Restore Event',
+      message: `Restore "${event.name}" to your events?`,
+      confirmText: 'Restore',
+      onConfirm: async () => {
+        try {
+          await unarchiveEvent(event.id);
+          toast('Restored', `"${event.name}" moved back to events.`);
+          setEvents(p => p.filter(e => e.id !== event.id));
+        } catch (err) {
+          handleApiError(err);
+        }
       },
-    ]);
+    });
   }
 
   function handleDeleteEvent(event: ArchivedEvent) {
     setOpenMenuId(null);
-    Alert.alert('Delete Event', `Permanently delete "${event.name}"? This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteEvent(event.id);
-            toast('Deleted', `"${event.name}" has been deleted.`);
-            setEvents(p => p.filter(e => e.id !== event.id));
-          } catch (err) {
-            handleApiError(err);
-          }
-        },
+    showConfirm({
+      title: 'Delete Event',
+      message: `Permanently delete "${event.name}"? This cannot be undone.`,
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteEvent(event.id);
+          toast('Deleted', `"${event.name}" has been deleted.`);
+          setEvents(p => p.filter(e => e.id !== event.id));
+        } catch (err) {
+          handleApiError(err);
+        }
       },
-    ]);
+    });
   }
 
   function toast(title: string, msg: string) {

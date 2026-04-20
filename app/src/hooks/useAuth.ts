@@ -213,22 +213,19 @@ export default function useAuth() {
    */
   async function uploadPhoto(fileUri: string, fileName: string, mimeType: string) {
     const res = await authApi.uploadPhoto(fileUri, fileName, mimeType);
-    const photoUrl = res.photoUrl;
-    if (photoUrl) {
-      // If the URL is a presigned S3 URL it already contains unique query params
-      // (X-Amz-*), so it won't hit a stale React Native Image cache — no extra
-      // cache-bust param needed. For plain CDN URLs we still append one.
-      const isPresigned = photoUrl.includes('X-Amz-');
-      const displayUrl = isPresigned
-        ? photoUrl
-        : `${photoUrl}${photoUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`;
-      useAuthStore.getState().updateUser({ photoUrl: displayUrl, avatarUrl: displayUrl });
+    // Prefer cdnUrl (permanent CloudFront URL, safe to cache indefinitely).
+    // Fall back to photoUrl which may be a presigned S3 URL (1-hour expiry) in
+    // local dev when CloudFront is not configured — acceptable there since the
+    // dev session is short-lived. Never store presigned URLs long-term in prod.
+    // Each upload generates a new UUID-based S3 key so the URL is always unique;
+    // no cache-busting param is needed.
+    const storeUrl = res.cdnUrl || res.photoUrl;
+    if (storeUrl) {
+      useAuthStore.getState().updateUser({ photoUrl: storeUrl, avatarUrl: storeUrl });
       // Do NOT call refreshProfile here — setAuth inside it replaces the entire
       // user object and would wipe the URL we just patched in.
-      // The upload endpoint writes to DB synchronously before returning, so the
-      // URL in the store is already the correct persisted value.
     }
-    return photoUrl;
+    return storeUrl;
   }
 
   /**

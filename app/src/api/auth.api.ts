@@ -209,7 +209,7 @@ const authApi = {
    * PUT /users/photo  (multipart/form-data)
    * Returns the photo URL (CloudFront CDN URL).
    */
-  uploadPhoto: async (fileUri: string, fileName: string, mimeType: string): Promise<{ photoUrl: string }> => {
+  uploadPhoto: async (fileUri: string, fileName: string, mimeType: string): Promise<{ photoUrl: string; cdnUrl: string }> => {
     // XMLHttpRequest is used instead of fetch because fetch+FormData has known
     // Android compatibility issues with content:// URIs and gives no progress info.
     // XHR handles multipart uploads more reliably across Android versions.
@@ -256,8 +256,12 @@ const authApi = {
         }
 
         if (xhr.status >= 200 && xhr.status < 300) {
-          // Backend may return URL at top-level OR nested under user.profile
-          const photoUrl =
+          // Backend returns { avatarUrl: presignedUrl|cdnUrl, cdnUrl }
+          // cdnUrl is the permanent CloudFront URL (safe to cache indefinitely).
+          // avatarUrl may be a presigned S3 URL (expires in 1 hour) used for
+          // immediate display — do NOT store it long-term.
+          const cdnUrl: string = data.cdnUrl ?? '';
+          const photoUrl: string =
             data.photoUrl ??
             data.url ??
             data.avatarUrl ??
@@ -269,7 +273,8 @@ const authApi = {
             data.photo ??
             '';
           console.log('[uploadPhoto] Extracted photoUrl:', photoUrl || '(EMPTY — field name mismatch, see Raw response above)');
-          resolve({ photoUrl });
+          console.log('[uploadPhoto] Extracted cdnUrl:', cdnUrl || '(not returned by backend)');
+          resolve({ photoUrl, cdnUrl });
         } else {
           const err: any = new Error(data?.message || `Upload failed with status ${xhr.status}`);
           err.response = { data, status: xhr.status };

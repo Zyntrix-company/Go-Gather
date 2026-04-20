@@ -8,6 +8,8 @@ export type AuthState = {
   isAuthenticated: boolean;
   isLoading: boolean;
   pendingProfileSetup: boolean;
+  avatarUpdatedAt: number;
+  prevAvatarUrl: string;
 
   setAuth: (user: User | null, accessToken?: string | null, refreshToken?: string | null) => void;
   logout: () => void;
@@ -23,6 +25,8 @@ const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   isLoading: false,
   pendingProfileSetup: false,
+  avatarUpdatedAt: 0,
+  prevAvatarUrl: '',
 
   setAuth: (user, accessToken, refreshToken) =>
     set({
@@ -42,9 +46,14 @@ const useAuthStore = create<AuthState>((set) => ({
     }),
 
   updateUser: (data) =>
-    set((state) => ({
-      user: state.user ? { ...state.user, ...data } : null,
-    })),
+    set((state) => {
+      const hasNewAvatar = 'photoUrl' in data || 'avatarUrl' in data;
+      const prevAvatarUrl = hasNewAvatar ? (state.user?.photoUrl ?? '') : state.prevAvatarUrl;
+      return {
+        user: state.user ? { ...state.user, ...data } : null,
+        ...(hasNewAvatar ? { avatarUpdatedAt: Date.now(), prevAvatarUrl } : {}),
+      };
+    }),
 
   setLoading: (val) => set({ isLoading: val }),
 

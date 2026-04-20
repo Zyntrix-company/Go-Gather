@@ -10,7 +10,9 @@
     "test": "jest"
   },
   "dependencies": {
+    "@d11/react-native-fast-image": "^8.13.0",
     "@hookform/resolvers": "^5.2.2",
+    "@react-native-async-storage/async-storage": "^1.24.0",
     "@react-native-community/datetimepicker": "^8.6.0",
     "@react-native-community/geolocation": "^3.4.0",
     "@react-native-firebase/app": "^21.13.0",

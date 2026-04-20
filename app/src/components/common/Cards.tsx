@@ -5,6 +5,7 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { MoreVertical } from 'lucide-react-native';
 import StackedAvatars from './StackedAvatars';
+import CachedImage from './CachedImage';
 import { PinIcon, CalendarIcon, TrashIcon } from './Icons';
 
 // ─── Shared card data type ────────────────────────────────────────────────────
@@ -126,7 +127,7 @@ export function UnifiedCard({
 
         {/* Left — square image */}
         {imageUri
-          ? <Image source={{ uri: imageUri }} style={s.img} resizeMode="cover" />
+          ? <CachedImage uri={imageUri} style={s.img} resizeMode="cover" />
           : imageFallback
             ? <Image source={imageFallback} style={s.img} resizeMode="cover" />
             : <View style={[s.img, s.imgPlaceholder]}>
@@ -314,6 +315,8 @@ const s = StyleSheet.create({
   card: {
     backgroundColor: '#fff',
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
     paddingHorizontal: 12,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -321,10 +324,10 @@ const s = StyleSheet.create({
     minHeight: 90,
     gap: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 8,
+    elevation: 3,
   },
   img: {
     width: 66,

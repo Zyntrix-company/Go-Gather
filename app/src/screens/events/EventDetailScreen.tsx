@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
-  TextInput, Alert, Image, Platform, NativeModules, Dimensions,
+  TextInput, Image, Platform, NativeModules, Dimensions,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { WebView } from 'react-native-webview';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import BlobBackground from '../../components/common/BlobBackground';
+import CachedImage from '../../components/common/CachedImage';
 import DetailDialogHeader from '../../components/details/DetailDialogHeader';
 import DetailTabBar from '../../components/details/DetailTabBar';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
@@ -48,6 +49,7 @@ import {
 } from '../../api/events.api';
 import { getFriends } from '../../api/trips.api';
 import useAuthStore from '../../store/authStore';
+import { showAlert, showConfirm } from '../../store/alertStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -138,6 +140,67 @@ const isSmall = SCREEN_W < 360;
 const DHeader = DetailDialogHeader;
 const TabBar = DetailTabBar;
 
+// ─── Photo helper components ──────────────────────────────────────────────────
+
+function EventPhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const uri = photo.localUri ?? photo.uri;
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
+      {!failed ? (
+        <>
+          <CachedImage
+            uri={uri}
+            style={{ width: 80, height: 80 }}
+            resizeMode="cover"
+            onLoad={() => setLoading(false)}
+            onError={() => { setLoading(false); setFailed(true); }}
+          />
+          {loading && (
+            <View style={{ ...StyleSheet.absoluteFillObject as any, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' }}>
+              <ActivityIndicator size="small" color="#0d9488" />
+            </View>
+          )}
+        </>
+      ) : (
+        <View style={{ width: 80, height: 80, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' }}>
+          <Text style={{ fontSize: 22 }}>🖼️</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function EventFriendAvatar({ uri, name, style }: { uri: string; name: string; style: any }) {
+  const [failed, setFailed] = useState(false);
+  if (!uri || failed) {
+    return (
+      <View style={[style, { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }]}>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: '#94a3b8' }}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
+      </View>
+    );
+  }
+  return <CachedImage uri={uri} style={style} resizeMode="cover" onError={() => setFailed(true)} />;
+}
+
+function EventPhotoPreview({ photo }: { photo: PhotoItem }) {
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { setLoading(true); }, [photo.uri]);
+  return (
+    <>
+      <CachedImage
+        uri={photo.localUri ?? photo.uri}
+        style={{ width: '100%', height: '75%' }}
+        resizeMode="contain"
+        onLoad={() => setLoading(false)}
+        onError={() => setLoading(false)}
+      />
+      {loading && <ActivityIndicator style={{ position: 'absolute' }} size="large" color="#fff" />}
+    </>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function EventDetailScreen({ route, navigation }: any) {
@@ -156,6 +219,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
   });
 
   const currentUserId = useAuthStore(s => s.user?.id ?? '');
+  const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
+  const [failedAvatarIds, setFailedAvatarIds] = useState<Set<string>>(new Set());
 
 
   // ── Modal visibility (declared before hooks that reference them) ──
@@ -199,10 +264,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
             type: eventData.event.eventType ?? prev.type,
             description: eventData.event.description ?? prev.description,
           }));
+          const freshUrl = useAuthStore.getState().user?.photoUrl || useAuthStore.getState().user?.avatarUrl || null;
+          const cuid = useAuthStore.getState().user?.id ?? '';
           setMembers(eventData.members.map(m => ({
             userId: m.userId,
             fullName: m.fullName ?? (m as any).name ?? 'Member',
-            avatarUrl: m.avatarUrl ?? undefined,
+            avatarUrl: (m.userId === cuid && freshUrl) ? freshUrl : (m.avatarUrl ?? undefined),
             role: m.role,
           })));
 
@@ -310,6 +377,17 @@ export default function EventDetailScreen({ route, navigation }: any) {
       })));
     }).catch(() => { });
   }, [showMembers]);
+
+  // Re-patch current user's avatar when photo is updated
+  useEffect(() => {
+    if (avatarUpdatedAt === 0) return;
+    const freshUrl = useAuthStore.getState().user?.photoUrl || useAuthStore.getState().user?.avatarUrl || null;
+    if (!freshUrl) return;
+    setMembers(prev => prev.map(m =>
+      m.userId === currentUserId ? { ...m, avatarUrl: freshUrl } : m
+    ));
+    setFailedAvatarIds(new Set());
+  }, [avatarUpdatedAt, currentUserId]);
 
   // ── Members modal ──
   const [memberTab, setMemberTab] = useState<'From Friends' | 'Invite New'>('From Friends');
@@ -431,7 +509,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   }
 
   async function handleAddExpense() {
-    if (!expDesc.trim() || !expAmount) { Alert.alert('Error', 'Please fill description and amount'); return; }
+    if (!expDesc.trim() || !expAmount) { showAlert({ title: 'Error', message: 'Please fill description and amount' }); return; }
     const amount = parseFloat(expAmount) || 0;
 
     // Map local "You" placeholder to real user ID
@@ -441,7 +519,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
     // Validate that splitAmong doesn't have duplicate IDs
     const uniqueIds = new Set(splitAmongIds);
     if (uniqueIds.size !== splitAmongIds.length) {
-      Alert.alert('Error', 'Cannot split expense among same person twice');
+      showAlert({ title: 'Error', message: 'Cannot split expense among same person twice' });
       return;
     }
 
@@ -498,7 +576,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
       // Improved error handling for duplicate key errors
       const errorMsg = err?.message?.toLowerCase() || '';
       if (errorMsg.includes('duplicate') || errorMsg.includes('unique')) {
-        Alert.alert('Duplicate Expense', 'This expense already exists. Please check your entries and try again.');
+        showAlert({ title: 'Duplicate Expense', message: 'This expense already exists. Please check your entries and try again.' });
       } else {
         handleApiError(err);
       }
@@ -522,29 +600,28 @@ export default function EventDetailScreen({ route, navigation }: any) {
   }
 
   function handleDeleteExpense(eid: string) {
-    Alert.alert('Delete', 'Remove this expense?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            await deleteEventExpense(event.id, eid);
-            setExpenses(p => p.filter(e => e.id !== eid));
-            // Refresh balances after deleting expense
-            const balData = await getEventBalances(event.id);
-            setBalances((balData.debts ?? []).map((d: any) => ({
-              from: d.from, to: d.to,
-              fromName: d.fromName ?? 'Member', toName: d.toName ?? 'Member',
-              amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
-            })));
-            setMyBalance(balData.myBalance ?? 0);
-          } catch (err) { handleApiError(err); }
-        }
+    showConfirm({
+      title: 'Delete',
+      message: 'Remove this expense?',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteEventExpense(event.id, eid);
+          setExpenses(p => p.filter(e => e.id !== eid));
+          const balData = await getEventBalances(event.id);
+          setBalances((balData.debts ?? []).map((d: any) => ({
+            from: d.from, to: d.to,
+            fromName: d.fromName ?? 'Member', toName: d.toName ?? 'Member',
+            amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
+          })));
+          setMyBalance(balData.myBalance ?? 0);
+        } catch (err) { handleApiError(err); }
       },
-    ]);
+    });
   }
 
   async function handleAddNote() {
-    if (!noteTitle.trim()) { Alert.alert('Error', 'Please enter a title'); return; }
+    if (!noteTitle.trim()) { showAlert({ title: 'Error', message: 'Please enter a title' }); return; }
     try {
       if (editingNoteId) {
         const existingNote = notes.find(n => n.id === editingNoteId);
@@ -585,7 +662,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   async function handleAddMembersFromFriends() {
     if (!selectedFriends.length && !inviteInput.trim()) {
-      Alert.alert('Error', 'Select friends or enter a contact to invite');
+      showAlert({ title: 'Error', message: 'Select friends or enter a contact to invite' });
       return;
     }
     try {
@@ -601,7 +678,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         const existing = new Set(p.map(m => m.userId));
         return [...p, ...added.filter(m => !existing.has(m.userId))];
       });
-      if (res.invited.length > 0) Alert.alert('Invite Sent', `Invitation sent to ${inviteInput.trim()}`);
+      if (res.invited.length > 0) showAlert({ title: 'Invite Sent', message: `Invitation sent to ${inviteInput.trim()}` });
     } catch (err) { handleApiError(err); }
     setSelectedFriends([]);
     setInviteInput('');
@@ -609,7 +686,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   async function handleCreatePoll() {
     const valid = pollOptions.filter(o => o.trim());
-    if (!pollQuestion.trim() || valid.length < 2) { Alert.alert('Error', 'Enter a question and at least 2 options'); return; }
+    if (!pollQuestion.trim() || valid.length < 2) { showAlert({ title: 'Error', message: 'Enter a question and at least 2 options' }); return; }
     try {
       const res = await createEventPoll(event.id, { question: pollQuestion.trim(), options: valid });
       setPolls(prev => [...prev, {
@@ -638,7 +715,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   }
 
   async function handleSaveEvent() {
-    if (!editName.trim()) { Alert.alert('Error', 'Event name is required'); return; }
+    if (!editName.trim()) { showAlert({ title: 'Error', message: 'Event name is required' }); return; }
     try {
       await apiUpdateEvent(event.id, {
         name: editName.trim(),
@@ -991,7 +1068,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     </View>
                   ) : docs.map(doc => (
                     <TouchableOpacity key={doc.id} style={styles.docRow} activeOpacity={0.7}
-                      onPress={() => doc.uri ? setDocPreviewUrl(doc.uri) : Alert.alert('Error', 'Document URL not available.')}>
+                      onPress={() => doc.uri ? setDocPreviewUrl(doc.uri) : showAlert({ title: 'Error', message: 'Document URL not available.' })}>
                       <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
                         <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                         <Path d="M14 2v6h6M16 13H8M16 17H8" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -1024,8 +1101,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   <Text style={styles.memberSectionLabel}>Current Members</Text>
                   {members.map(m => (
                     <View key={m.userId} style={styles.memberRow}>
-                      {m.avatarUrl
-                        ? <Image source={{ uri: m.avatarUrl }} style={styles.memberAvatar as any} />
+                      {m.avatarUrl && !failedAvatarIds.has(m.userId)
+                        ? <Image
+                            source={{ uri: m.avatarUrl }}
+                            style={styles.memberAvatar as any}
+                            onError={() => setFailedAvatarIds(prev => { const s = new Set(prev); s.add(m.userId); return s; })}
+                          />
                         : <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>}
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={styles.memberName}>{m.fullName}{m.userId === currentUserId ? ' (You)' : ''}</Text>
@@ -1059,7 +1140,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       const sel = selectedFriends.includes(f.id);
                       return (
                         <TouchableOpacity key={f.id} style={styles.memberRow} onPress={() => setSelectedFriends(p => p.includes(f.id) ? p.filter(x => x !== f.id) : [...p, f.id])} activeOpacity={0.8}>
-                          <Image source={{ uri: f.avatar || `https://i.pravatar.cc/150?u=${f.id}` }} style={styles.memberAvatar as any} />
+                          <EventFriendAvatar uri={f.avatar} name={f.name} style={styles.memberAvatar as any} />
                           <View style={{ flex: 1, marginLeft: 10 }}><Text style={styles.memberName}>{f.name}</Text></View>
                           {sel ? <View style={styles.checkCircle}><CheckIcon /></View> : null}
                         </TouchableOpacity>
@@ -1138,9 +1219,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   ) : (
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {photos.map(ph => (
-                        <TouchableOpacity key={ph.id} onPress={() => setPreviewPhoto(ph)} activeOpacity={0.85} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
-                          <Image source={{ uri: ph.localUri ?? ph.uri }} style={{ width: 80, height: 80 }} resizeMode="cover" onError={() => { }} />
-                        </TouchableOpacity>
+                        <EventPhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewPhoto(ph)} />
                       ))}
                     </View>
                   )}
@@ -1166,19 +1245,18 @@ export default function EventDetailScreen({ route, navigation }: any) {
             <TouchableOpacity
               onPress={() => {
                 if (!previewPhoto) return;
-                Alert.alert('Delete Photo', 'Remove this photo?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Delete', style: 'destructive',
-                    onPress: async () => {
-                      try {
-                        await deleteEventPhoto(event.id, previewPhoto.id);
-                        setPhotos(p => p.filter(x => x.id !== previewPhoto.id));
-                        setPreviewPhoto(null);
-                      } catch (err) { handleApiError(err); }
-                    },
+                showConfirm({
+                  title: 'Delete Photo',
+                  message: 'Remove this photo?',
+                  destructive: true,
+                  onConfirm: async () => {
+                    try {
+                      await deleteEventPhoto(event.id, previewPhoto.id);
+                      setPhotos(p => p.filter(x => x.id !== previewPhoto.id));
+                      setPreviewPhoto(null);
+                    } catch (err) { handleApiError(err); }
                   },
-                ]);
+                });
               }}
               style={{ position: 'absolute', top: 48, right: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(239,68,68,0.85)', alignItems: 'center', justifyContent: 'center' }}
               activeOpacity={0.8}>
@@ -1187,7 +1265,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
               </Svg>
             </TouchableOpacity>
             {previewPhoto && (
-              <Image source={{ uri: previewPhoto.localUri ?? previewPhoto.uri }} style={{ width: '100%', height: '75%' }} resizeMode="contain" onError={() => { }} />
+              <EventPhotoPreview photo={previewPhoto} />
             )}
           </View>
         </Modal>

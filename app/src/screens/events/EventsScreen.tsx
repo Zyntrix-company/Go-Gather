@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Modal, TextInput, Platform, PermissionsAndroid, ActivityIndicator, Image,
   RefreshControl, NativeModules, Animated, PanResponder, Dimensions, SafeAreaView, Pressable,
 } from 'react-native';
@@ -9,6 +9,7 @@ import { CalendarPlus } from 'lucide-react-native';
 import DateInfoPopover from '../../components/common/DateInfoPopover';
 import StackedAvatars from '../../components/common/StackedAvatars';
 import { UnifiedCard } from '../../components/common/Cards';
+import useAuthStore from '../../store/authStore';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -23,6 +24,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import Geolocation from '@react-native-community/geolocation';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
+import { showAlert, showConfirm } from '../../store/alertStore';
 import { getFriends } from '../../api/trips.api';
 import {
   getEvents,
@@ -113,6 +115,15 @@ function fmtDateISO(d: Date): string {
   return d.toISOString().split('T')[0];
 }
 
+function patchAvatarUri(rawUri: string, prevUrl: string, freshUrl: string): string {
+  if (!rawUri || !freshUrl) return rawUri;
+  if (prevUrl && rawUri === prevUrl) return freshUrl;
+  try {
+    if (new URL(rawUri).pathname === new URL(freshUrl).pathname) return freshUrl;
+  } catch { /* malformed URL — fall through */ }
+  return rawUri;
+}
+
 function mapApiEvent(e: ApiEvent): EventItem {
   const eventDate = new Date(e.eventDate);
   return {
@@ -177,7 +188,13 @@ function EventCardFullLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
       name={event.name}
       location={event.location || 'Location TBD'}
       dateLabel={event.dateDisplay}
-      members={event.memberAvatars.map(uri => ({ id: uri, uri }))}
+      members={event.memberAvatars.map((av: any, i: number) => {
+        const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
+        const { prevAvatarUrl, user } = useAuthStore.getState();
+        const freshUrl = user?.photoUrl || user?.avatarUrl || '';
+        const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
+        return { id: uri || `ev-av-${i}`, uri };
+      })}
       extraMembers={Math.max(0, event.memberCount - event.memberAvatars.length)}
       daysToGo={days > 0 ? days : undefined}
       onPress={onPress}
@@ -186,6 +203,7 @@ function EventCardFullLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
       archiveLabel="Archive Event"
       onArchive={onArchive}
       onDelete={onDelete}
+      mb={8}
     />
   );
 }
@@ -204,7 +222,13 @@ function EventCardPastLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
       name={event.name}
       location={event.location || 'Location TBD'}
       dateLabel={event.dateDisplay}
-      members={event.memberAvatars.map(uri => ({ id: uri, uri }))}
+      members={event.memberAvatars.map((av: any, i: number) => {
+        const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
+        const { prevAvatarUrl, user } = useAuthStore.getState();
+        const freshUrl = user?.photoUrl || user?.avatarUrl || '';
+        const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
+        return { id: uri || `ev-av-${i}`, uri };
+      })}
       extraMembers={Math.max(0, event.memberCount - event.memberAvatars.length)}
       onPress={onPress}
       onToggleMenu={onToggleMenu}
@@ -212,7 +236,7 @@ function EventCardPastLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
       archiveLabel="Archive Event"
       onArchive={onArchive}
       onDelete={onDelete}
-      mb={10}
+      mb={8}
     />
   );
 }
@@ -369,9 +393,9 @@ export function CreateEventModal({ visible, onClose, onSave }: {
   }
 
   async function handleSave() {
-    if (!name.trim()) { Alert.alert('Error', 'Please enter an event name'); return; }
-    if (!dateObj) { Alert.alert('Error', 'Please select an event date'); return; }
-    if (!location.trim()) { Alert.alert('Error', 'Please enter a location'); return; }
+    if (!name.trim()) { showAlert({ title: 'Error', message: 'Please enter an event name' }); return; }
+    if (!dateObj) { showAlert({ title: 'Error', message: 'Please select an event date' }); return; }
+    if (!location.trim()) { showAlert({ title: 'Error', message: 'Please enter a location' }); return; }
     setIsSubmitting(true);
     try {
       const result = await apiCreateEvent({
@@ -420,7 +444,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
           }
         } catch (e: any) {
           console.warn('Doc upload failed:', e);
-          Alert.alert('Upload Failed', `Could not upload "${file.name}": ${e?.message ?? 'Unknown error'}`);
+          showAlert({ title: 'Upload Failed', message: `Could not upload "${file.name}": ${e?.message ?? 'Unknown error'}` });
         }
       }
       // Add event to list and close modal immediately — user sees the local image
@@ -459,13 +483,13 @@ export function CreateEventModal({ visible, onClose, onSave }: {
   async function handleUploadDocs() {
     try {
       const FilePicker = NativeModules.FilePicker;
-      if (!FilePicker) { Alert.alert('Not Available', 'File picker requires a fresh build.'); return; }
+      if (!FilePicker) { showAlert({ title: 'Not Available', message: 'File picker requires a fresh build.' }); return; }
       const file: { uri: string; name: string; type: string } = await FilePicker.pick();
       if (!file?.uri) return;
       setUploadedDocs(p => [...p, { uri: file.uri, name: file.name ?? `file_${Date.now()}`, type: file.type ?? 'application/octet-stream' }]);
     } catch (err: any) {
       if (err?.code === 'CANCELLED' || err?.message === 'User cancelled') return;
-      Alert.alert('Error', 'Could not open file picker.');
+      showAlert({ title: 'Error', message: 'Could not open file picker.' });
     }
   }
 
@@ -477,11 +501,11 @@ export function CreateEventModal({ visible, onClose, onSave }: {
           { title: 'Location Permission', message: 'GatherGo needs your location for the event location.', buttonPositive: 'Allow', buttonNegative: 'Deny' }
         );
         if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          Alert.alert('Permission Denied', 'Please type your location manually.');
+          showAlert({ title: 'Permission Denied', message: 'Please type your location manually.' });
           return;
         }
       } catch {
-        Alert.alert('Permission Error', 'Could not request location permission.');
+        showAlert({ title: 'Permission Error', message: 'Could not request location permission.' });
         return;
       }
     }
@@ -511,9 +535,9 @@ export function CreateEventModal({ visible, onClose, onSave }: {
         setFetchingLocation(false);
         const msg = err.message || '';
         if (msg.includes('provider') || msg.includes('No location') || msg.includes('disabled')) {
-          Alert.alert('Location Unavailable', 'Please enable GPS and try again, or type your location manually.');
+          showAlert({ title: 'Location Unavailable', message: 'Please enable GPS and try again, or type your location manually.' });
         } else {
-          Alert.alert('Location Error', 'Could not get location. Please type it manually.');
+          showAlert({ title: 'Location Error', message: 'Could not get location. Please type it manually.' });
         }
       },
       { enableHighAccuracy: false, timeout: 15000, maximumAge: 120000 }
@@ -542,13 +566,17 @@ export function CreateEventModal({ visible, onClose, onSave }: {
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={modal.scrollContent}>
 
             {/* Event Name */}
-            <Text style={modal.label}>Event Name</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={modal.label}>Event Name</Text>
+              <Text style={{ fontSize: 11, color: name.length >= 20 ? '#ef4444' : '#94a3b8' }}>{name.length}/20</Text>
+            </View>
             <TextInput
               style={modal.input}
               placeholder="e.g., Birthday Celebration"
               placeholderTextColor="#94a3b8"
               value={name}
               onChangeText={setName}
+              maxLength={20}
             />
 
             {/* Event Type */}
@@ -883,7 +911,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
                     />
                     <TouchableOpacity
                       style={[modal.createBtn, { alignSelf: 'stretch', marginTop: 8 }]}
-                      onPress={() => { if (inviteEmail.trim()) { Alert.alert('Invite sent!', `Invitation sent to ${inviteEmail}`); setInviteEmail(''); } }}
+                      onPress={() => { if (inviteEmail.trim()) { showAlert({ title: 'Invite sent!', message: `Invitation sent to ${inviteEmail}` }); setInviteEmail(''); } }}
                       activeOpacity={0.85}
                     >
                       <Text style={modal.createBtnTxt}>Send Invitation</Text>
@@ -936,7 +964,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[modal.createBtn, { flex: 1, backgroundColor: '#ea580c' }]}
-                  onPress={() => { setShowEmailModal(false); Alert.alert('Success', 'Extracted 2 documents from email!'); }}
+                  onPress={() => { setShowEmailModal(false); showAlert({ title: 'Success', message: 'Extracted 2 documents from email!' }); }}
                   activeOpacity={0.85}
                 >
                   <Text style={modal.createBtnTxt}>Extract Docs</Text>
@@ -1090,6 +1118,12 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
 
   useFocusEffect(useCallback(() => { loadEvents(); }, []));
 
+  const avatarUpdatedAt = useAuthStore((s) => s.avatarUpdatedAt);
+  useEffect(() => {
+    if (avatarUpdatedAt === 0) return;
+    loadEvents(true);
+  }, [avatarUpdatedAt]);
+
   function handleCreateEvent(ev: EventItem) {
     const days = daysUntil(ev.dateISO);
     if (days >= 0) setUpcomingEvents(p => [ev, ...p]);
@@ -1102,39 +1136,39 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
     const list = from === 'upcoming' ? upcomingEvents : pastEvents;
     const ev = list.find(e => e.id === id);
     if (!ev) return;
-    Alert.alert('Archive Event', `Archive "${ev.name}"? You can restore it anytime.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Archive', onPress: async () => {
-          try {
-            await apiArchiveEvent(id);
-            if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
-            else setPastEvents(p => p.filter(e => e.id !== id));
-            setOpenMenuId(null);
-          } catch (err) {
-            handleApiError(err);
-          }
-        },
+    showConfirm({
+      title: 'Archive Event',
+      message: `Archive "${ev.name}"? You can restore it anytime.`,
+      confirmText: 'Archive',
+      onConfirm: async () => {
+        try {
+          await apiArchiveEvent(id);
+          if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
+          else setPastEvents(p => p.filter(e => e.id !== id));
+          setOpenMenuId(null);
+        } catch (err) {
+          handleApiError(err);
+        }
       },
-    ]);
+    });
   }
 
   function deleteEvent(id: string, from: 'upcoming' | 'past') {
-    Alert.alert('Delete Event?', 'This action cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            await apiDeleteEvent(id);
-            if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
-            else setPastEvents(p => p.filter(e => e.id !== id));
-            setOpenMenuId(null);
-          } catch (err) {
-            handleApiError(err);
-          }
-        },
+    showConfirm({
+      title: 'Delete Event?',
+      message: 'This action cannot be undone.',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await apiDeleteEvent(id);
+          if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
+          else setPastEvents(p => p.filter(e => e.id !== id));
+          setOpenMenuId(null);
+        } catch (err) {
+          handleApiError(err);
+        }
       },
-    ]);
+    });
   }
 
   function toggleMenu(id: string) {
@@ -1191,7 +1225,7 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
           </View>
           <Text style={styles.heroTitle}>{"Let's get social! \uD83C\uDF89 Plan your\nfirst gathering"}</Text>
           <Text style={styles.heroSub}>Create another memorable event</Text>
-          <TouchableOpacity style={[styles.newEventBtn, { marginTop: 8 }]} activeOpacity={0.85} onPress={() => setShowCreate(true)}>
+          <TouchableOpacity style={styles.newEventBtn} activeOpacity={0.85} onPress={() => setShowCreate(true)}>
             <CalendarPlus size={15} color="#fff" />
             <Text style={styles.newEventBtnText}>Create Event</Text>
           </TouchableOpacity>
@@ -1246,9 +1280,9 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
             )}
 
             {isEmpty && !loading && (
-              <Text style={{ textAlign: 'center', color: '#94a3b8', marginTop: 20, fontSize: 14 }}>
-                Tap "Create Event" to plan your first gathering!
-              </Text>
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateSubtitle}>Tap "Create Event" to plan your first gathering!</Text>
+              </View>
             )}
           </>
         )}
@@ -1276,23 +1310,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingTop: 4, paddingBottom: 12,
   },
-  eventListHeader: { marginBottom: 1, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 20 },
+  eventListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
   eventListTitle: { fontSize: 18, fontWeight: '500', color: '#45556C' },
-  eventListSub: { fontSize: 13, color: '#64748b', marginTop: 2, marginBottom: 12 },
+  eventListSub: { fontSize: 13, color: '#64748b', marginTop: 2, marginBottom: 8 },
   sectionLabel: {
     fontSize: 13, fontWeight: '600', color: '#64748b', letterSpacing: 0.6,
     marginBottom: 10, marginTop: 4, textTransform: 'uppercase',
   },
   newEventBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#61BFCE', borderRadius: 999,
-    paddingVertical: 9, paddingHorizontal: 22, gap: 5,
+    backgroundColor: '#009788', borderRadius: 999,
+    paddingVertical: 9, paddingHorizontal: 32, gap: 5,
   },
   newEventBtnText: { color: '#fff', fontSize: 13, fontWeight: '500' },
 
-  heroSection: { alignItems: 'center', marginTop: 18, marginBottom: 1, gap: 10 },
+  heroSection: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 10 },
   calendarCircle: {
-    width: 90, height: 90, borderRadius: 45, backgroundColor: '#fff7ed',
+    width: 88, height: 88, borderRadius: 44, backgroundColor: '#fff7ed',
     alignItems: 'center', justifyContent: 'center',
   },
   heroTitle: {
@@ -1300,6 +1334,8 @@ const styles = StyleSheet.create({
     textAlign: 'center', lineHeight: 28,
   },
   heroSub: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
+  emptyState: { alignItems: 'center', paddingTop: 32, gap: 12 },
+  emptyStateSubtitle: { fontSize: 14, color: '#94a3b8', textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
 
 });
 

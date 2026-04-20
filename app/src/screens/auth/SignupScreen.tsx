@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import LegalModal from '../../components/common/LegalModal';
 import Svg, { Path } from 'react-native-svg';
 import Logo from '../../components/common/Logo';
 import BlobBackground from '../../components/common/BlobBackground';
@@ -281,6 +282,7 @@ export default function SignupScreen({ navigation }: any) {
   const [selectedCountry, setSelectedCountry] = useState(COUNTRY_CODES.find(c => c.country === 'IN')!);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null);
 
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(signupSchema) });
   const { signup, googleLogin, facebookLogin } = useAuth();
@@ -389,6 +391,18 @@ export default function SignupScreen({ navigation }: any) {
           selected={selectedCountry}
           onSelect={setSelectedCountry}
           onClose={() => setShowCountryPicker(false)}
+        />
+
+        {/* Legal Modals */}
+        <LegalModal
+          visible={legalModal === 'terms'}
+          type="terms"
+          onClose={() => setLegalModal(null)}
+        />
+        <LegalModal
+          visible={legalModal === 'privacy'}
+          type="privacy"
+          onClose={() => setLegalModal(null)}
         />
 
         <KeyboardAvoidingView
@@ -625,11 +639,15 @@ export default function SignupScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
 
-            {/* Terms */}
-            <View style={[styles.linkRow, { marginTop: 8 }]}>
+            {/* Terms & Privacy */}
+            <View style={[styles.linkRow, { marginTop: 8, flexWrap: 'wrap' }]}>
               <Text style={styles.termsPlain}>By signing up, you agree to our </Text>
-              <TouchableOpacity activeOpacity={0.7} onPress={() => { }}>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => setLegalModal('terms')}>
                 <Text style={styles.termsLink}>Terms &amp; Conditions</Text>
+              </TouchableOpacity>
+              <Text style={styles.termsPlain}> and </Text>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => setLegalModal('privacy')}>
+                <Text style={styles.termsLink}>Privacy Policy</Text>
               </TouchableOpacity>
             </View>
           </View>

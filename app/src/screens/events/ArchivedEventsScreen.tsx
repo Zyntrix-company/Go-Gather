@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Alert,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -14,6 +13,7 @@ import Svg, { Path } from 'react-native-svg';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 import { getArchivedEvents, unarchiveEvent, deleteEvent, handleApiError } from '../../api/events.api';
+import { showConfirm } from '../../store/alertStore';
 import { UnifiedCard } from '../../components/common/Cards';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -60,49 +60,38 @@ export default function ArchivedEventsScreen() {
 
   function handleUnarchive(event: ArchivedEvent) {
     setOpenMenuId(null);
-    Alert.alert(
-      'Restore Event',
-      `Restore "${event.name}" to your events?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Restore',
-          onPress: async () => {
-            try {
-              await unarchiveEvent(event.id);
-              setEvents(prev => prev.filter(e => e.id !== event.id));
-              Toast.show({ type: 'success', text1: 'Restored', text2: `"${event.name}" moved back to events.` });
-            } catch (err) {
-              handleApiError(err);
-            }
-          },
-        },
-      ],
-    );
+    showConfirm({
+      title: 'Restore Event',
+      message: `Restore "${event.name}" to your events?`,
+      confirmText: 'Restore',
+      onConfirm: async () => {
+        try {
+          await unarchiveEvent(event.id);
+          setEvents(prev => prev.filter(e => e.id !== event.id));
+          Toast.show({ type: 'success', text1: 'Restored', text2: `"${event.name}" moved back to events.` });
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
   }
 
   function handleDeleteEvent(event: ArchivedEvent) {
     setOpenMenuId(null);
-    Alert.alert(
-      'Delete Event',
-      `Permanently delete "${event.name}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteEvent(event.id);
-              setEvents(prev => prev.filter(e => e.id !== event.id));
-              Toast.show({ type: 'success', text1: 'Deleted', text2: `"${event.name}" has been deleted.` });
-            } catch (err) {
-              handleApiError(err);
-            }
-          },
-        },
-      ],
-    );
+    showConfirm({
+      title: 'Delete Event',
+      message: `Permanently delete "${event.name}"? This cannot be undone.`,
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteEvent(event.id);
+          setEvents(prev => prev.filter(e => e.id !== event.id));
+          Toast.show({ type: 'success', text1: 'Deleted', text2: `"${event.name}" has been deleted.` });
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
   }
 
   return (
