@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,31 +7,34 @@ import {
   ScrollView,
   Image,
   SafeAreaView,
+  TextInput,
+  ActivityIndicator,
+  Modal,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import Toast from 'react-native-toast-message';
 import BlobBackground from '../../components/common/BlobBackground';
+import { getFriends, createFriendInvite } from '../../api/trips.api';
+import { showAlert } from '../../store/alertStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Friend = {
-  id: string;
-  name: string;
-  handle: string;
-  trips: number;
-  events: number;
-  avatar: string | null;
+  connectionId: string;
+  user: {
+    id: string;
+    name: string | null;
+    avatarUrl: string | null;
+    country?: string | null;
+    bio?: string | null;
+  };
+  mutualTripCount: number;
+  mutualEventCount: number;
+  connectedAt: string;
 };
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
-const MOCK_FRIENDS: Friend[] = [
-  { id: '1', name: 'Yuki Tanaka', handle: '@yuki_tanaka', trips: 2, events: 3, avatar: null },
-  { id: '2', name: 'Amara Okafor', handle: '@amara2025', trips: 2, events: 2, avatar: null },
-  { id: '3', name: 'Marcus Johnson', handle: '@marcusj_nyc', trips: 2, events: 3, avatar: null },
-  { id: '4', name: 'Sofia Rodriguez', handle: '@sofia_rio', trips: 1, events: 2, avatar: null },
-  { id: '5', name: 'Ahmed Al-Rashid', handle: '@ahmed_explorer', trips: 2, events: 2, avatar: null },
-  { id: '6', name: 'Emma Zhang', handle: '@emma_zhang_au', trips: 2, events: 2, avatar: null },
-];
 
 // Avatar color palette
 const AVATAR_COLORS = [
@@ -65,16 +68,31 @@ function FriendRow({ friend, index, onView, onDelete }: {
   onView: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
-  const firstLetter = friend.name[0]?.toUpperCase() || '?';
+  const fallbackAvatar = `https://i.pravatar.cc/150?u=${encodeURIComponent(friend.user.id)}`;
+  const [imageUri, setImageUri] = useState<string>(friend.user.avatarUrl || fallbackAvatar);
+  const firstLetter = friend.user.name?.[0]?.toUpperCase() || '?';
+  const subtitle = friend.user.bio || friend.user.country || '';
+  const avatarSource = { uri: imageUri };
   const colorPair = AVATAR_COLORS[index % 6];
+
+  const handleImageError = () => {
+    if (imageUri !== fallbackAvatar) {
+      setImageUri(fallbackAvatar);
+    }
+  };
 
   return (
     <>
       <View style={styles.friendRow}>
         {/* Avatar */}
-        <View style={[styles.avatar, { backgroundColor: colorPair.bg }]}>
-          {friend.avatar ? (
-            <Image source={{ uri: friend.avatar }} style={styles.avatarImage} />
+        <View style={[styles.avatar, { backgroundColor: colorPair.bg }]}> 
+          {avatarSource ? (
+            <Image
+              source={avatarSource}
+              style={styles.avatarImage}
+              resizeMode="cover"
+              onError={handleImageError}
+            />
           ) : (
             <Text style={[styles.avatarText, { color: colorPair.text }]}>{firstLetter}</Text>
           )}
@@ -82,10 +100,10 @@ function FriendRow({ friend, index, onView, onDelete }: {
 
         {/* Info */}
         <View style={styles.friendInfo}>
-          <Text style={styles.friendName}>{friend.name}</Text>
-          <Text style={styles.friendHandle}>{friend.handle}</Text>
+          <Text style={styles.friendName}>{friend.user.name || 'Unknown'}</Text>
+          {subtitle ? <Text style={styles.friendHandle}>{subtitle}</Text> : null}
           <Text style={styles.friendStats}>
-            {friend.trips} trip{friend.trips !== 1 ? 's' : ''} · {friend.events} event{friend.events !== 1 ? 's' : ''}
+            {friend.mutualTripCount} mutual trip{friend.mutualTripCount !== 1 ? 's' : ''} · {friend.mutualEventCount} mutual event{friend.mutualEventCount !== 1 ? 's' : ''}
           </Text>
         </View>
 
@@ -93,7 +111,7 @@ function FriendRow({ friend, index, onView, onDelete }: {
         <View style={styles.friendActions}>
           <TouchableOpacity
             style={styles.viewBtn}
-            onPress={() => onView(friend.id)}
+            onPress={() => onView(friend.user.id)}
             activeOpacity={0.8}
           >
             <Text style={styles.viewBtnText}>View</Text>
@@ -101,7 +119,7 @@ function FriendRow({ friend, index, onView, onDelete }: {
 
           <TouchableOpacity
             style={styles.deleteBtn}
-            onPress={() => onDelete(friend.id)}
+            onPress={() => onDelete(friend.user.id)}
             activeOpacity={0.8}
           >
             <TrashIcon />
@@ -116,8 +134,32 @@ function FriendRow({ friend, index, onView, onDelete }: {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function FriendsScreen() {
-  // TODO: replace with API call to fetch friends
-  const [friends, setFriends] = useState<Friend[]>(MOCK_FRIENDS);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Invite modal
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteMethod, setInviteMethod] = useState<'email' | 'sms' | 'whatsapp'>('email');
+  const [inviteInput, setInviteInput] = useState('');
+  const [isSending, setIsSending] = useState(false);
+
+  async function fetchFriends() {
+    setIsLoading(true);
+    try {
+      const result = await getFriends(searchQuery.trim() || undefined);
+      setFriends(result.friends);
+    } catch (error) {
+      console.error('[FriendsScreen] getFriends failed', error);
+      setFriends([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchFriends();
+  }, [searchQuery]);
 
   function handleViewFriend(id: string) {
     // TODO: navigate to friend gallery or profile
@@ -126,16 +168,42 @@ export default function FriendsScreen() {
 
   function handleDeleteFriend(id: string) {
     // TODO: replace with API call to delete friend
-    setFriends(prev => prev.filter(f => f.id !== id));
+    setFriends(prev => prev.filter(f => f.user.id !== id));
     console.log('delete friend', id);
   }
 
   function handleInviteFriends() {
-    // TODO: navigate to invite friends screen or open modal
-    console.log('invite friends');
+    setInviteInput('');
+    setInviteMethod('email');
+    setShowInviteModal(true);
   }
 
-  const isEmpty = friends.length === 0;
+  async function handleSendInvite() {
+    if (!inviteInput.trim()) {
+      showAlert({ title: 'Error', message: inviteMethod === 'email' ? 'Enter an email address' : 'Enter a phone number' });
+      return;
+    }
+    if (isSending) return;
+    setIsSending(true);
+    try {
+      const res = await createFriendInvite({
+        channels: [inviteMethod],
+        emails: inviteMethod === 'email' ? [inviteInput.trim()] : [],
+      });
+      Toast.show({ type: 'success', text1: 'Invite sent!' });
+      if (res.branchUrl) {
+        showAlert({ title: 'Invite Link', message: `Share this link:\n${res.branchUrl}` });
+      }
+      setInviteInput('');
+      setShowInviteModal(false);
+    } catch (err) {
+      showAlert({ title: 'Error', message: 'Failed to send invite. Please try again.' });
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  const showingEmptyState = !isLoading && friends.length === 0 && !searchQuery.trim();
 
   return (
     <BlobBackground>
@@ -160,7 +228,7 @@ export default function FriendsScreen() {
             <Text style={styles.inviteBtnText}>Invite Friends</Text>
           </TouchableOpacity>
 
-          {isEmpty ? (
+          {showingEmptyState ? (
             <>
               {/* Empty State */}
               <View style={styles.emptyState}>
@@ -193,22 +261,133 @@ export default function FriendsScreen() {
               {/* Connected Friends Label */}
               <Text style={styles.sectionLabel}>Connected Friends</Text>
 
-              {/* Friends List */}
-              <View style={styles.friendsList}>
-                {friends.map((friend, idx) => (
-                  <FriendRow
-                    key={friend.id}
-                    friend={friend}
-                    index={idx}
-                    onView={handleViewFriend}
-                    onDelete={handleDeleteFriend}
+              {/* Search Bar */}
+              <View style={styles.searchContainer}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" style={styles.searchIcon}>
+                  <Path
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    stroke="#94a3b8"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
-                ))}
+                </Svg>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search by name or handle..."
+                  placeholderTextColor="#94a3b8"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
               </View>
+
+              {/* Friends List */}
+              {isLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#0d9488" />
+                  <Text style={styles.loadingText}>Loading friends...</Text>
+                </View>
+              ) : (
+                <View style={styles.friendsList}>
+                  {friends.length > 0 ? (
+                    friends.map((friend, idx) => (
+                      <FriendRow
+                        key={friend.connectionId}
+                        friend={friend}
+                        index={idx}
+                        onView={handleViewFriend}
+                        onDelete={handleDeleteFriend}
+                      />
+                    ))
+                  ) : (
+                    <Text style={styles.noResultsText}>No friends match your search</Text>
+                  )}
+                </View>
+              )}
             </>
           )}
         </ScrollView>
       </SafeAreaView>
+
+      {/* ── Invite Friends Modal ── */}
+      <Modal visible={showInviteModal} transparent animationType="fade" onRequestClose={() => setShowInviteModal(false)}>
+        <View style={modalStyles.overlay}>
+          <View style={modalStyles.dialog}>
+            {/* Header */}
+            <View style={modalStyles.dHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={modalStyles.dTitle}>Invite Friends</Text>
+                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Invite people to join GatherGo</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowInviteModal(false)} style={modalStyles.closeBtn} activeOpacity={0.7}>
+                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                  <Path d="M18 6L6 18M6 6l12 12" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ paddingHorizontal: 16, paddingVertical: 18 }}>
+              <Text style={modalStyles.sectionLabel}>Send via</Text>
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+                {[
+                  {
+                    key: 'email',
+                    icon: (active: boolean) => (
+                      <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                        <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke={active ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                        <Path d="M22 6l-10 7L2 6" stroke={active ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      </Svg>
+                    ),
+                  },
+                  {
+                    key: 'sms',
+                    icon: (active: boolean) => (
+                      <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                        <Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={active ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      </Svg>
+                    ),
+                  },
+                  {
+                    key: 'whatsapp',
+                    icon: (active: boolean) => (
+                      <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                        <Path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" stroke={active ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      </Svg>
+                    ),
+                  },
+                ].map(m => (
+                  <TouchableOpacity
+                    key={m.key}
+                    onPress={() => setInviteMethod(m.key as any)}
+                    style={[modalStyles.inviteIconBtn, inviteMethod === m.key && modalStyles.inviteIconBtnActive]}
+                    activeOpacity={0.7}
+                  >
+                    {m.icon(inviteMethod === m.key)}
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TextInput
+                  style={[modalStyles.fInput, { flex: 1 }]}
+                  placeholder={inviteMethod === 'email' ? 'Enter email address' : inviteMethod === 'sms' ? 'Enter phone number' : 'Enter WhatsApp number'}
+                  placeholderTextColor="#94a3b8"
+                  value={inviteInput}
+                  onChangeText={setInviteInput}
+                  keyboardType={inviteMethod === 'email' ? 'email-address' : 'phone-pad'}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity style={modalStyles.sendBtn} onPress={handleSendInvite} activeOpacity={0.85} disabled={isSending}>
+                  {isSending
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={modalStyles.sendBtnTxt}>Send</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </BlobBackground>
   );
 }
@@ -248,9 +427,12 @@ const styles = StyleSheet.create({
   // Invite Button
   inviteBtn: {
     backgroundColor: '#0d9488',
-  borderRadius: 999,
-    paddingVertical: 9, paddingHorizontal: 22,
-    alignSelf: 'center', marginBottom: 30, gap: 5,
+    borderRadius: 999,
+    paddingVertical: 9,
+    paddingHorizontal: 22,
+    alignSelf: 'center',
+    marginBottom: 16,
+    gap: 5,
   },
   inviteBtnText: {
     color: '#fff',
@@ -264,9 +446,46 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#45556C',
-    marginBottom: 12,
+    marginBottom: 8,
     textTransform: 'uppercase',
-   
+  },
+
+  // Search Bar
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffff',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0f172a',
+    padding: 0,
+  },
+  noResultsText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 13,
+    color: '#94a3b8',
   },
 
   // Friends List
@@ -286,6 +505,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 10,
     flexShrink: 0,
+    overflow: 'hidden',
   },
   avatarImage: {
     width: 40,
@@ -320,8 +540,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   viewBtn: {
-    backgroundColor: '#f0fdfa',
-    borderRadius: 6,
+    backgroundColor: '#eeffff',
+    borderRadius: 90,
     paddingHorizontal: 12,
     paddingVertical: 6,
     alignItems: 'center',
@@ -365,4 +585,18 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginBottom: 20,
   },
+});
+
+const modalStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
+  dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', overflow: 'hidden' },
+  dHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  dTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
+  sectionLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  fInput: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#0f172a' },
+  inviteIconBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
+  inviteIconBtnActive: { borderColor: '#0d9488', backgroundColor: '#0d9488' },
+  sendBtn: { backgroundColor: '#0d9488', borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  sendBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

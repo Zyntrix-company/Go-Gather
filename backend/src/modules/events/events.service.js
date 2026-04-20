@@ -62,6 +62,23 @@ const enrichEvent = async (e) => {
   return { ...formatEvent(e), bannerImageUrl };
 };
 
+const sanitizeAvatarUrl = (rawUrl, updatedAt, userId) => {
+  const isValid =
+    rawUrl &&
+    !rawUrl.includes('/undefined') &&
+    !rawUrl.includes('https://undefined/');
+
+  if (!isValid) {
+    return `https://i.pravatar.cc/150?u=${userId}`;
+  }
+
+  if (!updatedAt) return rawUrl;
+  const ts = new Date(updatedAt).getTime();
+  const version = Number.isFinite(ts) ? Math.floor(ts / 1000) : 0;
+  const sep = rawUrl.includes('?') ? '&' : '?';
+  return `${rawUrl}${sep}v=${version}`;
+};
+
 // ─── Create Event ─────────────────────────────────────────────────────────────
 
 const createEvent = async (userId, body) => {
@@ -216,19 +233,27 @@ const getEvents = async (userId, { status, page = 1, limit = 20 } = {}) => {
        e.*,
        COUNT(em2.user_id)::int AS member_count,
        COUNT(*) OVER()::int    AS total_count,
-       COALESCE(
+      COALESCE(
          (
            SELECT json_agg(avatar)
            FROM (
              SELECT json_build_object(
                'id', emx.user_id::text,
                'uri', COALESCE(
-                 CASE WHEN p.avatar_url IS NOT NULL AND p.avatar_url NOT LIKE 'https://undefined/%' AND p.avatar_url NOT LIKE '%/undefined%' THEN p.avatar_url ELSE NULL END,
+                CASE
+                  WHEN p.avatar_url IS NOT NULL
+                    AND p.avatar_url NOT LIKE 'https://undefined/%'
+                    AND p.avatar_url NOT LIKE '%/undefined%'
+                  THEN p.avatar_url ||
+                    (CASE WHEN POSITION('?' IN p.avatar_url) > 0 THEN '&' ELSE '?' END) ||
+                    'v=' || EXTRACT(EPOCH FROM COALESCE(p.updated_at, emx.joined_at))::bigint
+                  ELSE NULL
+                END,
                  'https://i.pravatar.cc/150?u=' || emx.user_id::text
                )
              ) AS avatar
              FROM event_members emx
-             JOIN profiles p ON p.user_id = emx.user_id
+            LEFT JOIN profiles p ON p.user_id = emx.user_id
              WHERE emx.event_id = e.id
              ORDER BY emx.joined_at ASC
              LIMIT 5
@@ -279,7 +304,7 @@ const getEventById = async (eventId) => {
   const e = eventResult.rows[0];
 
   const membersResult = await db(
-    `SELECT em.user_id, p.full_name AS name, p.avatar_url, em.role, em.joined_at
+    `SELECT em.user_id, p.full_name AS name, p.avatar_url, p.updated_at AS profile_updated_at, em.role, em.joined_at
      FROM event_members em
      LEFT JOIN profiles p ON p.user_id = em.user_id
      WHERE em.event_id = $1
@@ -292,7 +317,7 @@ const getEventById = async (eventId) => {
     members: membersResult.rows.map((m) => ({
       userId: m.user_id,
       name: m.name,
-      avatarUrl: m.avatar_url,
+      avatarUrl: sanitizeAvatarUrl(m.avatar_url, m.profile_updated_at, m.user_id),
       role: m.role,
       joinedAt: m.joined_at,
     })),
@@ -590,7 +615,7 @@ const acceptEventInvite = async (token, userId) => {
 const getEventMembers = async (eventId) => {
   const result = await db(
     `SELECT em.user_id, em.role, em.joined_at,
-            p.full_name AS name, p.avatar_url,
+            p.full_name AS name, p.avatar_url, p.updated_at AS profile_updated_at,
             u.email
      FROM event_members em
      LEFT JOIN profiles p ON p.user_id = em.user_id
@@ -604,7 +629,7 @@ const getEventMembers = async (eventId) => {
     userId: m.user_id,
     fullName: m.name,
     email: m.email,
-    avatarUrl: m.avatar_url,
+    avatarUrl: sanitizeAvatarUrl(m.avatar_url, m.profile_updated_at, m.user_id),
     role: m.role,
     joinedAt: m.joined_at,
   }));

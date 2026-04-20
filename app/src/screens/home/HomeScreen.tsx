@@ -15,9 +15,11 @@ import {
   Modal,
   Pressable,
   ActivityIndicator,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import SweeIcon from '../../components/common/SweeIcon';
 import LinearGradient from 'react-native-linear-gradient';
 import {
   Search,
@@ -190,15 +192,6 @@ const PlaneIcon = ({ color = '#0d9488', size = 44 }) => (
   </Svg>
 );
 
-const SparklesIcon = ({ size = 24, color = '#fff' }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M9.937 15.5A2 2 0 008.5 14.063l-6.135-1.582a.5.5 0 010-.962L8.5 9.937A2 2 0 009.937 8.5l1.582-6.135a.5.5 0 01.963 0L14.063 8.5A2 2 0 0015.5 9.937l6.135 1.582a.5.5 0 010 .963L15.5 14.063A2 2 0 0014.063 15.5l-1.582 6.135a.5.5 0 01-.963 0z"
-      stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
-    />
-    <Path d="M20 3v4M22 5h-4M4 17v2M5 18H3" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
 
 // ─── Bottom Nav ───────────────────────────────────────────────────────────────
 
@@ -416,7 +409,7 @@ function SweeFab({ onPress }: { onPress: () => void }) {
     <Animated.View
       style={[styles.sweeFab, { transform: pan.getTranslateTransform() }]}
       {...panResponder.panHandlers}>
-      <SparklesIcon size={24} color="#fff" />
+      <SweeIcon size={24} />
     </Animated.View>
   );
 }
@@ -463,6 +456,7 @@ export default function HomeScreen({ navigation, route }: any) {
 
   // Carousel dot indices
   const [blogIndex, setBlogIndex] = useState(0);
+  const [sweeSearchText, setSweeSearchText] = useState('');
   const [dealIndex, setDealIndex] = useState(0);
   const blogListRef = useRef<FlatList>(null);
   const blogIndexRef = useRef(0);
@@ -577,6 +571,13 @@ export default function HomeScreen({ navigation, route }: any) {
     loadHomeDataRef.current();
   }, [avatarUpdatedAt]);
 
+  // Refresh feed when returning to Home from Trips/Events tabs.
+  useEffect(() => {
+    if (activeTab !== 'home') return;
+    loadTripsRef.current();
+    loadHomeDataRef.current();
+  }, [activeTab]);
+
   const user = rawUser ? {
     id: rawUser.id ?? rawUser.sub ?? '',
     fullName: rawUser.fullName ?? rawUser.full_name ?? '',
@@ -588,10 +589,20 @@ export default function HomeScreen({ navigation, route }: any) {
   } : null;
 
   const firstName = user?.fullName?.split(' ')[0] || 'Explorer';
-  const { upcoming, ongoing, past } = categorizeTrips(trips);
+  const { upcoming } = categorizeTrips(trips);
 
   function navigateToTrip(trip: Trip) { navigation.navigate('TripDetail', { trip }); }
-  function navigateToChat(chat: any) { navigation.navigate('ChatDetail', { chat }); }
+  function navigateToChat(chat: any, initialMessage?: string) {
+    navigation.navigate('ChatDetail', { chat, initialMessage });
+  }
+
+  function handleAskSwee(rawMessage?: string) {
+    const trimmed = (rawMessage ?? sweeSearchText).trim();
+    navigateToChat(SWEE_CHAT, trimmed || undefined);
+    InteractionManager.runAfterInteractions(() => {
+      setSweeSearchText('');
+    });
+  }
 
   function archiveTrip(trip: Trip) {
     setShowTripMenu(null);
@@ -780,11 +791,15 @@ export default function HomeScreen({ navigation, route }: any) {
           <Search size={18} color="#94a3b8" />
           <TextInput
             style={{ flex: 1, fontSize: 14, color: '#1a1a2e', paddingVertical: 0 }}
-            placeholder="Where should we go?"
+            placeholder="Ask Swee..."
             placeholderTextColor="#94a3b8"
+            value={sweeSearchText}
+            onChangeText={setSweeSearchText}
+            returnKeyType="send"
+            onSubmitEditing={() => handleAskSwee()}
           />
           <TouchableOpacity
-            onPress={() => navigateToChat(SWEE_CHAT)}
+            onPress={() => handleAskSwee()}
             activeOpacity={0.85}
             style={{
               flexDirection: 'row', alignItems: 'center',
@@ -813,6 +828,7 @@ export default function HomeScreen({ navigation, route }: any) {
             <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>Create Event</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            onPress={() => handleAskSwee('How does GatherGo work?')}
             activeOpacity={0.85}
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFA76A', borderRadius: 999, paddingVertical: 9, gap: 5 }}>
             <HelpCircle size={15} color="#fff" />
@@ -980,18 +996,18 @@ export default function HomeScreen({ navigation, route }: any) {
         )}
 
         {/* ── 6. Upcoming Trips ── */}
-        {[...ongoing, ...upcoming].length > 0 && (
+        {upcoming.length > 0 && (
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 10 }}>
               <LucideMapPin size={19} color="#000000" strokeWidth={1.8} />
               <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Upcoming Trips</Text>
             </View>
-            {[...ongoing, ...upcoming].slice(0, 3).map(trip => {
+            {upcoming.slice(0, 3).map(trip => {
             const days = trip.startDateISO
               ? Math.ceil((new Date(trip.startDateISO).getTime() - Date.now()) / 86400000)
               : 0;
             return (
-              <View key={trip.id} style={{ marginHorizontal: H_PAD, marginBottom: 8, zIndex: showTripMenu === trip.id ? 100 : 1 }}>
+              <View key={trip.id} style={{ marginHorizontal: H_PAD, zIndex: showTripMenu === trip.id ? 100 : 1 }}>
                 <UnifiedCard
                   imageUri={trip.bannerImageUrl}
                   imageFallback={trip.image}
@@ -1007,11 +1023,23 @@ export default function HomeScreen({ navigation, route }: any) {
                   archiveLabel="Archive Trip"
                   onArchive={() => archiveTrip(trip)}
                   onDelete={() => deleteTrip(trip)}
+                  mb={8}
                 />
               </View>
             );
             })
             }
+            {upcoming.length > 3 && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setActiveTab('trips')}
+                style={{ alignSelf: 'center', marginTop: 2, marginBottom: 4, paddingVertical: 4, paddingHorizontal: 8 }}
+              >
+                <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>
+                  View all trips ({upcoming.length})
+                </Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
 
@@ -1039,7 +1067,7 @@ export default function HomeScreen({ navigation, route }: any) {
               ? Math.ceil((new Date(ev.eventDate).getTime() - Date.now()) / 86400000)
               : 0;
             return (
-              <View key={ev.id} style={{ marginHorizontal: H_PAD, marginBottom: 8, zIndex: showEventMenu === ev.id ? 100 : 1 }}>
+              <View key={ev.id} style={{ marginHorizontal: H_PAD, zIndex: showEventMenu === ev.id ? 100 : 1 }}>
                 <UnifiedCard
                   imageUri={ev.bannerImageUrl}
                   imageFallback={require('../../assets/images/goa_beach.png')}
@@ -1055,11 +1083,23 @@ export default function HomeScreen({ navigation, route }: any) {
                   archiveLabel="Archive Event"
                   onArchive={() => archiveHomeEvent(ev)}
                   onDelete={() => deleteHomeEvent(ev)}
+                  mb={8}
                 />
               </View>
             );
             })
             }
+            {homeEvents.length > 3 && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setActiveTab('events')}
+                style={{ alignSelf: 'center', marginTop: 2, marginBottom: 4, paddingVertical: 4, paddingHorizontal: 8 }}
+              >
+                <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>
+                  View all events ({homeEvents.length})
+                </Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
       </ScrollView>

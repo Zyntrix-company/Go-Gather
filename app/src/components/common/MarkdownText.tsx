@@ -51,11 +51,12 @@ type Props = {
 };
 
 export default function MarkdownText({ text, streaming, baseStyle, userMessage }: Props) {
+  const safeText = text ?? '';
   if (streaming) {
-    return <Text style={baseStyle}>{text}</Text>;
+    return <Text style={baseStyle}>{safeText}</Text>;
   }
 
-  const lines = text.split('\n');
+  const lines = safeText.split('\n');
   const elements: React.ReactNode[] = [];
   let i = 0;
 

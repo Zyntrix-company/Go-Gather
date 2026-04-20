@@ -12,10 +12,12 @@ import {
   Modal,
   ScrollView,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
 import MarkdownText from '../../components/common/MarkdownText';
+import SweeIcon from '../../components/common/SweeIcon';
 import useAuthStore from '../../store/authStore';
 import {
   sendMessageStream,
@@ -65,14 +67,6 @@ const BackIcon = () => (
   </Svg>
 );
 
-const SparkleIcon = ({ size = 16, color = '#fff' }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M9.937 15.5A2 2 0 008.5 14.063l-6.135-1.582a.5.5 0 010-.962L8.5 9.937A2 2 0 009.937 8.5l1.582-6.135a.5.5 0 01.963 0L14.063 8.5A2 2 0 0015.5 9.937l6.135 1.582a.5.5 0 010 .963L15.5 14.063A2 2 0 0014.063 15.5l-1.582 6.135a.5.5 0 01-.963 0z"
-      stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
-    />
-  </Svg>
-);
 
 const DotsIcon = () => (
   <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -98,11 +92,63 @@ const CloseIcon = ({ size = 20 }: { size?: number }) => (
   </Svg>
 );
 
+// ─── Report options ────────────────────────────────────────────────────────
+
+const REPORT_OPTIONS = [
+  'Wrong information',
+  'Not helpful',
+  'Inappropriate content',
+  'Off topic',
+  'Other',
+];
+
+// ─── Typing indicator ──────────────────────────────────────────────────────
+
+function TypingIndicator() {
+  const dots = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
+
+  useEffect(() => {
+    dots.forEach((dot, i) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(i * 160),
+          Animated.timing(dot, { toValue: 1, duration: 260, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0, duration: 260, useNativeDriver: true }),
+          Animated.delay(Math.max(0, 780 - i * 160)),
+        ]),
+      ).start();
+    });
+  }, []);
+
+  return (
+    <View style={styles.msgRow}>
+      <View style={styles.msgAvatarSwee}>
+        <SweeIcon size={14} color="#fff" />
+      </View>
+      <View style={[styles.msgBubble, styles.msgBubbleSwee, styles.typingBubble]}>
+        {dots.map((dot, i) => (
+          <Animated.View
+            key={i}
+            style={[
+              styles.typingDot,
+              {
+                opacity: dot.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+                transform: [{ translateY: dot.interpolate({ inputRange: [0, 1], outputRange: [0, -5] }) }],
+              },
+            ]}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 // ─── Main Screen ───────────────────────────────────────────────────────────
 
 export default function ChatDetailScreen({ route, navigation }: any) {
   const rawUser = useAuthStore((s) => s.user) as any;
   const userId: string = rawUser?.id ?? '';
+  const initialMessageParam = route?.params?.initialMessage;
 
   const chat = route?.params?.chat ?? {
     id: 'swee',
@@ -124,12 +170,14 @@ export default function ChatDetailScreen({ route, navigation }: any) {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [reportReason, setReportReason] = useState('');
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [reportingMessageId, setReportingMessageId] = useState<string | null>(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [reportSent, setReportSent] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const abortRef = useRef<(() => void) | null>(null);
+  const autoSentInitialRef = useRef<string | null>(null);
 
   // Scroll to bottom whenever messages change
   useEffect(() => {
@@ -143,8 +191,9 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     };
   }, []);
 
-  const sendMessage = useCallback(() => {
-    const text = inputText.trim();
+  const sendMessage = useCallback((overrideText?: unknown) => {
+    const resolvedText = typeof overrideText === 'string' ? overrideText : inputText;
+    const text = resolvedText.trim();
     if (!text || isTyping) return;
 
     const userMsg: Message = {
@@ -203,6 +252,16 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     );
   }, [inputText, isTyping, messages, tripContext]);
 
+  useEffect(() => {
+    const text = typeof initialMessageParam === 'string' ? initialMessageParam.trim() : '';
+    if (!text || isTyping) return;
+    if (autoSentInitialRef.current === text) return;
+
+    autoSentInitialRef.current = text;
+    sendMessage(text);
+    navigation.setParams({ initialMessage: undefined });
+  }, [initialMessageParam, isTyping, navigation, sendMessage]);
+
   const handleClearConversation = useCallback(async () => {
     abortRef.current?.();
     abortRef.current = null;
@@ -218,32 +277,40 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     const lastSweeMsg = [...messages].reverse().find((m) => m.sender === 'swee');
     setReportingMessageId(lastSweeMsg?.id ?? null);
     setReportReason('');
+    setSelectedOption(null);
     setReportSent(false);
     setShowOverflow(false);
     setShowReportModal(true);
   }, [messages]);
 
   const submitReport = useCallback(async () => {
-    if (!reportReason.trim()) return;
+    if (!selectedOption) return;
+    const combined = selectedOption + (reportReason.trim() ? ` — ${reportReason.trim()}` : '');
     setIsSubmittingReport(true);
     try {
-      await reportMessage(reportingMessageId ?? '', reportReason.trim());
+      await reportMessage(reportingMessageId ?? '', combined);
       setReportSent(true);
     } catch (_) {
-      setReportSent(true); // still close gracefully
+      setReportSent(true);
     } finally {
       setIsSubmittingReport(false);
     }
-  }, [reportReason, reportingMessageId]);
+  }, [selectedOption, reportReason, reportingMessageId]);
 
   function renderMessage({ item }: { item: Message }) {
     const isUser = item.sender === 'user';
+    const isStreamingPlaceholder = !isUser && item.streaming && !item.text.trim();
     const textStyle = [styles.msgText, isUser && styles.msgTextUser];
+
+    if (isStreamingPlaceholder) {
+      return <TypingIndicator />;
+    }
+
     return (
       <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowOther]}>
         {!isUser && (
           <View style={styles.msgAvatarSwee}>
-            <SparkleIcon size={14} color="#fff" />
+            <SweeIcon size={14} color="#fff" />
           </View>
         )}
         <View style={[styles.msgBubble, isUser ? styles.msgBubbleUser : styles.msgBubbleSwee]}>
@@ -278,7 +345,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           </TouchableOpacity>
 
           <View style={styles.headerAvatarSwee}>
-            <SparkleIcon size={20} color="#fff" />
+            <SweeIcon size={20} color="#fff" />
           </View>
 
           <View style={styles.headerInfo}>
@@ -321,7 +388,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         {/* ── Context banner (when trip is attached) ── */}
         {tripContext && (
           <View style={styles.contextBanner}>
-            <SparkleIcon size={13} color="#0d9488" />
+            <SweeIcon size={13} color="#0d9488" />
             <Text style={styles.contextBannerText} numberOfLines={1}>
               Context: {tripContext.name}
               {tripContext.destination ? ` · ${tripContext.destination}` : ''}
@@ -341,16 +408,6 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           contentContainerStyle={styles.messageList}
           showsVerticalScrollIndicator={false}
         />
-
-        {/* ── Typing indicator ── */}
-        {isTyping && messages[messages.length - 1]?.text === '' && (
-          <View style={styles.typingRow}>
-            <View style={styles.typingBubble}>
-              <ActivityIndicator size="small" color="#0d9488" />
-              <Text style={styles.typingText}>Swee is typing...</Text>
-            </View>
-          </View>
-        )}
 
         {/* ── Input bar ── */}
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -411,17 +468,36 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
             {reportSent ? (
               <View style={styles.reportSent}>
-                <Text style={styles.reportSentText}>Thank you! Your report has been submitted.</Text>
-                <TouchableOpacity style={styles.reportBtn} onPress={() => setShowReportModal(false)}>
-                  <Text style={styles.reportBtnText}>Close</Text>
+                <View style={styles.reportSentIcon}>
+                  <Text style={styles.reportSentEmoji}>✓</Text>
+                </View>
+                <Text style={styles.reportSentTitle}>Thanks for your feedback</Text>
+                <Text style={styles.reportSentText}>Your report helps us improve Swee.</Text>
+                <TouchableOpacity style={styles.reportBtn} onPress={() => setShowReportModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.reportBtnText}>Done</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               <>
                 <Text style={styles.reportLabel}>What went wrong?</Text>
+                <View style={styles.optionGrid}>
+                  {REPORT_OPTIONS.map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[styles.optionChip, selectedOption === opt && styles.optionChipSelected]}
+                      onPress={() => setSelectedOption(opt)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.optionChipText, selectedOption === opt && styles.optionChipTextSelected]}>
+                        {opt}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={styles.reportLabelOptional}>Additional details <Text style={styles.optionalTag}>(optional)</Text></Text>
                 <TextInput
                   style={styles.reportInput}
-                  placeholder="Describe the issue with Swee's response..."
+                  placeholder="Add more context..."
                   placeholderTextColor="#94a3b8"
                   value={reportReason}
                   onChangeText={setReportReason}
@@ -430,14 +506,14 @@ export default function ChatDetailScreen({ route, navigation }: any) {
                   selectionColor="#0d9488"
                 />
                 <TouchableOpacity
-                  style={[styles.reportBtn, (!reportReason.trim() || isSubmittingReport) && styles.reportBtnDisabled]}
+                  style={[styles.reportBtn, (!selectedOption || isSubmittingReport) && styles.reportBtnDisabled]}
                   onPress={submitReport}
-                  disabled={!reportReason.trim() || isSubmittingReport}
+                  disabled={!selectedOption || isSubmittingReport}
                   activeOpacity={0.8}
                 >
                   {isSubmittingReport
                     ? <ActivityIndicator color="#fff" size="small" />
-                    : <Text style={styles.reportBtnText}>Submit report</Text>
+                    : <Text style={styles.reportBtnText}>Submit</Text>
                   }
                 </TouchableOpacity>
               </>
@@ -458,7 +534,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             </View>
             <View style={styles.aboutAvatarRow}>
               <View style={styles.aboutAvatar}>
-                <SparkleIcon size={28} color="#fff" />
+                <SweeIcon size={28} color="#fff" />
               </View>
             </View>
             <Text style={styles.aboutText}>
@@ -542,14 +618,14 @@ const styles = StyleSheet.create({
   msgTime: { fontSize: 10, color: '#94a3b8', marginTop: 4, textAlign: 'right' },
   msgTimeUser: { color: 'rgba(255,255,255,0.65)' },
 
-  typingRow: { paddingHorizontal: 16, paddingBottom: 4 },
   typingBubble: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#f0fdfa', borderRadius: 12,
-    paddingVertical: 7, paddingHorizontal: 12,
-    alignSelf: 'flex-start', borderWidth: 1, borderColor: '#ccfbf1',
+    paddingVertical: 14, paddingHorizontal: 18,
   },
-  typingText: { fontSize: 12, color: '#0d9488', fontStyle: 'italic' },
+  typingDot: {
+    width: 7, height: 7, borderRadius: 4,
+    backgroundColor: '#0d9488',
+  },
 
   inputRow: {
     flexDirection: 'row', alignItems: 'flex-end',
@@ -589,21 +665,43 @@ const styles = StyleSheet.create({
   },
   reportHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   reportTitle: { fontSize: 17, fontWeight: '700', color: '#0f172a' },
-  reportLabel: { fontSize: 14, color: '#475569', marginBottom: 10 },
   reportInput: {
     backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0',
     borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
     fontSize: 14, color: '#0f172a', minHeight: 100, textAlignVertical: 'top',
     marginBottom: 16,
   },
+  reportLabel: { fontSize: 13, color: '#475569', marginBottom: 10, fontWeight: '500' },
+  reportLabelOptional: { fontSize: 13, color: '#475569', marginBottom: 8, marginTop: 4, fontWeight: '500' },
+  optionalTag: { fontSize: 12, color: '#94a3b8', fontWeight: '400' },
+
+  optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  optionChip: {
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 20, borderWidth: 1.5, borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+  },
+  optionChipSelected: { borderColor: '#0d9488', backgroundColor: '#f0fdfa' },
+  optionChipText: { fontSize: 13, color: '#475569', fontWeight: '500' },
+  optionChipTextSelected: { color: '#0d9488', fontWeight: '600' },
+
   reportBtn: {
     backgroundColor: '#0d9488', borderRadius: 12,
-    paddingVertical: 14, alignItems: 'center',
+    paddingVertical: 15, alignItems: 'center',
+    alignSelf: 'stretch', marginTop: 4,
   },
   reportBtnDisabled: { backgroundColor: '#cbd5e1' },
   reportBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  reportSent: { alignItems: 'center', paddingVertical: 16, gap: 16 },
-  reportSentText: { fontSize: 15, color: '#0f172a', textAlign: 'center', lineHeight: 22 },
+
+  reportSent: { alignItems: 'center', paddingVertical: 20, gap: 10 },
+  reportSentIcon: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: '#f0fdfa', borderWidth: 2, borderColor: '#0d9488',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  reportSentEmoji: { fontSize: 22, color: '#0d9488', fontWeight: '700' },
+  reportSentTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  reportSentText: { fontSize: 14, color: '#64748b', textAlign: 'center', lineHeight: 20, marginBottom: 8 },
 
   aboutModal: {
     backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,

@@ -562,6 +562,11 @@ export async function acceptTripInvite(token: string) {
 
 // ─── 10. Friends list (for friend picker in Create Trip / Invite) ─────────────
 
+export async function createFriendInvite(body: { channels: string[]; emails?: string[] }) {
+  const res = await client.post('/friends/invite', body);
+  return res.data as { token: string; branchUrl: string; shareText: string; expiresAt: string };
+}
+
 export async function getFriends(search?: string) {
   const res = await client.get('/friends', { params: search ? { search } : undefined });
   return res.data as {

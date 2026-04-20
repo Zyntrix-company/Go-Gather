@@ -1,9 +1,11 @@
 const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
+const config = require('../../config');
 const { sendFCMNotification } = require('../../utils/fcm.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
 const { generateInviteShareText } = require('../../utils/shareText.util');
 const { sendEmail, wrapEmail } = require('../../utils/mailer');
+const { getPresignedDownloadUrl } = require('../../utils/s3.util');
 const logger = require('../../utils/logger');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -34,7 +36,28 @@ const getUserFcmToken = async (userId) => {
   );
   return result.rows[0]?.fcm_token || null;
 };
+const normalizeAvatarUrl = async (rawAvatarUrl) => {
+  if (!rawAvatarUrl || rawAvatarUrl.includes('https://undefined')) return null;
 
+  try {
+    let s3Key = null;
+    const cfDomain = config.s3.cloudfrontDomain;
+    if (cfDomain && rawAvatarUrl.startsWith(`https://${cfDomain}/`)) {
+      s3Key = rawAvatarUrl.slice(`https://${cfDomain}/`.length).split('?')[0];
+    } else {
+      const parsed = new URL(rawAvatarUrl);
+      s3Key = parsed.pathname.replace(/^\//, '').split('?')[0];
+    }
+
+    if (s3Key && s3Key.startsWith('avatars/')) {
+      return await getPresignedDownloadUrl(s3Key, 3600);
+    }
+  } catch (err) {
+    logger.warn('Failed to normalize avatar URL', { rawAvatarUrl, err: err.message });
+  }
+
+  return rawAvatarUrl;
+};
 // ─── Send Friend Request ───────────────────────────────────────────────────────
 
 const sendFriendRequest = async (requesterId, addresseeId) => {
@@ -286,19 +309,19 @@ const getFriends = async (userId, search) => {
     params,
   );
 
-  const friends = result.rows.map((row) => ({
+  const friends = await Promise.all(result.rows.map(async (row) => ({
     connectionId: row.connectionId,
     user: {
       id: row.userId,
       name: row.name,
-      avatarUrl: row.avatarUrl,
+      avatarUrl: await normalizeAvatarUrl(row.avatarUrl),
       country: row.country,
       bio: row.bio,
     },
     mutualTripCount: row.mutualTripCount,
     mutualEventCount: row.mutualEventCount,
     connectedAt: row.connectedAt,
-  }));
+  })));
 
   return { friends, total: friends.length };
 };

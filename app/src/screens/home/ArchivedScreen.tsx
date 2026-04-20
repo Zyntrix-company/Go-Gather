@@ -23,6 +23,7 @@ import {
 import { getArchivedEvents, unarchiveEvent, deleteEvent } from '../../api/events.api';
 import { showConfirm } from '../../store/alertStore';
 import { UnifiedCard } from '../../components/common/Cards';
+import useAuthStore from '../../store/authStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,8 @@ type ArchivedTrip = {
   startDate: string;
   endDate: string;
   bannerImageUrl?: string | null;
-  memberCount: number;
+  members: { id: string; uri: string }[];
+  extraMembers: number;
 };
 
 type ArchivedEvent = {
@@ -42,7 +44,35 @@ type ArchivedEvent = {
   location: string;
   fullDate: string;
   bannerImageUrl?: string | null;
+  members: { id: string; uri: string }[];
+  extraMembers: number;
 };
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function patchAvatarUri(rawUri: string, prevUrl: string, freshUrl: string): string {
+  if (!rawUri || !freshUrl) return rawUri;
+  if (prevUrl && rawUri === prevUrl) return freshUrl;
+  try {
+    if (new URL(rawUri).pathname === new URL(freshUrl).pathname) return freshUrl;
+  } catch { /* malformed URL */ }
+  return rawUri;
+}
+
+function mapAvatars(memberAvatars: any[], memberCount: number): { members: { id: string; uri: string }[]; extraMembers: number } {
+  const { prevAvatarUrl, user } = useAuthStore.getState();
+  const freshUrl = user?.photoUrl || user?.avatarUrl || '';
+  const sliced = (memberAvatars || []).slice(0, 4);
+  const members = sliced.map((av: any, idx: number) => {
+    const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
+    const uri = patchAvatarUri(rawUri, prevAvatarUrl ?? '', freshUrl);
+    return { id: uri || `av-${idx}`, uri };
+  });
+  const extraMembers = sliced.length === 0
+    ? (memberCount ?? 0)
+    : Math.max(0, (memberCount ?? 0) - Math.min(sliced.length, 4));
+  return { members, extraMembers };
+}
 
 // ─── Date helpers ────────────────────────────────────────────────────────────
 
@@ -74,25 +104,34 @@ export default function ArchivedScreen() {
         getArchivedEvents(),
       ]);
 
-      setTrips((tripsRes.trips || []).map(t => ({
-        id: t.id,
-        name: t.name,
-        location: t.location?.name ?? '',
-        startDate: fmtDateTrip(t.startDate),
-        endDate: fmtDateTrip(t.endDate),
-        bannerImageUrl: t.bannerImageUrl,
-        memberCount: t.memberCount ?? 0,
-      })));
+      setTrips((tripsRes.trips || []).map(t => {
+        const { members, extraMembers } = mapAvatars((t as any).memberAvatars || [], t.memberCount ?? 0);
+        return {
+          id: t.id,
+          name: t.name,
+          location: t.location?.name ?? '',
+          startDate: fmtDateTrip(t.startDate),
+          endDate: fmtDateTrip(t.endDate),
+          bannerImageUrl: t.bannerImageUrl,
+          members,
+          extraMembers,
+        };
+      }));
 
-      setEvents((eventsRes.events || []).map(e => ({
-        id: e.id,
-        name: e.name,
-        location: e.location?.name ?? '',
-        fullDate: e.eventDate
-          ? new Date(e.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-          : '',
-        bannerImageUrl: e.bannerImageUrl ?? null,
-      })));
+      setEvents((eventsRes.events || []).map(e => {
+        const { members, extraMembers } = mapAvatars((e as any).memberAvatars || [], e.memberCount ?? 0);
+        return {
+          id: e.id,
+          name: e.name,
+          location: e.location?.name ?? '',
+          fullDate: e.eventDate
+            ? new Date(e.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+            : '',
+          bannerImageUrl: e.bannerImageUrl ?? null,
+          members,
+          extraMembers,
+        };
+      }));
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -250,8 +289,8 @@ export default function ArchivedScreen() {
                     name={trip.name}
                     location={trip.location}
                     dateLabel={`${trip.startDate} – ${trip.endDate}`}
-                    members={[]}
-                    extraMembers={trip.memberCount}
+                    members={trip.members}
+                    extraMembers={trip.extraMembers}
                     onPress={() => {}}
                     onToggleMenu={() => setOpenMenuId(openMenuId === trip.id ? null : trip.id)}
                     showMenu={openMenuId === trip.id}
@@ -275,8 +314,8 @@ export default function ArchivedScreen() {
                     name={event.name}
                     location={event.location}
                     dateLabel={event.fullDate}
-                    members={[]}
-                    extraMembers={0}
+                    members={event.members}
+                    extraMembers={event.extraMembers}
                     onPress={() => {}}
                     onToggleMenu={() => setOpenMenuId(openMenuId === event.id ? null : event.id)}
                     showMenu={openMenuId === event.id}

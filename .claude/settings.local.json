@@ -86,7 +86,8 @@
       "Bash(python3 -c \"from PIL import Image; img = Image.open\\('E:/Go Gather/app/assets/icon_only.png'\\); print\\(img.size, img.mode\\)\")",
       "Bash(python -c \"from PIL import Image; img = Image.open\\('E:/Go Gather/app/assets/icon_only.png'\\); print\\(img.size, img.mode\\)\")",
       "Bash(python *)",
-      "Bash(npm uninstall *)"
+      "Bash(npm uninstall *)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js\\)$\")"
     ]
   }
 }

@@ -8,6 +8,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import SweeIcon from '../../components/common/SweeIcon';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { WebView } from 'react-native-webview';
 // DocumentPicker loaded dynamically to avoid crash if native module not yet linked
@@ -254,11 +255,6 @@ const CheckIcon = () => (
     <Path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
-const SparkleIcon = () => (
-  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-    <Path d="M9.937 15.5A2 2 0 008.5 14.063l-6.135-1.582a.5.5 0 010-.962L8.5 9.937A2 2 0 009.937 8.5l1.582-6.135a.5.5 0 01.963 0L14.063 8.5A2 2 0 0015.5 9.937l6.135 1.582a.5.5 0 010 .963L15.5 14.063A2 2 0 0014.063 15.5l-1.582 6.135a.5.5 0 01-.963 0z" stroke="#fff" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
 
 function ActionIcon({ path, color }: { path: string; color: string }) {
   const s = { width: 22, height: 22 };
@@ -288,7 +284,7 @@ function SweeFab({ onPress, fabStyle }: { onPress: () => void; fabStyle?: object
   })).current;
   return (
     <Animated.View style={[styles.sweeFab, { transform: pan.getTranslateTransform() }]} {...pr.panHandlers}>
-      <SparkleIcon />
+      <SweeIcon size={22} />
     </Animated.View>
   );
 }
