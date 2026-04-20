@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
+import MarkdownText from '../../components/common/MarkdownText';
 import useAuthStore from '../../store/authStore';
 import {
   sendMessageStream,
@@ -237,6 +238,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
   function renderMessage({ item }: { item: Message }) {
     const isUser = item.sender === 'user';
+    const textStyle = [styles.msgText, isUser && styles.msgTextUser];
     return (
       <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowOther]}>
         {!isUser && (
@@ -245,10 +247,18 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           </View>
         )}
         <View style={[styles.msgBubble, isUser ? styles.msgBubbleUser : styles.msgBubbleSwee]}>
-          <Text style={[styles.msgText, isUser && styles.msgTextUser]}>
-            {item.text}
-            {item.streaming && <Text style={styles.cursor}>▌</Text>}
-          </Text>
+          {isUser ? (
+            <Text style={textStyle}>{item.text}</Text>
+          ) : (
+            <MarkdownText
+              text={item.text}
+              streaming={item.streaming}
+              baseStyle={textStyle}
+            />
+          )}
+          {item.streaming && (
+            <Text style={[styles.msgText, styles.cursor]}>▌</Text>
+          )}
           {!item.streaming && (
             <Text style={[styles.msgTime, isUser && styles.msgTimeUser]}>{item.time}</Text>
           )}

@@ -35,7 +35,11 @@ function buildSystemPrompt(tripContext) {
     'a group travel planning app. You help users plan trips, suggest itineraries, ' +
     'recommend restaurants and activities, create packing lists, answer visa and travel ' +
     'document questions, and help coordinate group travel logistics. ' +
-    'Keep responses concise, warm, and actionable. Use bullet points where helpful. ' +
+    'Keep responses concise, warm, and actionable. Use bullet points and markdown formatting ' +
+    '(bold with **text**, italic with *text*) where it improves readability. ' +
+    'Match your reply length to the user\'s message — a short casual greeting deserves a short ' +
+    'friendly reply (1-2 sentences max), not a lengthy introduction. ' +
+    'Never re-introduce yourself unless asked. ' +
     'Always respond in the language the user writes in.';
 
   if (tripContext) {
