@@ -1340,6 +1340,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
             dayCount={Math.abs(days)}
             dayLabel={days > 0 ? 'Days to go' : days === 0 ? 'Today!' : 'Days ago'}
             memberCount={memberCount}
+            memberAvatars={members
+              .map(m => ({ id: m.userId, uri: m.avatarUrl ?? '' }))
+              .filter(m => m.uri)}
             docCount={docs.length > 0 ? docs.length : (apiStats?.docCount ?? 0)}
             photoCount={photos.length > 0 ? photos.length : (apiStats?.photoVideoCount ?? 0)}
             totalExpenses={totalExp > 0 ? totalExp : (apiStats?.totalExpenseAmount ?? 0)}
@@ -1366,10 +1369,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
           <View style={styles.actionsWrap}>
             <View style={styles.actionsRow}>
               {[
-                { label: 'Add\nActivity', bg: '#ccfbf1', ic: '#0f766e', p: 'plus', fn: () => setShowAddAct(true) },
-                { label: 'Docs', bg: '#cffafe', ic: '#0e7490', p: 'docs', fn: () => setShowDocs(true) },
-                { label: 'Members', bg: '#ede9fe', ic: '#6d28d9', p: 'members', fn: () => setShowMembers(true) },
-                { label: 'Photos', bg: '#ffe4e6', ic: '#be123c', p: 'photos', fn: () => setShowPhotos(true) },
+                { label: 'Add\nActivity', bg: '#E7F8F2', ic: '#0D9488', p: 'plus', fn: () => setShowAddAct(true) },
+                { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true) },
+                { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true) },
+                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => setShowPhotos(true) },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
                   <View style={[styles.actionCircle, { backgroundColor: btn.bg }]}><ActionIcon path={btn.p} color={btn.ic} /></View>
@@ -1379,9 +1382,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
             </View>
             <View style={styles.actionsRow}>
               {[
-                { label: 'Expenses', bg: '#ffedd5', ic: '#c2410c', p: 'expenses', fn: () => setShowExpenses(true) },
-                { label: 'Polls', bg: '#e0e7ff', ic: '#4338ca', p: 'polls', fn: () => setShowPolls(true) },
-                { label: 'Notes', bg: '#d1fae5', ic: '#065f46', p: 'notes', fn: () => setShowNotes(true) },
+                { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => setShowExpenses(true) },
+                { label: 'Polls', bg: '#F1EBFF', ic: '#8B5CF6', p: 'polls', fn: () => setShowPolls(true) },
+                { label: 'Notes', bg: '#E8F7EA', ic: '#10B981', p: 'notes', fn: () => setShowNotes(true) },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
                   <View style={[styles.actionCircle, { backgroundColor: btn.bg }]}><ActionIcon path={btn.p} color={btn.ic} /></View>

@@ -805,6 +805,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
             dayCount={Math.abs(event.dayCount)}
             dayLabel={dayLabel}
             memberCount={memberCount}
+            memberAvatars={members
+              .map(m => ({ id: m.userId, uri: m.avatarUrl ?? '' }))
+              .filter(m => m.uri)}
             docCount={docs.length}
             photoCount={photos.length}
             totalExpenses={totalExp}
@@ -818,10 +821,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
             {/* Row 1: Docs | Members | Photos | Expenses */}
             <View style={styles.actionsRow}>
               {[
-                { label: 'Docs', bg: '#cffafe', ic: '#0e7490', p: 'docs', fn: () => setShowDocs(true) },
-                { label: 'Members', bg: '#ede9fe', ic: '#6d28d9', p: 'members', fn: () => setShowMembers(true) },
-                { label: 'Photos', bg: '#ffe4e6', ic: '#be123c', p: 'photos', fn: () => setShowPhotos(true) },
-                { label: 'Expenses', bg: '#ffedd5', ic: '#c2410c', p: 'expenses', fn: () => setShowExpenses(true) },
+                { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true) },
+                { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true) },
+                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => setShowPhotos(true) },
+                { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => setShowExpenses(true) },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
                   <View style={[styles.actionCircle, { backgroundColor: btn.bg }]}><ActionIcon path={btn.p} color={btn.ic} /></View>
@@ -832,11 +835,11 @@ export default function EventDetailScreen({ route, navigation }: any) {
             {/* Row 2: Polls under Docs (col 0), Notes under Members (col 1), rest empty */}
             <View style={styles.actionsRow}>
               <TouchableOpacity style={styles.actionBtn} onPress={() => setShowPolls(true)} activeOpacity={0.8}>
-                <View style={[styles.actionCircle, { backgroundColor: '#e0e7ff' }]}><ActionIcon path="polls" color="#4338ca" /></View>
+                <View style={[styles.actionCircle, { backgroundColor: '#F1EBFF' }]}><ActionIcon path="polls" color="#8B5CF6" /></View>
                 <Text style={styles.actionLabel}>Polls</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionBtn} onPress={() => setShowNotes(true)} activeOpacity={0.8}>
-                <View style={[styles.actionCircle, { backgroundColor: '#d1fae5' }]}><ActionIcon path="notes" color="#065f46" /></View>
+                <View style={[styles.actionCircle, { backgroundColor: '#E8F7EA' }]}><ActionIcon path="notes" color="#10B981" /></View>
                 <Text style={styles.actionLabel}>Notes</Text>
               </TouchableOpacity>
               {/* Spacers to keep alignment with 4-col grid */}

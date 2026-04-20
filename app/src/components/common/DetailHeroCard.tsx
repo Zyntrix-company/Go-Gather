@@ -12,6 +12,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { PencilIcon } from './Icons';
+import StackedAvatars from './StackedAvatars';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ export interface DetailHeroCardProps {
   /** e.g. "Days to go" | "Today!" | "Days ago" */
   dayLabel: string;
   memberCount: number;
+  memberAvatars?: { id: string; uri: string }[];
   docCount: number;
   photoCount: number;
   totalExpenses: number;
@@ -73,6 +75,7 @@ export default function DetailHeroCard({
   dayCount,
   dayLabel,
   memberCount,
+  memberAvatars = [],
   docCount,
   photoCount,
   totalExpenses,
@@ -118,9 +121,20 @@ export default function DetailHeroCard({
 
       {/* Stats row — inside the card */}
       <View style={styles.statsRow}>
-        <View style={styles.statBadge}>
-          <MembersIcon />
-          <Text style={styles.statTxt}>{memberCount}</Text>
+        <View style={styles.memberStackRow}>
+          <StackedAvatars
+            avatars={memberAvatars}
+            totalCount={memberCount}
+            maxVisible={3}
+            size={26}
+            overlap={7}
+            counterStyle="soft"
+            containerStyle={styles.memberAvatarStack}
+          />
+          <View style={styles.memberCountChip}>
+            <MembersIcon />
+            <Text style={styles.statTxt}>{memberCount}</Text>
+          </View>
         </View>
         <View style={styles.statBadge}>
           <DocsIcon />
@@ -216,6 +230,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
   },
   statBadge: {
     flexDirection: 'row',
@@ -230,5 +246,26 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#0f172a',
+  },
+  memberStackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 0,
+    marginRight: 2,
+  },
+  memberAvatarStack: {
+    zIndex: 2,
+  },
+  memberCountChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    borderRadius: 999,
+    paddingLeft: 12,
+    paddingRight: 8,
+    paddingVertical: 5,
+    marginLeft: -10, // tuck under avatars so both read as one unit
+    zIndex: 1,
   },
 });
