@@ -7,6 +7,7 @@ import TripDetailScreen from '../screens/trips/TripDetailScreen';
 import EventDetailScreen from '../screens/events/EventDetailScreen';
 import ChatDetailScreen from '../screens/main/ChatDetailScreen';
 import ArchivedScreen from '../screens/home/ArchivedScreen';
+import FriendProfileScreen from '../screens/main/FriendProfileScreen';
 
 export type MainStackParamList = {
   Home: { initialTab?: string } | undefined;
@@ -16,6 +17,7 @@ export type MainStackParamList = {
   EventDetail: { event: any };
   ChatDetail: { chat: any };
   Archived: undefined;
+  FriendProfile: { userId: string; friendName: string };
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -36,6 +38,7 @@ export default function MainStack() {
       <Stack.Screen name="EventDetail" component={EventDetailScreen} />
       <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
       <Stack.Screen name="Archived" component={ArchivedScreen} />
+      <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
     </Stack.Navigator>
   );
 }

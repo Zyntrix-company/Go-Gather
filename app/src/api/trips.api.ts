@@ -567,6 +567,17 @@ export async function createFriendInvite(body: { channels: string[]; emails?: st
   return res.data as { token: string; branchUrl: string; shareText: string; expiresAt: string };
 }
 
+export async function getUserProfile(userId: string) {
+  const res = await client.get(`/users/${userId}/profile`);
+  return res.data as {
+    id: string; username: string; name: string; avatarUrl: string | null;
+    bio: string; country: string;
+    friendshipStatus: 'none' | 'accepted' | 'pending_sent' | 'pending_received';
+    connectionId: string | null;
+    stats: { tripCount: number; eventCount: number; friendCount: number };
+  };
+}
+
 export async function getFriends(search?: string) {
   const res = await client.get('/friends', { params: search ? { search } : undefined });
   return res.data as {

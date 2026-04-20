@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
+import { useNavigation } from '@react-navigation/native';
 import BlobBackground from '../../components/common/BlobBackground';
 import { getFriends, createFriendInvite } from '../../api/trips.api';
 import { showAlert } from '../../store/alertStore';
@@ -65,7 +66,7 @@ const TrashIcon = () => (
 function FriendRow({ friend, index, onView, onDelete }: {
   friend: Friend;
   index: number;
-  onView: (id: string) => void;
+  onView: (friend: Friend) => void;
   onDelete: (id: string) => void;
 }) {
   const fallbackAvatar = `https://i.pravatar.cc/150?u=${encodeURIComponent(friend.user.id)}`;
@@ -111,7 +112,7 @@ function FriendRow({ friend, index, onView, onDelete }: {
         <View style={styles.friendActions}>
           <TouchableOpacity
             style={styles.viewBtn}
-            onPress={() => onView(friend.user.id)}
+            onPress={() => onView(friend)}
             activeOpacity={0.8}
           >
             <Text style={styles.viewBtnText}>View</Text>
@@ -134,6 +135,7 @@ function FriendRow({ friend, index, onView, onDelete }: {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function FriendsScreen() {
+  const navigation = useNavigation<any>();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -161,9 +163,8 @@ export default function FriendsScreen() {
     fetchFriends();
   }, [searchQuery]);
 
-  function handleViewFriend(id: string) {
-    // TODO: navigate to friend gallery or profile
-    console.log('view friend', id);
+  function handleViewFriend(friend: Friend) {
+    navigation.navigate('FriendProfile', { userId: friend.user.id, friendName: friend.user.name ?? 'Friend' });
   }
 
   function handleDeleteFriend(id: string) {

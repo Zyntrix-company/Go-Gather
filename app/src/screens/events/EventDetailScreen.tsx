@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
   TextInput, Image, Platform, NativeModules, Dimensions,
@@ -174,6 +174,14 @@ function EventPhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => 
 
 function EventFriendAvatar({ uri, name, style }: { uri: string; name: string; style: any }) {
   const [failed, setFailed] = useState(false);
+  const prevUri = useRef(uri);
+  useEffect(() => {
+    if (prevUri.current !== uri) {
+      prevUri.current = uri;
+      setFailed(false);
+    }
+  }, [uri]);
+
   if (!uri || failed) {
     return (
       <View style={[style, { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }]}>
@@ -182,6 +190,23 @@ function EventFriendAvatar({ uri, name, style }: { uri: string; name: string; st
     );
   }
   return <CachedImage uri={uri} style={style} resizeMode="cover" onError={() => setFailed(true)} />;
+}
+
+function resolveFriendAvatar(friend: any): string {
+  const id = friend?.user?.id ?? friend?.id ?? '';
+  const candidates = [
+    friend?.user?.photoUrl,
+    friend?.user?.avatarUrl,
+    friend?.user?.profile?.avatarUrl,
+    friend?.user?.avatar,
+    friend?.avatarUrl,
+  ];
+
+  const chosen = candidates.find((v) => typeof v === 'string' && v.trim().length > 0) as string | undefined;
+  if (chosen && !chosen.includes('/undefined') && !chosen.includes('https://undefined/')) {
+    return chosen;
+  }
+  return `https://i.pravatar.cc/150?u=${encodeURIComponent(String(id || 'friend'))}`;
 }
 
 function EventPhotoPreview({ photo }: { photo: PhotoItem }) {
@@ -372,8 +397,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
     getFriends().then(data => {
       setApiFriends(data.friends.map(f => ({
         id: f.user.id,
-        name: f.user.name,
-        avatar: f.user.avatarUrl ?? '',
+        name: f.user.name || 'Friend',
+        avatar: resolveFriendAvatar(f),
       })));
     }).catch(() => { });
   }, [showMembers]);
