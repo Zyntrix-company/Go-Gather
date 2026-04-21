@@ -99,6 +99,9 @@ router.get('/:eventId/polls', eventMemberMW, ctrl.getPolls);
 router.post('/:eventId/polls', eventMemberMW, ctrl.createPoll);
 router.post('/:eventId/polls/:pollId/vote', eventMemberMW, ctrl.vote);
 
+// ─── Reminders ────────────────────────────────────────────────────────────────
+router.get('/:eventId/reminders', eventMemberMW, ctrl.getEventReminders);
+
 // ─── Notes ────────────────────────────────────────────────────────────────────
 router.get('/:eventId/notes', eventMemberMW, ctrl.getNotes);
 router.post('/:eventId/notes', eventMemberMW, ctrl.createNote);

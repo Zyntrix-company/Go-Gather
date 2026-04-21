@@ -140,10 +140,12 @@ const createTrip = async (userId, body) => {
       [trip.id, userId, 'admin'],
     );
 
-    // Schedule reminders (09:00 IST = 03:30 UTC)
+    // Schedule reminders at configurable UTC time (default 03:30 UTC = 09:00 IST)
     if (reminders) {
+      const HOUR = parseInt(process.env.REMINDER_HOUR_UTC ?? '3');
+      const MIN  = parseInt(process.env.REMINDER_MIN_UTC  ?? '30');
       const start = new Date(startDate);
-      start.setUTCHours(3, 30, 0, 0); // 09:00 IST
+      start.setUTCHours(HOUR, MIN, 0, 0);
 
       const remindersToCreate = [
         { type: 'trip_start', date: new Date(start) },
@@ -395,8 +397,10 @@ const updateTrip = async (tripId, updates) => {
     try {
       await client.query('BEGIN');
       await client.query('DELETE FROM trip_reminders WHERE trip_id = $1 AND sent_at IS NULL', [tripId]);
+      const HOUR = parseInt(process.env.REMINDER_HOUR_UTC ?? '3');
+      const MIN  = parseInt(process.env.REMINDER_MIN_UTC  ?? '30');
       const start = new Date(updates.startDate);
-      start.setUTCHours(3, 30, 0, 0);
+      start.setUTCHours(HOUR, MIN, 0, 0);
       const remindersToCreate = [
         { type: 'trip_start', date: new Date(start) },
         { type: '1_day_before', date: new Date(start.getTime() - 86400000) },

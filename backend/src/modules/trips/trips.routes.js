@@ -153,6 +153,9 @@ router.get('/:id/polls', tripMemberMW, pollsCtrl.getPolls);
 router.post('/:id/polls', tripMemberMW, pollsCtrl.createPoll);
 router.post('/:id/polls/:pollId/vote', tripMemberMW, pollsCtrl.vote);
 
+// ─── Reminders ────────────────────────────────────────────────────────────────
+router.get('/:id/reminders', tripMemberMW, tripsController.getTripReminders);
+
 // ─── Notes — multi-note schema ────────────────────────────────────────────────
 router.get('/:id/notes', tripMemberMW, notesCtrl.getNotes);
 router.post('/:id/notes', tripMemberMW, notesCtrl.createNote);

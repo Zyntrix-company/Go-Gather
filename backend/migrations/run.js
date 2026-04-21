@@ -68,7 +68,7 @@ const run = async () => {
     } else {
       // Run pending migrations
       const files = fs.readdirSync(migrationsDir)
-        .filter((f) => f.endsWith('.sql') && !f.includes('_down'))
+        .filter((f) => f.endsWith('.sql') && !f.includes('_down') && /^\d+_/.test(f))
         .sort();
 
       const executed = await pool.query('SELECT name FROM _migrations');

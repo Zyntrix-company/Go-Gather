@@ -9,11 +9,12 @@ export type AppNotification = {
   message: string;
   receivedAt: number;
   read: boolean;
+  data?: Record<string, string>;
 };
 
 type NotificationState = {
   notifications: AppNotification[];
-  addNotification: (n: Pick<AppNotification, 'type' | 'title' | 'message'>) => void;
+  addNotification: (n: Pick<AppNotification, 'type' | 'title' | 'message' | 'data'>) => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
 };
@@ -31,6 +32,7 @@ const useNotificationStore = create<NotificationState>()(
               id: Date.now().toString(),
               receivedAt: Date.now(),
               read: false,
+              data: n.data,
             },
             ...state.notifications,
           ],

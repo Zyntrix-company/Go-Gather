@@ -1,6 +1,6 @@
 # GatherGo — Backend API
 
-Group travel planning API built on Node.js, Express, and PostgreSQL. Covers authentication, trips, expenses, friends, smart invite links, and shared docs/photos/polls.
+Group travel planning API built on Node.js, Express, and PostgreSQL. Covers authentication, trips, events, expenses, friends, smart invite links, shared docs/photos/polls, and **Swee** (travel AI agent on **Google Gemini 2.5 Flash** — not OpenAI).
 
 ---
 
@@ -12,7 +12,7 @@ src/
 │   ├── auth/          M1 — JWT auth, Google/Facebook OAuth
 │   ├── users/         M1+M4 — Profiles, search, gallery
 │   ├── home/          M2+M4 — Dashboard with pending friend requests
-│   ├── trips/         M2+A — CRUD, expenses, activities, polls, photos, docs, notes
+│   ├── trips/         M2 — CRUD, expenses, activities, polls, photos, docs, notes
 │   │   └── submodules/
 │   │       ├── activities/   CRUD + activity photo upload (max 5/activity) — trip-only
 │   │       ├── docs/         Thin wrapper → shared/docs
@@ -21,6 +21,7 @@ src/
 │   │       ├── notes/        Thin wrapper → shared/notes
 │   │       ├── photos/       Thin wrapper → shared/photos
 │   │       └── polls/        Thin wrapper → shared/polls
+│   ├── events/        M3 — Event CRUD; routes mirror trips where applicable (no activities submodule)
 │   ├── shared/        Migration 005 — single service per feature used by trips + events
 │   │   ├── docs/         S3 upload, 15 MB limit, presigned download URLs
 │   │   ├── expenses/     Splits (equal/amount/%), greedy debt simplification
@@ -28,14 +29,19 @@ src/
 │   │   ├── photos/       Trip/event-level photo gallery
 │   │   └── polls/        Multi-option polls with per-user vote tracking
 │   ├── friends/       M4 — Friend requests, invite links
-│   └── invites/       M4 — Token validation & atomic claiming
+│   ├── invites/       M4 — Token validation & atomic claiming
+│   ├── ai/            M5 — Swee chat: Gemini 2.5 Flash (`@google/generative-ai`, `GEMINI_API_KEY`)
+│   ├── contact/       User feedback / Swee issue reports
+│   ├── deals/         Curated hotel/cab style cards for the app (static sample data)
+│   ├── blogs/         Marketing/educational content routes
+│   └── emailDocs/     Email-driven doc import (Gmail/Outlook connectors)
 ├── utils/
 │   ├── fcm.util.js             Firebase push notifications
 │   ├── branch.util.js          Branch.io smart link generation
 │   ├── s3.util.js              S3 upload / CDN URL / presigned URLs
 │   ├── mailer.js               AWS SES emails
 │   ├── debtSimplifier.util.js  Greedy minimum-transaction settlement
-│   └── reminders.cron.js       Hourly cron — sends FCM for upcoming trips
+│   └── reminders.cron.js       Hourly cron — FCM trip + event reminders (`TRIP_REMINDER` / `EVENT_REMINDER`)
 ├── middleware/
 │   ├── authenticate.js             JWT verification
 │   ├── parentAccess.middleware.js  Membership gate for trips AND events (sets req.parent + req.tripMember)
@@ -284,7 +290,7 @@ npm install
 ```bash
 cp .env.example .env
 ```
-Edit `.env` — fill in your database, AWS, FCM, and Branch.io credentials.
+Edit `.env` — fill in your database, AWS, **FCM v1** (service account / `GOOGLE_APPLICATION_CREDENTIALS`), **Branch.io**, and **`GEMINI_API_KEY`** for Swee (`src/modules/ai/`).
 
 ### 3. Run database migrations
 ```bash
@@ -433,7 +439,9 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 | `AWS_S3_BUCKET` | Yes | S3 bucket for uploads |
 | `AWS_CLOUDFRONT_DOMAIN` | Yes | CloudFront domain for CDN URLs |
 | `AWS_SES_FROM_EMAIL` | Yes | Verified SES sender address |
-| `FCM_SERVER_KEY` | Yes | Firebase legacy server key |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Yes* | Path to Firebase service account JSON (local FCM v1). *Or use `FIREBASE_SERVICE_ACCOUNT_B64` on the server (see deploy workflow). |
+| `FIREBASE_PROJECT_ID` | Yes* | Firebase / GCP project id (e.g. `gatherrgo`). |
+| `GEMINI_API_KEY` | Yes (for Swee) | Google AI Studio / Gemini API key for `src/modules/ai/` |
 | `BRANCH_KEY` | Yes | Branch.io live key (`key_live_xxxx`) |
 | `APP_IS_LIVE` | Yes | `false` = APK/TestFlight links, `true` = store links |
 | `ANDROID_APK_URL` | Dev | Direct APK URL (dev) |
@@ -674,8 +682,9 @@ After running `node seed.js`, the following data is available for immediate test
 | Database | PostgreSQL (AWS RDS) |
 | Storage | AWS S3 + CloudFront CDN |
 | Email | AWS SES |
-| Push | Firebase Cloud Messaging (FCM) |
+| Push | Firebase Cloud Messaging **v1** (HTTP API; service account / `FIREBASE_SERVICE_ACCOUNT_B64` in deploy) |
 | Smart Links | Branch.io |
 | Auth | JWT + Google/Facebook OAuth |
+| AI (Swee) | **Google Gemini 2.5 Flash** via `@google/generative-ai` (`GEMINI_API_KEY` — not OpenAI) |
 | Cron | node-cron (hourly reminders) |
 | Logging | Winston + Morgan |

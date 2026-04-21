@@ -19,8 +19,36 @@ function getRelativeTime(ts: number): string {
   return `${Math.floor(diff / 86400)} day${Math.floor(diff / 86400) > 1 ? 's' : ''} ago`;
 }
 
-function getNotificationIcon(type: string) {
+function getReminderIcon(reminderType?: string) {
+  if (reminderType === '1_week_before') {
+    return (
+      <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+        <Circle cx={12} cy={12} r={10} stroke="#0d9488" strokeWidth={2} />
+        <Path d="M12 6v6l4 2" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+    );
+  }
+  if (reminderType === '1_day_before') {
+    return (
+      <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+        <Path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+    );
+  }
+  // trip_start / event_start
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M9 22V12h6v10" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function getNotificationIcon(type: string, data?: Record<string, string>) {
   switch (type) {
+    case 'TRIP_REMINDER':
+    case 'EVENT_REMINDER':
+      return getReminderIcon(data?.reminderType);
     case 'trip_invite':
       return (
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -64,11 +92,13 @@ function getNotificationIcon(type: string) {
 
 function getIconBg(type: string) {
   switch (type) {
-    case 'trip_invite': return '#f0fdfa';
+    case 'TRIP_REMINDER':
+    case 'EVENT_REMINDER':
+    case 'trip_invite':
+    case 'reminder': return '#f0fdfa';
     case 'expense_added': return '#fffbeb';
     case 'poll_created': return '#eef2ff';
     case 'member_joined': return '#ecfdf5';
-    case 'reminder': return '#f0fdfa';
     default: return '#f8fafc';
   }
 }
@@ -140,10 +170,17 @@ export default function NotificationsScreen({ navigation }: any) {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.notifCard, !item.read && styles.notifCardUnread]}
-              onPress={() => markRead(item.id)}
+              onPress={() => {
+                markRead(item.id);
+                if (item.type === 'TRIP_REMINDER' && item.data?.tripId) {
+                  navigation.navigate('TripDetail', { trip: { id: item.data.tripId } });
+                } else if (item.type === 'EVENT_REMINDER' && item.data?.eventId) {
+                  navigation.navigate('EventDetail', { event: { id: item.data.eventId } });
+                }
+              }}
               activeOpacity={0.8}>
               <View style={[styles.notifIconWrap, { backgroundColor: getIconBg(item.type) }]}>
-                {getNotificationIcon(item.type)}
+                {getNotificationIcon(item.type, item.data)}
               </View>
               <View style={styles.notifContent}>
                 <View style={styles.notifTitleRow}>

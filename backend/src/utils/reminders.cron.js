@@ -10,8 +10,9 @@ const TRIP_NOTIF_MAP = {
 };
 
 const EVENT_NOTIF_MAP = {
-  event_start:   { title: '🎉 Event starts today!', body: (name) => `Your event "${name}" starts today. Enjoy!` },
-  '1_day_before':{ title: '📆 Event tomorrow!',     body: (name) => `"${name}" is tomorrow. Don't forget!` },
+  event_start:    { title: '🎉 Event starts today!', body: (name) => `Your event "${name}" starts today. Enjoy!` },
+  '1_day_before': { title: '📆 Event tomorrow!',     body: (name) => `"${name}" is tomorrow. Don't forget!` },
+  '1_week_before':{ title: '📅 1 week to go!',       body: (name) => `Your event "${name}" is in 1 week. Get ready!` },
 };
 
 const processTripReminders = async () => {

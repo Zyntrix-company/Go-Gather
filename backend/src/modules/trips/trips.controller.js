@@ -177,6 +177,24 @@ const acceptInvite = async (req, res, next) => {
   }
 };
 
+// ── GET /trips/:id/reminders ──────────────────────────────────
+const getTripReminders = async (req, res, next) => {
+  try {
+    const { query: db } = require('../../config/database');
+    const result = await db(
+      `SELECT id, reminder_type, scheduled_at, sent_at, created_at
+       FROM trip_reminders
+       WHERE trip_id = $1 AND sent_at IS NULL
+       ORDER BY scheduled_at ASC`,
+      [req.params.id],
+    );
+    res.status(200).json({ reminders: result.rows });
+  } catch (error) {
+    logger.error('GET /trips/:id/reminders', { tripId: req.params.id, error: error.message });
+    next(error);
+  }
+};
+
 module.exports = {
   createTrip,
   getTrips,
@@ -188,4 +206,5 @@ module.exports = {
   inviteMembers,
   getInvite,
   acceptInvite,
+  getTripReminders,
 };

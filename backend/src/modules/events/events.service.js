@@ -105,14 +105,17 @@ const createEvent = async (userId, body) => {
       [event.id, userId, 'admin'],
     );
 
-    // Schedule reminders (09:00 IST = 03:30 UTC) — event_start and 1_day_before only
+    // Schedule reminders at configurable UTC time (default 03:30 UTC = 09:00 IST)
     if (reminders) {
+      const HOUR = parseInt(process.env.REMINDER_HOUR_UTC ?? '3');
+      const MIN  = parseInt(process.env.REMINDER_MIN_UTC  ?? '30');
       const start = new Date(eventDate);
-      start.setUTCHours(3, 30, 0, 0);
+      start.setUTCHours(HOUR, MIN, 0, 0);
 
       const remindersToCreate = [
         { type: 'event_start',   date: new Date(start) },
         { type: '1_day_before',  date: new Date(start.getTime() - 86400000) },
+        { type: '1_week_before', date: new Date(start.getTime() - 7 * 86400000) },
       ];
       for (const r of remindersToCreate) {
         if (r.date > new Date()) {
@@ -366,11 +369,14 @@ const updateEvent = async (eventId, updates) => {
     try {
       await client.query('BEGIN');
       await client.query('DELETE FROM event_reminders WHERE event_id = $1 AND sent_at IS NULL', [eventId]);
+      const HOUR = parseInt(process.env.REMINDER_HOUR_UTC ?? '3');
+      const MIN  = parseInt(process.env.REMINDER_MIN_UTC  ?? '30');
       const start = new Date(updates.eventDate);
-      start.setUTCHours(3, 30, 0, 0);
+      start.setUTCHours(HOUR, MIN, 0, 0);
       const remindersToCreate = [
-        { type: 'event_start',  date: new Date(start) },
-        { type: '1_day_before', date: new Date(start.getTime() - 86400000) },
+        { type: 'event_start',   date: new Date(start) },
+        { type: '1_day_before',  date: new Date(start.getTime() - 86400000) },
+        { type: '1_week_before', date: new Date(start.getTime() - 7 * 86400000) },
       ];
       for (const r of remindersToCreate) {
         if (r.date > new Date()) {

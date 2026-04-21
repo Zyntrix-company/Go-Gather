@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Modal, TextInput, Platform, PermissionsAndroid, ActivityIndicator, Image,
-  RefreshControl, NativeModules, Animated, PanResponder, Dimensions, SafeAreaView, Pressable,
+  RefreshControl, NativeModules, Animated, PanResponder, Dimensions, SafeAreaView, Pressable, Switch,
 } from 'react-native';
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
 import { CalendarPlus } from 'lucide-react-native';
@@ -296,6 +296,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
   const [inviteEmail, setInviteEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [reminders, setReminders] = useState(true);
   const [bannerImageUri, setBannerImageUri] = useState<string | undefined>(undefined);
   const [bannerCropFraction, setBannerCropFraction] = useState<BannerCropFraction | null>(null);
   const [showDateTooltip, setShowDateTooltip] = useState(false);
@@ -388,6 +389,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
     setUploadedDocs([]); setSelectedFriendIds([]);
     setShowInviteModal(false); setShowEmailModal(false);
     setMemberTab('friends'); setFriendSearch(''); setInviteEmail('');
+    setReminders(true);
     setBannerImageUri(undefined); setBannerCropFraction(null);
     setCropPreviewUri(undefined);
   }
@@ -404,7 +406,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
         eventType: type,
         location: { name: location.trim() },
         friendIds: selectedFriendIds.length > 0 ? selectedFriendIds : undefined,
-        reminders: true,
+        reminders,
         ...(bannerCropFraction && { bannerCropFraction }),
       });
       // Capture locals before async work / modal reset
@@ -726,6 +728,19 @@ export function CreateEventModal({ visible, onClose, onSave }: {
                 <Text style={modal.ctRowText}>Extract Docs from Email</Text>
               </View>
             </TouchableOpacity>
+
+            {/* Add Reminders */}
+            <View style={modal.ctRow}>
+              <View style={modal.ctRowLeft}>
+                <View style={modal.ctRowIcon}>
+                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                    <Path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                </View>
+                <Text style={modal.ctRowText}>Add Reminders</Text>
+              </View>
+              <Switch value={reminders} onValueChange={setReminders} trackColor={{ false: '#cbd5e1', true: '#0d9488' }} thumbColor="#fff" />
+            </View>
 
             {/* Invite Group Members */}
             <TouchableOpacity style={modal.ctRow} onPress={() => setShowInviteModal(true)} activeOpacity={0.8}>

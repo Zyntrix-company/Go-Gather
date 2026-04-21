@@ -568,6 +568,7 @@ export function CreateTripModal({
         bannerImageType: bannerImageType,
         bannerCropFraction: bannerCropFraction,
         uploadedDocs,
+        reminders,
       });
       reset();
       onClose();
@@ -1542,6 +1543,7 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
             location: { name: (data.location as string) || 'TBD' },
             friendIds: (data.friendIds as string[] | undefined)?.length ? data.friendIds as string[] : undefined,
             emails: data.inviteEmail ? [data.inviteEmail as string] : undefined,
+            reminders: data.reminders as boolean | undefined,
             ...(cropFraction && { bannerCropFraction: cropFraction }),
           });
           let newTrip = res.trip;

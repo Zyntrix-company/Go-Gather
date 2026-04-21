@@ -497,6 +497,24 @@ const deleteNote = async (req, res, next) => {
   }
 };
 
+// ── GET /events/:eventId/reminders ───────────────────────────
+const getEventReminders = async (req, res, next) => {
+  try {
+    const { query: db } = require('../../config/database');
+    const result = await db(
+      `SELECT id, reminder_type, scheduled_at, sent_at, created_at
+       FROM event_reminders
+       WHERE event_id = $1 AND sent_at IS NULL
+       ORDER BY scheduled_at ASC`,
+      [req.params.eventId],
+    );
+    res.status(200).json({ reminders: result.rows });
+  } catch (error) {
+    logger.error('GET /events/:eventId/reminders', { eventId: req.params.eventId, error: error.message });
+    next(error);
+  }
+};
+
 module.exports = {
   // Core
   createEvent,
@@ -541,4 +559,6 @@ module.exports = {
   createNote,
   updateNote,
   deleteNote,
+  // Reminders
+  getEventReminders,
 };

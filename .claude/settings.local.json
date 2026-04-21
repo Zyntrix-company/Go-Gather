@@ -89,7 +89,11 @@
       "Bash(npm uninstall *)",
       "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js\\)$\")",
       "Bash(grep -E \"\\\\.ts$\")",
-      "Bash(grep -E \"\\\\.\\(js|ts\\)$\")"
+      "Bash(grep -E \"\\\\.\\(js|ts\\)$\")",
+      "Bash(./gradlew assembleRelease --no-daemon)",
+      "Bash(./gradlew installRelease --no-daemon)",
+      "Bash(psql \"host=gogather.chec0iai4ddq.ap-south-1.rds.amazonaws.com port=5432 dbname=postgres user=postgres password=en5K3c5DQCabUSr sslmode=verify-full sslrootcert=./global-bundle.pem\" -f migrations/truncate_all.sql)",
+      "Bash(psql \"host=gogather.chec0iai4ddq.ap-south-1.rds.amazonaws.com port=5432 dbname=postgres user=postgres password=en5K3c5DQCabUSr sslmode=verify-full sslrootcert=../global-bundle.pem\" -f migrations/truncate_all.sql)"
     ]
   }
 }
