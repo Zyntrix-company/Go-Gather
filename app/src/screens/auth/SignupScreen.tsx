@@ -416,7 +416,7 @@ export default function SignupScreen({ navigation }: any) {
           {/* Logo top-left */}
           <View style={styles.logoRow}>
             <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8}>
-              <Logo size="small" />
+              <Logo size="default" />
             </TouchableOpacity>
           </View>
 
@@ -750,7 +750,7 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     paddingHorizontal: 10,
     paddingVertical: 9,
-    fontSize: 16,
+    fontSize: SCREEN_W < 375 ? 14 : 16,
     color: '#0f172a',
   },
 

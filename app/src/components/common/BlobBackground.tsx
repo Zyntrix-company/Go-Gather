@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
+import colors from '../../theme/colors';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -57,9 +58,9 @@ export default function BlobBackground({ children }: Props) {
           so that it doesn't resize or "jump" when the keyboard opens.
       */}
       <View style={styles.backgroundLayer}>
-        {/* Exact Tailwind: from-slate-50 via-teal-50 to-cyan-50, diagonal */}
+        {/* Same stops as theme (used app-wide via BlobBackground) */}
         <LinearGradient
-          colors={['#f8fafc', '#f7fdfb', '#f5feff']}
+          colors={[colors.gradientStart, colors.gradientMid, colors.gradientEnd]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFillObject}

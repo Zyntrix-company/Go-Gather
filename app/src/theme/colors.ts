@@ -17,10 +17,10 @@ export const colors = {
   background: '#ffffff',
   backgroundSecondary: '#f8fafc',
 
-  // Gradient stops (main screen gradient) — matches Figma: from-slate-50 via-teal-50 to-cyan-50
+  // Gradient stops (main screen gradient) — diagonal from-slate-50 via-teal-50 to-cyan-50 (BlobBackground / auth & main chrome)
   gradientStart: '#f8fafc',   // slate-50  (top-left)
-  gradientMid: '#f0fdfa',     // teal-50   (mid)
-  gradientEnd: '#ecfdf5',     // green-50  (bottom-right)
+  gradientMid: '#f7fdfb',     // teal-50   (mid)
+  gradientEnd: '#f5feff',     // cyan-50   (bottom-right)
 
   // Decorative blobs
   blobTopStart: 'rgba(254,215,170,0.4)',  // orange-200/40

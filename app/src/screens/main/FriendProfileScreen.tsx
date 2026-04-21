@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, ScrollView, Image,
+  View, Text, TouchableOpacity, ScrollView,
   Dimensions, StyleSheet, ActivityIndicator, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,21 +18,6 @@ import type { MainStackParamList } from '../../navigation/MainStack';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = (SCREEN_W - 52) / 2;
-
-const AVATAR_COLORS = [
-  { bg: '#ddd6fe', text: '#7c3aed' },
-  { bg: '#fde68a', text: '#92400e' },
-  { bg: '#99f6e4', text: '#0f766e' },
-  { bg: '#fecaca', text: '#b91c1c' },
-  { bg: '#e9d5ff', text: '#7e22ce' },
-  { bg: '#bfdbfe', text: '#1d4ed8' },
-];
-
-function avatarColorForId(id: string) {
-  let sum = 0;
-  for (let i = 0; i < id.length; i++) sum += id.charCodeAt(i);
-  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
-}
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -280,14 +265,13 @@ export default function FriendProfileScreen() {
         setGalleryTrips(gallery.trips ?? []);
         setGalleryEvents(gallery.events ?? []);
       })
-      .catch(() => {})
+      .catch((err) => { console.error('[FriendProfileScreen] load failed', err?.response?.data ?? err?.message ?? err); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [userId]);
 
   const displayName = profile?.name ?? friendName;
   const handle = profile?.username ? `@${profile.username}` : '';
-  const colorPair = avatarColorForId(userId);
   const initial = displayName?.[0]?.toUpperCase() ?? '?';
 
   return (
@@ -299,7 +283,7 @@ export default function FriendProfileScreen() {
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
             <BackIcon />
           </TouchableOpacity>
-          <Text style={styles.screenTitle} numberOfLines={1}>{friendName}</Text>
+          <Text style={styles.screenTitle}>Profile</Text>
         </View>
 
         {loading ? (
@@ -311,58 +295,39 @@ export default function FriendProfileScreen() {
 
             {/* ── Profile card ── */}
             <View style={styles.profileCard}>
-              {/* Avatar */}
-              <View style={styles.avatarWrap}>
-                {profile?.avatarUrl && !avatarError ? (
-                  <Image
-                    source={{ uri: profile.avatarUrl }}
-                    style={styles.avatar}
-                    onError={() => setAvatarError(true)}
-                  />
-                ) : (
-                  <View style={[styles.avatar, { backgroundColor: colorPair.bg, alignItems: 'center', justifyContent: 'center' }]}>
-                    <Text style={[styles.avatarInitial, { color: colorPair.text }]}>{initial}</Text>
-                  </View>
-                )}
+              {/* Top row: avatar left, info right */}
+              <View style={styles.profileRow}>
+                <View style={styles.avatarWrap}>
+                  {profile?.avatarUrl && !avatarError ? (
+                    <CachedImage
+                      uri={profile.avatarUrl}
+                      style={styles.avatar}
+                      resizeMode="cover"
+                      priority="high"
+                      onError={() => setAvatarError(true)}
+                    />
+                  ) : (
+                    <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                      <Text style={styles.avatarInitial}>{initial}</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.profileInfo}>
+                  {displayName ? <Text style={styles.name}>{displayName}</Text> : null}
+                  {handle ? <Text style={styles.handle}>{handle}</Text> : null}
+                  {profile?.country ? (
+                    <View style={styles.locationRow}>
+                      <PinIcon color="#0d9488" size={13} />
+                      <Text style={styles.locationText}>{profile.country}</Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
 
-              {/* Name & handle */}
-              <Text style={styles.name}>{displayName}</Text>
-              {handle ? <Text style={styles.handle}>{handle}</Text> : null}
-
-              {/* Country */}
-              {profile?.country ? (
-                <View style={styles.locationRow}>
-                  <PinIcon color="#0d9488" size={13} />
-                  <Text style={styles.locationText}>{profile.country}</Text>
-                </View>
-              ) : null}
-
-              {/* Bio */}
+              {/* Bio below, centered */}
               {profile?.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
 
-              {/* Stats divider */}
-              {profile?.stats && (
-                <>
-                  <View style={styles.statsDivider} />
-                  <View style={styles.statsRow}>
-                    <View style={styles.statItem}>
-                      <Text style={styles.statValue}>{profile.stats.tripCount}</Text>
-                      <Text style={styles.statLabel}>trips</Text>
-                    </View>
-                    <View style={styles.statDot} />
-                    <View style={styles.statItem}>
-                      <Text style={styles.statValue}>{profile.stats.eventCount}</Text>
-                      <Text style={styles.statLabel}>events</Text>
-                    </View>
-                    <View style={styles.statDot} />
-                    <View style={styles.statItem}>
-                      <Text style={styles.statValue}>{profile.stats.friendCount}</Text>
-                      <Text style={styles.statLabel}>friends</Text>
-                    </View>
-                  </View>
-                </>
-              )}
             </View>
 
             {/* ── Gallery of Trips ── */}
@@ -425,23 +390,19 @@ const styles = StyleSheet.create({
 
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 4 },
 
-  // Profile card
+  // Profile card — matches GalleryTab layout exactly
   profileCard: { marginTop: 14, marginBottom: 28, alignItems: 'center' },
-  avatarWrap: { marginBottom: 12 },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32 },
+  avatarWrap: { position: 'relative' },
+  profileInfo: { justifyContent: 'center', gap: 8 },
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 3, borderColor: '#0d9488' },
-  avatarInitial: { fontSize: 38, fontWeight: '700' },
-  name: { fontSize: 21, fontWeight: '700', color: '#0f172a', textAlign: 'center' },
-  handle: { fontSize: 15, color: '#0d9488', fontWeight: '500', marginTop: 4 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
+  avatarInitial: { fontSize: 38, fontWeight: '700', color: '#0d9488' },
+  name: { fontSize: 21, fontWeight: '700', color: '#0f172a' },
+  handle: { fontSize: 15, color: '#0d9488', fontWeight: '500' },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   locationText: { fontSize: 15, color: '#64748b' },
-  bio: { fontSize: 14, color: '#334155', textAlign: 'center', marginTop: 12, lineHeight: 22, paddingHorizontal: 12 },
-
-  statsDivider: { width: 160, height: 1, backgroundColor: '#e2e8f0', marginTop: 18, marginBottom: 14 },
-  statsRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  statItem: { alignItems: 'center' },
-  statValue: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
-  statLabel: { fontSize: 12, color: '#94a3b8', marginTop: 1 },
-  statDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#cbd5e1' },
+  bio: { fontSize: 14, color: '#334155', textAlign: 'center', marginTop: 16, lineHeight: 22 },
 
   // Sections
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },

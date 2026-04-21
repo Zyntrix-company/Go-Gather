@@ -444,18 +444,42 @@ const getUserProfile = async (viewerId, targetId) => {
     friendshipStatus = row.fcRequesterId === viewerId ? 'pending_sent' : 'pending_received';
   }
 
+  // Presign avatar URL — same logic as normalizeAvatarUrl in friends.service.js
+  let avatarUrl = null;
+  const rawAvatar = row.avatarUrl;
+  if (rawAvatar && !rawAvatar.includes('https://undefined')) {
+    try {
+      const { getPresignedDownloadUrl } = require('../../utils/s3.util');
+      const cfDomain = config.s3.cloudfrontDomain;
+      let s3Key = null;
+      if (cfDomain && rawAvatar.startsWith(`https://${cfDomain}/`)) {
+        s3Key = rawAvatar.slice(`https://${cfDomain}/`.length).split('?')[0];
+      } else {
+        const parsed = new URL(rawAvatar);
+        s3Key = parsed.pathname.replace(/^\//, '').split('?')[0];
+      }
+      if (s3Key && s3Key.startsWith('avatars/')) {
+        avatarUrl = await getPresignedDownloadUrl(s3Key, 3600);
+      } else {
+        avatarUrl = rawAvatar;
+      }
+    } catch {
+      avatarUrl = rawAvatar;
+    }
+  }
+
   return {
     id: row.id,
     username: row.username,
     name: row.name,
-    avatarUrl: row.avatarUrl,
+    avatarUrl,
     bio: row.bio,
     country: row.country,
     friendshipStatus,
     connectionId: row.connectionId || null,
     stats: {
       tripCount:   row.tripCount,
-      eventCount:  0, // M3 events not integrated here yet
+      eventCount:  0,
       friendCount: row.friendCount,
     },
   };

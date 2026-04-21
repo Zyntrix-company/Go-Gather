@@ -3,6 +3,7 @@ import { View, Image, StyleSheet, Animated, Easing, useWindowDimensions, Platfor
 import BlobBackground from '../../components/common/BlobBackground';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
+import { getAuthWelcomeSeen } from '../../utils/authWelcomeStorage';
 
 // Request permissions sequentially — must resolve before animation starts.
 // Android only; iOS permissions are handled contextually by the OS.
@@ -90,8 +91,11 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
         return;
       }
 
-      // No valid token at all → go to Login
-      navigation.replace('Login');
+      // No valid token: first launch → welcome marketing; thereafter → login (home path is authenticated above)
+      void (async () => {
+        const welcomeSeen = await getAuthWelcomeSeen();
+        navigation.replace(welcomeSeen ? 'Login' : 'Welcome');
+      })();
     }
 
     // Auth check runs immediately in parallel — result is held until animation finishes.
