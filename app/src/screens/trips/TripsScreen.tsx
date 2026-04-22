@@ -1625,9 +1625,10 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   createTripBtnText: { color: '#fff', fontSize: 16, fontWeight: '500', lineHeight: 24, textAlign: 'center' },
-  tripsListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
-  tripsListTitle: { fontSize: 18, fontWeight: '500', color: '#45556C' },
-  tripsListSub: { fontSize: 16, fontWeight: '400', color: '#45556C', lineHeight: 24, letterSpacing: 0, marginTop: 2, marginBottom: 8 },
+ tripsListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
+  tripsListTitle: {     fontFamily: 'Inter', fontSize: 16, fontWeight: '400', color: '#0F172B',
+   lineHeight: 24, letterSpacing: 0 },
+  tripsListSub: { fontSize: 15, fontWeight: '400', color: '#45556C', lineHeight: 19, letterSpacing: 0, marginTop: 2, marginBottom: 8 },
   sectionLabel: {
     fontSize: 13, fontWeight: '600', color: '#64748b', letterSpacing: 0.6,
     marginBottom: 10, marginTop: 4, textTransform: 'uppercase',
