@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Image, TouchableOpacity, StyleSheet, Text } from 'react-native'; // Text kept for badge
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Line } from 'react-native-svg';
 
 type AppHeaderProps = {
@@ -40,9 +39,8 @@ export default function AppHeader({
   onBellPress,
   onMenuPress,
 }: AppHeaderProps) {
-  const insets = useSafeAreaInsets();
   return (
-    <View style={[s.header, { paddingTop: insets.top + 8 }]}>
+    <View style={s.header}>
       <TouchableOpacity style={s.iconBtn} onPress={onLogoPress} activeOpacity={0.8} disabled={!onLogoPress}>
         <Image
           source={require('../../../assets/icon_only.png')}
@@ -75,7 +73,7 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingVertical: 8,
     backgroundColor: 'transparent',
   },
   logo: {

@@ -16,20 +16,26 @@ import {
 import BlobBackground from '../../components/common/BlobBackground';
 import Logo from '../../components/common/Logo';
 import colors from '../../theme/colors';
-import { setAuthWelcomeSeen } from '../../utils/authWelcomeStorage';
 
 const SCREEN_W = Dimensions.get('window').width;
 const DEMO_URL = 'https://www.youtube.com/@GatherrGo';
-const HEADLINE_WORDS = ['Group', 'Travel.', 'Organized.', 'Finally.'] as const;
-const SUBTEXT = 'All your trips, plans, expenses, memories... in one place.';
+const HEADLINE_LINES = [
+  ['Group', 'Travel.'],
+  ['Organized.'],
+  ['Finally.'],
+] as const;
+const SUBTEXT_LINE_ONE_WORDS = ['All', 'your', 'trips,', 'plans,', 'expenses,', 'memories'] as const;
+const SUBTEXT_LINE_TWO_WORDS = ['and', 'group', 'chats,', 'in', 'one', 'private', 'space.'] as const;
+const ALL_HEADLINE_WORDS = ([] as string[]).concat(...HEADLINE_LINES.map((line) => [...line]));
+const ALL_SUBTEXT_WORDS = [...SUBTEXT_LINE_ONE_WORDS, ...SUBTEXT_LINE_TWO_WORDS] as const;
 
 const MOTION = {
-  headlineWordDuration: 420,
-  headlineWordStagger: 180,
-  subtextCharDuration: 220,
-  subtextCharStagger: 22,
-  ctaDuration: 420,
-  ctaDelayAfterSubtext: 120,
+  headlineWordDuration: 340,
+  headlineWordStagger: 140,
+  subtextWordDuration: 220,
+  subtextWordStagger: 70,
+  ctaDuration: 320,
+  ctaDelayAfterSubtext: 80,
 } as const;
 
 export default function WelcomeScreen({ navigation }: { navigation: any }) {
@@ -37,14 +43,14 @@ export default function WelcomeScreen({ navigation }: { navigation: any }) {
   const [animationsReady, setAnimationsReady] = useState(false);
 
   const headlineAnimations = useRef(
-    HEADLINE_WORDS.map(() => ({
+    ALL_HEADLINE_WORDS.map(() => ({
       opacity: new Animated.Value(0),
       translateY: new Animated.Value(8),
     })),
   ).current;
 
   const subtextAnimations = useRef(
-    Array.from(SUBTEXT).map(() => ({
+    ALL_SUBTEXT_WORDS.map(() => ({
       opacity: new Animated.Value(0),
       translateX: new Animated.Value(7),
     })),
@@ -54,17 +60,11 @@ export default function WelcomeScreen({ navigation }: { navigation: any }) {
   const ctaScale = useRef(new Animated.Value(0.96)).current;
 
   const onGetStarted = useCallback(() => {
-    void (async () => {
-      await setAuthWelcomeSeen();
-      navigation.navigate('Signup');
-    })();
+    navigation.navigate('Signup');
   }, [navigation]);
 
   const onWatchDemo = useCallback(() => {
-    void (async () => {
-      await setAuthWelcomeSeen();
-      Linking.openURL(DEMO_URL).catch(() => {});
-    })();
+    Linking.openURL(DEMO_URL).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -143,18 +143,18 @@ export default function WelcomeScreen({ navigation }: { navigation: any }) {
     );
 
     const subtextSequence = Animated.stagger(
-      MOTION.subtextCharStagger,
+      MOTION.subtextWordStagger,
       subtextAnimations.map(({ opacity, translateX }) =>
         Animated.parallel([
           Animated.timing(opacity, {
             toValue: 1,
-            duration: MOTION.subtextCharDuration,
+            duration: MOTION.subtextWordDuration,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
           Animated.timing(translateX, {
             toValue: 0,
-            duration: MOTION.subtextCharDuration,
+            duration: MOTION.subtextWordDuration,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
@@ -196,40 +196,72 @@ export default function WelcomeScreen({ navigation }: { navigation: any }) {
   ]);
 
   const headlineNodes = useMemo(
-    () =>
-      HEADLINE_WORDS.map((word, index) => (
-        <Animated.Text
-          key={`${word}-${index}`}
-          style={[
-            styles.headlineWord,
-            word === 'Finally.' ? styles.headlineAccent : null,
-            {
-              opacity: headlineAnimations[index].opacity,
-              transform: [{ translateY: headlineAnimations[index].translateY }],
-            },
-          ]}>
-          {word}
-          {index < HEADLINE_WORDS.length - 1 ? ' ' : ''}
-        </Animated.Text>
-      )),
+    () => {
+      let wordOffset = 0;
+      return HEADLINE_LINES.map((line, lineIndex) => {
+        const lineWords = line.map((word, wordIndex) => {
+          const animationIndex = wordOffset + wordIndex;
+          return (
+            <Animated.View
+              key={`${word}-${animationIndex}`}
+              style={{
+                opacity: headlineAnimations[animationIndex].opacity,
+                transform: [{ translateY: headlineAnimations[animationIndex].translateY }],
+              }}>
+              <Text style={[styles.headlineWord, word === 'Finally.' ? styles.headlineAccent : null]}>
+                {word}
+                {wordIndex < line.length - 1 ? ' ' : ''}
+              </Text>
+            </Animated.View>
+          );
+        });
+        wordOffset += line.length;
+        return (
+          <View key={`headline-line-${lineIndex}`} style={styles.headlineLine}>
+            {lineWords}
+          </View>
+        );
+      });
+    },
     [headlineAnimations],
   );
 
-  const subtextNodes = useMemo(
+  const subtextLineOneNodes = useMemo(
     () =>
-      Array.from(SUBTEXT).map((char, index) => (
-        <Animated.Text
-          key={`subtext-char-${index}`}
-          style={[
-            styles.subtitleChar,
-            {
-              opacity: subtextAnimations[index].opacity,
-              transform: [{ translateX: subtextAnimations[index].translateX }],
-            },
-          ]}>
-          {char}
-        </Animated.Text>
+      SUBTEXT_LINE_ONE_WORDS.map((word, index) => (
+        <Animated.View
+          key={`subtext-line-1-word-${index}`}
+          style={{
+            opacity: subtextAnimations[index].opacity,
+            transform: [{ translateX: subtextAnimations[index].translateX }],
+          }}>
+          <Text style={styles.subtitleWord}>
+            {word}
+            {index < SUBTEXT_LINE_ONE_WORDS.length - 1 ? ' ' : ''}
+          </Text>
+        </Animated.View>
       )),
+    [subtextAnimations],
+  );
+
+  const subtextLineTwoNodes = useMemo(
+    () =>
+      SUBTEXT_LINE_TWO_WORDS.map((word, index) => {
+        const animationIndex = SUBTEXT_LINE_ONE_WORDS.length + index;
+        return (
+          <Animated.View
+            key={`subtext-line-2-word-${index}`}
+            style={{
+              opacity: subtextAnimations[animationIndex].opacity,
+              transform: [{ translateX: subtextAnimations[animationIndex].translateX }],
+            }}>
+            <Text style={styles.subtitleWord}>
+              {word}
+              {index < SUBTEXT_LINE_TWO_WORDS.length - 1 ? ' ' : ''}
+            </Text>
+          </Animated.View>
+        );
+      }),
     [subtextAnimations],
   );
 
@@ -245,9 +277,12 @@ export default function WelcomeScreen({ navigation }: { navigation: any }) {
           </View>
 
           <View style={styles.hero}>
-            <Text style={styles.headline}>{headlineNodes}</Text>
+            <View style={styles.headlineWrap}>{headlineNodes}</View>
 
-            <Text style={styles.subtitle}>{subtextNodes}</Text>
+            <View style={styles.subtitleWrap}>
+              <View style={styles.subtitleLine}>{subtextLineOneNodes}</View>
+              <View style={styles.subtitleLine}>{subtextLineTwoNodes}</View>
+            </View>
           </View>
 
           <Animated.View
@@ -292,27 +327,36 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     gap: 36,
   },
-  headline: {
+  headlineWrap: {
+    gap: 2,
+    maxWidth: 540,
+  },
+  headlineLine: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  headlineWord: {
     fontSize: SCREEN_W < 375 ? 30 : SCREEN_W >= 768 ? 44 : 36,
     fontWeight: '700',
     color: colors.textPrimary,
     lineHeight: SCREEN_W < 375 ? 38 : SCREEN_W >= 768 ? 52 : 44,
     letterSpacing: -0.5,
   },
-  headlineWord: {
-    color: colors.textPrimary,
-  },
   headlineAccent: {
     color: colors.accent,
   },
-  subtitle: {
-    fontSize: SCREEN_W < 375 ? 17 : 19,
-    color: '#334155',
-    lineHeight: SCREEN_W < 375 ? 26 : 30,
+  subtitleWrap: {
+    gap: 2,
     maxWidth: 520,
   },
-  subtitleChar: {
+  subtitleLine: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  subtitleWord: {
+    fontSize: SCREEN_W < 375 ? 16 : 19,
     color: '#334155',
+    lineHeight: SCREEN_W < 375 ? 26 : 30,
   },
   ctaBlock: {
     marginTop: 36,

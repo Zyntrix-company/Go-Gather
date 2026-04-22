@@ -35,7 +35,6 @@ function getReminderIcon(reminderType?: string) {
       </Svg>
     );
   }
-  // trip_start / event_start
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
       <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -116,6 +115,7 @@ export default function NotificationsScreen({ navigation }: any) {
   return (
     <BlobBackground>
       <SafeAreaView style={styles.container}>
+
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
@@ -123,48 +123,54 @@ export default function NotificationsScreen({ navigation }: any) {
               <Path d="M19 12H5M12 19l-7-7 7-7" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
             </Svg>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notifications</Text>
-          {unreadCount > 0 ? (
-            <TouchableOpacity onPress={markAllRead} activeOpacity={0.7}>
-              <Text style={styles.markAllText}>Mark all read</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 70 }} />
-          )}
+          <View style={styles.headerTitleWrap} pointerEvents="none">
+            <Text style={styles.headerTitle}>Notifications</Text>
+          </View>
         </View>
 
-        {/* Filter Tabs */}
+        {/* Filter + Action row */}
         <View style={styles.filterRow}>
           <TouchableOpacity
             style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
             onPress={() => setFilter('all')}
             activeOpacity={0.8}>
-            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
-              All
-            </Text>
+            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>All</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.filterTab, filter === 'unread' && styles.filterTabActive]}
             onPress={() => setFilter('unread')}
             activeOpacity={0.8}>
             <Text style={[styles.filterText, filter === 'unread' && styles.filterTextActive]}>
-              Unread {unreadCount > 0 ? `(${unreadCount})` : ''}
+              Unread{unreadCount > 0 ? ` (${unreadCount})` : ''}
             </Text>
           </TouchableOpacity>
+
+          {unreadCount > 0 && (
+            <TouchableOpacity
+              style={styles.markReadBtn}
+              onPress={markAllRead}
+              activeOpacity={0.8}>
+              <Text style={styles.markReadText}>Mark all read</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Notification List */}
         <FlatList
           data={displayed}
           keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, displayed.length === 0 && styles.listContentEmpty]}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
+              <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
                 <Path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
               </Svg>
-              <Text style={styles.emptyText}>No notifications</Text>
+              <Text style={styles.emptyTitle}>No notifications</Text>
+              <Text style={styles.emptySubtitle}>
+                {filter === 'unread' ? 'You\'re all caught up!' : 'Nothing here yet'}
+              </Text>
             </View>
           }
           renderItem={({ item }) => (
@@ -178,13 +184,20 @@ export default function NotificationsScreen({ navigation }: any) {
                   navigation.navigate('EventDetail', { event: { id: item.data.eventId } });
                 }
               }}
-              activeOpacity={0.8}>
+              activeOpacity={0.85}>
+
+              {/* Unread accent bar */}
+              {!item.read && <View style={styles.unreadAccent} />}
+
               <View style={[styles.notifIconWrap, { backgroundColor: getIconBg(item.type) }]}>
                 {getNotificationIcon(item.type, item.data)}
               </View>
+
               <View style={styles.notifContent}>
                 <View style={styles.notifTitleRow}>
-                  <Text style={styles.notifTitle}>{item.title}</Text>
+                  <Text style={[styles.notifTitle, !item.read && styles.notifTitleUnread]} numberOfLines={1}>
+                    {item.title}
+                  </Text>
                   {!item.read && <View style={styles.unreadDot} />}
                 </View>
                 <Text style={styles.notifMessage} numberOfLines={2}>{item.message}</Text>
@@ -200,12 +213,13 @@ export default function NotificationsScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
   backBtn: {
     width: 36,
@@ -213,22 +227,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  headerTitleWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#0f172a',
   },
-  markAllText: {
-    fontSize: 13,
-    color: '#0d9488',
-    fontWeight: '500',
-    width: 70,
-    textAlign: 'right',
-  },
+
+  // ── Filter + action row ──────────────────────────────────────────────────────
   filterRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    marginBottom: 8,
+    paddingBottom: 12,
     gap: 8,
   },
   filterTab: {
@@ -248,65 +264,119 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: '#ffffff',
   },
+  markReadBtn: {
+    marginLeft: 'auto' as any,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#0d9488',
+  },
+  markReadText: {
+    fontSize: 12,
+    color: '#0d9488',
+    fontWeight: '600',
+  },
+
+  // ── List ─────────────────────────────────────────────────────────────────────
   listContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 32,
   },
+  listContentEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+
   notifCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 12,
+    marginBottom: 6,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
     gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e2e8f0',
+    // subtle shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   notifCardUnread: {
-    // highlight unread via the dot only — no border or background
+    backgroundColor: '#f0fdfa',
   },
+  unreadAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 10,
+    bottom: 10,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: '#0d9488',
+  },
+
   notifIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
+
   notifContent: { flex: 1 },
   notifTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 3,
+    gap: 8,
   },
   notifTitle: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
+    color: '#334155',
+    flex: 1,
+  },
+  notifTitleUnread: {
     color: '#0f172a',
+    fontWeight: '700',
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#0d9488',
+    flexShrink: 0,
   },
   notifMessage: {
     fontSize: 13,
     color: '#64748b',
-    lineHeight: 18,
-    marginBottom: 4,
+    lineHeight: 19,
+    marginBottom: 5,
   },
   notifTime: {
     fontSize: 11,
     color: '#94a3b8',
     fontWeight: '500',
   },
+
+  // ── Empty state ───────────────────────────────────────────────────────────────
   emptyState: {
     alignItems: 'center',
-    paddingTop: 60,
-    gap: 12,
+    justifyContent: 'center',
+    gap: 8,
   },
-  emptyText: {
-    fontSize: 15,
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#334155',
+    marginTop: 4,
+  },
+  emptySubtitle: {
+    fontSize: 13,
     color: '#94a3b8',
-    fontWeight: '500',
   },
 });

@@ -395,13 +395,17 @@ export default function GalleryTab({
                   <Text style={styles.avatarInitial}>{displayName ? displayName[0].toUpperCase() : '?'}</Text>
                 </View>
               )}
-              <TouchableOpacity style={styles.editBtn} onPress={onEditProfile} activeOpacity={0.8}>
-                <EditIcon />
-              </TouchableOpacity>
             </View>
 
             <View style={styles.profileInfo}>
-              {displayName ? <Text style={styles.name}>{displayName}</Text> : null}
+              {displayName ? (
+                <View style={styles.nameRow}>
+                  <Text style={styles.name}>{displayName}</Text>
+                  <TouchableOpacity style={styles.editBtn} onPress={onEditProfile} activeOpacity={0.8}>
+                    <EditIcon />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
               {handle ? <Text style={styles.handle}>@{handle}</Text> : null}
               {user?.country ? (
                 <View style={styles.locationRow}>
@@ -493,12 +497,12 @@ const styles = StyleSheet.create({
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
   avatarInitial: { fontSize: 38, fontWeight: '700', color: '#0d9488' },
   editBtn: {
-    position: 'absolute', bottom: 2, right: -4,
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1, shadowRadius: 4, elevation: 2,
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08, shadowRadius: 3, elevation: 1,
   },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   name: { fontSize: 21, fontWeight: '700', color: '#0f172a' },
   handle: { fontSize: 15, color: '#0d9488', fontWeight: '500' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
