@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
-  Dimensions, StyleSheet, ActivityIndicator, Modal,
+  Dimensions, StyleSheet, ActivityIndicator, Modal, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -261,6 +261,7 @@ export default function FriendProfileScreen() {
     ])
       .then(([prof, gallery]) => {
         if (cancelled) return;
+        console.log('[FriendProfileScreen] avatarUrl =', prof?.avatarUrl);
         setProfile(prof);
         setGalleryTrips(gallery.trips ?? []);
         setGalleryEvents(gallery.events ?? []);
@@ -299,12 +300,14 @@ export default function FriendProfileScreen() {
               <View style={styles.profileRow}>
                 <View style={styles.avatarWrap}>
                   {profile?.avatarUrl && !avatarError ? (
-                    <CachedImage
-                      uri={profile.avatarUrl}
+                    <Image
+                      source={{ uri: profile.avatarUrl }}
                       style={styles.avatar}
                       resizeMode="cover"
-                      priority="high"
-                      onError={() => setAvatarError(true)}
+                      onError={() => {
+                        console.warn('[FriendProfileScreen] avatar load failed, url:', profile.avatarUrl);
+                        setAvatarError(true);
+                      }}
                     />
                   ) : (
                     <View style={[styles.avatar, styles.avatarPlaceholder]}>

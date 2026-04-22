@@ -29,13 +29,17 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
   const setPendingProfileSetup = useAuthStore((s) => s.setPendingProfileSetup);
 
   // ── Responsive sizes ──────────────────────────────────────────────────
-  const { width: screenW } = useWindowDimensions();
+  const { width: screenW, height: screenH } = useWindowDimensions();
 
-  const ICON_SIZE   = Math.round(Math.min(Math.max(screenW * 0.09, 32), 56));
+  // Base icon size on screen height so it scales correctly on short screens.
+  // Min 40 so it never looks tiny on compact devices (e.g. iPhone SE).
+  const ICON_SIZE   = Math.round(Math.min(Math.max(screenH * 0.065, 40), 64));
   const WORDMARK_H  = ICON_SIZE;
   const WORDMARK_W  = Math.round(ICON_SIZE * 4.5);
   const GAP          = Math.round(screenW * 0.03);
   const ICON_SHIFT_X = -((GAP + WORDMARK_W) / 2);
+  // Drop distance: 27% of screen height keeps the icon above the fold on all sizes.
+  const DROP_OFFSET  = Math.round(screenH * 0.27);
 
   // ── Animated values ───────────────────────────────────────────────────
   // logoY starts at 0 so the icon is statically visible while permissions are requested.
@@ -110,7 +114,7 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
 
       // Phase 2 — All dialogs resolved. Reset icon above screen then spring-drop.
       // setValue is synchronous so this is imperceptible (< 1 frame).
-      logoY.setValue(-180);
+      logoY.setValue(-DROP_OFFSET);
 
       Animated.spring(logoY, {
         toValue: 0,

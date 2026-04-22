@@ -444,6 +444,7 @@ const getUserProfile = async (viewerId, targetId) => {
   }
 
   // Presign avatar URL — same logic as normalizeAvatarUrl in friends.service.js
+  logger.info('[getUserProfile] raw avatarUrl from DB', { targetId, rawAvatar: row.avatarUrl });
   let avatarUrl = null;
   const rawAvatar = row.avatarUrl;
   if (rawAvatar && !rawAvatar.includes('https://undefined')) {
