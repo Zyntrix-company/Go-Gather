@@ -160,7 +160,7 @@ export function UnifiedCard({
               totalCount={members.length + extraMembers}
               counterStyle="soft"
               size={26}
-              maxVisible={3}
+              maxVisible={2}
             />
             <TouchableOpacity
               style={s.moreBtn}
@@ -348,8 +348,8 @@ const s = StyleSheet.create({
   },
   name: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#45556C',
+    fontWeight: '400',
+    color: '#009788',
   },
   infoRow: {
     flexDirection: 'row',

@@ -7,7 +7,6 @@ import {
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
 import { CalendarPlus } from 'lucide-react-native';
 import DateInfoPopover from '../../components/common/DateInfoPopover';
-import StackedAvatars from '../../components/common/StackedAvatars';
 import { UnifiedCard } from '../../components/common/Cards';
 import useAuthStore from '../../store/authStore';
 
@@ -188,14 +187,16 @@ function EventCardFullLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
       name={event.name}
       location={event.location || 'Location TBD'}
       dateLabel={event.dateDisplay}
-      members={event.memberAvatars.map((av: any, i: number) => {
+      members={event.memberAvatars.slice(0, 2).map((av: any, i: number) => {
         const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
         const { prevAvatarUrl, user } = useAuthStore.getState();
         const freshUrl = user?.photoUrl || user?.avatarUrl || '';
         const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
         return { id: uri || `ev-av-${i}`, uri };
       })}
-      extraMembers={Math.max(0, event.memberCount - event.memberAvatars.length)}
+      extraMembers={event.memberAvatars.length === 0
+        ? (event.memberCount ?? 0)
+        : Math.max(0, (event.memberCount ?? 0) - Math.min(event.memberAvatars.length, 2))}
       daysToGo={days > 0 ? days : undefined}
       onPress={onPress}
       onToggleMenu={onToggleMenu}
@@ -222,14 +223,16 @@ function EventCardPastLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
       name={event.name}
       location={event.location || 'Location TBD'}
       dateLabel={event.dateDisplay}
-      members={event.memberAvatars.map((av: any, i: number) => {
+      members={event.memberAvatars.slice(0, 2).map((av: any, i: number) => {
         const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
         const { prevAvatarUrl, user } = useAuthStore.getState();
         const freshUrl = user?.photoUrl || user?.avatarUrl || '';
         const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
         return { id: uri || `ev-av-${i}`, uri };
       })}
-      extraMembers={Math.max(0, event.memberCount - event.memberAvatars.length)}
+      extraMembers={event.memberAvatars.length === 0
+        ? (event.memberCount ?? 0)
+        : Math.max(0, (event.memberCount ?? 0) - Math.min(event.memberAvatars.length, 2))}
       onPress={onPress}
       onToggleMenu={onToggleMenu}
       showMenu={showMenu}
@@ -605,10 +608,11 @@ export function CreateEventModal({ visible, onClose, onSave }: {
             )}
 
             {/* Event Date */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
               <Text style={modal.label}>Event Date</Text>
               <TouchableOpacity
                 ref={dateIconRef}
+                style={{ marginTop: 6 }}
                 onPress={() => {
                   if (dateIconRef.current) {
                     dateIconRef.current.measure((_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
@@ -619,7 +623,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
                 }}
                 activeOpacity={0.6}
               >
-                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
                   <Circle cx={12} cy={12} r={10} stroke="#0d9488" strokeWidth={2} />
                   <Path d="M12 7v5M12 17a1 1 0 100-2 1 1 0 000 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
@@ -787,7 +791,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
                     }}
                     activeOpacity={0.8}
                   >
-                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>Change</Text>
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '500' }}>Change</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4 }}
@@ -964,12 +968,12 @@ export function CreateEventModal({ visible, onClose, onSave }: {
                     <Path d="M22 6l-10 7L2 6" stroke="#f97316" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
                 </View>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#0f172a' }}>Connect Your Email</Text>
+                <Text style={{ fontSize: 15, fontWeight: '600', color: '#0f172a' }}>Connect Your Email</Text>
                 <Text style={{ fontSize: 13, color: '#64748b', textAlign: 'center', lineHeight: 19 }}>
                   We'll extract event invitations, venue bookings, and other documents automatically.
                 </Text>
                 <View style={{ backgroundColor: '#fff7ed', borderRadius: 12, borderWidth: 1.5, borderColor: '#fed7aa', padding: 12, width: '100%' }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400e' }}>📧 Demo Mode</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#92400e' }}>📧 Demo Mode</Text>
                   <Text style={{ fontSize: 11, color: '#b45309', marginTop: 3 }}>In production, this connects to Gmail/Outlook to extract attachments.</Text>
                 </View>
               </View>
@@ -1083,7 +1087,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
               setBannerImageUri(cropPreviewUri!);
               setCropPreviewUri(undefined);
             }} activeOpacity={0.8}>
-              <Text style={{ color: '#0d9488', fontSize: 17, fontWeight: '700' }}>Done</Text>
+              <Text style={{ color: '#0d9488', fontSize: 17, fontWeight: '600' }}>Done</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1228,7 +1232,7 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
         {/* Hero section — always visible */}
         <View style={styles.heroSection}>
           <View style={styles.calendarCircle}>
-            <Svg width={40} height={40} viewBox="0 0 24 24" fill="none">
+            <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
               <Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke="#f97316" strokeWidth={2} />
               <Path d="M16 2v4M8 2v4M3 10h18" stroke="#f97316" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
               <Circle cx={8} cy={14} r={1} fill="#f97316" />
@@ -1238,10 +1242,9 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
               <Circle cx={12} cy={18} r={1} fill="#f97316" />
             </Svg>
           </View>
-          <Text style={styles.heroTitle}>{"Let's get social! \uD83C\uDF89 Plan your\nfirst gathering"}</Text>
+          <Text style={styles.heroTitle}>{"Let's get social! \uD83C\uDF89 Plan your\nnext gathering"}</Text>
           <Text style={styles.heroSub}>Create another memorable event</Text>
           <TouchableOpacity style={styles.newEventBtn} activeOpacity={0.85} onPress={() => setShowCreate(true)}>
-            <CalendarPlus size={15} color="#fff" />
             <Text style={styles.newEventBtnText}>Create Event</Text>
           </TouchableOpacity>
         </View>
@@ -1326,8 +1329,8 @@ const styles = StyleSheet.create({
     paddingTop: 4, paddingBottom: 12,
   },
   eventListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
-  eventListTitle: { fontSize: 18, fontWeight: '500', color: '#45556C' },
-  eventListSub: { fontSize: 13, color: '#64748b', marginTop: 2, marginBottom: 8 },
+  eventListTitle: { fontSize: 18, fontWeight: '500', color: '#0F172B', lineHeight: 28, letterSpacing: 0 },
+  eventListSub: { fontSize: 16, fontWeight: '400', color: '#45556C', lineHeight: 24, letterSpacing: 0, marginTop: 2, marginBottom: 8 },
   sectionLabel: {
     fontSize: 13, fontWeight: '600', color: '#64748b', letterSpacing: 0.6,
     marginBottom: 10, marginTop: 4, textTransform: 'uppercase',
@@ -1335,20 +1338,25 @@ const styles = StyleSheet.create({
   newEventBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#009788', borderRadius: 999,
-    paddingVertical: 9, paddingHorizontal: 32, gap: 5,
+    width: 163, height: 48, gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  newEventBtnText: { color: '#fff', fontSize: 13, fontWeight: '500' },
+  newEventBtnText: { color: '#fff', fontSize: 16, fontWeight: '500', lineHeight: 24, textAlign: 'center' },
 
   heroSection: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 10 },
   calendarCircle: {
-    width: 88, height: 88, borderRadius: 44, backgroundColor: '#fff7ed',
+    width: 64, height: 64, borderRadius: 32, backgroundColor: '#fff7ed',
     alignItems: 'center', justifyContent: 'center',
   },
   heroTitle: {
-    fontSize: 20, fontWeight: '500', color: '#45556C',
-    textAlign: 'center', lineHeight: 28,
+    fontFamily: 'Inter', fontSize: 20, fontWeight: '400', color: '#0F172B',
+    textAlign: 'center', lineHeight: 28, letterSpacing: 0, width: 266,
   },
-  heroSub: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
+  heroSub: { fontFamily: 'Inter', fontSize: 16, fontWeight: '400', color: '#45556C', textAlign: 'center', lineHeight: 20, letterSpacing: 0, width: 316 },
   emptyState: { alignItems: 'center', paddingTop: 32, gap: 12 },
   emptyStateSubtitle: { fontSize: 14, color: '#94a3b8', textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
 
@@ -1379,7 +1387,7 @@ const cardStyles = StyleSheet.create({
   moreCounterText: { color: '#fff', fontSize: 9, fontWeight: '800' },
   cardBody: { padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardMain: { flex: 1, paddingRight: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '600', color: '#45556C', marginBottom: 4, lineHeight: 22 },
+  cardTitle: { fontSize: 16, fontWeight: '400', color: '#009788', marginBottom: 4, lineHeight: 22 },
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   infoText: { fontSize: 12, color: '#475569', fontWeight: '400' },
   daysBadge: { alignItems: 'flex-end', justifyContent: 'center', minWidth: 44 },
@@ -1400,7 +1408,7 @@ const cardStyles = StyleSheet.create({
   },
   pastCardImage: { width: 66, height: 66, borderRadius: 12, resizeMode: 'cover', flexShrink: 0 },
   pastCardInfo: { flex: 1, gap: 3 },
-  pastCardTitle: { fontSize: 14, fontWeight: '600', color: '#45556C', marginBottom: 2 },
+  pastCardTitle: { fontSize: 14, fontWeight: '400', color: '#009788', marginBottom: 2 },
   pastCardRight: { alignItems: 'center', justifyContent: 'flex-end' },
   pastAvatarsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pastMiniAvatar: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: '#fff' },
@@ -1434,14 +1442,14 @@ const modal = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14,
     borderBottomWidth: 1, borderBottomColor: '#e2e8f0',
   },
-  title: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  title: { fontSize: 16, fontWeight: '600', color: '#0f172a' },
   closeBtn: {
     width: 30, height: 30, borderRadius: 15,
     backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center',
   },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 8, gap: 12 },
 
-  label: { fontSize: 13, fontWeight: '600', color: '#0f172a', marginTop: 4 },
+  label: { fontSize: 13, fontWeight: '400', color: '#0f172a', marginTop: 4 },
   input: {
     borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 12,
     paddingHorizontal: 12, paddingVertical: 10,
@@ -1456,7 +1464,7 @@ const modal = StyleSheet.create({
   dropItem: { paddingHorizontal: 14, paddingVertical: 11 },
   dropItemActive: { backgroundColor: '#f0fdfa' },
   dropItemText: { fontSize: 14, color: '#0f172a' },
-  dropItemTextActive: { color: '#0d9488', fontWeight: '700' },
+  dropItemTextActive: { color: '#0d9488', fontWeight: '600' },
 
   locationBox: {
     flexDirection: 'row', alignItems: 'center',
@@ -1474,10 +1482,10 @@ const modal = StyleSheet.create({
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: '#2dd4bf', alignItems: 'center', justifyContent: 'center',
   },
-  ctRowText: { fontSize: 13, fontWeight: '600', color: '#0f172a' },
+  ctRowText: { fontSize: 13, fontWeight: '400', color: '#0f172a' },
   ctRowSub: { fontSize: 11, color: '#94a3b8' },
   ctCountBadge: { backgroundColor: '#ccfbf1', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
-  ctCountBadgeText: { fontSize: 11, color: '#0f766e', fontWeight: '600' },
+  ctCountBadgeText: { fontSize: 11, color: '#0f766e', fontWeight: '500' },
   ctDocChip: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#a7f3d0',
@@ -1494,19 +1502,19 @@ const modal = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12,
     borderTopWidth: 1, borderTopColor: '#e2e8f0',
   },
-  cancelTxt: { fontSize: 13, fontWeight: '600', color: '#0f172a', textDecorationLine: 'underline' },
+  cancelTxt: { fontSize: 13, fontWeight: '500', color: '#0f172a', textDecorationLine: 'underline' },
   createBtn: {
     backgroundColor: colors.accent, borderRadius: 999,
     paddingHorizontal: 28, paddingVertical: 12,
     alignItems: 'center', justifyContent: 'center',
   },
-  createBtnTxt: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  createBtnTxt: { color: '#fff', fontSize: 14, fontWeight: '600' },
 
   // Invite modal
   inviteTabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
   inviteTab: { flex: 1, paddingVertical: 10, alignItems: 'center' },
   inviteTabActive: { borderBottomWidth: 2, borderBottomColor: '#0d9488', backgroundColor: '#f0fdfa' },
-  inviteTabText: { fontSize: 13, fontWeight: '600', color: '#64748b' },
+  inviteTabText: { fontSize: 13, fontWeight: '500', color: '#64748b' },
   inviteTabTextActive: { color: '#0d9488' },
   friendSelectRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -1516,8 +1524,8 @@ const modal = StyleSheet.create({
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: '#ccfbf1', alignItems: 'center', justifyContent: 'center',
   },
-  friendAvatarText: { fontSize: 16, fontWeight: '700', color: colors.accent },
-  friendName: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
+  friendAvatarText: { fontSize: 16, fontWeight: '600', color: colors.accent },
+  friendName: { fontSize: 14, fontWeight: '500', color: '#0f172a' },
   checkCircle: {
     width: 24, height: 24, borderRadius: 12,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',

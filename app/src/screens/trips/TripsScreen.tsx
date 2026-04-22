@@ -29,7 +29,6 @@ import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { Plane } from 'lucide-react-native';
 import { UnifiedCard } from '../../components/common/Cards';
 import CachedImage from '../../components/common/CachedImage';
-import StackedAvatars from '../../components/common/StackedAvatars';
 import Toast from 'react-native-toast-message';
 import useAuthStore from '../../store/authStore';
 import DateInfoPopover from '../../components/common/DateInfoPopover';
@@ -245,14 +244,14 @@ function mapApiTrip(t: any): Trip {
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
     bannerCropFraction: t.bannerCropFraction ?? null,
-    members: (t.memberAvatars || []).slice(0, 4).map((av: any, idx: number) => {
+    members: (t.memberAvatars || []).slice(0, 2).map((av: any, idx: number) => {
       const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
       const { prevAvatarUrl, user } = useAuthStore.getState();
       const freshUrl = user?.photoUrl || user?.avatarUrl || '';
       const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
       return { id: uri || `av-${idx}`, uri };
     }),
-    extraMembers: (t.memberAvatars || []).length === 0 ? (t.memberCount ?? 0) : Math.max(0, (t.memberCount ?? 0) - Math.min((t.memberAvatars || []).length, 4)),
+    extraMembers: (t.memberAvatars || []).length === 0 ? (t.memberCount ?? 0) : Math.max(0, (t.memberCount ?? 0) - Math.min((t.memberAvatars || []).length, 2)),
   };
 }
 
@@ -286,7 +285,7 @@ const MoreIcon = ({ color = '#fff' }) => (
   </Svg>
 );
 
-const PlaneIcon = ({ color = '#0d9488', size = 40 }) => (
+const PlaneIcon = ({ color = '#0d9488', size = 28 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path
       d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"
@@ -697,6 +696,7 @@ export function CreateTripModal({
                   <Text style={styles.ctLabel}>Start Date</Text>
                   <TouchableOpacity
                     ref={startIconRef}
+                    style={{ marginTop: 6 }}
                     onPress={() => {
                       if (startIconRef.current) {
                         startIconRef.current.measure((x: number, y: number, width: number, height: number, pageX: number, pageY: number) => {
@@ -707,7 +707,7 @@ export function CreateTripModal({
                     }}
                     activeOpacity={0.6}
                   >
-                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
                       <Circle cx={12} cy={12} r={10} stroke="#0d9488" strokeWidth={2} />
                       <Path d="M12 7v5M12 17a1 1 0 100-2 1 1 0 000 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                     </Svg>
@@ -731,6 +731,7 @@ export function CreateTripModal({
                   <Text style={styles.ctLabel}>End Date</Text>
                   <TouchableOpacity
                     ref={endIconRef}
+                    style={{ marginTop: 6 }}
                     onPress={() => {
                       if (endIconRef.current) {
                         endIconRef.current.measure((_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
@@ -741,7 +742,7 @@ export function CreateTripModal({
                     }}
                     activeOpacity={0.6}
                   >
-                    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
                       <Circle cx={12} cy={12} r={10} stroke="#0d9488" strokeWidth={2} />
                       <Path d="M12 7v5M12 17a1 1 0 100-2 1 1 0 000 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                     </Svg>
@@ -943,7 +944,7 @@ export function CreateTripModal({
                     }}
                     activeOpacity={0.8}
                   >
-                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>Change</Text>
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '500' }}>Change</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4 }}
@@ -1093,12 +1094,12 @@ export function CreateTripModal({
                       <Path d="M22 6l-10 7L2 6" stroke="#f97316" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                     </Svg>
                   </View>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#0f172a' }}>Connect Your Email</Text>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: '#0f172a' }}>Connect Your Email</Text>
                   <Text style={{ fontSize: 13, color: '#64748b', textAlign: 'center', lineHeight: 19 }}>
                     We'll extract flight tickets, hotel bookings, and other travel documents automatically.
                   </Text>
                   <View style={{ backgroundColor: '#fff7ed', borderRadius: 12, borderWidth: 1.5, borderColor: '#fed7aa', padding: 12, width: '100%' }}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400e' }}>📧 Demo Mode</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#92400e' }}>📧 Demo Mode</Text>
                     <Text style={{ fontSize: 11, color: '#b45309', marginTop: 3 }}>In production, this connects to Gmail/Outlook to extract attachments.</Text>
                   </View>
                 </View>
@@ -1287,7 +1288,7 @@ export function CreateTripModal({
               setBannerImageType(cropPreviewType);
               setCropPreviewUri(undefined);
             }} activeOpacity={0.8}>
-              <Text style={{ color: '#0d9488', fontSize: 17, fontWeight: '700' }}>Done</Text>
+              <Text style={{ color: '#0d9488', fontSize: 17, fontWeight: '600' }}>Done</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1432,7 +1433,6 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
             style={styles.createTripBtn}
             onPress={() => setShowCreateTrip(true)}
             activeOpacity={0.85}>
-            <Plane size={15} color="#fff" />
             <Text style={styles.createTripBtnText}>Create Trip</Text>
           </TouchableOpacity>
         </View>
@@ -1608,21 +1608,26 @@ const styles = StyleSheet.create({
   // Trips Tab
   tripsCTA: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 10 },
   tripsPlaneCircle: {
-    width: 88, height: 88, borderRadius: 44,
+    width: 64, height: 64, borderRadius: 32,
     backgroundColor: '#cbfbf1',
     alignItems: 'center', justifyContent: 'center',
   },
-  tripsCTATitle: { fontSize: 20, fontWeight: '500', color: '#45556C', textAlign: 'center', lineHeight: 28, paddingHorizontal: 24 },
-  tripsCTASub: { fontSize: 14, color: '#64748b', textAlign: 'center' },
+  tripsCTATitle: { fontFamily: 'Inter', fontSize: 20, fontWeight: '400', color: '#0F172B', textAlign: 'center', lineHeight: 28, letterSpacing: 0, width: 266 },
+  tripsCTASub: { fontFamily: 'Inter', fontSize: 16, fontWeight: '400', color: '#45556C', textAlign: 'center', lineHeight: 20, letterSpacing: 0, width: 316 },
   createTripBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#009788', borderRadius: 999,
-    paddingVertical: 9, paddingHorizontal: 32, gap: 5,
+    width: 163, height: 48, gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  createTripBtnText: { color: '#fff', fontSize: 13, fontWeight: '500' },
+  createTripBtnText: { color: '#fff', fontSize: 16, fontWeight: '500', lineHeight: 24, textAlign: 'center' },
   tripsListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
   tripsListTitle: { fontSize: 18, fontWeight: '500', color: '#45556C' },
-  tripsListSub: { fontSize: 13, color: '#64748b', marginTop: 2, marginBottom: 8 },
+  tripsListSub: { fontSize: 16, fontWeight: '400', color: '#45556C', lineHeight: 24, letterSpacing: 0, marginTop: 2, marginBottom: 8 },
   sectionLabel: {
     fontSize: 13, fontWeight: '600', color: '#64748b', letterSpacing: 0.6,
     marginBottom: 10, marginTop: 4, textTransform: 'uppercase',
@@ -1651,7 +1656,7 @@ const styles = StyleSheet.create({
   moreCounterText: { color: '#fff', fontSize: 9, fontWeight: '800' },
   cardBody: { padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardMain: { flex: 1, paddingRight: 8 },
-  cardTitle: { fontSize: 16, fontWeight: '600', color: '#45556C', marginBottom: 4, lineHeight: 22 },
+  cardTitle: { fontSize: 16, fontWeight: '400', color: '#009788', marginBottom: 4, lineHeight: 22 },
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   infoText: { fontSize: 12, color: '#475569', fontWeight: '400' },
   daysBadge: { alignItems: 'flex-end', justifyContent: 'center', minWidth: 44 },
@@ -1676,7 +1681,7 @@ const styles = StyleSheet.create({
   },
   pastCardImage: { width: 66, height: 66, borderRadius: 12, resizeMode: 'cover', flexShrink: 0 },
   pastCardInfo: { flex: 1, gap: 3 },
-  pastCardTitle: { fontSize: 14, fontWeight: '600', color: '#45556C', marginBottom: 2 },
+  pastCardTitle: { fontSize: 14, fontWeight: '400', color: '#009788', marginBottom: 2 },
   pastCardRight: { alignItems: 'center', justifyContent: 'flex-end' },
   pastAvatarsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pastAvatars: { flexDirection: 'row' },
@@ -1704,10 +1709,10 @@ const styles = StyleSheet.create({
 
   // Create Trip Modal
   ctHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  ctTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  ctTitle: { fontSize: 16, fontWeight: '600', color: '#0f172a' },
   ctCloseBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
   ctScrollContent: { paddingHorizontal: 16, paddingBottom: 8, gap: 12 },
-  ctLabel: { fontSize: 13, fontWeight: '600', color: '#0f172a', marginTop: 4 },
+  ctLabel: { fontSize: 13, fontWeight: '400', color: '#0f172a', marginTop: 4 },
   ctInput: { borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#0f172a', backgroundColor: '#fff' },
   ctDateRow: { flexDirection: 'row', gap: 12, marginBottom: 0 },
   ctDateBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
@@ -1716,27 +1721,27 @@ const styles = StyleSheet.create({
   ctRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f8fafc', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
   ctRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   ctRowIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#2dd4bf', alignItems: 'center', justifyContent: 'center' },
-  ctRowText: { fontSize: 13, fontWeight: '600', color: '#0f172a' },
+  ctRowText: { fontSize: 13, fontWeight: '400', color: '#0f172a' },
   ctRowSub: { fontSize: 11, color: '#94a3b8' },
   ctCountBadge: { backgroundColor: '#ccfbf1', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
-  ctCountBadgeText: { fontSize: 11, color: '#0f766e', fontWeight: '600' },
+  ctCountBadgeText: { fontSize: 11, color: '#0f766e', fontWeight: '500' },
   ctDocChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: '#a7f3d0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
   ctDocChipText: { flex: 1, fontSize: 12, color: '#334155' },
   ctDocRemove: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' },
   ctFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
-  ctCancelText: { fontSize: 13, fontWeight: '600', color: '#0f172a', textDecorationLine: 'underline' },
+  ctCancelText: { fontSize: 13, fontWeight: '500', color: '#0f172a', textDecorationLine: 'underline' },
   ctCreateBtn: { backgroundColor: '#0d9488', borderRadius: 999, paddingHorizontal: 28, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  ctCreateBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  ctCreateBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 
   // Invite modal tabs
   inviteTabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
   inviteTab: { flex: 1, paddingVertical: 10, alignItems: 'center' },
   inviteTabActive: { borderBottomWidth: 2, borderBottomColor: '#0d9488', backgroundColor: '#f0fdfa' },
-  inviteTabText: { fontSize: 13, fontWeight: '600', color: '#64748b' },
+  inviteTabText: { fontSize: 13, fontWeight: '500', color: '#64748b' },
   inviteTabTextActive: { color: '#0d9488' },
   friendSelectRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 10, marginBottom: 4 },
   friendSelectAvatar: { width: 44, height: 44, borderRadius: 22 },
   checkCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
-  friendName: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  friendName: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
   friendHandle: { fontSize: 13, color: '#64748b', marginTop: 2 },
 });

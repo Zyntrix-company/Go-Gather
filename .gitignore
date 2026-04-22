@@ -45,3 +45,6 @@ Dockerfile
 
 # Postman/Docs (Optional - keep if you want them in git)
 # *.postman_collection.json
+
+# Local archives
+app.zip

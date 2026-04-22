@@ -62,7 +62,7 @@ function patchAvatarUri(rawUri: string, prevUrl: string, freshUrl: string): stri
 function mapAvatars(memberAvatars: any[], memberCount: number): { members: { id: string; uri: string }[]; extraMembers: number } {
   const { prevAvatarUrl, user } = useAuthStore.getState();
   const freshUrl = user?.photoUrl || user?.avatarUrl || '';
-  const sliced = (memberAvatars || []).slice(0, 4);
+  const sliced = (memberAvatars || []).slice(0, 2);
   const members = sliced.map((av: any, idx: number) => {
     const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
     const uri = patchAvatarUri(rawUri, prevAvatarUrl ?? '', freshUrl);
@@ -70,7 +70,7 @@ function mapAvatars(memberAvatars: any[], memberCount: number): { members: { id:
   });
   const extraMembers = sliced.length === 0
     ? (memberCount ?? 0)
-    : Math.max(0, (memberCount ?? 0) - Math.min(sliced.length, 4));
+    : Math.max(0, (memberCount ?? 0) - Math.min(sliced.length, 2));
   return { members, extraMembers };
 }
 

@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '500',
     color: '#0f172a',
   },
 
@@ -265,7 +265,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   markReadBtn: {
-    marginLeft: 'auto' as any,
     paddingVertical: 6,
     paddingHorizontal: 14,
     borderRadius: 20,

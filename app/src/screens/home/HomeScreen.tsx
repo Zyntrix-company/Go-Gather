@@ -10,12 +10,15 @@ import {
   Dimensions,
   FlatList,
   Animated,
+  Easing,
   PanResponder,
   TextInput,
   Modal,
   Pressable,
   ActivityIndicator,
   InteractionManager,
+  Keyboard,
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
@@ -57,7 +60,6 @@ import FriendsScreen from './FriendsScreen';
 import ChatTab, { SWEE_CHAT } from './ChatTab';
 import GalleryTab from './GalleryTab';
 import ProfileDropdown from './ProfileDropdown';
-import StackedAvatars from '../../components/common/StackedAvatars';
 import { UnifiedCard } from '../../components/common/Cards';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -360,7 +362,7 @@ function mapApiTrip(t: any): Trip {
     image: require('../../assets/images/goa_beach.png'),
     bannerImageUrl: t.bannerImageUrl ?? null,
     bannerCropFraction: t.bannerCropFraction ?? null,
-    members: (t.memberAvatars || []).slice(0, 4).map((av: any, idx: number) => {
+    members: (t.memberAvatars || []).slice(0, 2).map((av: any, idx: number) => {
       const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
       const { prevAvatarUrl, user } = useAuthStore.getState();
       const freshUrl = user?.photoUrl || user?.avatarUrl || '';
@@ -369,7 +371,7 @@ function mapApiTrip(t: any): Trip {
     }),
     extraMembers: (t.memberAvatars || []).length === 0
       ? (t.memberCount ?? 0)
-      : Math.max(0, (t.memberCount ?? 0) - Math.min((t.memberAvatars || []).length, 4)),
+      : Math.max(0, (t.memberCount ?? 0) - Math.min((t.memberAvatars || []).length, 2)),
   };
 }
 
@@ -439,6 +441,33 @@ export default function HomeScreen({ navigation, route }: any) {
   const [tripBannerUri, setTripBannerUri] = useState<string | undefined>(undefined);
   const [tripBannerType, setTripBannerType] = useState<string>('image/jpeg');
   const [tripBannerCrop, setTripBannerCrop] = useState<TripBannerCropFraction | null>(null);
+
+  const tabBarSlide = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onShow = Keyboard.addListener(showEvent, (e) => {
+      Animated.timing(tabBarSlide, {
+        toValue: 1,
+        duration: Platform.OS === 'ios' ? (e.duration ?? 250) : 120,
+        easing: Easing.bezier(0.2, 0, 0, 1),
+        useNativeDriver: true,
+      }).start();
+    });
+
+    const onHide = Keyboard.addListener(hideEvent, (e) => {
+      Animated.timing(tabBarSlide, {
+        toValue: 0,
+        duration: Platform.OS === 'ios' ? (e.duration ?? 250) : 180,
+        easing: Easing.bezier(0.2, 0, 0, 1),
+        useNativeDriver: true,
+      }).start();
+    });
+
+    return () => { onShow.remove(); onHide.remove(); };
+  }, [tabBarSlide]);
 
   // Blogs + Deals for home feed
   const [blogs, setBlogs] = useState<any[]>([]);
@@ -768,11 +797,11 @@ export default function HomeScreen({ navigation, route }: any) {
           color: '#45556C',
           fontWeight: '400',
           textAlign: 'left',
-          marginTop: 6,
-          marginBottom: 14,
-          paddingHorizontal: H_PAD,
+          marginTop: 22,
+          marginBottom: 8,
+          marginHorizontal: H_PAD,
         }}>
-          Ready for your next trip?
+          Ready for your next adventure
         </Text>
 
         {/* ── 2. Search Bar ── */}
@@ -1052,7 +1081,7 @@ export default function HomeScreen({ navigation, route }: any) {
             </View>
             {homeEvents.slice(0, 3).map((ev: any) => {
             const locName = typeof ev.location === 'string' ? ev.location : (ev.location?.name ?? '');
-            const rawAvatars: any[] = (ev.memberAvatars || []).slice(0, 4);
+            const rawAvatars: any[] = (ev.memberAvatars || []).slice(0, 2);
             const avatars: { id: string; uri: string }[] = rawAvatars.map((av: any, i: number) => {
               const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
               const { prevAvatarUrl, user } = useAuthStore.getState();
@@ -1348,12 +1377,18 @@ export default function HomeScreen({ navigation, route }: any) {
         {/* Draggable Swee FAB */}
         <SweeFab onPress={() => navigateToChat(SWEE_CHAT)} />
 
-        {/* Bottom Tab Bar */}
-        <View style={[styles.tabBar, { paddingBottom: insets.bottom + 6, height: 58 + insets.bottom }]}>
+        {/* Bottom Tab Bar — slides off screen when keyboard is open */}
+        <Animated.View
+          style={[
+            styles.tabBar,
+            { paddingBottom: insets.bottom + 6, height: 58 + insets.bottom },
+            { transform: [{ translateY: tabBarSlide.interpolate({ inputRange: [0, 1], outputRange: [0, 58 + insets.bottom] }) }] },
+          ]}
+        >
           {(['trips', 'events', 'friends', 'chat', 'gallery'] as Tab[]).map(tab => (
             <NavIcon key={tab} name={tab} active={activeTab === tab} onPress={() => setActiveTab(tab)} />
           ))}
-        </View>
+        </Animated.View>
 
       </SafeAreaView>
     </BlobBackground>
@@ -1520,7 +1555,7 @@ const styles = StyleSheet.create({
 
   tripsListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
   // Figma: text-lg font-bold
-  tripsListTitle: { fontSize: 18, fontWeight: '500', color: '#45556C' },
+  tripsListTitle: { fontSize: 18, fontWeight: '500', color: '#0F172B', lineHeight: 28, letterSpacing: 0 },
   tripsListSub: { fontSize: 13, color: '#64748b', marginTop: 2 },
 
   // Figma: text-sm font-semibold text-slate-500 uppercase tracking-wide
@@ -1593,7 +1628,7 @@ const styles = StyleSheet.create({
   cardBody: { padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardMain: { flex: 1, paddingRight: 8 },
   // Figma: text-base font-bold text-slate-900
-  cardTitle: { fontSize: 16, fontWeight: '600', color: '#45556C', marginBottom: 4, lineHeight: 22 },
+  cardTitle: { fontSize: 16, fontWeight: '400', color: '#009788', marginBottom: 4, lineHeight: 22 },
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   // Figma: text-xs text-slate-600
   infoText: { fontSize: 12, color: '#475569', fontWeight: '400' },
@@ -1649,7 +1684,7 @@ const styles = StyleSheet.create({
   },
   pastCardImage: { width: 66, height: 66, borderRadius: 12, resizeMode: 'cover', flexShrink: 0 },
   pastCardInfo: { flex: 1, gap: 3 },
-  pastCardTitle: { fontSize: 14, fontWeight: '600', color: '#45556C', marginBottom: 2 },
+  pastCardTitle: { fontSize: 14, fontWeight: '400', color: '#009788', marginBottom: 2 },
   pastCardRight: { alignItems: 'center', justifyContent: 'flex-end' },
   pastAvatarsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pastAvatars: { flexDirection: 'row' },

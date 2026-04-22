@@ -449,7 +449,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#45556C',
     marginBottom: 8,
-    textTransform: 'uppercase',
   },
 
   // Search Bar

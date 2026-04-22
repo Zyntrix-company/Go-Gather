@@ -125,7 +125,7 @@ export default function DetailHeroCard({
           <StackedAvatars
             avatars={memberAvatars}
             totalCount={memberCount}
-            maxVisible={3}
+            maxVisible={2}
             size={26}
             overlap={7}
             counterStyle="soft"

@@ -22,7 +22,7 @@ export interface StackedAvatarsProps {
    * Falls back to avatars.length when omitted.
    */
   totalCount?: number;
-  /** Max avatars to show before collapsing into +N. Default: 4 */
+  /** Max avatars to show before collapsing into +N. Default: 2 */
   maxVisible?: number;
   /** Avatar diameter in dp. Default: 26 */
   size?: number;
@@ -81,7 +81,7 @@ function AvatarCircle({ uri, size, index }: { uri: string; size: number; index: 
   );
 }
 
-// Pre-allocate 5 animation slots: max 4 avatars + 1 counter bubble.
+// Pre-allocate 5 animation slots: max 2 avatars + 1 counter bubble (+ headroom).
 const POOL_SIZE = 5;
 
 // Module-level flag — survives component unmount/remount (FlatList recycling, data
@@ -94,7 +94,7 @@ let hasEverAnimated = false;
 export default function StackedAvatars({
   avatars,
   totalCount,
-  maxVisible = 4,
+  maxVisible = 2,
   size = 26,
   overlap = 8,
   showCounter = true,

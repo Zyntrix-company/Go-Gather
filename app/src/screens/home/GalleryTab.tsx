@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { Plane, CalendarDays } from 'lucide-react-native';
+import { Plane, CalendarDays, PencilLine } from 'lucide-react-native';
 import { getUserGallery } from '../../api/ai.api';
 import { getTripPhotos } from '../../api/trips.api';
 import { getEventPhotos } from '../../api/events.api';
@@ -22,12 +22,6 @@ const PinIcon = ({ color = '#94a3b8', size = 13 }) => (
   </Svg>
 );
 
-const EditIcon = () => (
-  <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
-    <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-    <Path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
 
 const CameraIcon = () => (
   <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
@@ -402,7 +396,7 @@ export default function GalleryTab({
                 <View style={styles.nameRow}>
                   <Text style={styles.name}>{displayName}</Text>
                   <TouchableOpacity style={styles.editBtn} onPress={onEditProfile} activeOpacity={0.8}>
-                    <EditIcon />
+                    <PencilLine size={15} color="#64748b" />
                   </TouchableOpacity>
                 </View>
               ) : null}
