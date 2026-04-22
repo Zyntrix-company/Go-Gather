@@ -11,13 +11,12 @@ const { sendFCMNotification } = require('../../utils/fcm.util');
  * @param {object} dbClient  — pg client or pool (must support .query())
  */
 const generateUniqueUsername = async (fullName, dbClient) => {
-  const parts = fullName.trim().split(/\s+/);
-  // join all name parts, keep only [a-z0-9_], truncate to 15 to leave room for numeric suffix
-  const raw = parts.join('').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 15);
-  // guarantee minimum length of 3
-  const base = raw.length >= 3 ? raw : (raw + 'user').slice(0, 20);
+  // Use only the first name + _gg suffix (e.g. "Alice Smith" → "alice_gg")
+  const firstName = fullName.trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+  const raw = firstName.length >= 2 ? firstName : (firstName + 'user');
+  const base = raw.slice(0, 12); // leave room for _gg + numeric suffix within 20 chars
 
-  let candidate = base;
+  let candidate = `${base}_gg`;
   let suffix = 1;
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -26,7 +25,7 @@ const generateUniqueUsername = async (fullName, dbClient) => {
       [candidate],
     );
     if (rows.length === 0) break;
-    candidate = `${base.slice(0, 15)}${suffix}`;
+    candidate = `${base}_gg${suffix}`;
     suffix += 1;
   }
   return candidate;

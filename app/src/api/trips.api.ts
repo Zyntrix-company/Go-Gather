@@ -583,7 +583,7 @@ export async function getFriends(search?: string) {
   return res.data as {
     friends: {
       connectionId: string;
-      user: { id: string; name: string; avatarUrl: string | null; country: string; bio?: string };
+      user: { id: string; name: string; avatarUrl: string | null; country: string; bio?: string; tag?: string | null };
       mutualTripCount: number;
       connectedAt: string;
     }[];

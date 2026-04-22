@@ -28,6 +28,7 @@ type Friend = {
     avatarUrl: string | null;
     country?: string | null;
     bio?: string | null;
+    tag?: string | null;
   };
   mutualTripCount: number;
   mutualEventCount: number;
@@ -72,7 +73,7 @@ function FriendRow({ friend, index, onView, onDelete }: {
   const fallbackAvatar = `https://i.pravatar.cc/150?u=${encodeURIComponent(friend.user.id)}`;
   const [imageUri, setImageUri] = useState<string>(friend.user.avatarUrl || fallbackAvatar);
   const firstLetter = friend.user.name?.[0]?.toUpperCase() || '?';
-  const subtitle = friend.user.bio || friend.user.country || '';
+  const subtitle = friend.user.tag ? `@${friend.user.tag}` : '';
   const avatarSource = { uri: imageUri };
   const colorPair = AVATAR_COLORS[index % 6];
 
