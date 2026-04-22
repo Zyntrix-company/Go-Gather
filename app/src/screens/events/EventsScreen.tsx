@@ -1329,8 +1329,9 @@ const styles = StyleSheet.create({
     paddingTop: 4, paddingBottom: 12,
   },
   eventListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
-  eventListTitle: { fontSize: 18, fontWeight: '500', color: '#0F172B', lineHeight: 28, letterSpacing: 0 },
-  eventListSub: { fontSize: 16, fontWeight: '400', color: '#45556C', lineHeight: 24, letterSpacing: 0, marginTop: 2, marginBottom: 8 },
+  eventListTitle: {     fontFamily: 'Inter', fontSize: 16, fontWeight: '400', color: '#0F172B',
+   lineHeight: 24, letterSpacing: 0 },
+  eventListSub: { fontSize: 15, fontWeight: '400', color: '#45556C', lineHeight: 19, letterSpacing: 0, marginTop: 2, marginBottom: 8 },
   sectionLabel: {
     fontSize: 13, fontWeight: '600', color: '#64748b', letterSpacing: 0.6,
     marginBottom: 10, marginTop: 4, textTransform: 'uppercase',
@@ -1338,16 +1339,16 @@ const styles = StyleSheet.create({
   newEventBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#009788', borderRadius: 999,
-    width: 163, height: 48, gap: 6,
+    width: 130, height: 40, gap: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 6,
   },
-  newEventBtnText: { color: '#fff', fontSize: 16, fontWeight: '500', lineHeight: 24, textAlign: 'center' },
+  newEventBtnText: { color: '#fff', fontSize: 14, fontWeight: '500', lineHeight: 20, textAlign: 'center' },
 
-  heroSection: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 10 },
+  heroSection: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 16 },
   calendarCircle: {
     width: 64, height: 64, borderRadius: 32, backgroundColor: '#fff7ed',
     alignItems: 'center', justifyContent: 'center',

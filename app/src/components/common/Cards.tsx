@@ -380,7 +380,7 @@ const s = StyleSheet.create({
   },
   daysNum: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0d9488',
   },
   daysLbl: {

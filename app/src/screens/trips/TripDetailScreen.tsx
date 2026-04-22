@@ -17,7 +17,9 @@ import BlobBackground from '../../components/common/BlobBackground';
 import CachedImage from '../../components/common/CachedImage';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
+import AppHeader from '../../components/common/AppHeader';
 import useAuthStore from '../../store/authStore';
+import useNotificationStore from '../../store/notificationStore';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
 import {
@@ -257,7 +259,7 @@ const CheckIcon = () => (
 );
 
 function ActionIcon({ path, color }: { path: string; color: string }) {
-  const s = { width: 22, height: 22 };
+  const s = { width: 18, height: 18 };
   switch (path) {
     case 'plus': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M12 5v14M5 12h14" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
     case 'docs': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M14 2v6h6M16 13H8M16 17H8" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
@@ -265,7 +267,7 @@ function ActionIcon({ path, color }: { path: string; color: string }) {
     case 'photos': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Rect x={3} y={3} width={18} height={18} rx={2} ry={2} stroke={color} strokeWidth={2} /><Circle cx={8.5} cy={8.5} r={1.5} fill={color} /><Path d="M21 15l-5-5L5 21" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
     case 'expenses': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
     case 'polls': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M18 20V10M12 20V4M6 20v-6" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
-    case 'notes': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
+    case 'notes': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M9 11l3 3L22 4" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
     default: return null;
   }
 }
@@ -368,7 +370,7 @@ function TripPhotoPreview({ photo }: { photo: PhotoItem }) {
         <View style={{ marginTop: 16, paddingHorizontal: 20, alignItems: 'center' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(13,148,136,0.25)', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 }}>
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#0d9488' }} />
-            <Text style={{ color: '#5eead4', fontSize: 13, fontWeight: '600' }}>{photo.activityTitle}</Text>
+            <Text style={{ color: '#5eead4', fontSize: 13, fontWeight: '500' }}>{photo.activityTitle}</Text>
           </View>
         </View>
       )}
@@ -381,7 +383,7 @@ function FriendAvatar({ uri, name, style }: { uri: string; name: string; style: 
   if (!uri || failed) {
     return (
       <View style={[style, { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: '#94a3b8' }}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
+        <Text style={{ fontSize: 16, fontWeight: '500', color: '#94a3b8' }}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
       </View>
     );
   }
@@ -395,6 +397,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const rawUser = useAuthStore(s => s.user) as any;
   const currentUserId: string = rawUser?.id ?? '';
   const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
+  const unreadCount = useNotificationStore(s => s.notifications.filter(n => !n.read).length);
 
   // ── API-driven state ──
   const [role, setRole] = useState<'admin' | 'member'>('member');
@@ -428,6 +431,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   // ── Modal visibility ──
   const [showAddAct, setShowAddAct] = useState(false);
+  const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set());
   const [showEditTrip, setShowEditTrip] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
@@ -906,7 +910,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   function startEditActivity(act: Activity) {
     setActTitle(act.title);
-    setActDate(undefined);
+    setActDate((act as any).date ? new Date((act as any).date) : undefined);
     setActHour((act as any).hour ?? '');
     setActMin((act as any).minute ?? '');
     setActLocation(act.location || '');
@@ -1322,12 +1326,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
     <BlobBackground>
       <SafeAreaView style={styles.container}>
 
-        {/* Top back row */}
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-            <BackIcon />
-          </TouchableOpacity>
-        </View>
+        <AppHeader
+          notificationCount={unreadCount}
+          onLogoPress={() => navigation.goBack()}
+          onBellPress={() => navigation.navigate('Notifications')}
+          onMenuPress={() => navigation.goBack()}
+        />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
@@ -1361,7 +1365,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
               })}
               style={{ alignSelf: 'flex-end', marginRight: 16, marginBottom: 4, marginTop: -2 }}
               activeOpacity={0.7}>
-              <Text style={{ fontSize: 11, color: '#ef4444', fontWeight: '600' }}>Delete Trip</Text>
+              <Text style={{ fontSize: 11, color: '#ef4444', fontWeight: '500' }}>Delete Trip</Text>
             </TouchableOpacity>
           )}
 
@@ -1398,14 +1402,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
           {/* ── Upcoming Activities ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Upcoming Activities</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
+                <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Upcoming Activities</Text>
+            </View>
             {upcomingActs.length === 0 ? (
               <View style={styles.emptyBox}>
                 <Text style={styles.emptyTitle}>No upcoming activities</Text>
                 <Text style={styles.emptySub}>Tap "Add Activity" to create your first activity</Text>
               </View>
             ) : (() => {
-              // Group by date
               const groups = new Map<string, Activity[]>();
               upcomingActs.forEach(a => {
                 const key = a.date || '__nodate__';
@@ -1419,45 +1428,42 @@ export default function TripDetailScreen({ route, navigation }: any) {
               };
               return (
                 <View>
-                  {Array.from(groups.entries()).map(([dateKey, acts]) => (
-                    <View key={dateKey}>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#0d9488', marginTop: 10, marginBottom: 4 }}>
-                        {fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}
-                      </Text>
-                      {acts.map(act => (
-                        <View key={act.id} style={styles.actRow}>
-                          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            {!!act.hour && (
-                              <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', minWidth: 40 }}>
-                                {String(act.hour).padStart(2, '0')}:{(act.minute || '00').padStart(2, '0')}
-                              </Text>
-                            )}
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.actTitle}>{act.title}</Text>
-                              {!!act.location && <Text style={styles.actMeta}>{act.location}</Text>}
-                            </View>
-                          </View>
-                          <TouchableOpacity onPress={() => startEditActivity(act)} style={[styles.doneBtn, { marginLeft: 4 }]} activeOpacity={0.7}>
-                            <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
-                              <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                              <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                            </Svg>
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={async () => {
-                            setActivities(p => p.map(a => a.id === act.id ? { ...a, completed: true } : a));
-                            try { await updateActivity(tripId, act.id, { isCompleted: true }); } catch { /* local state already updated */ }
-                          }} style={styles.doneBtn} activeOpacity={0.7}>
-                            <Text style={styles.doneTxt}>Done</Text>
-                          </TouchableOpacity>
-                          {(role === 'admin' || (act as any).createdBy === currentUserId) && (
+                  {Array.from(groups.entries()).map(([dateKey, acts]) => {
+                    const isCollapsed = collapsedDates.has(dateKey);
+                    const hasMultiple = acts.length > 1;
+                    const toggleCollapse = () => {
+                      setCollapsedDates(prev => {
+                        const next = new Set(prev);
+                        next.has(dateKey) ? next.delete(dateKey) : next.add(dateKey);
+                        return next;
+                      });
+                    };
+                    return (
+                      <View key={dateKey} style={{ marginBottom: 8 }}>
+                        <TouchableOpacity
+                          style={styles.actDateRow}
+                          onPress={hasMultiple ? toggleCollapse : undefined}
+                          activeOpacity={hasMultiple ? 0.7 : 1}
+                        >
+                          <Text style={styles.actDateLabel}>
+                            {fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}
+                          </Text>
+                          {hasMultiple && (isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />)}
+                        </TouchableOpacity>
+                        {!isCollapsed && acts.map((act, idx) => (
+                          <TouchableOpacity key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { borderBottomWidth: 0 }]} onPress={() => startEditActivity(act)} activeOpacity={0.7}>
+                            <Text style={styles.actTimeLabel}>
+                              {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
+                            </Text>
+                            <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
                             <TouchableOpacity onPress={() => handleDeleteActivity(act.id)} style={styles.trashBtn} activeOpacity={0.7}>
                               <TrashIcon />
                             </TouchableOpacity>
-                          )}
-                        </View>
-                      ))}
-                    </View>
-                  ))}
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    );
+                  })}
                 </View>
               );
             })()}
@@ -1466,17 +1472,51 @@ export default function TripDetailScreen({ route, navigation }: any) {
           {/* ── Completed Activities ── */}
           <View style={styles.section}>
             <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => setShowCompleted(p => !p)} activeOpacity={0.7}>
-              <Text style={styles.sectionTitleDark}>Completed Activities</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                  <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
+                  <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={styles.sectionTitleDark}>Completed Activities</Text>
+              </View>
               {showCompleted ? <ChevUp /> : <ChevDown />}
             </TouchableOpacity>
             {showCompleted && (
               completed.length === 0
                 ? <View style={styles.emptyBox}><Text style={styles.emptyTitle}>No completed activities yet</Text></View>
-                : completed.map(act => (
-                  <View key={act.id} style={[styles.actRow, { opacity: 0.55 }]}>
-                    <Text style={[styles.actTitle, { flex: 1, textDecorationLine: 'line-through' }]}>{act.title}</Text>
-                  </View>
-                ))
+                : (() => {
+                  const cGroups = new Map<string, Activity[]>();
+                  completed.forEach(a => {
+                    const key = a.date || '__nodate__';
+                    if (!cGroups.has(key)) cGroups.set(key, []);
+                    cGroups.get(key)!.push(a);
+                  });
+                  const fmtActDate = (iso: string) => {
+                    if (!iso) return 'No Date';
+                    const d = new Date(iso);
+                    return d.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short' });
+                  };
+                  return (
+                    <View style={{ opacity: 0.65 }}>
+                      {Array.from(cGroups.entries()).map(([dateKey, acts]) => (
+                        <View key={dateKey} style={{ marginBottom: 8 }}>
+                          <View style={styles.actDateRow}>
+                            <Text style={styles.actDateLabel}>{fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}</Text>
+                            {acts.length > 1 && <ChevUp color="#0d9488" />}
+                          </View>
+                          {acts.map((act, idx) => (
+                            <View key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { borderBottomWidth: 0 }]}>
+                              <Text style={styles.actTimeLabel}>
+                                {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
+                              </Text>
+                              <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })()
             )}
           </View>
 
@@ -1547,7 +1587,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             {actHour !== '' ? String(actHour).padStart(2, '0') : 'HH'}
                           </Text>
                         </TouchableOpacity>
-                        <Text style={{ fontSize: 15, fontWeight: '700', color: '#94a3b8' }}>:</Text>
+                        <Text style={{ fontSize: 15, fontWeight: '500', color: '#94a3b8' }}>:</Text>
                         {/* Minute picker */}
                         <TouchableOpacity
                           ref={minBtnRef}
@@ -1680,10 +1720,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdf9', borderRadius: 8, padding: 10, marginTop: 4, borderWidth: 1, borderColor: '#ccfbf1' }}>
                       <Text style={{ fontSize: 13, color: '#0f172a', flex: 1 }} numberOfLines={1}>{actExpCategory.emoji} {actExpDesc} · ₹{actExpAmount}</Text>
                       <TouchableOpacity onPress={() => setShowActExp(true)} activeOpacity={0.7} style={{ marginRight: 10 }}>
-                        <Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '600' }}>Edit</Text>
+                        <Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text>
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => { setActExpConfirmed(false); setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATS[0]); setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']); setActExpSplitDetails({}); }} activeOpacity={0.7}>
-                        <Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '600' }}>Remove</Text>
+                        <Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Remove</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -1768,7 +1808,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       <Text style={{ flex: 1, fontSize: 13, color: '#0f172a', marginLeft: 10 }} numberOfLines={1}>{doc.name}</Text>
                       {(role === 'admin' || (doc as any).uploadedBy === currentUserId) && (
                         <TouchableOpacity onPress={e => { e.stopPropagation?.(); handleDeleteDoc(doc.id, (doc as any).uploadedBy ?? ''); }} activeOpacity={0.7}>
-                          <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '600' }}>Remove</Text>
+                          <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '500' }}>Remove</Text>
                         </TouchableOpacity>
                       )}
                     </TouchableOpacity>
@@ -1930,7 +1970,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           <View key={actTitle} style={{ marginBottom: 16 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
                               <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                              <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a' }}>{actTitle}</Text>
+                              <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>{actTitle}</Text>
                               <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
                             </View>
                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -1944,7 +1984,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             {Object.keys(activityGroups).length > 0 && (
                               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
                                 <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
-                                <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a' }}>Trip Photos</Text>
+                                <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>Trip Photos</Text>
                                 <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
                               </View>
                             )}
@@ -2011,9 +2051,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
           <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#1e293b' }}>
               <TouchableOpacity onPress={() => setDocPreviewUrl(null)} activeOpacity={0.7} style={{ marginRight: 12 }}>
-                <Text style={{ color: '#5eead4', fontSize: 15, fontWeight: '600' }}>✕ Close</Text>
+                <Text style={{ color: '#5eead4', fontSize: 15, fontWeight: '500' }}>✕ Close</Text>
               </TouchableOpacity>
-              <Text style={{ color: '#f1f5f9', fontSize: 14, fontWeight: '600', flex: 1 }} numberOfLines={1}>Document Preview</Text>
+              <Text style={{ color: '#f1f5f9', fontSize: 14, fontWeight: '500', flex: 1 }} numberOfLines={1}>Document Preview</Text>
             </View>
             {docPreviewUrl && (() => {
               const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|heic)(\?|$)/i.test(docPreviewUrl) ||
@@ -2182,8 +2222,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                   <Text style={{ fontSize: 11, color: balColor, marginBottom: 6 }}>{balText}</Text>
                                   {(role === 'admin' || (exp as any).createdBy === currentUserId) && (
                                     <View style={{ flexDirection: 'row', gap: 12 }}>
-                                      <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '600' }}>Edit</Text></TouchableOpacity>
-                                      <TouchableOpacity onPress={() => handleDeleteExpense(exp.id, (exp as any).createdBy ?? '')} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '600' }}>Delete</Text></TouchableOpacity>
+                                      <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text></TouchableOpacity>
+                                      <TouchableOpacity onPress={() => handleDeleteExpense(exp.id, (exp as any).createdBy ?? '')} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
                                     </View>
                                   )}
                                 </View>
@@ -2196,7 +2236,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                               {Object.values(actExpGroups).map((group, idx) => (
                                 <View key={idx}>
                                   <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, marginBottom: 4, borderLeftWidth: 3, borderLeftColor: '#0d9488', paddingLeft: 8 }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#0d9488', flex: 1 }}>{group.title}</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#0d9488', flex: 1 }}>{group.title}</Text>
                                     <Text style={{ fontSize: 11, color: '#94a3b8' }}>{group.items.length} expense{group.items.length !== 1 ? 's' : ''}</Text>
                                   </View>
                                   {group.items.map(renderExpRow)}
@@ -2206,7 +2246,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                 <View>
                                   {hasGroups && (
                                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, marginBottom: 4, borderLeftWidth: 3, borderLeftColor: '#94a3b8', paddingLeft: 8 }}>
-                                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', flex: 1 }}>Other Expenses</Text>
+                                      <Text style={{ fontSize: 12, fontWeight: '500', color: '#64748b', flex: 1 }}>Other Expenses</Text>
                                       <Text style={{ fontSize: 11, color: '#94a3b8' }}>{directExpenses.length} expense{directExpenses.length !== 1 ? 's' : ''}</Text>
                                     </View>
                                   )}
@@ -2286,7 +2326,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     </View>
                   ))}
                   <TouchableOpacity onPress={() => setPollOptions(p => [...p, ''])} activeOpacity={0.7} style={{ marginTop: 2, marginBottom: 8 }}>
-                    <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '600' }}>+ Add Option</Text>
+                    <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '500' }}>+ Add Option</Text>
                   </TouchableOpacity>
 
                   {/* Active polls */}
@@ -2301,7 +2341,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           return (
                             <TouchableOpacity key={opt.id} style={styles.pollOptRow} onPress={() => handleVote(poll.id, opt.id)} activeOpacity={0.8}>
                               <View style={[styles.pollBar, { width: `${isMyVote ? 100 : pct}%` as any, backgroundColor: isMyVote ? '#0d9488' : '#ccfbf1' }]} />
-                              <Text style={[styles.pollOptTxt, isMyVote && { fontWeight: '700', color: '#fff' }]}>{isMyVote ? '✓  ' : ''}{opt.text}</Text>
+                              <Text style={[styles.pollOptTxt, isMyVote && { fontWeight: '500', color: '#fff' }]}>{isMyVote ? '✓  ' : ''}{opt.text}</Text>
                               <Text style={[styles.pollVotes, isMyVote && { color: '#fff' }]}>{pct}%</Text>
                             </TouchableOpacity>
                           );
@@ -2524,48 +2564,54 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
-  topBar: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2 },
+  topBar: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2, flexDirection: 'row', alignItems: 'center' },
+  topBarTitle: { flex: 1, fontSize: 16, fontWeight: '500', color: '#0f172a', textAlign: 'center' },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { paddingBottom: 150 },
 
   // Header card
   headerCard: { marginHorizontal: 16, marginBottom: 6, borderRadius: 20, borderWidth: 2, borderColor: '#99f6e4', padding: 16 },
   cardRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
-  tripName: { fontSize: 20, fontWeight: '700', color: '#0f172a', marginBottom: 3 },
+  tripName: { fontSize: 20, fontWeight: '500', color: '#0f172a', marginBottom: 3 },
   tripDates: { fontSize: 13, color: '#475569', marginBottom: 2 },
   tripLocation: { fontSize: 13, color: '#64748b' },
   daysArea: { alignItems: 'flex-end', paddingLeft: 8 },
-  daysNumber: { fontSize: 40, fontWeight: '800', color: '#0f172a', lineHeight: 44 },
+  daysNumber: { fontSize: 40, fontWeight: '500', color: '#0f172a', lineHeight: 44 },
   daysLabel: { fontSize: 11, color: '#64748b', fontWeight: '500', textAlign: 'right' },
   pencilBtn: { marginTop: 4, marginLeft: 4, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.8)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#99f6e4' },
 
   statsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   statBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 5 },
-  statTxt: { fontSize: 12, fontWeight: '600', color: '#0f172a' },
+  statTxt: { fontSize: 12, fontWeight: '500', color: '#0f172a' },
 
   // Actions
   actionsWrap: { paddingHorizontal: 20, paddingVertical: 16, gap: 16, marginBottom: 6 },
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  actionBtn: { alignItems: 'center', width: 72, gap: 6 },
-  actionCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
-  actionLabel: { fontSize: 11, fontWeight: '600', color: '#0f172a', textAlign: 'center', lineHeight: 14 },
+  actionBtn: { alignItems: 'center', width: 62, gap: 4 },
+  actionCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  actionLabel: { fontSize: 10, fontWeight: '400', color: '#0f172a', textAlign: 'center', lineHeight: 13 },
 
   // Sections
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
-  sectionTitle: { fontSize: 17, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
-  sectionTitleDark: { fontSize: 17, fontWeight: '500', color: '#0f172a' },
+  sectionTitle: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
+  sectionTitleDark: { fontSize: 15, fontWeight: '500', color: '#0f172a' },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
 
   emptyBox: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#e2e8f0', paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center' },
   emptyCenter: { alignItems: 'center', paddingVertical: 28 },
-  emptyTitle: { fontSize: 13, color: '#64748b', fontWeight: '600', marginTop: 10 },
+  emptyTitle: { fontSize: 13, color: '#64748b', fontWeight: '400', marginTop: 10 },
   emptySub: { fontSize: 12, color: '#94a3b8', marginTop: 4, textAlign: 'center' },
 
   actRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f1f5f9' },
-  actTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 2 },
+  actTitle: { fontSize: 14, fontWeight: '400', color: '#0f172a', marginBottom: 2 },
   actMeta: { fontSize: 12, color: '#94a3b8' },
+  actDateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, paddingHorizontal: 4, marginBottom: 2 },
+  actDateLabel: { fontSize: 13, fontWeight: '500', color: '#334155' },
+  actItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', gap: 10 },
+  actTimeLabel: { fontSize: 12, color: '#64748b', minWidth: 40, fontWeight: '400' },
+  actItemTitle: { flex: 1, fontSize: 14, fontWeight: '400', color: '#0f172a' },
   doneBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#f0fdfa', marginLeft: 8 },
-  doneTxt: { fontSize: 12, color: '#0d9488', fontWeight: '600' },
+  doneTxt: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
   trashBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
 
   // FAB
@@ -2577,7 +2623,7 @@ const styles = StyleSheet.create({
 
   // Dialog header
   dHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  dTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  dTitle: { fontSize: 16, fontWeight: '500', color: '#0f172a' },
   dSubtitle: { fontSize: 12, color: '#64748b', marginTop: 1 },
   dCloseBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
 
@@ -2586,40 +2632,40 @@ const styles = StyleSheet.create({
   dFooterRow: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
 
   // Form fields
-  fLabel: { fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12 },
+  fLabel: { fontSize: 12, fontWeight: '500', color: '#374151', marginBottom: 6, marginTop: 12 },
   fInput: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#0f172a' },
   fInputTouch: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 },
 
   // Teal buttons
   tealBtnFull: { flexDirection: 'row', backgroundColor: '#0d9488', borderRadius: 10, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  tealBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  tealBtnTxt: { color: '#fff', fontWeight: '500', fontSize: 14 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-  cancelTxt: { fontSize: 14, color: '#64748b', fontWeight: '600' },
+  cancelTxt: { fontSize: 14, color: '#64748b', fontWeight: '500' },
 
   // Tabs
   tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   tab: { flex: 1, paddingVertical: 11, alignItems: 'center' },
   tabActive: { borderBottomWidth: 2, borderBottomColor: '#0d9488' },
   tabTxt: { fontSize: 13, color: '#64748b', fontWeight: '500' },
-  tabTxtActive: { color: '#0d9488', fontWeight: '700' },
+  tabTxtActive: { color: '#0d9488', fontWeight: '500' },
 
   // Activity extra rows
   actExtraRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#f1f5f9', marginTop: 4 },
   actExtraLabel: { fontSize: 13, color: '#0f172a', fontWeight: '500' },
-  actExtraBtn: { fontSize: 13, color: '#0d9488', fontWeight: '600' },
+  actExtraBtn: { fontSize: 13, color: '#0d9488', fontWeight: '500' },
 
   // Documents
   docRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
 
   // Members
-  memberSectionLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  memberSectionLabel: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   memberAvatar: { width: 40, height: 40, borderRadius: 20 },
-  memberName: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
+  memberName: { fontSize: 14, fontWeight: '500', color: '#0f172a' },
   memberEmail: { fontSize: 12, color: '#64748b', marginTop: 1 },
   ownerBadge: { backgroundColor: '#f0fdfa', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#99f6e4' },
-  ownerTxt: { fontSize: 11, color: '#0d9488', fontWeight: '700' },
+  ownerTxt: { fontSize: 11, color: '#0d9488', fontWeight: '500' },
   searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 12, gap: 8 },
   searchInput: { flex: 1, fontSize: 13, color: '#0f172a' },
   checkCircle: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
@@ -2629,22 +2675,22 @@ const styles = StyleSheet.create({
 
   // Photos
   uploadPhotosBtn: { flex: 1, flexDirection: 'row', backgroundColor: '#fff1f2', borderWidth: 1.5, borderColor: '#fecdd3', borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
-  uploadPhotosTxt: { fontSize: 13, fontWeight: '600', color: '#be123c' },
+  uploadPhotosTxt: { fontSize: 13, fontWeight: '500', color: '#be123c' },
   takePhotoBtn: { flex: 1, flexDirection: 'row', backgroundColor: '#ecfeff', borderWidth: 1.5, borderColor: '#a5f3fc', borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
-  takePhotoTxt: { fontSize: 13, fontWeight: '600', color: '#0e7490' },
+  takePhotoTxt: { fontSize: 13, fontWeight: '500', color: '#0e7490' },
 
   // Expenses
   expRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   expIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
-  expName: { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 2 },
+  expName: { fontSize: 14, fontWeight: '500', color: '#0f172a', marginBottom: 2 },
   expMeta: { fontSize: 11, color: '#94a3b8', marginBottom: 1 },
-  expAmt: { fontSize: 14, fontWeight: '700', color: '#0f172a', marginBottom: 2 },
+  expAmt: { fontSize: 14, fontWeight: '500', color: '#0f172a', marginBottom: 2 },
   dropdown: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, overflow: 'hidden', marginTop: 4 },
   dropdownItem: { paddingVertical: 11, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   splitTypeBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
   splitTypeBtnActive: { backgroundColor: '#0d9488' },
   splitTypeTxt: { fontSize: 12, color: '#64748b', fontWeight: '500' },
-  splitTypeTxtActive: { color: '#fff', fontWeight: '700' },
+  splitTypeTxtActive: { color: '#fff', fontWeight: '500' },
   splitRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', marginVertical: 4 },
   splitRowActive: { borderColor: '#0d9488', backgroundColor: '#f0fdfa' },
   splitCheck: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center' },
@@ -2653,19 +2699,19 @@ const styles = StyleSheet.create({
   // Balances
   balCard: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 10, padding: 10, alignItems: 'center' },
   balLabel: { fontSize: 11, color: '#64748b', fontWeight: '500', marginBottom: 4 },
-  balValue: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  balValue: { fontSize: 16, fontWeight: '500', color: '#0f172a' },
 
   // Polls
   pollCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  pollQ: { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 10 },
+  pollQ: { fontSize: 14, fontWeight: '500', color: '#0f172a', marginBottom: 10 },
   pollOptRow: { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 9, paddingHorizontal: 12, marginBottom: 6, overflow: 'hidden' },
   pollBar: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#ccfbf1', borderRadius: 8 },
   pollOptTxt: { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500', zIndex: 1 },
-  pollVotes: { fontSize: 12, color: '#64748b', fontWeight: '600', zIndex: 1 },
+  pollVotes: { fontSize: 12, color: '#64748b', fontWeight: '500', zIndex: 1 },
 
   // Notes
   noteCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
-  noteTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a', flex: 1 },
+  noteTitle: { fontSize: 14, fontWeight: '500', color: '#0f172a', flex: 1 },
   noteBody: { fontSize: 13, color: '#64748b', lineHeight: 18 },
   catBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
 });

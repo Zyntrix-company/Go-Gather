@@ -43,25 +43,25 @@ export interface DetailHeroCardProps {
 function MembersIcon() {
   return (
     <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
-      <Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" stroke="#009788" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="#009788" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
 function DocsIcon() {
   return (
     <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
-      <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M14 2v6h6" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#009788" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M14 2v6h6" stroke="#009788" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
 function PhotosIcon() {
   return (
     <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
-      <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#334155" strokeWidth={2} />
-      <Circle cx={8.5} cy={8.5} r={1.5} fill="#334155" />
-      <Path d="M21 15l-5-5L5 21" stroke="#334155" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#009788" strokeWidth={2} />
+      <Circle cx={8.5} cy={8.5} r={1.5} fill="#009788" />
+      <Path d="M21 15l-5-5L5 21" stroke="#009788" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
@@ -82,7 +82,7 @@ export default function DetailHeroCard({
   typeBadge,
   typeBadgeColor = '#fef3c7',
   onEdit,
-  gradientColors = ['#ccfbf1', '#cffafe'],
+  gradientColors = ['#ffffff', '#d1fef9'],
 }: DetailHeroCardProps) {
   return (
     <LinearGradient
@@ -111,7 +111,7 @@ export default function DetailHeroCard({
             <Text style={styles.daysNumber}>{dayCount}</Text>
             {onEdit && (
               <TouchableOpacity onPress={onEdit} style={styles.pencilBtn} activeOpacity={0.7}>
-                <PencilIcon color="#0d9488" size={14} />
+                <PencilIcon color="#009788" size={16} />
               </TouchableOpacity>
             )}
           </View>
@@ -145,7 +145,9 @@ export default function DetailHeroCard({
           <Text style={styles.statTxt}>{photoCount}</Text>
         </View>
         <View style={styles.statBadge}>
-          <Text style={[styles.statTxt, { fontSize: 12, fontWeight: '700' }]}>₹</Text>
+          <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+            <Path d="M6 3h12M6 8h12M6 13l10 8M6 8a6 6 0 0 0 0 5h3a6 6 0 0 0 6-5" stroke="#009788" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          </Svg>
           <Text style={styles.statTxt}>{totalExpenses > 0 ? totalExpenses.toFixed(0) : '0'}</Text>
         </View>
       </View>
@@ -160,9 +162,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 6,
     borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#99f6e4',
+    borderWidth: 1.5,
     padding: 16,
+    borderColor: '#9FE7E0',
   },
   typeBadge: {
     alignSelf: 'flex-start',
@@ -172,63 +174,61 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   typeBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0d9488',
+    fontSize: 10,
+    fontWeight: '400',
+    color: '#009788',
     letterSpacing: 0.5,
   },
   cardRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   name: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 3,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#009788',
+    marginBottom: 2,
   },
   dateLine: {
-    fontSize: 13,
-    color: '#475569',
-    fontWeight: '500',
+    fontSize: 12,
+    color: '#1B6265',
+    fontWeight: '400',
     marginBottom: 2,
   },
   location: {
-    fontSize: 13,
-    color: '#64748b',
+    fontSize: 12,
+    color: '#1B6265',
   },
   daysArea: {
     alignItems: 'flex-end',
     paddingLeft: 8,
   },
   daysNumber: {
-    fontSize: 40,
-    fontWeight: '800',
-    color: '#0f172a',
-    lineHeight: 44,
+    fontSize: 28,
+    fontWeight: '500',
+    color: '#009788',
+    lineHeight: 32,
   },
   daysLabel: {
-    fontSize: 11,
-    color: '#64748b',
+    fontSize: 10,
+    color: '#1B6265',
     fontWeight: '500',
     textAlign: 'right',
   },
   pencilBtn: {
     marginTop: 4,
     marginLeft: 4,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.8)',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#99f6e4',
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     flexWrap: 'wrap',
     justifyContent: 'flex-start',
     alignItems: 'center',
@@ -236,16 +236,16 @@ const styles = StyleSheet.create({
   statBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    gap: 3,
+    backgroundColor: '#feffff',
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
   },
   statTxt: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0f172a',
+    fontSize: 11,
+    fontWeight: '400',
+    color: '#050505',
   },
   memberStackRow: {
     flexDirection: 'row',
@@ -260,12 +260,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: '#feffff',
     borderRadius: 999,
     paddingLeft: 12,
     paddingRight: 8,
-    paddingVertical: 5,
-    marginLeft: -10, // tuck under avatars so both read as one unit
+    paddingVertical: 4,
+    marginLeft: -10,
     zIndex: 1,
   },
 });

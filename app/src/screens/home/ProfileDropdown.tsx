@@ -123,11 +123,11 @@ const styles = StyleSheet.create({
   dropdownHeader: { flexDirection: 'row', alignItems: 'center', padding: 10, gap: 10 },
   dropdownAvatar: { width: 44, height: 44, borderRadius: 22, overflow: 'hidden', borderWidth: 2, borderColor: '#0d9488', flexShrink: 0 },
   dropdownUserText: { flex: 1, minWidth: 0 },
-  dropdownName: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  dropdownName: { fontSize: 14, fontWeight: '400', color: '#0f172a' },
   dropdownEmail: { fontSize: 11, color: '#64748b', marginTop: 2 },
   dropdownDivider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 4 },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderRadius: 10 },
-  dropdownItemText: { fontSize: 13, fontWeight: '500', color: '#334155' },
+  dropdownItemText: { fontSize: 13, fontWeight: '400', color: '#0f172a' },
   logoutLabel: { color: '#ef4444' },
 });
 

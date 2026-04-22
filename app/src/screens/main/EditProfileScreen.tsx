@@ -445,22 +445,22 @@ const styles = StyleSheet.create({
   // ── Top block ──────────────────────────────────────────────────────────────
   topBlock: { },
   logoBtn:  { alignSelf: 'flex-start' },
-  title:    { fontSize: 24, fontWeight: '400', color: '#45556C', textAlign: 'center', marginTop: 10, marginBottom: 3 },
-  subtitle: { fontSize: 13, color: '#64748b', textAlign: 'center' },
+  title:    { fontSize: 20, fontWeight: '400', color: '#0F172B', textAlign: 'center', marginTop: 10, marginBottom: 6 },
+  subtitle: { fontSize: 13, color: '#45556C', textAlign: 'center' },
 
   avatarSection: { alignItems: 'center', marginTop: 12 },
   avatarOuter:   { width: 96, height: 96, borderRadius: 48, backgroundColor: 'rgba(226,232,240,0.5)', alignItems: 'center', justifyContent: 'center' },
   avatarInner:   { width: 84, height: 84, borderRadius: 42, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImage:   { width: 84, height: 84, borderRadius: 42 },
-  addBadge:      { position: 'absolute', bottom: 2, right: 2, width: 26, height: 26, borderRadius: 13, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
+  addBadge:      { position: 'absolute', bottom: 2, right: 2, width: 24, height: 24, borderRadius: 12, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
   addBadgeText:  { color: '#fff', fontSize: 17, fontWeight: '700', lineHeight: 21, marginTop: -1 },
   photoHint:     { marginTop: 4, fontSize: 11, color: '#0d9488', fontWeight: '500' },
 
   // ── Fields — no marginBottom; parent space-between handles gaps ────────────
   field:       { },
-  fieldLabel:  { fontSize: 12, fontWeight: '600', color: '#45556C', marginBottom: 5 },
-  required:    { color: '#ef4444', fontWeight: '600' },
-  optional:    { fontSize: 11, fontWeight: '400', color: '#94a3b8' },
+  fieldLabel:  { fontSize: 12, fontWeight: '400', color: '#0F172B', marginBottom: 5 },
+  required:    { color: '#ef4444', fontWeight: '400' },
+  optional:    { fontSize: 11, fontWeight: '400', color: '#45556C' },
 
   input: {
     width: '100%', backgroundColor: '#fff',
@@ -484,11 +484,11 @@ const styles = StyleSheet.create({
     borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
   },
   dropdownText:        { fontSize: 14, color: '#0f172a', flex: 1, marginRight: 4 },
-  dropdownPlaceholder: { color: '#94a3b8' },
+  dropdownPlaceholder: { color: '#45556C' },
 
   // ── Bottom block ────────────────────────────────────────────────────────────
   bottomBlock:    { },
   apiErrorText:   { fontSize: 13, color: '#ef4444', textAlign: 'center', marginBottom: 8, fontWeight: '500' },
-  primaryBtn:     { backgroundColor: '#0d9488', borderRadius: 8, paddingVertical: 13, alignItems: 'center', elevation: 2 },
-  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '600', letterSpacing: 0.1 },
+  primaryBtn:     { backgroundColor: '#0d9488', borderRadius: 999, paddingVertical: 13, alignItems: 'center', elevation: 2 },
+  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '400', letterSpacing: 0.1 },
 });

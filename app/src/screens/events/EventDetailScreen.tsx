@@ -17,6 +17,8 @@ import DetailTabBar from '../../components/details/DetailTabBar';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import SweeFab from '../../components/details/SweeFab';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
+import AppHeader from '../../components/common/AppHeader';
+import useNotificationStore from '../../store/notificationStore';
 import {
   BackIcon, PencilIcon, TrashIcon, CheckIcon,
 } from '../../components/common/Icons';
@@ -122,14 +124,14 @@ function fmtEventDateLine(isoDate: string): string {
 }
 
 function ActionIcon({ path, color }: { path: string; color: string }) {
-  const s = { width: 22, height: 22 };
+  const s = { width: 18, height: 18 };
   switch (path) {
     case 'docs': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M14 2v6h6M16 13H8M16 17H8" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
     case 'members': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
     case 'photos': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Rect x={3} y={3} width={18} height={18} rx={2} ry={2} stroke={color} strokeWidth={2} /><Circle cx={8.5} cy={8.5} r={1.5} fill={color} /><Path d="M21 15l-5-5L5 21" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
     case 'expenses': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
     case 'polls': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M18 20V10M12 20V4M6 20v-6" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
-    case 'notes': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
+    case 'notes': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M9 11l3 3L22 4" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
     default: return null;
   }
 }
@@ -185,7 +187,7 @@ function EventFriendAvatar({ uri, name, style }: { uri: string; name: string; st
   if (!uri || failed) {
     return (
       <View style={[style, { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: '#94a3b8' }}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
+        <Text style={{ fontSize: 16, fontWeight: '500', color: '#94a3b8' }}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
       </View>
     );
   }
@@ -230,6 +232,7 @@ function EventPhotoPreview({ photo }: { photo: PhotoItem }) {
 
 export default function EventDetailScreen({ route, navigation }: any) {
   const rawEvent = route?.params?.event;
+  const unreadCount = useNotificationStore(s => s.notifications.filter(n => !n.read).length);
 
   // Derive display fields from whatever shape the event param has
   const [event, setEvent] = useState({
@@ -784,12 +787,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
     <BlobBackground>
       <SafeAreaView style={styles.container}>
 
-        {/* Top back row */}
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-            <BackIcon />
-          </TouchableOpacity>
-        </View>
+        <AppHeader
+          notificationCount={unreadCount}
+          onLogoPress={() => navigation.goBack()}
+          onBellPress={() => navigation.navigate('Notifications')}
+          onMenuPress={() => navigation.goBack()}
+        />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
@@ -851,7 +854,13 @@ export default function EventDetailScreen({ route, navigation }: any) {
           {/* ── Description ── */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Description</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                  <Rect x={3} y={2} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
+                  <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={styles.sectionTitle}>Description</Text>
+              </View>
               {!editingDesc && (
                 <TouchableOpacity
                   onPress={() => { setDescDraft(event.description); setEditingDesc(true); }}
@@ -871,7 +880,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   multiline
                   autoFocus
                   placeholderTextColor="#94a3b8"
-                  placeholder="Add a description for your event — what's it about, what to expect, dress code, agenda..."
+                  placeholder={"Description\nGet ready for an amazing event! Use the action buttons above to manage documents, invite members, share photos, track expenses, create polls, and add notes."}
                 />
                 <View style={styles.descEditFooter}>
                   <Text style={[styles.descWordCount, countWords(descDraft) >= 100 && { color: '#ef4444' }]}>
@@ -914,7 +923,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
           {/* ── Highlights ── */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Highlights</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                <Path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Highlights</Text>
+            </View>
 
             {!hasHighlights && (
               <View style={styles.emptyBox}>
@@ -1036,7 +1050,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                               backgroundColor: opt.votedByMe ? '#0d9488' : '#ccfbf1',
                             }]} />
                             <View style={[styles.hlPollOptionInner, { zIndex: 1 }]}>
-                              <Text style={[styles.hlPollOptText, opt.votedByMe && { color: '#fff', fontWeight: '700' }]} numberOfLines={1}>
+                              <Text style={[styles.hlPollOptText, opt.votedByMe && { color: '#fff', fontWeight: '500' }]} numberOfLines={1}>
                                 {opt.votedByMe ? '✓  ' : ''}{opt.text}
                               </Text>
                               <Text style={[styles.hlPollPct, opt.votedByMe && { color: '#fff' }]}>{pct}%</Text>
@@ -1106,7 +1120,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         try { await deleteEventDoc(event.id, doc.id); setDocs(p => p.filter(d => d.id !== doc.id)); }
                         catch (err) { handleApiError(err); }
                       }} activeOpacity={0.7}>
-                        <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '600' }}>Remove</Text>
+                        <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '500' }}>Remove</Text>
                       </TouchableOpacity>
                     </TouchableOpacity>
                   ))}
@@ -1303,9 +1317,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
           <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#1e293b' }}>
               <TouchableOpacity onPress={() => setDocPreviewUrl(null)} activeOpacity={0.7} style={{ marginRight: 12 }}>
-                <Text style={{ color: '#5eead4', fontSize: 15, fontWeight: '600' }}>✕ Close</Text>
+                <Text style={{ color: '#5eead4', fontSize: 15, fontWeight: '500' }}>✕ Close</Text>
               </TouchableOpacity>
-              <Text style={{ color: '#f1f5f9', fontSize: 14, fontWeight: '600', flex: 1 }} numberOfLines={1}>Document Preview</Text>
+              <Text style={{ color: '#f1f5f9', fontSize: 14, fontWeight: '500', flex: 1 }} numberOfLines={1}>Document Preview</Text>
             </View>
             {docPreviewUrl && (() => {
               const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|heic)(\?|$)/i.test(docPreviewUrl) ||
@@ -1439,8 +1453,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
                                 <Text style={styles.expAmt}>₹{exp.amount.toFixed(2)}</Text>
                                 <Text style={{ fontSize: 11, color: balColor, marginBottom: 6 }}>{balText}</Text>
                                 <View style={{ flexDirection: 'row', gap: 12 }}>
-                                  <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '600' }}>Edit</Text></TouchableOpacity>
-                                  <TouchableOpacity onPress={() => handleDeleteExpense(exp.id)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '600' }}>Delete</Text></TouchableOpacity>
+                                  <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text></TouchableOpacity>
+                                  <TouchableOpacity onPress={() => handleDeleteExpense(exp.id)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
                                 </View>
                               </View>
                             </View>
@@ -1520,7 +1534,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     </View>
                   ))}
                   <TouchableOpacity onPress={() => setPollOptions(p => [...p, ''])} activeOpacity={0.7} style={{ marginTop: 2, marginBottom: 8 }}>
-                    <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '600' }}>+ Add Option</Text>
+                    <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '500' }}>+ Add Option</Text>
                   </TouchableOpacity>
 
                   {polls.map(poll => (
@@ -1547,7 +1561,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                                 backgroundColor: isMyVote ? '#0d9488' : '#ccfbf1',
                               },
                             ]} />
-                            <Text style={[styles.pollOptTxt, isMyVote && { color: '#fff', fontWeight: '700' }]} numberOfLines={1}>
+                            <Text style={[styles.pollOptTxt, isMyVote && { color: '#fff', fontWeight: '500' }]} numberOfLines={1}>
                               {isMyVote ? '✓  ' : ''}{opt.text}
                             </Text>
                             <Text style={[styles.pollVotes, isMyVote && { color: '#fff' }]}>{pct}%</Text>
@@ -1699,7 +1713,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       {EVENT_TYPE_LIST.map(t => (
                         <TouchableOpacity key={t} style={[styles.dropdownItem, editType === t && { backgroundColor: '#f0fdfa' }]}
                           onPress={() => { setEditType(t); setShowEditTypeDrop(false); }} activeOpacity={0.7}>
-                          <Text style={[{ fontSize: 13, color: '#0f172a' }, editType === t && { color: '#0d9488', fontWeight: '700' }]}>{t}</Text>
+                          <Text style={[{ fontSize: 13, color: '#0f172a' }, editType === t && { color: '#0d9488', fontWeight: '500' }]}>{t}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -1766,19 +1780,21 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
-  topBar: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2 },
+  topBar: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2, flexDirection: 'row', alignItems: 'center' },
+  topBarTitle: { flex: 1, fontSize: 16, fontWeight: '500', color: '#0f172a', textAlign: 'center' },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { paddingBottom: 150 },
 
   actionsWrap: { paddingHorizontal: 20, paddingVertical: 16, gap: 16, marginBottom: 6 },
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  actionBtn: { alignItems: 'center', width: isSmall ? 60 : 72, gap: 6 },
-  actionCircle: { width: isSmall ? 46 : 52, height: isSmall ? 46 : 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
-  actionLabel: { fontSize: isSmall ? 10 : 11, fontWeight: '600', color: '#0f172a', textAlign: 'center', lineHeight: 14 },
+  actionBtn: { alignItems: 'center', width: isSmall ? 52 : 62, gap: 4 },
+  actionCircle: { width: isSmall ? 38 : 44, height: isSmall ? 38 : 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  actionLabel: { fontSize: isSmall ? 9 : 10, fontWeight: '400', color: '#0f172a', textAlign: 'center', lineHeight: 13 },
 
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
-  sectionTitle: { fontSize: 17, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
+  sectionTitle: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 5 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionTitle1: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
 
   descCard: { backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
   descText: { fontSize: 14, color: '#475569', lineHeight: 21 },
@@ -1787,13 +1803,13 @@ const styles = StyleSheet.create({
   descEditFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
   descWordCount: { fontSize: 11, color: '#94a3b8', fontWeight: '500' },
   descCancelBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: '#f1f5f9' },
-  descCancelTxt: { fontSize: 13, color: '#64748b', fontWeight: '600' },
+  descCancelTxt: { fontSize: 13, color: '#64748b', fontWeight: '500' },
   descSaveBtn: { paddingHorizontal: 18, paddingVertical: 7, borderRadius: 8, backgroundColor: '#0d9488' },
-  descSaveTxt: { fontSize: 13, color: '#fff', fontWeight: '700' },
+  descSaveTxt: { fontSize: 13, color: '#fff', fontWeight: '500' },
 
   emptyBox: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#e2e8f0', paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center' },
   emptyCenter: { alignItems: 'center', paddingVertical: 28 },
-  emptyTitle: { fontSize: 13, color: '#64748b', fontWeight: '600', marginTop: 10 },
+  emptyTitle: { fontSize: 13, color: '#64748b', fontWeight: '500', marginTop: 10 },
   emptySub: { fontSize: 12, color: '#94a3b8', marginTop: 4, textAlign: 'center' },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
@@ -1803,24 +1819,24 @@ const styles = StyleSheet.create({
   dFooterSingle: { padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
   dFooterRow: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
 
-  fLabel: { fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12 },
+  fLabel: { fontSize: 12, fontWeight: '500', color: '#374151', marginBottom: 6, marginTop: 12 },
   fInput: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#0f172a' },
   fInputTouch: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 },
 
   tealBtnFull: { flexDirection: 'row', backgroundColor: '#0d9488', borderRadius: 10, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  tealBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  tealBtnTxt: { color: '#fff', fontWeight: '500', fontSize: 14 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-  cancelTxt: { fontSize: 14, color: '#64748b', fontWeight: '600' },
+  cancelTxt: { fontSize: 14, color: '#64748b', fontWeight: '500' },
 
   docRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
 
-  memberSectionLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  memberSectionLabel: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   memberAvatar: { width: 40, height: 40, borderRadius: 20 },
-  memberName: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
+  memberName: { fontSize: 14, fontWeight: '500', color: '#0f172a' },
   ownerBadge: { backgroundColor: '#f0fdfa', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#99f6e4' },
-  ownerTxt: { fontSize: 11, color: '#0d9488', fontWeight: '700' },
+  ownerTxt: { fontSize: 11, color: '#0d9488', fontWeight: '500' },
   searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 12, gap: 8 },
   searchInput: { flex: 1, fontSize: 13, color: '#0f172a' },
   checkCircle: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
@@ -1829,21 +1845,21 @@ const styles = StyleSheet.create({
   sendBtn: { backgroundColor: '#0d9488', borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
 
   uploadPhotosBtn: { flex: 1, flexDirection: 'row', backgroundColor: '#fff1f2', borderWidth: 1.5, borderColor: '#fecdd3', borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
-  uploadPhotosTxt: { fontSize: 13, fontWeight: '600', color: '#be123c' },
+  uploadPhotosTxt: { fontSize: 13, fontWeight: '500', color: '#be123c' },
   takePhotoBtn: { flex: 1, flexDirection: 'row', backgroundColor: '#ecfeff', borderWidth: 1.5, borderColor: '#a5f3fc', borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
-  takePhotoTxt: { fontSize: 13, fontWeight: '600', color: '#0e7490' },
+  takePhotoTxt: { fontSize: 13, fontWeight: '500', color: '#0e7490' },
 
   expRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   expIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
-  expName: { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 2 },
+  expName: { fontSize: 14, fontWeight: '500', color: '#0f172a', marginBottom: 2 },
   expMeta: { fontSize: 11, color: '#94a3b8', marginBottom: 1 },
-  expAmt: { fontSize: 14, fontWeight: '700', color: '#0f172a', marginBottom: 2 },
+  expAmt: { fontSize: 14, fontWeight: '500', color: '#0f172a', marginBottom: 2 },
   dropdown: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, overflow: 'hidden', marginTop: 4 },
   dropdownItem: { paddingVertical: 11, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   splitTypeBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
   splitTypeBtnActive: { backgroundColor: '#0d9488' },
   splitTypeTxt: { fontSize: 12, color: '#64748b', fontWeight: '500' },
-  splitTypeTxtActive: { color: '#fff', fontWeight: '700' },
+  splitTypeTxtActive: { color: '#fff', fontWeight: '500' },
   splitRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', marginVertical: 4 },
   splitRowActive: { borderColor: '#0d9488', backgroundColor: '#f0fdfa' },
   splitCheck: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center' },
@@ -1851,36 +1867,36 @@ const styles = StyleSheet.create({
 
   balCard: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 10, padding: 10, alignItems: 'center' },
   balLabel: { fontSize: 11, color: '#64748b', fontWeight: '500', marginBottom: 4 },
-  balValue: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  balValue: { fontSize: 16, fontWeight: '500', color: '#0f172a' },
 
   pollCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  pollQ: { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 10 },
+  pollQ: { fontSize: 14, fontWeight: '500', color: '#0f172a', marginBottom: 10 },
   pollOptRow: { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, marginBottom: 6, overflow: 'hidden' },
   pollBar: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 8 },
   pollOptTxt: { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500', zIndex: 1 },
-  pollVotes: { fontSize: 12, color: '#64748b', fontWeight: '600', zIndex: 1 },
+  pollVotes: { fontSize: 12, color: '#64748b', fontWeight: '500', zIndex: 1 },
 
   noteCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
-  noteTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a', flex: 1 },
+  noteTitle: { fontSize: 14, fontWeight: '500', color: '#0f172a', flex: 1 },
   noteBody: { fontSize: 13, color: '#64748b', lineHeight: 18 },
   catBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
 
   // ── Highlights sub-section styles ──
-  hlSubTitle: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
-  seeAllLink: { fontSize: 12, color: '#0d9488', fontWeight: '600' },
+  hlSubTitle: { fontSize: 13, fontWeight: '500', color: '#2a303c' },
+  seeAllLink: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
 
   hlDocRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, gap: 10 },
   hlDocIcon: { width: 36, height: 36, borderRadius: 8, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center' },
   hlDocName: { flex: 1, fontSize: 13, fontWeight: '500', color: '#0f172a' },
 
   hlPollCard: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0', padding: 14, gap: 8 },
-  hlPollQuestion: { flex: 1, fontSize: 14, fontWeight: '700', color: '#0f172a', lineHeight: 20 },
+  hlPollQuestion: { flex: 1, fontSize: 14, fontWeight: '500', color: '#0f172a', lineHeight: 20 },
   hlPollOption: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, minHeight: 40, position: 'relative', overflow: 'hidden', backgroundColor: '#f8fafc' },
   hlPollOptionVoted: {},
   hlPollOptionUnvoted: {},
   hlPollBar: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 10 },
   hlPollOptionInner: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   hlPollOptText: { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500' },
-  hlPollPct: { fontSize: 12, color: '#64748b', fontWeight: '600', marginLeft: 8 },
+  hlPollPct: { fontSize: 12, color: '#64748b', fontWeight: '500', marginLeft: 8 },
   hlPollTotal: { fontSize: 11, color: '#94a3b8', textAlign: 'right', marginTop: 2 },
 });

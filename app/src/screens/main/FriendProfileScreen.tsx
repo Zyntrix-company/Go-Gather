@@ -9,7 +9,8 @@ import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { Plane, CalendarDays } from 'lucide-react-native';
 import BlobBackground from '../../components/common/BlobBackground';
 import CachedImage from '../../components/common/CachedImage';
-import { BackIcon } from '../../components/common/Icons';
+import AppHeader from '../../components/common/AppHeader';
+import useNotificationStore from '../../store/notificationStore';
 import { getUserProfile } from '../../api/trips.api';
 import { getUserGallery } from '../../api/ai.api';
 import { getTripPhotos } from '../../api/trips.api';
@@ -244,6 +245,7 @@ export default function FriendProfileScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<{ FriendProfile: RouteParams }, 'FriendProfile'>>();
   const { userId, friendName } = route.params;
+  const unreadCount = useNotificationStore(s => s.notifications.filter(n => !n.read).length);
 
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof getUserProfile>> | null>(null);
   const [galleryTrips, setGalleryTrips] = useState<any[]>([]);
@@ -279,13 +281,12 @@ export default function FriendProfileScreen() {
     <BlobBackground>
       <SafeAreaView style={styles.container}>
 
-        {/* Back row */}
-        <View style={styles.backRow}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <BackIcon />
-          </TouchableOpacity>
-          <Text style={styles.screenTitle}>Profile</Text>
-        </View>
+        <AppHeader
+          notificationCount={unreadCount}
+          onLogoPress={() => navigation.goBack()}
+          onBellPress={() => navigation.navigate('Notifications' as any)}
+          onMenuPress={() => {}}
+        />
 
         {loading ? (
           <View style={styles.loadingCenter}>
@@ -387,7 +388,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   backRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  screenTitle: { fontSize: 18, fontWeight: '700', color: '#45556C', marginLeft: 12, flex: 1 },
+  screenTitle: { fontSize: 18, fontWeight: '500', color: '#45556C', marginLeft: 12, flex: 1 },
 
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
@@ -400,8 +401,8 @@ const styles = StyleSheet.create({
   profileInfo: { justifyContent: 'center', gap: 8 },
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 3, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 38, fontWeight: '700', color: '#0d9488' },
-  name: { fontSize: 21, fontWeight: '700', color: '#0f172a' },
+  avatarInitial: { fontSize: 37, fontWeight: '500', color: '#0d9488' },
+  name: { fontSize: 19, fontWeight: '500', color: '#0f172a' },
   handle: { fontSize: 15, color: '#0d9488', fontWeight: '500' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   locationText: { fontSize: 15, color: '#64748b' },
@@ -411,9 +412,9 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionIcon: { alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#1e293b' },
+  sectionTitle: { fontSize: 16, fontWeight: '500', color: '#1e293b' },
   countBadge: { backgroundColor: '#f0fdfa', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: '#ccfbf1' },
-  countBadgeText: { fontSize: 12, fontWeight: '700', color: '#0d9488' },
+  countBadgeText: { fontSize: 12, fontWeight: '400', color: '#0d9488' },
   sectionSpacer: { height: 24 },
 
   // Grid
@@ -422,7 +423,7 @@ const styles = StyleSheet.create({
   gridCardImage: { width: '100%', height: '100%' },
   gridCardPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
   gridCardOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 32, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', paddingHorizontal: 8 },
-  gridCardText: { color: '#fff', fontSize: 12, fontWeight: '600', lineHeight: 15 },
+  gridCardText: { color: '#fff', fontSize: 12, fontWeight: '400', lineHeight: 15 },
   emptyCard: { width: CARD_W, height: 140, borderRadius: 14, borderWidth: 2, borderColor: '#e2e8f0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#fafafa' },
   emptyCardText: { fontSize: 12, color: '#cbd5e1', fontWeight: '500' },
 

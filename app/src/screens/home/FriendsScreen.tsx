@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Circle } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
 import { useNavigation } from '@react-navigation/native';
 import BlobBackground from '../../components/common/BlobBackground';
@@ -221,23 +221,29 @@ export default function FriendsScreen() {
             <Text style={styles.headerSubtitle}>Connect and enjoy together</Text>
           </View>
 
-          {/* Invite Button */}
-          <TouchableOpacity
-            style={styles.inviteBtn}
-            onPress={handleInviteFriends}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.inviteBtnText}>Invite Friends</Text>
-          </TouchableOpacity>
-
           {showingEmptyState ? (
             <>
               {/* Empty State */}
               <View style={styles.emptyState}>
                 <View style={styles.emptyIcon}>
-                  <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
+                  <Svg width={80} height={80} viewBox="0 0 24 24" fill="none">
                     <Path
-                      d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M12 7a4 4 0 100-8 4 4 0 000 8zM20 9v6M23 12h-6"
+                      d="M2 21a8 8 0 0 1 13.292-6"
+                      stroke="#94a3b8"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <Circle cx={10} cy={8} r={5} stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    <Path
+                      d="M19 16v6"
+                      stroke="#94a3b8"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <Path
+                      d="M22 19h-6"
                       stroke="#94a3b8"
                       strokeWidth={2}
                       strokeLinecap="round"
@@ -260,6 +266,15 @@ export default function FriendsScreen() {
             </>
           ) : (
             <>
+              {/* Invite Button */}
+              <TouchableOpacity
+                style={styles.inviteBtn}
+                onPress={handleInviteFriends}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.inviteBtnText}>Invite Friends</Text>
+              </TouchableOpacity>
+
               {/* Connected Friends Label */}
               <Text style={styles.sectionLabel}>Connected Friends</Text>
 
@@ -413,19 +428,11 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 20,
   },
-  headerTitle: {
-    fontSize: 21,
-    fontWeight: '500',
-    color: '#45556C',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: '#94a3b8',
-    textAlign: 'center',
-  },
+  headerTitle:{ fontFamily: 'Inter', fontSize: 20, fontWeight: '400', color: '#0F172B',
+    textAlign: 'center', lineHeight: 28, letterSpacing: 0, },
 
+  headerSubtitle: {
+    fontFamily: 'Inter', fontSize: 14, fontWeight: '400', color: '#45556C', textAlign: 'center', lineHeight: 19, letterSpacing: 0, marginTop: 9,},
   // Invite Button
   inviteBtn: {
     backgroundColor: '#0d9488',
@@ -435,21 +442,24 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 16,
     gap: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
   },
   inviteBtnText: {
     color: '#fff',
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     textAlign: 'center',
   },
 
   // Section Label
   sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#45556C',
-    marginBottom: 8,
-  },
+     fontFamily: 'Inter', fontSize: 14, fontWeight: '400', color: '#45556C', lineHeight: 19, letterSpacing: 0, marginTop: 9, marginBottom: 10, },
+  
+ 
 
   // Search Bar
   searchContainer: {
@@ -522,7 +532,7 @@ const styles = StyleSheet.create({
   },
   friendName: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#0f172a',
     marginBottom: 2,
   },
@@ -543,15 +553,15 @@ const styles = StyleSheet.create({
   viewBtn: {
     backgroundColor: '#eeffff',
     borderRadius: 90,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   viewBtnText: {
     color: '#0d9488',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '500',
   },
   deleteBtn: {
     width: 28,
@@ -577,7 +587,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '500',
     color: '#334155',
     marginBottom: 4,
   },

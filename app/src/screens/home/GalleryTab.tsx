@@ -491,24 +491,21 @@ const styles = StyleSheet.create({
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
   avatarInitial: { fontSize: 38, fontWeight: '700', color: '#0d9488' },
   editBtn: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08, shadowRadius: 3, elevation: 1,
+    alignItems: 'center', justifyContent: 'center',
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  name: { fontSize: 21, fontWeight: '700', color: '#0f172a' },
+  name: { fontSize: 20, fontWeight: '400', color: '#0F172B' },
   handle: { fontSize: 15, color: '#0d9488', fontWeight: '500' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locationText: { fontSize: 15, color: '#64748b' },
-  bio: { fontSize: 14, color: '#334155', textAlign: 'center', marginTop: 16, lineHeight: 22 },
+  locationText: { fontSize: 15, color: '#45556C' },
+  bio: { fontSize: 14, color: '#45556C', textAlign: 'center', marginTop: 16, lineHeight: 22 },
 
   loadingRow: { alignItems: 'center', marginBottom: 12 },
 
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionIcon: { alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#1e293b' },
+  sectionTitle: { fontSize: 17, fontWeight: '400', color: '#0F172B' },
   countBadge: {
     backgroundColor: '#f0fdfa', borderRadius: 10,
     paddingHorizontal: 7, paddingVertical: 2,
@@ -530,7 +527,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
-  gridCardText: { color: '#fff', fontSize: 12, fontWeight: '600', lineHeight: 15 },
+  gridCardText: { color: '#fff', fontSize: 12, fontWeight: '400', lineHeight: 15 },
 
   emptyCard: {
     width: CARD_W, height: 140, borderRadius: 14,
