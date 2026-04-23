@@ -205,7 +205,6 @@ const s = StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 10,
   },
   rowError: {
     // tint border on all cols via colFocused override applied through error state
@@ -215,11 +214,11 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#ffffff',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#e2e8f0',
     borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   colFocused: {
     borderColor: '#0d9488',
@@ -227,7 +226,7 @@ const s = StyleSheet.create({
   colDay: { flex: 1 },
   colMonth: { flex: 2 },
   colYear: { flex: 1.4 },
-  colText: { fontSize: 14, color: '#0f172a', flex: 1 },
+  colText: { fontSize: 13, color: '#0f172a', flex: 1 },
   placeholder: { color: '#94a3b8' },
   errorText: {
     fontSize: 12,

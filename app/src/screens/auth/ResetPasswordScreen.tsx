@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
 
   title: {
-    fontSize: 27,
+    fontSize: 25,
     fontWeight: '400',
     color: '#0f172a',
     textAlign: 'center',
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
   },
   emailHighlight: {
     color: '#0d9488',
-    fontWeight: '600',
+    fontWeight: '500',
   },
 
   // ── OTP ──
@@ -391,13 +391,13 @@ const styles = StyleSheet.create({
   },
   otpInput: {
     flex: 1,
-    height: 52,
+    height: 43,
     backgroundColor: '#ffffff',
     borderWidth: 2,
     borderColor: '#e2e8f0',
     borderRadius: 12,
     fontSize: 22,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#0f172a',
     maxWidth: 48,
   },
@@ -411,15 +411,15 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 6,
   },
-  resendLabel: { fontSize: 13, color: '#64748b' },
-  timerText: { fontSize: 13, color: '#94a3b8', fontWeight: '500' },
-  resendLink: { fontSize: 13, color: '#0d9488', fontWeight: '600', textDecorationLine: 'underline' },
+  resendLabel: { fontSize: 12, color: '#64748b' },
+  timerText: { fontSize: 12, color: '#94a3b8', fontWeight: '500' },
+  resendLink: { fontSize: 12, color: '#0d9488', fontWeight: '500', textDecorationLine: 'underline' },
 
   divider: { height: 1, backgroundColor: '#e2e8f0', marginVertical: 20 },
 
   fieldLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '500',
     color: '#374151',
     marginBottom: 6,
   },
@@ -437,9 +437,9 @@ const styles = StyleSheet.create({
   passwordField: {
     width: '100%',
     paddingHorizontal: 12,
-    paddingVertical: 11,
-    paddingRight: 46,
-    fontSize: 16,
+    paddingVertical: 9,
+    paddingRight: 44,
+    fontSize: 14,
     color: '#0f172a',
   },
   eyeBtn: {
@@ -460,8 +460,8 @@ const styles = StyleSheet.create({
   primaryBtn1: {
     backgroundColor: '#0d9488',
     borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 11,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
     alignItems: 'center',
     marginTop: 22,
     elevation: 2,
@@ -469,16 +469,16 @@ const styles = StyleSheet.create({
 
   primaryBtn: {
     backgroundColor: '#0d9488',
-    borderRadius: 11,
-    paddingVertical: 11,
+    borderRadius: 10,
+    paddingVertical: 10,
     alignItems: 'center',
     marginTop: 24,
     elevation: 2,
   },
   primaryBtnText: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '500',
     letterSpacing: 0.1,
   },
   backBtn: {
@@ -489,7 +489,7 @@ const styles = StyleSheet.create({
   backBtnText: {
     fontSize: 14,
     color: '#0d9488',
-    fontWeight: '500',
+    fontWeight: '400',
   },
 
   // ── Success state ──
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
   },
   successTitle: {
     fontSize: 26,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#0f172a',
     marginBottom: 12,
     textAlign: 'center',

@@ -9,6 +9,11 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 class MainActivity : ReactActivity() {
 
+  override fun onCreate(savedInstanceState: Bundle?) {
+    setTheme(R.style.AppTheme)
+    super.onCreate(savedInstanceState)
+  }
+
   override fun getMainComponentName(): String = "Demo"
 
   override fun createReactActivityDelegate(): ReactActivityDelegate =

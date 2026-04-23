@@ -15,7 +15,6 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Logo from '../../components/common/Logo';
-import DobPicker from '../../components/common/DobPicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useForm, Controller } from 'react-hook-form';
@@ -168,7 +167,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const [photoUploadSuccess, setPhotoUploadSuccess] = useState(false);
   const [gender,             setGender]             = useState(initialGender);
   const [country,            setCountry]            = useState(initialCountry);
-  const [dob,                setDob]                = useState(initialDob);
+  const [dob]                                        = useState(initialDob);
   const [showGenderPicker,   setShowGenderPicker]   = useState(false);
   const [showCountryPicker,  setShowCountryPicker]  = useState(false);
   const [focusedField,       setFocusedField]       = useState<string | null>(null);
@@ -351,13 +350,12 @@ export default function EditProfileScreen({ navigation }: any) {
 
             {/* ── Date of Birth ── */}
             <View style={styles.field}>
-              <Text style={styles.fieldLabel}>Date of Birth <Text style={styles.required}>*</Text></Text>
-              <DobPicker
-                value={dob}
-                onChange={(iso) => { setDob(iso); setValue('dob', iso, { shouldValidate: true }); }}
-                error={errors.dob?.message}
-                disabled={busy}
-              />
+              <Text style={styles.fieldLabel}>Date of Birth</Text>
+              <View style={styles.dobReadOnly}>
+                <Text style={dob ? styles.dobReadOnlyText : styles.dobReadOnlyPlaceholder}>
+                  {dob ? (() => { const dt = new Date(dob); return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }); })() : 'Not set'}
+                </Text>
+              </View>
             </View>
 
             {/* ── Gender + Country (2 columns) ── */}
@@ -461,12 +459,15 @@ const styles = StyleSheet.create({
   fieldLabel:  { fontSize: 12, fontWeight: '400', color: '#0F172B', marginBottom: 5 },
   required:    { color: '#ef4444', fontWeight: '400' },
   optional:    { fontSize: 11, fontWeight: '400', color: '#45556C' },
+  dobReadOnly: { width: '100%', backgroundColor: '#ffffff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  dobReadOnlyText: { fontSize: 13, color: '#5b5e63' , },
+  dobReadOnlyPlaceholder: { fontSize: 13, color: '#cbd5e1' },
 
   input: {
     width: '100%', backgroundColor: '#fff',
     borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 14, color: '#0f172a',
+    paddingHorizontal: 10, paddingVertical: 8,
+    fontSize: 13, color: '#0f172a',
   },
   inputFocused:  { borderColor: '#0d9488' },
   inputError:    { borderColor: '#ef4444' },
@@ -481,7 +482,7 @@ const styles = StyleSheet.create({
   dropdownBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0',
-    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
   },
   dropdownText:        { fontSize: 14, color: '#0f172a', flex: 1, marginRight: 4 },
   dropdownPlaceholder: { color: '#45556C' },
@@ -489,6 +490,6 @@ const styles = StyleSheet.create({
   // ── Bottom block ────────────────────────────────────────────────────────────
   bottomBlock:    { },
   apiErrorText:   { fontSize: 13, color: '#ef4444', textAlign: 'center', marginBottom: 8, fontWeight: '500' },
-  primaryBtn:     { backgroundColor: '#0d9488', borderRadius: 999, paddingVertical: 13, alignItems: 'center', elevation: 2 },
+  primaryBtn:     { backgroundColor: '#0d9488', borderRadius: 8, paddingVertical: 13, alignItems: 'center', elevation: 2 },
   primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '400', letterSpacing: 0.1 },
 });

@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '500',
     color: '#0f172a',
   },
@@ -266,15 +266,13 @@ const styles = StyleSheet.create({
   },
   markReadBtn: {
     paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: '#0d9488',
+    paddingLeft: 80,
+    
   },
   markReadText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#0d9488',
-    fontWeight: '600',
+    fontWeight: '500',
   },
 
   // ── List ─────────────────────────────────────────────────────────────────────
@@ -335,13 +333,13 @@ const styles = StyleSheet.create({
   },
   notifTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
+    fontWeight: '400',
+    color: '#000000',
     flex: 1,
   },
   notifTitleUnread: {
-    color: '#0f172a',
-    fontWeight: '700',
+    color: '#080808',
+    fontWeight: '500',
   },
   unreadDot: {
     width: 8,
@@ -352,7 +350,7 @@ const styles = StyleSheet.create({
   },
   notifMessage: {
     fontSize: 13,
-    color: '#64748b',
+    color: '#6e7d91',
     lineHeight: 19,
     marginBottom: 5,
   },
@@ -370,7 +368,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#334155',
     marginTop: 4,
   },

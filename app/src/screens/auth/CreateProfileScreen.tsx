@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Logo from '../../components/common/Logo';
-import DobPicker from '../../components/common/DobPicker';
+import LegalModal from '../../components/common/LegalModal';
 import BlobBackground from '../../components/common/BlobBackground';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useForm, Controller } from 'react-hook-form';
@@ -224,10 +224,41 @@ export default function CreateProfileScreen({ navigation }: any) {
   const [gender, setGender] = useState(initialGender);
   const [country, setCountry] = useState(initialCountry);
   const [dob, setDob] = useState(initialDob);
+  const [dobText, setDobText] = useState(initialDob ? (() => { const [y,m,d] = initialDob.split('-'); return `${d}/${m}/${y}`; })() : '');
+  const [dobSubmitError, setDobSubmitError] = useState(false);
+  const [showLegal, setShowLegal] = useState(false);
   const [showGenderPicker, setShowGenderPicker] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
+
+  const MAX_BIRTH_YEAR = new Date().getFullYear() - 13;
+
+  function handleDobChange(raw: string) {
+    const digits = raw.replace(/\D/g, '').slice(0, 8);
+    let formatted = digits;
+    if (digits.length > 2) formatted = digits.slice(0, 2) + '/' + digits.slice(2);
+    if (digits.length > 4) formatted = digits.slice(0, 2) + '/' + digits.slice(2, 4) + '/' + digits.slice(4);
+    setDobText(formatted);
+    setDobSubmitError(false);
+
+    if (digits.length === 8) {
+      const dd = parseInt(digits.slice(0, 2), 10);
+      const mm = parseInt(digits.slice(2, 4), 10);
+      const yyyy = parseInt(digits.slice(4, 8), 10);
+      if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || yyyy > MAX_BIRTH_YEAR || yyyy < 1900) {
+        setDob('');
+        setValue('dob', '', { shouldValidate: false });
+        return;
+      }
+      const iso = `${yyyy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+      setDob(iso);
+      setValue('dob', iso, { shouldValidate: true });
+    } else {
+      setDob('');
+      setValue('dob', '', { shouldValidate: false });
+    }
+  }
   // Stores the device-local file URI from the last image pick.
   // Used as fallback when the CDN URL fails to load (CloudFront access issue).
   const localPreviewUriRef = useRef<string>('');
@@ -376,6 +407,9 @@ export default function CreateProfileScreen({ navigation }: any) {
 
   // ─── Step B: Save profile details ────────────────────────────────────────
   async function onSubmit(data: FormData) {
+    if (!dob) { setDobSubmitError(true); return; }
+    const yyyy = parseInt(dob.split('-')[0], 10);
+    if (yyyy > MAX_BIRTH_YEAR) { setDobSubmitError(true); return; }
     try {
       setApiError(null);
 
@@ -491,74 +525,86 @@ export default function CreateProfileScreen({ navigation }: any) {
             </View>
 
             {/* Full Name */}
-            <Controller
-              control={control}
-              name="fullName"
-              render={({ field: { onChange, value } }) => (
-                <TextInput
-                  style={[
-                    styles.input,
-                    focusedField === 'fullName' && styles.inputFocused,
-                    errors.fullName && styles.inputError,
-                  ]}
-                  placeholder="Full Name "
-                  placeholderTextColor="#94a3b8"
-                  value={value}
-                  onChangeText={(val) => {
-                    onChange(val);
-                    if (apiError) setApiError(null);
-                  }}
-                  onFocus={() => setFocusedField('fullName')}
-                  onBlur={() => setFocusedField(null)}
-                  underlineColorAndroid="transparent"
-                  selectionColor="#0d9488"
-                  editable={!busy}
-                />
-              )}
-            />
-
-
-
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Full Name <Text style={styles.required}>*</Text></Text>
+              <Controller
+                control={control}
+                name="fullName"
+                render={({ field: { onChange, value } }) => (
+                  <TextInput
+                    style={[styles.input, focusedField === 'fullName' && styles.inputFocused, errors.fullName && styles.inputError]}
+                    placeholder="e.g. Alex Johnson"
+                    placeholderTextColor="#94a3b8"
+                    value={value}
+                    onChangeText={(val) => { onChange(val); if (apiError) setApiError(null); }}
+                    onFocus={() => setFocusedField('fullName')}
+                    onBlur={() => setFocusedField(null)}
+                    underlineColorAndroid="transparent"
+                    selectionColor="#0d9488"
+                    editable={!busy}
+                  />
+                )}
+              />
+              {errors.fullName && <Text style={styles.errorText}>{errors.fullName.message}</Text>}
+            </View>
 
             {/* Gender */}
-            <TouchableOpacity
-              style={[
-                styles.dropdownBtn,
-                showGenderPicker && styles.inputFocused,
-                errors.gender && styles.inputError,
-              ]}
-              onPress={() => setShowGenderPicker(true)}
-              activeOpacity={0.8}
-              disabled={busy}>
-              <Text style={[styles.dropdownText, !gender && styles.dropdownPlaceholder]}>
-                {gender || 'Select Gender '}
-              </Text>
-              <ChevronDown />
-            </TouchableOpacity>
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Gender <Text style={styles.required}>*</Text></Text>
+              <TouchableOpacity
+                style={[styles.dropdownBtn, showGenderPicker && styles.inputFocused, errors.gender && styles.inputError]}
+                onPress={() => setShowGenderPicker(true)}
+                activeOpacity={0.8}
+                disabled={busy}>
+                <Text style={[styles.dropdownText, !gender && styles.dropdownPlaceholder]}>
+                  {gender || 'Select'}
+                </Text>
+                <ChevronDown />
+              </TouchableOpacity>
+              {errors.gender && <Text style={styles.errorText}>{errors.gender.message}</Text>}
+            </View>
 
             {/* Country */}
-            <TouchableOpacity
-              style={[
-                styles.dropdownBtn,
-                showCountryPicker && styles.inputFocused,
-                errors.country && styles.inputError,
-              ]}
-              onPress={() => setShowCountryPicker(true)}
-              activeOpacity={0.8}
-              disabled={busy}>
-              <Text style={[styles.dropdownText, !country && styles.dropdownPlaceholder]}>
-                {country || 'Select Country '}
-              </Text>
-              <ChevronDown />
-            </TouchableOpacity>
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Country <Text style={styles.required}>*</Text></Text>
+              <TouchableOpacity
+                style={[styles.dropdownBtn, showCountryPicker && styles.inputFocused, errors.country && styles.inputError]}
+                onPress={() => setShowCountryPicker(true)}
+                activeOpacity={0.8}
+                disabled={busy}>
+                <Text style={[styles.dropdownText, !country && styles.dropdownPlaceholder]}>
+                  {country || 'Select'}
+                </Text>
+                <ChevronDown />
+              </TouchableOpacity>
+              {errors.country && <Text style={styles.errorText}>{errors.country.message}</Text>}
+            </View>
 
             {/* Date of Birth */}
-            <DobPicker
-              value={dob}
-              onChange={(iso) => { setDob(iso); setValue('dob', iso, { shouldValidate: true }); }}
-              error={errors.dob?.message}
-              disabled={busy}
-            />
+            <LegalModal visible={showLegal} type="terms" onClose={() => setShowLegal(false)} />
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Date of Birth <Text style={styles.required}>*</Text></Text>
+              <TextInput
+                style={[styles.input, focusedField === 'dob' && styles.inputFocused, dobSubmitError && styles.inputError]}
+                placeholder={`DD/MM/YYYY`}
+                placeholderTextColor="#94a3b8"
+                value={dobText}
+                onChangeText={handleDobChange}
+                onFocus={() => setFocusedField('dob')}
+                onBlur={() => setFocusedField(null)}
+                keyboardType="numeric"
+                maxLength={10}
+                selectionColor="#0d9488"
+                underlineColorAndroid="transparent"
+                editable={!busy}
+              />
+              <View style={styles.dobHintRow}>
+                <Text style={[styles.dobHintText, dobSubmitError && { color: '#ef4444' }]}>DOB must comply with our </Text>
+                <TouchableOpacity onPress={() => setShowLegal(true)} activeOpacity={0.7}>
+                  <Text style={[styles.dobHintLink, dobSubmitError && { color: '#ef4444' }]}>Terms & Conditions</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
 
             {/* API Error Message */}
@@ -669,17 +715,23 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
+  field: { marginBottom: 10 },
+  fieldLabel: { fontSize: 12, fontWeight: '400', color: '#0F172B', marginBottom: 5 },
+  required: { color: '#ef4444', fontWeight: '400' },
+  errorText: { fontSize: 11, color: '#ef4444', marginTop: 4 },
+  dobHintRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 5 },
+  dobHintText: { fontSize: 11, color: '#64748b' },
+  dobHintLink: { fontSize: 11, color: '#0d9488', textDecorationLine: 'underline' },
   input: {
     width: '100%',
     backgroundColor: '#ffffff',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#e2e8f0',
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
     color: '#0f172a',
-    marginBottom: 10,
   },
   inputFocused: {
     borderColor: '#0d9488',
@@ -719,12 +771,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: '#ffffff',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#e2e8f0',
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   dropdownText: { fontSize: 14, color: '#0f172a' },
   dropdownPlaceholder: { color: '#94a3b8' },
