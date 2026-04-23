@@ -65,7 +65,11 @@ jobs:
             echo "WARNING: FIREBASE_SERVICE_ACCOUNT_B64 secret not set — push notifications disabled"
           fi
 
-          # ── 3. Pull new image ──────────────────────────────────────────────────
+          # ── 3. Free disk space — remove images not used by a running container ──
+          docker image prune -af
+          docker container prune -f
+
+          # ── 4. Pull new image ──────────────────────────────────────────────────
           docker pull 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api:${{ github.sha }}
 
           # ── 5. Remove old container ────────────────────────────────────────────
@@ -106,7 +110,10 @@ jobs:
           sleep 3
           docker ps --filter name=gathergo-container --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
 
-          # ── 9. Ensure nginx allows large uploads (50 MB) ───────────────────────
+          # ── 9. Run pending DB migrations ───────────────────────────────────────
+          docker exec gathergo-container node migrations/run.js
+
+          # ── 10. Ensure nginx allows large uploads (50 MB) ──────────────────────
           NGINX_SNIPPET=/etc/nginx/conf.d/upload_limit.conf
           if ! grep -q 'client_max_body_size' "$NGINX_SNIPPET" 2>/dev/null; then
             echo 'client_max_body_size 50M;' | sudo tee "$NGINX_SNIPPET" > /dev/null
