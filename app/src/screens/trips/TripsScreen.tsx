@@ -1615,9 +1615,9 @@ const styles = StyleSheet.create({
   tripsCTATitle: { fontFamily: 'Inter', fontSize: 20, fontWeight: '400', color: '#0F172B', textAlign: 'center', lineHeight: 28, letterSpacing: 0, width: 266 },
   tripsCTASub: { fontFamily: 'Inter', fontSize: 16, fontWeight: '400', color: '#45556C', textAlign: 'center', lineHeight: 20, letterSpacing: 0, width: 316 },
   createTripBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+   flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#009788', borderRadius: 999,
-    width: 163, height: 48, gap: 6,
+    width: 130, height: 40, gap: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
