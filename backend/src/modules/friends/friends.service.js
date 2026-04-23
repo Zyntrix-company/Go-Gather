@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
 const config = require('../../config');
-const { sendFCMNotification } = require('../../utils/fcm.util');
+const { createAndSendNotification } = require('../../utils/fcm.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
 const { generateInviteShareText } = require('../../utils/shareText.util');
 const { sendEmail, wrapEmail } = require('../../utils/mailer');
@@ -116,23 +116,15 @@ const sendFriendRequest = async (requesterId, addresseeId) => {
   );
   const requesterName = requesterResult.rows[0]?.full_name || 'Someone';
 
-  // Fire-and-forget FCM push to addressee
-  const fcmToken = await getUserFcmToken(addresseeId);
-  if (fcmToken) {
-    sendFCMNotification(
-      fcmToken,
-      {
-        title: `${requesterName} sent you a friend request`,
-        body: 'Tap to accept or decline',
-      },
-      {
-        type: 'FRIEND_REQUEST',
-        connectionId,
-        fromUserId: requesterId,
-        screen: 'friends',
-      },
-    ).catch((err) => logger.error('FCM push failed', { err: err.message }));
-  }
+  createAndSendNotification(
+    addresseeId,
+    {
+      title: `${requesterName} sent you a friend request`,
+      body: 'Tap to accept or decline',
+    },
+    'FRIEND_REQUEST',
+    { connectionId, fromUserId: requesterId, screen: 'friends' },
+  ).catch((err) => logger.error('Notification failed', { err: err.message }));
 
   return { connectionId, status: 'pending' };
 };
@@ -186,23 +178,15 @@ const respondFriendRequest = async (currentUserId, connectionId, action) => {
     const accepter = accepterResult.rows[0] || {};
     const accepterName = accepter.full_name || 'Someone';
 
-    // FCM push to original requester
-    const fcmToken = await getUserFcmToken(conn.requester_id);
-    if (fcmToken) {
-      sendFCMNotification(
-        fcmToken,
-        {
-          title: `${accepterName} accepted your friend request!`,
-          body: "You're now connected on GatherGo",
-        },
-        {
-          type: 'FRIEND_ACCEPTED',
-          connectionId,
-          userId: currentUserId,
-          screen: 'friends',
-        },
-      ).catch((err) => logger.error('FCM push failed', { err: err.message }));
-    }
+    createAndSendNotification(
+      conn.requester_id,
+      {
+        title: `${accepterName} accepted your friend request!`,
+        body: "You're now connected on GatherGo",
+      },
+      'FRIEND_ACCEPTED',
+      { connectionId, userId: currentUserId, screen: 'friends' },
+    ).catch((err) => logger.error('Notification failed', { err: err.message }));
 
     return {
       connectionId,

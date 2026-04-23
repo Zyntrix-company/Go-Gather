@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const { query: db } = require('../config/database');
-const { notifyUsers } = require('./fcm.util');
+const { createAndSendNotifications } = require('./fcm.util');
 const logger = require('./logger');
 
 const TRIP_NOTIF_MAP = {
@@ -28,9 +28,9 @@ const processTripReminders = async () => {
   for (const reminder of pendingResult.rows) {
     try {
       const membersResult = await db(
-        `SELECT u.fcm_token FROM trip_members tm
+        `SELECT u.id, u.fcm_token FROM trip_members tm
          JOIN users u ON u.id = tm.user_id
-         WHERE tm.trip_id = $1 AND u.fcm_token IS NOT NULL`,
+         WHERE tm.trip_id = $1`,
         [reminder.trip_id],
       );
 
@@ -39,10 +39,12 @@ const processTripReminders = async () => {
         body: (name) => `Reminder for your trip "${name}"`,
       };
 
-      await notifyUsers(membersResult.rows, {
-        title: map.title,
-        body: map.body(reminder.trip_name),
-      }, { type: 'TRIP_REMINDER', reminderType: reminder.reminder_type, tripId: reminder.trip_id });
+      await createAndSendNotifications(
+        membersResult.rows,
+        { title: map.title, body: map.body(reminder.trip_name) },
+        'TRIP_REMINDER',
+        { reminderType: reminder.reminder_type, tripId: reminder.trip_id },
+      );
 
       await db('UPDATE trip_reminders SET sent_at = NOW() WHERE id = $1', [reminder.id]);
       logger.info('Trip reminder sent', { reminderId: reminder.id, type: reminder.reminder_type, tokens: membersResult.rowCount });
@@ -67,9 +69,9 @@ const processEventReminders = async () => {
   for (const reminder of pendingResult.rows) {
     try {
       const membersResult = await db(
-        `SELECT u.fcm_token FROM event_members em
+        `SELECT u.id, u.fcm_token FROM event_members em
          JOIN users u ON u.id = em.user_id
-         WHERE em.event_id = $1 AND u.fcm_token IS NOT NULL`,
+         WHERE em.event_id = $1`,
         [reminder.event_id],
       );
 
@@ -78,10 +80,12 @@ const processEventReminders = async () => {
         body: (name) => `Reminder for your event "${name}"`,
       };
 
-      await notifyUsers(membersResult.rows, {
-        title: map.title,
-        body: map.body(reminder.event_name),
-      }, { type: 'EVENT_REMINDER', reminderType: reminder.reminder_type, eventId: reminder.event_id });
+      await createAndSendNotifications(
+        membersResult.rows,
+        { title: map.title, body: map.body(reminder.event_name) },
+        'EVENT_REMINDER',
+        { reminderType: reminder.reminder_type, eventId: reminder.event_id },
+      );
 
       await db('UPDATE event_reminders SET sent_at = NOW() WHERE id = $1', [reminder.id]);
       logger.info('Event reminder sent', { reminderId: reminder.id, type: reminder.reminder_type, tokens: membersResult.rowCount });

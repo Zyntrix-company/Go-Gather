@@ -18,8 +18,9 @@ const invitesRoutes = require('./modules/invites/invites.routes');
 const contactRoutes = require('./modules/contact/contact.routes');
 const { authRouter: emailAuthRoutes, emailDocsRouter } = require('./modules/emailDocs/emailDocs.routes');
 const aiRoutes = require('./modules/ai/ai.routes');
-const blogsRoutes = require('./modules/blogs/blogs.routes');
-const dealsRoutes = require('./modules/deals/deals.routes');
+const blogsRoutes         = require('./modules/blogs/blogs.routes');
+const dealsRoutes         = require('./modules/deals/deals.routes');
+const notificationsRoutes = require('./modules/notifications/notifications.routes');
 
 const app = express();
 
@@ -96,9 +97,10 @@ app.use('/trips',   tripsRoutes);
 app.use('/events',  eventsRoutes);
 app.use('/friends', friendsRoutes);
 app.use('/invites', invitesRoutes);
-app.use('/ai',          aiRoutes);
-app.use('/blogs',       blogsRoutes);
-app.use('/deals',       dealsRoutes);
+app.use('/ai',            aiRoutes);
+app.use('/blogs',         blogsRoutes);
+app.use('/deals',         dealsRoutes);
+app.use('/notifications', notificationsRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/auth',        emailAuthRoutes);
 app.use('/email-docs',  emailDocsRouter);

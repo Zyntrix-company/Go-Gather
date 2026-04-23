@@ -7,21 +7,21 @@
  *
  * Supporting cast: charlie, diana, eve, frank, grace, henry
  *
- * TRIPS (6 total):
+ * TRIPS (6 total) — trip names kept ≤18 chars for mobile list cards (no … on most screens):
  *   alice admin:
- *     UPCOMING  — "Goa Beach Escape 2027"   alice + bob + charlie + eve
+ *     UPCOMING  — "Goa Trip 2027"           alice + bob + charlie + eve
  *     ONGOING   — "Manali Winter 2026"      alice + charlie + frank
  *     PAST      — "Kerala Backwaters"       alice + bob + diana
- *     ARCHIVED  — "Kasol Trekking 2025"     alice + bob
+ *     ARCHIVED  — "Kasol Trek 2025"         alice + bob
  *   bob admin:
- *     UPCOMING  — "Udaipur Royal Weekend"   bob + alice + grace + henry
- *     PAST      — "Jaipur Heritage 2025"    bob + charlie + frank
+ *     UPCOMING  — "Udaipur Royal Wknd"      bob + alice + grace + henry
+ *     PAST      — "Jaipur Heritage"         bob + charlie + frank
  *
- * EVENTS (4 total):
+ * EVENTS (4 total) — same ≤18 char guideline for event names:
  *   UPCOMING  — "Diwali Night 2026"   alice admin, bob + charlie + eve
  *   PAST      — "Holi 2024"           alice admin, charlie + diana
  *   UPCOMING  — "NYE Party 2026"      bob admin, alice + grace + henry
- *   UPCOMING  — "Pune Tech Meetup"    bob admin, alice + frank + henry
+ *   UPCOMING  — "Pune Tech Meet May"  bob admin, alice + frank + henry
  *
  * Each trip/event: 4–5 photos, 3–5 activities, 2–3 expenses, 2 polls, 2–3 notes
  * All passwords: TestPass123!
@@ -212,6 +212,17 @@ const IDS = {
 
 const PASSWORD = 'TestPass123!';
 
+/** Trip/event titles on UnifiedCard (~360dp + 2 avatars + menu): keep ≤ this length to avoid … on most phones. */
+const CARD_LIST_NAME_MAX_LEN = 18;
+
+function assertListCardTitleLen(label, name) {
+  if (name.length > CARD_LIST_NAME_MAX_LEN) {
+    throw new Error(
+      `[seed] ${label} exceeds CARD_LIST_NAME_MAX_LEN (${CARD_LIST_NAME_MAX_LEN}): "${name}" (${name.length} chars)`,
+    );
+  }
+}
+
 // ── Photo URL constants ───────────────────────────────────────────────────────
 const PH = {
   goaBaga:      'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=1600&q=80',
@@ -351,15 +362,17 @@ async function seed() {
     // ── 6. Trips ──────────────────────────────────────────────────────────────
     console.log('  Seeding trips…');
 
+    assertListCardTitleLen('Goa trip', 'Goa Trip 2027');
     await client.query(
       `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
-       VALUES ($1, 'Goa Beach Escape 2027', '2027-04-10', '2027-04-17',
+       VALUES ($1, 'Goa Trip 2027', '2027-04-10', '2027-04-17',
                'Goa, India', 15.2993249, 74.1239960, $2,
                'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=1600&q=80')
        ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
       [IDS.goaTrip, IDS.alice],
     );
 
+    assertListCardTitleLen('Manali trip', 'Manali Winter 2026');
     await client.query(
       `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
        VALUES ($1, 'Manali Winter 2026', '2026-01-01', '2026-12-31',
@@ -369,6 +382,7 @@ async function seed() {
       [IDS.manaliTrip, IDS.alice],
     );
 
+    assertListCardTitleLen('Kerala trip', 'Kerala Backwaters');
     await client.query(
       `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
        VALUES ($1, 'Kerala Backwaters', '2024-03-15', '2024-03-20',
@@ -378,9 +392,10 @@ async function seed() {
       [IDS.keralaTrip, IDS.alice],
     );
 
+    assertListCardTitleLen('Kasol trip', 'Kasol Trek 2025');
     await client.query(
       `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url, archived_at)
-       VALUES ($1, 'Kasol Trekking 2025', '2025-09-01', '2025-09-07',
+       VALUES ($1, 'Kasol Trek 2025', '2025-09-01', '2025-09-07',
                'Kasol, Himachal Pradesh', 32.0100000, 77.3148000, $2,
                'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1600&q=80',
                '2025-10-01T10:00:00Z')
@@ -388,18 +403,20 @@ async function seed() {
       [IDS.kasolTrip, IDS.alice],
     );
 
+    assertListCardTitleLen('Udaipur trip', 'Udaipur Royal Wknd');
     await client.query(
       `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
-       VALUES ($1, 'Udaipur Royal Weekend', '2026-12-05', '2026-12-08',
+       VALUES ($1, 'Udaipur Royal Wknd', '2026-12-05', '2026-12-08',
                'Udaipur, Rajasthan', 24.5854452, 73.7124790, $2,
                'https://images.pexels.com/photos/3581364/pexels-photo-3581364.jpeg?auto=compress&cs=tinysrgb&w=1600')
        ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
       [IDS.udaipurTrip, IDS.bob],
     );
 
+    assertListCardTitleLen('Jaipur trip', 'Jaipur Heritage');
     await client.query(
       `INSERT INTO trips (id, name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url)
-       VALUES ($1, 'Jaipur Heritage 2025', '2025-01-10', '2025-01-14',
+       VALUES ($1, 'Jaipur Heritage', '2025-01-10', '2025-01-14',
                'Jaipur, Rajasthan', 26.9124336, 75.7872709, $2,
                'https://images.unsplash.com/photo-1599661046289-e31897846e41?auto=format&fit=crop&w=1600&q=80')
        ON CONFLICT (id) DO UPDATE SET banner_image_url = EXCLUDED.banner_image_url`,
@@ -785,6 +802,7 @@ async function seed() {
     // ── 14. Events ────────────────────────────────────────────────────────────
     console.log('  Seeding events…');
 
+    assertListCardTitleLen('Diwali event', 'Diwali Night 2026');
     await client.query(
       `INSERT INTO events (id, name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url)
        VALUES ($1,'Diwali Night 2026','2026-10-20','Festival',
@@ -795,6 +813,7 @@ async function seed() {
       [IDS.diwaliEvent, IDS.alice],
     );
 
+    assertListCardTitleLen('Holi event', 'Holi 2024');
     await client.query(
       `INSERT INTO events (id, name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url)
        VALUES ($1,'Holi 2024','2024-03-25','Festival',
@@ -805,6 +824,7 @@ async function seed() {
       [IDS.holiEvent, IDS.alice],
     );
 
+    assertListCardTitleLen('NYE event', 'NYE Party 2026');
     await client.query(
       `INSERT INTO events (id, name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url)
        VALUES ($1,'NYE Party 2026','2026-12-31','Party',
@@ -815,9 +835,10 @@ async function seed() {
       [IDS.nyeEvent, IDS.bob],
     );
 
+    assertListCardTitleLen('Pune meetup event', 'Pune Tech Meet May');
     await client.query(
       `INSERT INTO events (id, name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url)
-       VALUES ($1,'Pune Tech Meetup May','2026-05-15','Networking',
+       VALUES ($1,'Pune Tech Meet May','2026-05-15','Networking',
                'Founders, builders, and curious minds. Coffee, 15min talks, open networking. 4 speakers confirmed. No slides-only talks. Koregaon Park — walkable from most hotels.',
                'Koregaon Park, Pune',18.5362,73.8939,$2,
                'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1600&q=80')
@@ -929,18 +950,18 @@ async function seed() {
     console.log('══════════════════════════════════════════════════════════════════');
     console.log('  TRIPS');
     console.log('══════════════════════════════════════════════════════════════════');
-    console.log(`  UPCOMING  alice admin  Goa Beach Escape 2027    ${IDS.goaTrip}`);
-    console.log(`  UPCOMING  bob admin    Udaipur Royal Weekend     ${IDS.udaipurTrip}`);
+    console.log(`  UPCOMING  alice admin  Goa Trip 2027             ${IDS.goaTrip}`);
+    console.log(`  UPCOMING  bob admin    Udaipur Royal Wknd        ${IDS.udaipurTrip}`);
     console.log(`  ONGOING   alice admin  Manali Winter 2026        ${IDS.manaliTrip}`);
     console.log(`  PAST      alice admin  Kerala Backwaters         ${IDS.keralaTrip}`);
-    console.log(`  PAST      bob admin    Jaipur Heritage 2025      ${IDS.jaipurTrip}`);
-    console.log(`  ARCHIVED  alice admin  Kasol Trekking 2025       ${IDS.kasolTrip}`);
+    console.log(`  PAST      bob admin    Jaipur Heritage           ${IDS.jaipurTrip}`);
+    console.log(`  ARCHIVED  alice admin  Kasol Trek 2025           ${IDS.kasolTrip}`);
     console.log('══════════════════════════════════════════════════════════════════');
     console.log('  EVENTS');
     console.log('══════════════════════════════════════════════════════════════════');
     console.log(`  UPCOMING  alice admin  Diwali Night 2026         ${IDS.diwaliEvent}`);
     console.log(`  UPCOMING  bob admin    NYE Party 2026            ${IDS.nyeEvent}`);
-    console.log(`  UPCOMING  bob admin    Pune Tech Meetup May      ${IDS.meetupEvent}`);
+    console.log(`  UPCOMING  bob admin    Pune Tech Meet May        ${IDS.meetupEvent}`);
     console.log(`  PAST      alice admin  Holi 2024                 ${IDS.holiEvent}`);
     console.log('══════════════════════════════════════════════════════════════════');
     console.log('  INVITE TOKENS');

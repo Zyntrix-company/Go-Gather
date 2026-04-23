@@ -19,6 +19,7 @@ import {
   InteractionManager,
   Keyboard,
   Platform,
+  AppState,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
@@ -423,7 +424,8 @@ export default function HomeScreen({ navigation, route }: any) {
   const { logout, refreshProfile } = useAuth();
   const rawUser = useAuthStore((s) => s.user) as any;
   const avatarUpdatedAt = useAuthStore((s) => s.avatarUpdatedAt);
-  const unreadCount = useNotificationStore((s) => s.notifications.filter(n => !n.read).length);
+  const unreadCount = useNotificationStore((s) => s.unreadCount);
+  const refreshUnreadCount = useNotificationStore((s) => s.refreshUnreadCount);
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showTripMenu, setShowTripMenu] = useState<string | null>(null);
@@ -495,6 +497,16 @@ export default function HomeScreen({ navigation, route }: any) {
   // Refresh profile on mount so name/avatar are always up to date
   useEffect(() => {
     refreshProfile();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Refresh unread badge count whenever the app comes back to the foreground
+  useEffect(() => {
+    refreshUnreadCount();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshUnreadCount();
+    });
+    return () => sub.remove();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

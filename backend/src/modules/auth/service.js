@@ -56,6 +56,12 @@ const handleDeviceRegistration = async (userId, deviceToken, platform) => {
   if (!deviceToken) return;
 
   try {
+    // Remove this token from any other user who currently holds it — prevents
+    // cross-user notification delivery when the same device is re-used.
+    await db.query(
+      'UPDATE users SET fcm_token = NULL, platform = NULL WHERE fcm_token = $1 AND id != $2',
+      [deviceToken, userId],
+    );
     await db.query(
       'UPDATE users SET fcm_token = $1, platform = $2, updated_at = NOW() WHERE id = $3',
       [deviceToken, platform || null, userId],

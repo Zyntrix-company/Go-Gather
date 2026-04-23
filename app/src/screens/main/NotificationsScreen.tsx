@@ -1,18 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   FlatList,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
 import useNotificationStore from '../../store/notificationStore';
 
-function getRelativeTime(ts: number): string {
-  const diff = Math.floor((Date.now() - ts) / 1000);
+function getRelativeTime(ts: number | string): string {
+  const time = typeof ts === 'string' ? new Date(ts).getTime() : ts;
+  const diff = Math.floor((Date.now() - time) / 1000);
   if (diff < 60) return 'Just now';
   if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)} hour${Math.floor(diff / 3600) > 1 ? 's' : ''} ago`;
@@ -49,6 +52,7 @@ function getNotificationIcon(type: string, data?: Record<string, string>) {
     case 'EVENT_REMINDER':
       return getReminderIcon(data?.reminderType);
     case 'trip_invite':
+    case 'TRIP_MEMBER_ADDED':
       return (
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
           <Path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2v11z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -67,9 +71,20 @@ function getNotificationIcon(type: string, data?: Record<string, string>) {
         </Svg>
       );
     case 'member_joined':
+    case 'EVENT_MEMBER_ADDED':
+    case 'FRIEND_REQUEST':
+    case 'FRIEND_ACCEPTED':
       return (
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
           <Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="#10b981" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+    case 'TRIP_INVITE_ACCEPTED':
+    case 'EVENT_INVITE_ACCEPTED':
+      return (
+        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+          <Path d="M22 11.08V12a10 10 0 11-5.93-9.14" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M22 4L12 14.01l-3-3" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       );
     case 'reminder':
@@ -94,23 +109,62 @@ function getIconBg(type: string) {
     case 'TRIP_REMINDER':
     case 'EVENT_REMINDER':
     case 'trip_invite':
+    case 'TRIP_MEMBER_ADDED':
+    case 'TRIP_INVITE_ACCEPTED':
+    case 'EVENT_INVITE_ACCEPTED':
     case 'reminder': return '#f0fdfa';
     case 'expense_added': return '#fffbeb';
     case 'poll_created': return '#eef2ff';
-    case 'member_joined': return '#ecfdf5';
+    case 'member_joined':
+    case 'EVENT_MEMBER_ADDED':
+    case 'FRIEND_REQUEST':
+    case 'FRIEND_ACCEPTED': return '#ecfdf5';
     default: return '#f8fafc';
   }
 }
 
 export default function NotificationsScreen({ navigation }: any) {
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  const { notifications, markRead, markAllRead } = useNotificationStore();
+  const {
+    notifications,
+    loading,
+    hasMore,
+    unreadCount,
+    fetchNotifications,
+    markRead,
+    markAllRead,
+  } = useNotificationStore();
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    fetchNotifications(true);
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchNotifications(true);
+    setRefreshing(false);
+  }, [fetchNotifications]);
+
+  const onEndReached = useCallback(() => {
+    if (!loading && hasMore) {
+      fetchNotifications(false);
+    }
+  }, [loading, hasMore, fetchNotifications]);
 
   const displayed = filter === 'unread'
     ? notifications.filter(n => !n.read)
     : notifications;
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const renderFooter = () => {
+    if (!loading) return null;
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color="#0d9488" />
+      </View>
+    );
+  };
 
   return (
     <BlobBackground>
@@ -162,25 +216,38 @@ export default function NotificationsScreen({ navigation }: any) {
           keyExtractor={item => item.id}
           contentContainerStyle={[styles.listContent, displayed.length === 0 && styles.listContentEmpty]}
           showsVerticalScrollIndicator={false}
+          onEndReached={filter === 'all' ? onEndReached : undefined}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={filter === 'all' ? renderFooter : null}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#0d9488"
+              colors={['#0d9488']}
+            />
+          }
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
-                <Path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-              </Svg>
-              <Text style={styles.emptyTitle}>No notifications</Text>
-              <Text style={styles.emptySubtitle}>
-                {filter === 'unread' ? 'You\'re all caught up!' : 'Nothing here yet'}
-              </Text>
-            </View>
+            !loading ? (
+              <View style={styles.emptyState}>
+                <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
+                  <Path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={styles.emptyTitle}>No notifications</Text>
+                <Text style={styles.emptySubtitle}>
+                  {filter === 'unread' ? 'You\'re all caught up!' : 'Nothing here yet'}
+                </Text>
+              </View>
+            ) : null
           }
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.notifCard, !item.read && styles.notifCardUnread]}
               onPress={() => {
                 markRead(item.id);
-                if (item.type === 'TRIP_REMINDER' && item.data?.tripId) {
+                if ((item.type === 'TRIP_REMINDER' || item.type === 'TRIP_MEMBER_ADDED' || item.type === 'TRIP_INVITE_ACCEPTED') && item.data?.tripId) {
                   navigation.navigate('TripDetail', { trip: { id: item.data.tripId } });
-                } else if (item.type === 'EVENT_REMINDER' && item.data?.eventId) {
+                } else if ((item.type === 'EVENT_REMINDER' || item.type === 'EVENT_MEMBER_ADDED' || item.type === 'EVENT_INVITE_ACCEPTED') && item.data?.eventId) {
                   navigation.navigate('EventDetail', { event: { id: item.data.eventId } });
                 }
               }}
@@ -200,8 +267,10 @@ export default function NotificationsScreen({ navigation }: any) {
                   </Text>
                   {!item.read && <View style={styles.unreadDot} />}
                 </View>
-                <Text style={styles.notifMessage} numberOfLines={2}>{item.message}</Text>
-                <Text style={styles.notifTime}>{getRelativeTime(item.receivedAt)}</Text>
+                <Text style={styles.notifMessage} numberOfLines={2}>{item.message ?? item.body}</Text>
+                <Text style={styles.notifTime}>
+                  {getRelativeTime(item.receivedAt ?? item.created_at ?? Date.now())}
+                </Text>
               </View>
             </TouchableOpacity>
           )}
@@ -239,7 +308,6 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
 
-  // ── Filter + action row ──────────────────────────────────────────────────────
   filterRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -267,7 +335,6 @@ const styles = StyleSheet.create({
   markReadBtn: {
     paddingVertical: 6,
     paddingLeft: 80,
-    
   },
   markReadText: {
     fontSize: 13,
@@ -275,7 +342,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // ── List ─────────────────────────────────────────────────────────────────────
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 32,
@@ -283,6 +349,10 @@ const styles = StyleSheet.create({
   listContentEmpty: {
     flexGrow: 1,
     justifyContent: 'center',
+  },
+  footerLoader: {
+    paddingVertical: 16,
+    alignItems: 'center',
   },
 
   notifCard: {
@@ -294,7 +364,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#ffffff',
     gap: 12,
-    // subtle shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -360,7 +429,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // ── Empty state ───────────────────────────────────────────────────────────────
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',

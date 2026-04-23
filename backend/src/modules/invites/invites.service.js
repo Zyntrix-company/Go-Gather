@@ -1,5 +1,5 @@
 const { query: db, getClient } = require('../../config/database');
-const { sendFCMNotification } = require('../../utils/fcm.util');
+const { createAndSendNotification } = require('../../utils/fcm.util');
 const logger = require('../../utils/logger');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -240,29 +240,19 @@ const claimFriendInvite = async (token, claimantId, _preloaded) => {
 
     await client.query('COMMIT');
 
-    // FCM push to inviter (fire-and-forget)
-    const [fcmResult, claimantProfile] = await Promise.all([
-      db('SELECT fcm_token FROM users WHERE id = $1', [inviterId]),
-      db('SELECT full_name FROM profiles WHERE user_id = $1', [claimantId]),
-    ]);
-    const fcmToken    = fcmResult.rows[0]?.fcm_token;
+    // Persist + push to inviter (fire-and-forget)
+    const claimantProfile = await db('SELECT full_name FROM profiles WHERE user_id = $1', [claimantId]);
     const claimantName = claimantProfile.rows[0]?.full_name || 'Someone';
 
-    if (fcmToken) {
-      sendFCMNotification(
-        fcmToken,
-        {
-          title: `${claimantName} wants to be your friend on GatherGo`,
-          body: 'Tap to accept or decline',
-        },
-        {
-          type:         'FRIEND_REQUEST',
-          connectionId,
-          fromUserId:   claimantId,
-          screen:       'friends',
-        },
-      ).catch((err) => logger.error('FCM push failed', { err: err.message }));
-    }
+    createAndSendNotification(
+      inviterId,
+      {
+        title: `${claimantName} wants to be your friend on GatherGo`,
+        body: 'Tap to accept or decline',
+      },
+      'FRIEND_REQUEST',
+      { connectionId, fromUserId: claimantId, screen: 'friends' },
+    ).catch((err) => logger.error('Notification failed', { err: err.message }));
 
     return { type: 'friend', status: 'pending', connectionId };
   } catch (error) {
@@ -327,34 +317,30 @@ const claimTripInvite = async (token, claimantId, preloaded) => {
 
     await client.query('COMMIT');
 
-    // FCM push to trip admin (fire-and-forget)
+    // Persist + push to trip admin (fire-and-forget)
     const [adminResult, claimantProfile] = await Promise.all([
       db(
-        `SELECT u.fcm_token
-         FROM trip_members tm JOIN users u ON u.id = tm.user_id
+        `SELECT tm.user_id
+         FROM trip_members tm
          WHERE tm.trip_id = $1 AND tm.role = 'admin'
          LIMIT 1`,
         [invite.trip_id],
       ),
       db('SELECT full_name FROM profiles WHERE user_id = $1', [claimantId]),
     ]);
-    const adminFcm     = adminResult.rows[0]?.fcm_token;
+    const adminId      = adminResult.rows[0]?.user_id;
     const claimantName = claimantProfile.rows[0]?.full_name || 'Someone';
 
-    if (adminFcm) {
-      sendFCMNotification(
-        adminFcm,
+    if (adminId) {
+      createAndSendNotification(
+        adminId,
         {
           title: `${claimantName} accepted your trip invite`,
           body: 'Tap to see trip members',
         },
-        {
-          type:          'TRIP_INVITE_ACCEPTED',
-          tripId:        invite.trip_id,
-          newMemberId:   claimantId,
-          screen:        'trip',
-        },
-      ).catch((err) => logger.error('FCM push failed', { err: err.message }));
+        'TRIP_INVITE_ACCEPTED',
+        { tripId: invite.trip_id, newMemberId: claimantId, screen: 'trip' },
+      ).catch((err) => logger.error('Notification failed', { err: err.message }));
     }
 
     return { type: 'trip', tripId: invite.trip_id, tripName: preloaded.context_name || null };
@@ -418,34 +404,30 @@ const claimEventInvite = async (token, claimantId, preloaded) => {
 
     await client.query('COMMIT');
 
-    // FCM push to event admin (fire-and-forget)
+    // Persist + push to event admin (fire-and-forget)
     const [adminResult, claimantProfile] = await Promise.all([
       db(
-        `SELECT u.fcm_token
-         FROM event_members em JOIN users u ON u.id = em.user_id
+        `SELECT em.user_id
+         FROM event_members em
          WHERE em.event_id = $1 AND em.role = 'admin'
          LIMIT 1`,
         [invite.event_id],
       ),
       db('SELECT full_name FROM profiles WHERE user_id = $1', [claimantId]),
     ]);
-    const adminFcm     = adminResult.rows[0]?.fcm_token;
+    const adminId      = adminResult.rows[0]?.user_id;
     const claimantName = claimantProfile.rows[0]?.full_name || 'Someone';
 
-    if (adminFcm) {
-      sendFCMNotification(
-        adminFcm,
+    if (adminId) {
+      createAndSendNotification(
+        adminId,
         {
           title: `${claimantName} accepted your event invite`,
           body: 'Tap to see event members',
         },
-        {
-          type:        'EVENT_INVITE_ACCEPTED',
-          eventId:     invite.event_id,
-          newMemberId: claimantId,
-          screen:      'events',
-        },
-      ).catch((err) => logger.error('FCM push failed', { err: err.message }));
+        'EVENT_INVITE_ACCEPTED',
+        { eventId: invite.event_id, newMemberId: claimantId, screen: 'events' },
+      ).catch((err) => logger.error('Notification failed', { err: err.message }));
     }
 
     return { type: 'event', eventId: invite.event_id, eventName: preloaded.context_name || null };

@@ -28,7 +28,7 @@ export const usePushNotifications = () => {
       const data  = remoteMessage.data as Record<string, string> | undefined;
 
       // Store in in-app notification screen
-      addNotification({ type, title, message: body, data });
+      addNotification({ type, title, body, message: body, data });
 
       // Show toast so user sees it while app is open
       Toast.show({

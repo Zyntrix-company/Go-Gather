@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
 const { sendEmail, wrapEmail } = require('../../utils/mailer');
-const { notifyUsers, sendFCMNotification } = require('../../utils/fcm.util');
+const { createAndSendNotifications, createAndSendNotification } = require('../../utils/fcm.util');
 const { batchDeleteFromS3, getPresignedDownloadUrl } = require('../../utils/s3.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
 const config = require('../../config');
@@ -191,10 +191,12 @@ const createTrip = async (userId, body) => {
         'SELECT id, fcm_token FROM users WHERE id = ANY($1::uuid[])',
         [addedUsers],
       );
-      notifyUsers(usersResult.rows, {
-        title: `${name} — ${inviterName} added you!`,
-        body: 'Open GatherGo to see the trip',
-      }, { type: 'TRIP_MEMBER_ADDED', tripId: trip.id, screen: 'trips' });
+      createAndSendNotifications(
+        usersResult.rows,
+        { title: `${name} — ${inviterName} added you!`, body: 'Open GatherGo to see the trip' },
+        'TRIP_MEMBER_ADDED',
+        { tripId: trip.id, screen: 'trips' },
+      );
     }
 
     // Send Branch-linked email invites
@@ -497,19 +499,12 @@ const inviteToTrip = async (tripId, invitedBy, { friendIds = [], emails = [], ph
       [friendId],
     );
 
-    // FCM push (fire-and-forget)
-    const fcmResult = await db('SELECT fcm_token FROM users WHERE id = $1', [friendId]);
-    const fcmToken = fcmResult.rows[0]?.fcm_token;
-    if (fcmToken) {
-      sendFCMNotification(
-        fcmToken,
-        {
-          title: `${tripName} — ${inviterName} added you!`,
-          body: 'Open GatherGo to see the trip',
-        },
-        { type: 'TRIP_MEMBER_ADDED', tripId, screen: 'trips' },
-      ).catch((err) => logger.error('FCM push failed', { err: err.message }));
-    }
+    createAndSendNotification(
+      friendId,
+      { title: `${tripName} — ${inviterName} added you!`, body: 'Open GatherGo to see the trip' },
+      'TRIP_MEMBER_ADDED',
+      { tripId, screen: 'trips' },
+    ).catch((err) => logger.error('Notification failed', { err: err.message }));
 
     added.push({ userId: friendId, name: profile.rows[0]?.name || null, method: 'direct' });
   }
@@ -570,15 +565,12 @@ const processEmailOrPhoneInvite = async ({
           [tripId, existingUser.id],
         );
         const profile = await db('SELECT full_name AS name FROM profiles WHERE user_id = $1', [existingUser.id]);
-        const fcmResult = await db('SELECT fcm_token FROM users WHERE id = $1', [existingUser.id]);
-        const fcmToken = fcmResult.rows[0]?.fcm_token;
-        if (fcmToken) {
-          sendFCMNotification(
-            fcmToken,
-            { title: `${tripName} — ${inviterName} added you!`, body: 'Open GatherGo to see the trip' },
-            { type: 'TRIP_MEMBER_ADDED', tripId, screen: 'trips' },
-          ).catch((err) => logger.error('FCM push failed', { err: err.message }));
-        }
+        createAndSendNotification(
+          existingUser.id,
+          { title: `${tripName} — ${inviterName} added you!`, body: 'Open GatherGo to see the trip' },
+          'TRIP_MEMBER_ADDED',
+          { tripId, screen: 'trips' },
+        ).catch((err) => logger.error('Notification failed', { err: err.message }));
         added.push({ userId: existingUser.id, name: profile.rows[0]?.name || null, method: 'direct' });
         return;
       }

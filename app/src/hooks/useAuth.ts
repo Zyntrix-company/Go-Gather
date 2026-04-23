@@ -46,6 +46,7 @@ export default function useAuth() {
       const res = await authApi.verifyOtp({ email, otp });
       await storage.setToken(res.accessToken);
       await storage.setRefreshToken(res.refreshToken);
+      useNotificationStore.getState().clearNotifications();
       setAuth(res.user, res.accessToken, res.refreshToken);
       // Fetch full profile so store has complete name/photo data
       try { await authApi.getMe().then(u => setAuth(u, res.accessToken, res.refreshToken)); } catch {}

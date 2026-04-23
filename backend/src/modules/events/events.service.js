@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
 const { sendEmail, wrapEmail } = require('../../utils/mailer');
-const { sendFCMNotification, notifyUsers } = require('../../utils/fcm.util');
+const { createAndSendNotification, createAndSendNotifications } = require('../../utils/fcm.util');
 const { batchDeleteFromS3, getPresignedDownloadUrl } = require('../../utils/s3.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
 const config = require('../../config');
@@ -156,10 +156,12 @@ const createEvent = async (userId, body) => {
         'SELECT id, fcm_token FROM users WHERE id = ANY($1::uuid[])',
         [addedUsers],
       );
-      notifyUsers(usersResult.rows, {
-        title: `${name} — ${inviterName} added you!`,
-          body: 'Open GatherGo to see the event',
-        }, { type: 'EVENT_MEMBER_ADDED', eventId: event.id, screen: 'events' });
+      createAndSendNotifications(
+        usersResult.rows,
+        { title: `${name} — ${inviterName} added you!`, body: 'Open GatherGo to see the event' },
+        'EVENT_MEMBER_ADDED',
+        { eventId: event.id, screen: 'events' },
+      );
     }
 
     // Send Branch-linked email invites
@@ -470,19 +472,12 @@ const inviteToEvent = async (eventId, invitedBy, { friendIds = [], emails = [] }
     }
 
     const profile = await db('SELECT full_name AS name FROM profiles WHERE user_id = $1', [friendId]);
-    const fcmResult = await db('SELECT fcm_token FROM users WHERE id = $1', [friendId]);
-    const fcmToken = fcmResult.rows[0]?.fcm_token;
-
-    if (fcmToken) {
-      sendFCMNotification(
-        fcmToken,
-        {
-          title: `${eventName} — ${inviterName} added you!`,
-          body: 'Open GatherGo to see the event',
-        },
-        { type: 'EVENT_MEMBER_ADDED', eventId, screen: 'events' },
-      ).catch((err) => logger.error('FCM push failed', { err: err.message }));
-    }
+    createAndSendNotification(
+      friendId,
+      { title: `${eventName} — ${inviterName} added you!`, body: 'Open GatherGo to see the event' },
+      'EVENT_MEMBER_ADDED',
+      { eventId, screen: 'events' },
+    ).catch((err) => logger.error('Notification failed', { err: err.message }));
 
     added.push({ userId: friendId, name: profile.rows[0]?.name || null, method: 'direct' });
   }
@@ -518,15 +513,12 @@ const inviteToEvent = async (eventId, invitedBy, { friendIds = [], emails = [] }
             [eventId, user.id],
           );
           const profile = await db('SELECT full_name AS name FROM profiles WHERE user_id = $1', [user.id]);
-          const fcmResult = await db('SELECT fcm_token FROM users WHERE id = $1', [user.id]);
-          const fcmToken = fcmResult.rows[0]?.fcm_token;
-          if (fcmToken) {
-            sendFCMNotification(
-              fcmToken,
-              { title: `${eventName} — ${inviterName} added you!`, body: 'Open GatherGo to see the event' },
-              { type: 'EVENT_MEMBER_ADDED', eventId, screen: 'events' },
-            ).catch((err) => logger.error('FCM push failed', { err: err.message }));
-          }
+          createAndSendNotification(
+            user.id,
+            { title: `${eventName} — ${inviterName} added you!`, body: 'Open GatherGo to see the event' },
+            'EVENT_MEMBER_ADDED',
+            { eventId, screen: 'events' },
+          ).catch((err) => logger.error('Notification failed', { err: err.message }));
           added.push({ userId: user.id, name: profile.rows[0]?.name || null, method: 'direct' });
           continue;
         }
