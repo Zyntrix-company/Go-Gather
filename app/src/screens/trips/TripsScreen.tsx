@@ -1606,7 +1606,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingBottom: 120, paddingTop: 4 },
 
   // Trips Tab
-  tripsCTA: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 16 },
+  tripsCTA: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 10 },
   tripsPlaneCircle: {
     width: 64, height: 64, borderRadius: 32,
     backgroundColor: '#cbfbf1',
@@ -1624,7 +1624,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
   },
-  createTripBtnText: { color: '#fff', fontSize: 16, fontWeight: '500', lineHeight: 24, textAlign: 'center' },
+  createTripBtnText: {  color: '#fff', fontSize: 14, fontWeight: '500', lineHeight: 20, textAlign: 'center' },
  tripsListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
   tripsListTitle: {     fontFamily: 'Inter', fontSize: 16, fontWeight: '400', color: '#0F172B',
    lineHeight: 24, letterSpacing: 0 },
