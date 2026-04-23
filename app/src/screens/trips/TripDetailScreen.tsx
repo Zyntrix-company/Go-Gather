@@ -2603,13 +2603,13 @@ const styles = StyleSheet.create({
   emptySub: { fontSize: 12, color: '#94a3b8', marginTop: 4, textAlign: 'center' },
 
   actRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f1f5f9' },
-  actTitle: { fontSize: 14, fontWeight: '400', color: '#0f172a', marginBottom: 2 },
-  actMeta: { fontSize: 12, color: '#94a3b8' },
+  actTitle: { fontSize: 12, fontWeight: '400', color: '#0f172a', marginBottom: 2 },
+  actMeta: { fontSize: 11, color: '#94a3b8' },
   actDateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, paddingHorizontal: 4, marginBottom: 2 },
-  actDateLabel: { fontSize: 13, fontWeight: '500', color: '#334155' },
+  actDateLabel: { fontSize: 12, fontWeight: '500', color: '#334155' },
   actItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', gap: 10 },
-  actTimeLabel: { fontSize: 12, color: '#64748b', minWidth: 40, fontWeight: '400' },
-  actItemTitle: { flex: 1, fontSize: 14, fontWeight: '400', color: '#0f172a' },
+  actTimeLabel: { fontSize: 11, color: '#64748b', minWidth: 40, fontWeight: '400' },
+  actItemTitle: { flex: 1, fontSize: 12, fontWeight: '400', color: '#0f172a' },
   doneBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#f0fdfa', marginLeft: 8 },
   doneTxt: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
   trashBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
@@ -2623,7 +2623,7 @@ const styles = StyleSheet.create({
 
   // Dialog header
   dHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  dTitle: { fontSize: 16, fontWeight: '500', color: '#0f172a' },
+  dTitle: { fontSize: 14, fontWeight: '500', color: '#0f172a' },
   dSubtitle: { fontSize: 12, color: '#64748b', marginTop: 1 },
   dCloseBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
 
@@ -2632,27 +2632,27 @@ const styles = StyleSheet.create({
   dFooterRow: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
 
   // Form fields
-  fLabel: { fontSize: 12, fontWeight: '500', color: '#374151', marginBottom: 6, marginTop: 12 },
+  fLabel: { fontSize: 12, fontWeight: '500', color: '#374151', marginBottom: 6, marginTop: 10 },
   fInput: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#0f172a' },
   fInputTouch: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 },
 
   // Teal buttons
   tealBtnFull: { flexDirection: 'row', backgroundColor: '#0d9488', borderRadius: 10, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  tealBtnTxt: { color: '#fff', fontWeight: '500', fontSize: 14 },
+  tealBtnTxt: { color: '#fff', fontWeight: '500', fontSize: 13},
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-  cancelTxt: { fontSize: 14, color: '#64748b', fontWeight: '500' },
+  cancelTxt: { fontSize: 12, color: '#64748b', fontWeight: '500' },
 
   // Tabs
   tabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   tab: { flex: 1, paddingVertical: 11, alignItems: 'center' },
   tabActive: { borderBottomWidth: 2, borderBottomColor: '#0d9488' },
-  tabTxt: { fontSize: 13, color: '#64748b', fontWeight: '500' },
+  tabTxt: { fontSize: 12, color: '#64748b', fontWeight: '500' },
   tabTxtActive: { color: '#0d9488', fontWeight: '500' },
 
   // Activity extra rows
   actExtraRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#f1f5f9', marginTop: 4 },
-  actExtraLabel: { fontSize: 13, color: '#0f172a', fontWeight: '500' },
-  actExtraBtn: { fontSize: 13, color: '#0d9488', fontWeight: '500' },
+  actExtraLabel: { fontSize: 12, color: '#0f172a', fontWeight: '500' },
+  actExtraBtn: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
 
   // Documents
   docRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
@@ -2662,12 +2662,12 @@ const styles = StyleSheet.create({
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   memberAvatar: { width: 40, height: 40, borderRadius: 20 },
-  memberName: { fontSize: 14, fontWeight: '500', color: '#0f172a' },
-  memberEmail: { fontSize: 12, color: '#64748b', marginTop: 1 },
+  memberName: { fontSize: 12, fontWeight: '500', color: '#0f172a' },
+  memberEmail: { fontSize: 11, color: '#64748b', marginTop: 1 },
   ownerBadge: { backgroundColor: '#f0fdfa', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#99f6e4' },
   ownerTxt: { fontSize: 11, color: '#0d9488', fontWeight: '500' },
   searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 12, gap: 8 },
-  searchInput: { flex: 1, fontSize: 13, color: '#0f172a' },
+  searchInput: { flex: 1, fontSize: 12, color: '#0f172a' },
   checkCircle: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtnActive: { borderColor: '#0d9488', backgroundColor: '#0d9488' },
@@ -2682,9 +2682,9 @@ const styles = StyleSheet.create({
   // Expenses
   expRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   expIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
-  expName: { fontSize: 14, fontWeight: '500', color: '#0f172a', marginBottom: 2 },
+  expName: { fontSize: 12, fontWeight: '500', color: '#0f172a', marginBottom: 2 },
   expMeta: { fontSize: 11, color: '#94a3b8', marginBottom: 1 },
-  expAmt: { fontSize: 14, fontWeight: '500', color: '#0f172a', marginBottom: 2 },
+  expAmt: { fontSize: 13, fontWeight: '500', color: '#0f172a', marginBottom: 2 },
   dropdown: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, overflow: 'hidden', marginTop: 4 },
   dropdownItem: { paddingVertical: 11, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   splitTypeBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
@@ -2699,19 +2699,19 @@ const styles = StyleSheet.create({
   // Balances
   balCard: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 10, padding: 10, alignItems: 'center' },
   balLabel: { fontSize: 11, color: '#64748b', fontWeight: '500', marginBottom: 4 },
-  balValue: { fontSize: 16, fontWeight: '500', color: '#0f172a' },
+  balValue: { fontSize: 14, fontWeight: '500', color: '#0f172a' },
 
   // Polls
   pollCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  pollQ: { fontSize: 14, fontWeight: '500', color: '#0f172a', marginBottom: 10 },
+  pollQ: { fontSize: 12, fontWeight: '500', color: '#0f172a', marginBottom: 10 },
   pollOptRow: { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 9, paddingHorizontal: 12, marginBottom: 6, overflow: 'hidden' },
   pollBar: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#ccfbf1', borderRadius: 8 },
-  pollOptTxt: { flex: 1, fontSize: 13, color: '#0f172a', fontWeight: '500', zIndex: 1 },
-  pollVotes: { fontSize: 12, color: '#64748b', fontWeight: '500', zIndex: 1 },
+  pollOptTxt: { flex: 1, fontSize: 12, color: '#0f172a', fontWeight: '500', zIndex: 1 },
+  pollVotes: { fontSize: 11, color: '#64748b', fontWeight: '500', zIndex: 1 },
 
   // Notes
   noteCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
-  noteTitle: { fontSize: 14, fontWeight: '500', color: '#0f172a', flex: 1 },
-  noteBody: { fontSize: 13, color: '#64748b', lineHeight: 18 },
+  noteTitle: { fontSize: 12, fontWeight: '500', color: '#0f172a', flex: 1 },
+  noteBody: { fontSize: 11, color: '#64748b', lineHeight: 18 },
   catBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
 });

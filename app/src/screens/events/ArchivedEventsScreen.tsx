@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#45556C',
     letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#334155',
   },
   emptyText: {

@@ -340,13 +340,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   backRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 18, fontWeight: '700', color: '#45556C', marginLeft: 12 },
+  title: { fontSize: 17, fontWeight: '500', color: '#141414', marginLeft: 12 },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 12 },
 
   section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#45556C', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.8 },
+  sectionTitle: { fontSize: 12, fontWeight: '500', color: '#45556C', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.8 },
 
   emptyCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyTitle: { fontSize: 15, fontWeight: '600', color: '#64748b', marginTop: 12 },
+  emptyTitle: { fontSize: 15, fontWeight: '500', color: '#64748b', marginTop: 12 },
   emptySub: { fontSize: 13, color: '#94a3b8', marginTop: 4, textAlign: 'center' },
 });
