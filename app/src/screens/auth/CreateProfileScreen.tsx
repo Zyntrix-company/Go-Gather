@@ -246,9 +246,15 @@ export default function CreateProfileScreen({ navigation }: any) {
       const dd = parseInt(digits.slice(0, 2), 10);
       const mm = parseInt(digits.slice(2, 4), 10);
       const yyyy = parseInt(digits.slice(4, 8), 10);
-      if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || yyyy > MAX_BIRTH_YEAR || yyyy < 1900) {
+      if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || yyyy < 1900) {
         setDob('');
         setValue('dob', '', { shouldValidate: false });
+        return;
+      }
+      if (yyyy > MAX_BIRTH_YEAR) {
+        setDob('');
+        setValue('dob', '', { shouldValidate: false });
+        setDobSubmitError(true);
         return;
       }
       const iso = `${yyyy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
@@ -598,12 +604,14 @@ export default function CreateProfileScreen({ navigation }: any) {
                 underlineColorAndroid="transparent"
                 editable={!busy}
               />
-              <View style={styles.dobHintRow}>
-                <Text style={[styles.dobHintText, dobSubmitError && { color: '#ef4444' }]}>DOB must comply with our </Text>
-                <TouchableOpacity onPress={() => setShowLegal(true)} activeOpacity={0.7}>
-                  <Text style={[styles.dobHintLink, dobSubmitError && { color: '#ef4444' }]}>Terms & Conditions</Text>
-                </TouchableOpacity>
-              </View>
+              {dobSubmitError && (
+                <View style={styles.dobHintRow}>
+                  <Text style={[styles.dobHintText, { color: '#ef4444' }]}>DOB must comply with our </Text>
+                  <TouchableOpacity onPress={() => setShowLegal(true)} activeOpacity={0.7}>
+                    <Text style={[styles.dobHintLink, { color: '#ef4444' }]}>Terms & Conditions</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
 

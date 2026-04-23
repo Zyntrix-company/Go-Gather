@@ -3,6 +3,7 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { LoginManager } from 'react-native-fbsdk-next';
 import { Platform, PermissionsAndroid } from 'react-native';
 import useAuthStore from '../store/authStore';
+import useNotificationStore from '../store/notificationStore';
 import authApi from '../api/auth.api';
 import storage from '../utils/storage';
 
@@ -67,6 +68,7 @@ export default function useAuth() {
       const res = await authApi.login({ email, password, deviceToken, platform });
       await storage.setToken(res.accessToken);
       await storage.setRefreshToken(res.refreshToken);
+      useNotificationStore.getState().clearNotifications();
       setAuth(res.user, res.accessToken, res.refreshToken);
       // Fetch full profile so store has complete name/photo data
       try { await authApi.getMe().then(u => setAuth(u, res.accessToken, res.refreshToken)); } catch {}
@@ -86,6 +88,7 @@ export default function useAuth() {
       const res = await authApi.googleLogin(idToken, deviceToken);
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
+      useNotificationStore.getState().clearNotifications();
       setAuth(res.user, res.accessToken, res.refreshToken);
       // Fetch full profile so store has complete name/photo data
       try { await authApi.getMe().then(u => setAuth(u, res.accessToken, res.refreshToken)); } catch {}
@@ -105,6 +108,7 @@ export default function useAuth() {
       const res = await authApi.facebookLogin(accessToken, deviceToken);
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
+      useNotificationStore.getState().clearNotifications();
       setAuth(res.user, res.accessToken, res.refreshToken);
       // Fetch full profile so store has complete name/photo data
       try { await authApi.getMe().then(u => setAuth(u, res.accessToken, res.refreshToken)); } catch {}
@@ -142,6 +146,7 @@ export default function useAuth() {
     } finally {
       // 3. Clear local storage and store
       await storage.clearAll();
+      useNotificationStore.getState().clearNotifications();
       storeLogout();
       setLoading(false);
     }

@@ -17,6 +17,7 @@ type NotificationState = {
   addNotification: (n: Pick<AppNotification, 'type' | 'title' | 'message' | 'data'>) => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
+  clearNotifications: () => void;
 };
 
 const useNotificationStore = create<NotificationState>()(
@@ -49,6 +50,8 @@ const useNotificationStore = create<NotificationState>()(
         set((state) => ({
           notifications: state.notifications.map((n) => ({ ...n, read: true })),
         })),
+
+      clearNotifications: () => set({ notifications: [] }),
     }),
     {
       name: 'gathergo-notifications',
