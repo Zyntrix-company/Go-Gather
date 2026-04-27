@@ -31,10 +31,10 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
   const { width: screenW, height: screenH } = useWindowDimensions();
 
   // Base icon size on screen height so it scales correctly on short screens.
-  // Min 40 so it never looks tiny on compact devices (e.g. iPhone SE).
-  const ICON_SIZE   = Math.round(Math.min(Math.max(screenH * 0.065, 40), 64));
+  // Slightly conservative scale + cap so wordmark reads refined, not oversized.
+  const ICON_SIZE   = Math.round(Math.min(Math.max(screenH * 0.056, 38), 56));
   const WORDMARK_H  = ICON_SIZE;
-  const WORDMARK_W  = Math.round(ICON_SIZE * 4.5);
+  const WORDMARK_W  = Math.round(ICON_SIZE * 4.35);
   const GAP          = Math.round(screenW * 0.03);
   const ICON_SHIFT_X = -((GAP + WORDMARK_W) / 2);
   // Drop distance: 27% of screen height keeps the icon above the fold on all sizes.

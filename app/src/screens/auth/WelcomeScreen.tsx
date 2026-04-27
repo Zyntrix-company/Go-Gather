@@ -18,14 +18,15 @@ import Logo from '../../components/common/Logo';
 import colors from '../../theme/colors';
 
 const SCREEN_W = Dimensions.get('window').width;
+const SCREEN_H = Dimensions.get('window').height;
 const DEMO_URL = 'https://www.youtube.com/@GatherrGo';
 const HEADLINE_LINES = [
-  ['Group', 'Travel.'],
+  ['Group', 'Travel,'],
   ['Organized.'],
   ['Finally.'],
 ] as const;
 const SUBTEXT_LINE_ONE_WORDS = ['All', 'your', 'trips,', 'plans,', 'expenses,', 'memories'] as const;
-const SUBTEXT_LINE_TWO_WORDS = ['and', 'group', 'chats,', 'in', 'one', 'private', 'space.'] as const;
+const SUBTEXT_LINE_TWO_WORDS = ['and', 'group', 'chats—in', 'one', 'private', 'space.'] as const;
 const ALL_HEADLINE_WORDS = ([] as string[]).concat(...HEADLINE_LINES.map((line) => [...line]));
 const ALL_SUBTEXT_WORDS = [...SUBTEXT_LINE_ONE_WORDS, ...SUBTEXT_LINE_TWO_WORDS] as const;
 
@@ -313,7 +314,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: SCREEN_W < 375 ? 20 : 24,
-    paddingTop: SCREEN_W < 375 ? 8 : 12,
+    paddingTop: SCREEN_H < 700 ? 12 : SCREEN_H < 812 ? 18 : 24,
     paddingBottom: Platform.OS === 'ios' ? 28 : 24,
     maxWidth: 672,
     width: '100%',
@@ -337,7 +338,7 @@ const styles = StyleSheet.create({
   },
   headlineWord: {
     fontSize: SCREEN_W < 375 ? 30 : SCREEN_W >= 768 ? 44 : 36,
-    fontWeight: '500',
+    fontWeight: '700',
     color: colors.textPrimary,
     lineHeight: SCREEN_W < 375 ? 38 : SCREEN_W >= 768 ? 52 : 44,
     letterSpacing: -0.5,
@@ -347,16 +348,19 @@ const styles = StyleSheet.create({
   },
   subtitleWrap: {
     gap: 2,
-    maxWidth: 520,
+    width: '100%',
+    alignItems: 'center',
   },
   subtitleLine: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'center',
+    width: '100%',
   },
   subtitleWord: {
-    fontSize: SCREEN_W < 375 ? 16 : 19,
+    fontSize: SCREEN_W < 375 ? 17 : SCREEN_W >= 768 ? 24 : 21,
     color: '#334155',
-    lineHeight: SCREEN_W < 375 ? 26 : 30,
+    lineHeight: SCREEN_W < 375 ? 28 : SCREEN_W >= 768 ? 34 : 32,
   },
   ctaBlock: {
     marginTop: 36,

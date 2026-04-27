@@ -746,6 +746,25 @@ export default function HomeScreen({ navigation, route }: any) {
 
   // ─── Reusable home-feed sub-components ─────────────────────────────────────
 
+  const DealImage = ({ uri, height }: { uri: string | null | undefined; height: number }) => {
+    const [failed, setFailed] = useState(false);
+    if (!uri || failed) {
+      return (
+        <View style={{ width: '100%', height, borderRadius: 10, backgroundColor: '#E8E4DF', alignItems: 'center', justifyContent: 'center' }}>
+          <Compass size={22} color="#94a3b8" />
+        </View>
+      );
+    }
+    return (
+      <Image
+        source={{ uri }}
+        style={{ width: '100%', height, borderRadius: 10 }}
+        resizeMode="cover"
+        onError={() => setFailed(true)}
+      />
+    );
+  };
+
   const SectionHeader = ({
     icon,
     title,
@@ -813,7 +832,7 @@ export default function HomeScreen({ navigation, route }: any) {
           marginBottom: 8,
           marginHorizontal: H_PAD,
         }}>
-          Ready for your next adventure
+          Ready for your next adventure?
         </Text>
 
         {/* ── 2. Search Bar ── */}
@@ -848,7 +867,7 @@ export default function HomeScreen({ navigation, route }: any) {
               paddingHorizontal: 12, paddingVertical: 7, gap: 5,
             }}>
             <Sparkles size={13} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>Ask Swee</Text>
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '400' }}>Ask Swee</Text>
           </TouchableOpacity>
         </View>
 
@@ -1004,22 +1023,7 @@ export default function HomeScreen({ navigation, route }: any) {
                       paddingHorizontal: 8,
                       marginRight: 10,
                     }}>
-                    {/* Image container — rounded with overflow clip */}
-                    <View style={{
-                      width: '100%',
-                      height: IMG_H,
-                      borderRadius: 10,
-                      overflow: 'hidden',
-                      backgroundColor: 'transparent',
-                    }}>
-                      {imgUri ? (
-                        <Image
-                          source={{ uri: imgUri }}
-                          style={{ width: '100%', height: '100%' }}
-                          resizeMode="contain"
-                        />
-                      ) : null}
-                    </View>
+                    <DealImage uri={imgUri} height={IMG_H} />
                     <Text style={{ fontSize: 12, fontWeight: '600', color: '#1a1a2e', textAlign: 'center', marginTop: 8 }} numberOfLines={1}>
                       {item.title}
                     </Text>

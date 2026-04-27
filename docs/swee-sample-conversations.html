@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Swee — Sample Conversations</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #F5F3EF;
+  --white:     #FFFFFF;
+  --ink:       #1A1917;
+  --ink-soft:  #6B6860;
+  --ink-muted: #A8A59F;
+  --swee:      #C8522A;       /* Swee brand — warm terracotta */
+  --swee-soft: #F5EDE8;
+  --user-bg:   #1A1917;
+  --border:    #E8E5DF;
+  --green:     #2D7A4F;
+  --green-bg:  #EAF4EE;
+  --warn-bg:   #FDF6EC;
+  --warn:      #C07A1A;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ───────────────────────── COVER ───────────────────────── */
+.cover {
+  width: 100%;
+  min-height: 100vh;
+  background: var(--ink);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 64px;
+  page-break-after: always;
+  position: relative;
+  overflow: hidden;
+}
+
+.cover::before {
+  content: '';
+  position: absolute;
+  top: -120px; right: -120px;
+  width: 480px; height: 480px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(200,82,42,0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.cover-top { display: flex; align-items: center; justify-content: space-between; }
+
+.cover-wordmark {
+  display: flex; align-items: center; gap: 12px;
+}
+.cover-dot {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--swee);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #fff;
+  letter-spacing: -0.5px;
+}
+.cover-wordmark span {
+  font-size: 17px; font-weight: 600; color: rgba(255,255,255,0.9);
+  letter-spacing: -0.3px;
+}
+
+.cover-tag {
+  font-size: 11px; font-weight: 500;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 2px; text-transform: uppercase;
+}
+
+.cover-mid {
+  flex: 1; display: flex; flex-direction: column;
+  justify-content: center; padding: 80px 0 40px;
+}
+.cover-eyebrow {
+  font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase;
+  color: var(--swee); font-weight: 600; margin-bottom: 20px;
+}
+.cover-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 58px; color: #fff; line-height: 1.1;
+  letter-spacing: -1px; margin-bottom: 18px;
+  max-width: 680px;
+}
+.cover-desc {
+  font-size: 15px; color: rgba(255,255,255,0.45);
+  max-width: 480px; line-height: 1.7;
+}
+
+.cover-bottom {
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: 0;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 32px;
+}
+.cover-stat {
+  padding: 0 24px 0 0;
+  border-right: 1px solid rgba(255,255,255,0.08);
+}
+.cover-stat:last-child { border-right: none; padding-right: 0; padding-left: 24px; }
+.cover-stat:first-child { padding-left: 0; }
+.cover-stat .s-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px;
+  color: rgba(255,255,255,0.3); margin-bottom: 6px;
+}
+.cover-stat .s-val {
+  font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.8);
+}
+
+/* ───────────────────────── PAGE ───────────────────────── */
+.page {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 56px 24px 0;
+  page-break-before: always;
+}
+.page:first-of-type { page-break-before: avoid; }
+
+/* ───────────────────────── SECTION LABEL ───────────────────────── */
+.section-label {
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 24px;
+}
+.section-num {
+  font-size: 11px; font-weight: 700; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--swee);
+  min-width: 28px;
+}
+.section-divider { flex: 1; height: 1px; background: var(--border); }
+.section-type-badge {
+  font-size: 10px; font-weight: 600; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--ink-muted);
+  padding: 4px 10px; border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+/* ───────────────────────── PERSONA CARD ───────────────────────── */
+.persona-card {
+  display: flex; gap: 16px; align-items: flex-start;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+.persona-icon {
+  width: 44px; height: 44px; border-radius: 10px;
+  background: var(--swee-soft); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.persona-body {}
+.persona-name {
+  font-size: 15px; font-weight: 700; color: var(--ink);
+  margin-bottom: 3px; letter-spacing: -0.2px;
+}
+.persona-desc { font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
+.persona-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.persona-tag {
+  font-size: 10.5px; font-weight: 500;
+  padding: 3px 9px; border-radius: 20px;
+  background: var(--bg); color: var(--ink-soft);
+  border: 1px solid var(--border);
+}
+
+/* ───────────────────────── CHAT WINDOW ───────────────────────── */
+.chat-window {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 56px;
+}
+
+.chat-topbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--white);
+}
+.topbar-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--swee); }
+.topbar-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.topbar-status {
+  margin-left: auto; font-size: 11px; color: var(--ink-muted);
+  display: flex; align-items: center; gap: 5px;
+}
+.topbar-status::before {
+  content: ''; display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: #2D7A4F;
+}
+
+.chat-body { padding: 24px 20px; }
+
+/* ───────────────────────── MESSAGE ROW ───────────────────────── */
+.row { display: flex; gap: 10px; margin-bottom: 6px; align-items: flex-end; }
+.row.user { flex-direction: row-reverse; }
+.row + .row { margin-bottom: 16px; }
+
+/* gap between sender switch */
+.gap { margin-top: 12px; }
+
+.av {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+  margin-bottom: 2px;
+}
+.av-swee { background: var(--swee); color: #fff; }
+.av-user { background: var(--ink); color: #fff; }
+
+.bw { display: flex; flex-direction: column; gap: 2px; max-width: 68%; }
+.row.user .bw { align-items: flex-end; }
+
+.bname {
+  font-size: 10.5px; font-weight: 600; color: var(--ink-muted);
+  padding: 0 6px; letter-spacing: 0.3px;
+}
+
+.b {
+  padding: 11px 15px;
+  border-radius: 16px;
+  font-size: 13.5px; line-height: 1.6;
+}
+.b.swee {
+  background: #F2F0EC;
+  color: var(--ink);
+  border-bottom-left-radius: 5px;
+}
+.b.user {
+  background: var(--user-bg);
+  color: rgba(255,255,255,0.92);
+  border-bottom-right-radius: 5px;
+}
+
+/* ───────────────────────── FORM TABLE ───────────────────────── */
+.form-table {
+  width: 100%; border-collapse: collapse;
+  margin-top: 10px; font-size: 12.5px;
+  border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--border);
+}
+.form-table th {
+  background: #F5F3EF; padding: 7px 12px;
+  text-align: left; font-size: 10px;
+  text-transform: uppercase; letter-spacing: 1px;
+  font-weight: 700; color: var(--ink-muted);
+  border-bottom: 1px solid var(--border);
+}
+.form-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #F0EDEA;
+  vertical-align: top;
+}
+.form-table tr:last-child td { border-bottom: none; }
+.form-table td:first-child {
+  font-weight: 500; color: var(--ink-soft);
+  width: 40%; font-size: 12px;
+}
+.form-table td:last-child { color: var(--ink-muted); font-size: 12px; }
+.form-table td.val { color: var(--ink); font-weight: 500; font-style: normal; }
+
+/* ───────────────────────── RECAP CARD ───────────────────────── */
+.recap {
+  margin-top: 10px;
+  border: 1.5px solid #D9C9C2;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.recap-head {
+  background: var(--swee-soft);
+  padding: 8px 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.recap-head-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1.5px; color: var(--swee);
+}
+.recap-body { padding: 12px 14px; }
+.recap-line {
+  font-size: 13px; font-weight: 600; color: var(--ink);
+  line-height: 1.7;
+}
+.recap-question {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px; color: var(--ink-soft);
+}
+.recap-question strong { color: var(--ink); }
+
+/* ───────────────────────── SUCCESS ───────────────────────── */
+.success {
+  margin-top: 8px;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--green-bg);
+  border: 1px solid #B8DECA;
+  border-radius: 10px; padding: 11px 14px;
+}
+.success-icon { font-size: 16px; }
+.success-text { font-size: 13px; font-weight: 600; color: var(--green); }
+
+/* ───────────────────────── EDGE CALLOUT ───────────────────────── */
+.edge-callout {
+  background: var(--warn-bg);
+  border-left: 3px solid var(--warn);
+  border-radius: 0 8px 8px 0;
+  padding: 8px 12px; margin-top: 8px;
+  font-size: 12px; color: #7A5010;
+  font-style: italic;
+}
+
+/* ───────────────────────── THREAD DIVIDER ───────────────────────── */
+.thread-div {
+  display: flex; align-items: center; gap: 10px;
+  margin: 20px 0;
+}
+.thread-div .td-line { flex: 1; height: 1px; background: var(--border); }
+.thread-div .td-label {
+  font-size: 10.5px; font-weight: 600;
+  color: var(--ink-muted); letter-spacing: 0.5px;
+  white-space: nowrap;
+  display: flex; align-items: center; gap: 5px;
+}
+.td-edge {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--warn);
+  background: var(--warn-bg); padding: 2px 7px;
+  border-radius: 3px; border: 1px solid #F0D8B0;
+}
+
+/* ───────────────────────── SUMMARY PAGE ───────────────────────── */
+.summary-page {
+  max-width: 740px; margin: 0 auto;
+  padding: 56px 24px 64px;
+  page-break-before: always;
+}
+
+.summary-eyebrow {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 2.5px; color: var(--swee); margin-bottom: 10px;
+}
+.summary-title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 32px; color: var(--ink);
+  letter-spacing: -0.5px; margin-bottom: 6px;
+}
+.summary-sub { font-size: 13.5px; color: var(--ink-soft); margin-bottom: 40px; }
+
+.personas-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px; margin-bottom: 48px;
+}
+.pg-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 12px; padding: 18px 20px;
+}
+.pg-num {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 2px; color: var(--ink-muted); margin-bottom: 6px;
+}
+.pg-name {
+  font-size: 15px; font-weight: 700; color: var(--ink);
+  margin-bottom: 6px; letter-spacing: -0.2px;
+}
+.pg-desc { font-size: 12px; color: var(--ink-soft); line-height: 1.55; }
+.pg-card.full { grid-column: 1 / -1; }
+
+.edge-section-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 2.5px; color: var(--ink-muted);
+  margin-bottom: 14px;
+}
+
+.edge-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 12.5px;
+}
+.edge-table thead tr {
+  background: var(--ink);
+}
+.edge-table thead th {
+  padding: 10px 14px; text-align: left;
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 1px; color: rgba(255,255,255,0.5);
+  font-weight: 600;
+}
+.edge-table tbody tr {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+}
+.edge-table tbody tr:last-child { border-bottom: none; }
+.edge-table td { padding: 11px 14px; vertical-align: top; line-height: 1.5; }
+.edge-table td:first-child { font-weight: 500; color: var(--ink); }
+.edge-table td:nth-child(2) { color: var(--swee); font-weight: 600; font-size: 12px; }
+.edge-table td:nth-child(3) { color: var(--ink-soft); }
+.edge-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+
+.footer {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.footer-left { font-size: 12px; font-weight: 600; color: var(--ink); }
+.footer-right { font-size: 11px; color: var(--ink-muted); }
+
+/* ───────────────────────── PRINT ───────────────────────── */
+@media print {
+  body { background: white; }
+  .cover { min-height: auto; padding: 48px; }
+  .cover-title { font-size: 46px; }
+  .page, .summary-page { padding: 40px 16px 0; }
+  .b { font-size: 12.5px; }
+  .bw { max-width: 66%; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ COVER ═══════════════════ -->
+<div class="cover">
+  <div class="cover-top">
+    <div class="cover-wordmark">
+      <div class="cover-dot">S</div>
+      <span>Swee AI</span>
+    </div>
+    <span class="cover-tag">Internal Reference · April 2026</span>
+  </div>
+
+  <div class="cover-mid">
+    <div class="cover-eyebrow">Sample Conversations</div>
+    <h1 class="cover-title">How Swee talks to<br/>every kind of traveller.</h1>
+    <p class="cover-desc">Five distinct user types, real conversation flows, and edge case handling — all in one reference document.</p>
+  </div>
+
+  <div class="cover-bottom">
+    <div class="cover-stat">
+      <div class="s-label">Model</div>
+      <div class="s-val">Gemini Flash 2.5</div>
+    </div>
+    <div class="cover-stat" style="padding-left:24px">
+      <div class="s-label">User Types</div>
+      <div class="s-val">5 Personas</div>
+    </div>
+    <div class="cover-stat" style="padding-left:24px">
+      <div class="s-label">Edge Cases</div>
+      <div class="s-val">10 Scenarios</div>
+    </div>
+    <div class="cover-stat" style="padding-left:24px">
+      <div class="s-label">Question Types</div>
+      <div class="s-val">A · B · C · D</div>
+    </div>
+    <div class="cover-stat">
+      <div class="s-label">Version</div>
+      <div class="s-val">1.0 · Apr 2026</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════ 01 · OVER-PLANNER ═══════════════════ -->
+<div class="page">
+  <div class="section-label">
+    <span class="section-num">01</span>
+    <div class="section-divider"></div>
+    <span class="section-type-badge">Type B + C</span>
+  </div>
+
+  <div class="persona-card">
+    <div class="persona-icon">🗂</div>
+    <div class="persona-body">
+      <div class="persona-name">The Over-Planner</div>
+      <div class="persona-desc">Detail-obsessed. Asks every follow-up question before committing. Changes destination mid-form. Needs reassurance that decisions are right.</div>
+      <div class="persona-tags">
+        <span class="persona-tag">Asks before form</span>
+        <span class="persona-tag">Changes mind mid-flow</span>
+        <span class="persona-tag">Multi-city trip</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-window">
+    <div class="chat-topbar">
+      <div class="topbar-dot"></div>
+      <span class="topbar-name">Swee</span>
+      <span class="topbar-status">Online</span>
+    </div>
+    <div class="chat-body">
+
+      <div class="row user gap">
+        <div class="av av-user">A</div>
+        <div class="bw">
+          <div class="bname">Anika</div>
+          <div class="b user">I want to plan a 10-day Japan trip in October for me and my husband. We love food, culture, and shopping. We've never been to Asia.</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="bname">Swee</div>
+          <div class="b swee">Japan in October is perfect — autumn colours, mild weather, and festivals. Tokyo, Kyoto, and Osaka together cover culture, food, and shopping in one clean route. Want to fill out the trip form?</div>
+        </div>
+      </div>
+
+      <div class="thread-div"><div class="td-line"></div><div class="td-label">follow-up questions</div><div class="td-line"></div></div>
+
+      <div class="row user">
+        <div class="av av-user">A</div>
+        <div class="bw">
+          <div class="b user">Before the form — is October really the best time? I've heard it can be crowded.</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">October is one of Japan's best months — mild weather, fall foliage, fewer typhoons than September. Crowds are moderate; popular sites are busiest on weekends. Weekday visits help a lot.</div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">A</div>
+        <div class="bw">
+          <div class="b user">And is 10 days enough for all three cities?</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">Yes — 4 nights Tokyo, 3 nights Kyoto, 2 nights Osaka, 1 travel day between. Comfortable pace without rushing.</div>
+        </div>
+      </div>
+
+      <div class="thread-div"><div class="td-line"></div><div class="td-label">form + mid-flow change</div><div class="td-line"></div></div>
+
+      <div class="row user gap">
+        <div class="av av-user">A</div>
+        <div class="bw">
+          <div class="b user">Great. October 5–15, Premium, JPY. Actually — should we add Hiroshima? Would that change things?</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">Hiroshima and Miyajima Island are worth it — the Peace Memorial and floating torii gate are unlike anything else in Japan. Easy day trip from Osaka, or swap one Kyoto night. Adds depth without disruption.</div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">A</div>
+        <div class="bw">
+          <div class="b user">Add Hiroshima. Notes: vegetarian-friendly restaurants where possible.</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">
+            Got it. Here's your recap:
+            <div class="recap">
+              <div class="recap-head"><span class="recap-head-label">Trip Summary</span></div>
+              <div class="recap-body">
+                <div class="recap-line">Tokyo → Kyoto → Osaka → Hiroshima<br/>Oct 5–15 · 2 adults · Couple<br/>Culture, Food &amp; Shopping · Premium · JPY<br/>Note: Vegetarian-friendly preferred</div>
+                <div class="recap-question">Looks good? <strong>Create this trip?</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">A</div>
+        <div class="bw">
+          <div class="b user">Yes, create it.</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">
+            <div class="success">
+              <span class="success-icon">✓</span>
+              <span class="success-text">Trip created! Add places and invite friends now.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════ 02 · SPONTANEOUS ═══════════════════ -->
+<div class="page">
+  <div class="section-label">
+    <span class="section-num">02</span>
+    <div class="section-divider"></div>
+    <span class="section-type-badge">Type C · Update</span>
+  </div>
+
+  <div class="persona-card">
+    <div class="persona-icon">⚡</div>
+    <div class="persona-body">
+      <div class="persona-name">The Spontaneous Traveler</div>
+      <div class="persona-desc">Short vague messages, minimal patience for forms. Decides fast, then immediately changes their mind after creation.</div>
+      <div class="persona-tags">
+        <span class="persona-tag">Minimal input</span>
+        <span class="persona-tag">Changes trip after creation</span>
+        <span class="persona-tag">Wants speed</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-window">
+    <div class="chat-topbar">
+      <div class="topbar-dot"></div>
+      <span class="topbar-name">Swee</span>
+      <span class="topbar-status">Online</span>
+    </div>
+    <div class="chat-body">
+
+      <div class="row user gap">
+        <div class="av av-user">R</div>
+        <div class="bw">
+          <div class="bname">Rayan</div>
+          <div class="b user">Bali. This weekend. Just me.</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="bname">Swee</div>
+          <div class="b swee">Quick getaway — nice. Bali has beaches, temples, rice terraces, and great food. Just a few details:
+            <table class="form-table" style="margin-top:10px;">
+              <tr><th>Field</th><th>Input</th></tr>
+              <tr><td>Destination</td><td class="val">Bali</td></tr>
+              <tr><td>Adults</td><td class="val">1 (Solo)</td></tr>
+              <tr><td>Start Date</td><td>—</td></tr>
+              <tr><td>End Date</td><td>—</td></tr>
+              <tr><td>Travel Focus</td><td>Nightlife · Beaches · Culture · Relaxation · Food · Adventure · Shopping</td></tr>
+              <tr><td>Budget Tier</td><td>Saver / Comfort / Premium / Luxury</td></tr>
+              <tr><td>Currency</td><td>—</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">R</div>
+        <div class="bw">
+          <div class="b user">Beaches and nightlife. Comfort. USD. Saturday to Monday.</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">
+            <div class="recap">
+              <div class="recap-head"><span class="recap-head-label">Trip Summary</span></div>
+              <div class="recap-body">
+                <div class="recap-line">Bali · Sat Apr 26 – Mon Apr 28 · 1 adult · Solo<br/>Beaches &amp; Nightlife · Comfort · USD</div>
+                <div class="recap-question"><strong>Create this trip?</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">R</div>
+        <div class="bw"><div class="b user">Yeah go</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">
+            <div class="success">
+              <span class="success-icon">✓</span>
+              <span class="success-text">Trip created! Add places and invite friends now.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="thread-div"><div class="td-line"></div><div class="td-label"><span class="td-edge">Edge Case</span> changes mind after creation</div><div class="td-line"></div></div>
+
+      <div class="row user gap">
+        <div class="av av-user">R</div>
+        <div class="bw">
+          <div class="b user">Wait actually make it Friday to Tuesday instead</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">Got it — just confirming this is the right trip:<br/><br/><strong>Bali · Apr 26–28 · Solo · Beaches &amp; Nightlife · Comfort</strong><br/><br/>Yes / No</div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">R</div>
+        <div class="bw"><div class="b user">Yes</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">
+            <div class="recap">
+              <div class="recap-head"><span class="recap-head-label">Updated Trip</span></div>
+              <div class="recap-body">
+                <div class="recap-line">Bali · Fri Apr 25 – Tue Apr 29 · 1 adult · Solo<br/>Beaches &amp; Nightlife · Comfort · USD</div>
+                <div class="recap-question"><strong>Save this change?</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">R</div>
+        <div class="bw"><div class="b user">Yes done</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">Done — Bali trip updated to Apr 25–29.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════ 03 · BUDGET ORGANIZER ═══════════════════ -->
+<div class="page">
+  <div class="section-label">
+    <span class="section-num">03</span>
+    <div class="section-divider"></div>
+    <span class="section-type-badge">Type B · Edge Cases</span>
+  </div>
+
+  <div class="persona-card">
+    <div class="persona-icon">💰</div>
+    <div class="persona-body">
+      <div class="persona-name">The Budget-Conscious Group Organizer</div>
+      <div class="persona-desc">Organizing a large mixed group. Asks for exact pricing repeatedly. Expects Swee to book hotels. Heavy on cost-sensitivity.</div>
+      <div class="persona-tags">
+        <span class="persona-tag">Large group (12 people)</span>
+        <span class="persona-tag">Asks for exact totals</span>
+        <span class="persona-tag">Tries to book via Swee</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-window">
+    <div class="chat-topbar">
+      <div class="topbar-dot"></div>
+      <span class="topbar-name">Swee</span>
+      <span class="topbar-status">Online</span>
+    </div>
+    <div class="chat-body">
+
+      <div class="row user gap">
+        <div class="av av-user">M</div>
+        <div class="bw">
+          <div class="bname">Meera</div>
+          <div class="b user">Organizing a Thailand trip for 12 people — adults and seniors. We're all on a tight budget. Where should we go?</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="bname">Swee</div>
+          <div class="b swee">Thailand is one of the best value destinations in Asia. For a mixed group on a budget, two great options:<br/><br/><strong>Chiang Mai</strong> — temples, street food, cooking classes, very gentle pace for seniors.<br/><strong>Phuket or Krabi</strong> — beaches, island hopping, water activities.</div>
+        </div>
+      </div>
+
+      <div class="thread-div"><div class="td-line"></div><div class="td-label"><span class="td-edge">Edge Case</span> asks for exact total cost</div><div class="td-line"></div></div>
+
+      <div class="row user gap">
+        <div class="av av-user">M</div>
+        <div class="bw">
+          <div class="b user">Give me an exact cost for the whole trip for 12 people.</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">I can't give exact totals — GatherGo doesn't have a live pricing database. I can walk you through rough per-person ranges for key expenses to help you estimate yourself.
+            <div class="edge-callout">Offers ranges only. Does not fabricate a total.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">M</div>
+        <div class="bw"><div class="b user">Fine. What are the ranges then?</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">
+            Rough per-person ranges in Chiang Mai:
+            <table class="form-table" style="margin-top:10px">
+              <tr><th>Category</th><th>Approx. Range</th></tr>
+              <tr><td>Street food (daily)</td><td class="val">฿150 – 350 / person</td></tr>
+              <tr><td>Local restaurant (daily)</td><td class="val">฿200 – 500 / person</td></tr>
+              <tr><td>Budget hotel (per room/night)</td><td class="val">฿500 – 1,200 / room</td></tr>
+              <tr><td>Comfort hotel (per room/night)</td><td class="val">฿1,500 – 3,500 / room</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="thread-div"><div class="td-line"></div><div class="td-label">trip creation</div><div class="td-line"></div></div>
+
+      <div class="row user gap">
+        <div class="av av-user">M</div>
+        <div class="bw">
+          <div class="b user">Let's create the trip. Chiang Mai and Phuket, May 1–10, 10 adults, 2 seniors, Saver, THB.</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">
+            <div class="recap">
+              <div class="recap-head"><span class="recap-head-label">Trip Summary</span></div>
+              <div class="recap-body">
+                <div class="recap-line">Chiang Mai → Phuket · May 1–10<br/>10 adults · 2 seniors · Family/Friends · Saver · THB</div>
+                <div class="recap-question"><strong>Create this trip?</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">M</div>
+        <div class="bw"><div class="b user">Yes. Also can you book the hotels for us?</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">
+            <div class="success">
+              <span class="success-icon">✓</span>
+              <span class="success-text">Trip created! Add places and invite friends now.</span>
+            </div>
+            <br/>Booking isn't something I can do — GatherGo is for planning and coordinating. Save the hotels as places inside the trip so the whole group knows where you're staying.
+            <div class="edge-callout">States limitation clearly. Offers an in-app alternative.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════ 04 · FIRST-TIMER ═══════════════════ -->
+<div class="page">
+  <div class="section-label">
+    <span class="section-num">04</span>
+    <div class="section-divider"></div>
+    <span class="section-type-badge">Type A + C</span>
+  </div>
+
+  <div class="persona-card">
+    <div class="persona-icon">🆕</div>
+    <div class="persona-body">
+      <div class="persona-name">The Confused First-Timer</div>
+      <div class="persona-desc">Brand new to the app. Doesn't know the difference between a trip and an event. Messy typing, asks the same thing twice. Needs patient, clear guidance.</div>
+      <div class="persona-tags">
+        <span class="persona-tag">Trip vs. event confusion</span>
+        <span class="persona-tag">App how-to questions</span>
+        <span class="persona-tag">Messy input</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-window">
+    <div class="chat-topbar">
+      <div class="topbar-dot"></div>
+      <span class="topbar-name">Swee</span>
+      <span class="topbar-status">Online</span>
+    </div>
+    <div class="chat-body">
+
+      <div class="row user gap">
+        <div class="av av-user">K</div>
+        <div class="bw">
+          <div class="bname">Kabir</div>
+          <div class="b user">hi how do i use this</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="bname">Swee</div>
+          <div class="b swee">Hi! I'm Swee. Let's plan your trip or event — what do you have in mind?</div>
+        </div>
+      </div>
+
+      <div class="thread-div"><div class="td-line"></div><div class="td-label"><span class="td-edge">Edge Case</span> event mistaken as trip</div><div class="td-line"></div></div>
+
+      <div class="row user gap">
+        <div class="av av-user">K</div>
+        <div class="bw"><div class="b user">i want to add a dinner with friends on saturday</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">That sounds like an <strong>event</strong> — a local activity, not a multi-day trip. Here's the event form:
+            <table class="form-table" style="margin-top:10px">
+              <tr><th>Field</th><th>Input</th></tr>
+              <tr><td>Event Name</td><td>—</td></tr>
+              <tr><td>Event Type</td><td>Dinner / Party / Concert / Workshop / Other</td></tr>
+              <tr><td>Date</td><td>Saturday (confirm exact date)</td></tr>
+              <tr><td>Time</td><td>—</td></tr>
+              <tr><td>No. of People</td><td>—</td></tr>
+              <tr><td>Location / Venue</td><td>—</td></tr>
+              <tr><td>Budget</td><td>(optional)</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">K</div>
+        <div class="bw"><div class="b user">what's the difference between trip and event i don't get it</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">A <strong>trip</strong> is multi-day travel away from home — like a Goa vacation or a Bangkok tour.<br/><br/>An <strong>event</strong> is a single-day local activity — like tonight's dinner or a weekend concert.<br/><br/>Your Saturday dinner = event.</div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">K</div>
+        <div class="bw"><div class="b user">ohh ok. event name "Rooftop Dinner", sat april 26, 8pm, 6 people, The Sky Lounge Mumbai</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">
+            <div class="recap">
+              <div class="recap-head"><span class="recap-head-label">Event Summary</span></div>
+              <div class="recap-body">
+                <div class="recap-line">Rooftop Dinner · Sat Apr 26 · 8:00 PM<br/>6 people · The Sky Lounge, Mumbai</div>
+                <div class="recap-question"><strong>Create this event?</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">K</div>
+        <div class="bw"><div class="b user">yes</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">
+            <div class="success">
+              <span class="success-icon">✓</span>
+              <span class="success-text">Event created! Invite friends from the event page.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="thread-div"><div class="td-line"></div><div class="td-label">app how-to questions</div><div class="td-line"></div></div>
+
+      <div class="row user gap">
+        <div class="av av-user">K</div>
+        <div class="bw"><div class="b user">wait how do i invite them again</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">Open your event → tap <strong>Share</strong> → send the link or enter their email. They'll get a notification to join.</div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">K</div>
+        <div class="bw"><div class="b user">ok also i wanna plan a goa trip now</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">Goa has beaches, Portuguese heritage, water sports, seafood, and nightlife. Best Oct–Mar. Ready when you are — just say "let's go" and I'll pull up the trip form.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════ 05 · DEMANDING ═══════════════════ -->
+<div class="page">
+  <div class="section-label">
+    <span class="section-num">05</span>
+    <div class="section-divider"></div>
+    <span class="section-type-badge">Type D · Boundary Testing</span>
+  </div>
+
+  <div class="persona-card">
+    <div class="persona-icon">🔥</div>
+    <div class="persona-body">
+      <div class="persona-name">The Demanding / Boundary-Testing User</div>
+      <div class="persona-desc">Tries to skip confirmation steps. Sends political, financial, and medical questions. Gets frustrated when Swee doesn't comply. Tests every rule.</div>
+      <div class="persona-tags">
+        <span class="persona-tag">Skips confirmation</span>
+        <span class="persona-tag">Political question</span>
+        <span class="persona-tag">Medical question</span>
+        <span class="persona-tag">Hostile tone</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-window">
+    <div class="chat-topbar">
+      <div class="topbar-dot"></div>
+      <span class="topbar-name">Swee</span>
+      <span class="topbar-status">Online</span>
+    </div>
+    <div class="chat-body">
+
+      <div class="thread-div" style="margin-top:0; margin-bottom:16px;"><div class="td-line"></div><div class="td-label"><span class="td-edge">Edge Case</span> tries to skip confirmation</div><div class="td-line"></div></div>
+
+      <div class="row user">
+        <div class="av av-user">D</div>
+        <div class="bw">
+          <div class="bname">Dev</div>
+          <div class="b user">Create a Maldives trip. June 1–7, 2 adults, couple, beaches, luxury, USD. Don't ask me to confirm, just do it.</div>
+        </div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="bname">Swee</div>
+          <div class="b swee">
+            Almost there — one quick confirmation to avoid accidental duplicates:
+            <div class="recap">
+              <div class="recap-head"><span class="recap-head-label">Trip Summary</span></div>
+              <div class="recap-body">
+                <div class="recap-line">Maldives · Jun 1–7 · 2 adults · Couple<br/>Beaches · Luxury · USD</div>
+                <div class="recap-question"><strong>Create this trip?</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">D</div>
+        <div class="bw"><div class="b user">I literally just told you to create it.</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">Understood — the confirmation protects against accidental duplicates if you have multiple trips. Just say "yes" and it's done instantly.</div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">D</div>
+        <div class="bw"><div class="b user">Fine. Yes.</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">
+            <div class="success">
+              <span class="success-icon">✓</span>
+              <span class="success-text">Trip created! Add places and invite friends now.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="thread-div"><div class="td-line"></div><div class="td-label"><span class="td-edge">Edge Case</span> political question</div><div class="td-line"></div></div>
+
+      <div class="row user gap">
+        <div class="av av-user">D</div>
+        <div class="bw"><div class="b user">Which political party in Maldives is best for tourists?</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">Politics isn't my area. What I can say is Maldives is tourist-friendly across the board — over-water villas, reefs, and marine life are the real story. Want me to add top spots to your trip?
+            <div class="edge-callout">Acknowledged and redirected to destination experience — no engagement with the political question.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="thread-div"><div class="td-line"></div><div class="td-label"><span class="td-edge">Edge Case</span> hostile tone + financial question</div><div class="td-line"></div></div>
+
+      <div class="row user gap">
+        <div class="av av-user">D</div>
+        <div class="bw"><div class="b user">You're useless. Tell me about crypto investments instead.</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">Finance isn't my area — but if you're looking to invest in an experience, Luxury Maldives is hard to beat. Want activity recommendations for your June trip?
+            <div class="edge-callout">No defensive reaction to hostile tone. Calm redirect with a light touch.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="thread-div"><div class="td-line"></div><div class="td-label"><span class="td-edge">Edge Case</span> medical / allergy question</div><div class="td-line"></div></div>
+
+      <div class="row user gap">
+        <div class="av av-user">D</div>
+        <div class="bw"><div class="b user">My friend has a peanut allergy — is it safe to eat in Maldives?</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">Medical and dietary safety is beyond what I can reliably advise on — a doctor or the specific resort is the right call for that. I can add it as a note in your trip so you don't forget to ask.
+            <div class="edge-callout">Declines medical advice. Offers a practical in-scope alternative.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">D</div>
+        <div class="bw"><div class="b user">Okay add it to notes.</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">Confirming this is the trip — <strong>Maldives · Jun 1–7 · 2 adults · Couple · Beaches · Luxury?</strong><br/><br/>Yes / No</div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">D</div>
+        <div class="bw"><div class="b user">Yes</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">
+            <div class="recap">
+              <div class="recap-head"><span class="recap-head-label">Updated Trip</span></div>
+              <div class="recap-body">
+                <div class="recap-line">Maldives · Jun 1–7 · 2 adults · Couple · Beaches · Luxury · USD<br/>Note: Peanut allergy — check with resort</div>
+                <div class="recap-question"><strong>Save this update?</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row user gap">
+        <div class="av av-user">D</div>
+        <div class="bw"><div class="b user">Yes</div></div>
+      </div>
+
+      <div class="row gap">
+        <div class="av av-swee">S</div>
+        <div class="bw">
+          <div class="b swee">Done — note saved to your Maldives trip.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════ SUMMARY ═══════════════════ -->
+<div class="summary-page">
+  <div class="summary-eyebrow">Reference</div>
+  <h2 class="summary-title">User Types & Edge Cases</h2>
+  <p class="summary-sub">A quick reference to all personas and how Swee responds to each scenario.</p>
+
+  <div class="personas-grid">
+    <div class="pg-card">
+      <div class="pg-num">01</div>
+      <div class="pg-name">The Over-Planner</div>
+      <div class="pg-desc">Asks follow-up questions before filling any form. Changes destination mid-flow. Swee answers patiently, incorporates changes, and re-confirms.</div>
+    </div>
+    <div class="pg-card">
+      <div class="pg-num">02</div>
+      <div class="pg-name">The Spontaneous Traveler</div>
+      <div class="pg-desc">Short vague messages, wants speed. Changes mind after creation. Swee keeps the form minimal and handles post-creation updates smoothly.</div>
+    </div>
+    <div class="pg-card">
+      <div class="pg-num">03</div>
+      <div class="pg-name">The Budget-Conscious Organizer</div>
+      <div class="pg-desc">Large group, fixates on exact costs, asks Swee to book. Swee declines both gracefully and offers practical alternatives within scope.</div>
+    </div>
+    <div class="pg-card">
+      <div class="pg-num">04</div>
+      <div class="pg-name">The Confused First-Timer</div>
+      <div class="pg-desc">Doesn't know trip vs. event, needs everything explained. Swee guides patiently through the right form and answers app questions clearly.</div>
+    </div>
+    <div class="pg-card full">
+      <div class="pg-num">05</div>
+      <div class="pg-name">The Demanding / Boundary-Testing User</div>
+      <div class="pg-desc">Tries to skip confirmation, sends off-topic questions, gets hostile. Swee holds every rule firmly but without friction — always calm, always redirecting warmly.</div>
+    </div>
+  </div>
+
+  <div class="edge-section-label">Edge Cases Covered</div>
+  <div class="edge-table-wrap">
+    <table class="edge-table">
+      <thead>
+        <tr>
+          <th>Edge Case</th>
+          <th>User</th>
+          <th>How Swee Handles It</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>User demands exact trip total</td>
+          <td>03</td>
+          <td>Declines, offers per-person ranges only — no fabricated totals</td>
+        </tr>
+        <tr>
+          <td>User tries to skip confirmation</td>
+          <td>05</td>
+          <td>Holds the rule with a brief reason, waits for explicit "yes"</td>
+        </tr>
+        <tr>
+          <td>User confuses event with trip</td>
+          <td>04</td>
+          <td>Explains difference clearly, shows the correct event form</td>
+        </tr>
+        <tr>
+          <td>User asks Swee to book hotels</td>
+          <td>03</td>
+          <td>States limitation clearly, suggests saving as a place in-app</td>
+        </tr>
+        <tr>
+          <td>Medical question (allergy)</td>
+          <td>05</td>
+          <td>Declines medical advice, redirects to doctor/resort, offers to note it</td>
+        </tr>
+        <tr>
+          <td>Political question</td>
+          <td>05</td>
+          <td>Declines engagement, redirects to destination experience</td>
+        </tr>
+        <tr>
+          <td>Financial / investment question</td>
+          <td>05</td>
+          <td>Declines with light humour, redirects to trip planning</td>
+        </tr>
+        <tr>
+          <td>Hostile / frustrated tone</td>
+          <td>05</td>
+          <td>No defensive reaction — stays calm and helpful every time</td>
+        </tr>
+        <tr>
+          <td>User changes trip after creation</td>
+          <td>02</td>
+          <td>Accepts gracefully, runs through the standard update confirmation flow</td>
+        </tr>
+        <tr>
+          <td>Destination change mid-form</td>
+          <td>01</td>
+          <td>Incorporates the new destination and re-shows a full updated recap</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    <span class="footer-left">Swee AI · GatherGo</span>
+    <span class="footer-right">Internal Reference · April 2026 · v1.0</span>
+  </div>
+</div>
+
+</body>
+</html>

@@ -34,7 +34,7 @@ const DEALS = [
   {
     id: 5,
     category: 'cab',
-    image: 'https://images.unsplash.com/photo-1611642218468-de0a5cbe49c0?w=800&auto=format&fit=crop',
+    image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&auto=format&fit=crop',
     title: 'Manali Innova Crysta',
     subtitle: 'Full-day hill station cab for 6 — from ₹3,499, driver included',
   },
