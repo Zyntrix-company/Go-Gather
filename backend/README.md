@@ -1,4 +1,4 @@
-# GatherGo — Backend API
+ GatherGo — Backend API
 
 Group travel planning API built on Node.js, Express, and PostgreSQL. Covers authentication, trips, events, expenses, friends, smart invite links, shared docs/photos/polls, and **Swee** (travel AI agent on **Google Gemini 2.5 Flash** — not OpenAI).
 
