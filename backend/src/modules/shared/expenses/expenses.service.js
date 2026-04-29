@@ -1,5 +1,6 @@
 const { query: db, getClient } = require('../../../config/database');
 const { simplifyDebts, buildTransactions } = require('../../../utils/debtSimplifier.util');
+const { createAndSendNotifications } = require('../../../utils/fcm.util');
 
 const VALID_CATEGORIES = ['general', 'transportation', 'accommodation', 'entertainment', 'shopping', 'food', 'other'];
 
@@ -135,6 +136,35 @@ const addExpense = async ({ parentType, parentId }, createdBy, body) => {
 
     const simplified = await computeSimplifiedDebts(parentType, parentId);
     const balances = await enrichSimplifiedDebts(simplified, createdBy);
+
+    // Notify other members — fire-and-forget (outside transaction)
+    const expenseId = expense.id;
+    const expenseAmount = parseFloat(expense.amount);
+    setImmediate(async () => {
+      try {
+        const memberTable = parentType === 'trip' ? 'trip_members' : 'event_members';
+        const parentCol   = parentType === 'trip' ? 'trip_id'     : 'event_id';
+        const parentTable = parentType === 'trip' ? 'trips'       : 'events';
+        const [membersResult, parentResult, actorResult] = await Promise.all([
+          db(`SELECT u.id, u.fcm_token FROM ${memberTable} tm JOIN users u ON u.id = tm.user_id WHERE tm.${parentCol} = $1 AND tm.user_id != $2`, [parentId, createdBy]),
+          db(`SELECT name FROM ${parentTable} WHERE id = $1`, [parentId]),
+          db('SELECT full_name FROM profiles WHERE user_id = $1', [createdBy]),
+        ]);
+        if (membersResult.rows.length === 0) return;
+        const parentName = parentResult.rows[0]?.name || 'Your group';
+        const actorName  = actorResult.rows[0]?.full_name || 'Someone';
+        const dataPayload = parentType === 'trip'
+          ? { tripId: parentId, tripName: parentName, amount: String(expenseAmount), expenseId }
+          : { eventId: parentId, parentName, amount: String(expenseAmount), expenseId };
+        createAndSendNotifications(
+          membersResult.rows,
+          { title: 'New Expense Added', body: `${actorName} added an expense of ${expenseAmount} to "${parentName}".` },
+          'EXPENSE_ADDED',
+          dataPayload,
+        );
+      } catch (_) { /* fire-and-forget */ }
+    });
+
     return {
       expense: formatExpense(expense, splits, profiles),
       balances,
@@ -202,6 +232,7 @@ const getExpenses = async ({ parentType, parentId }, { category, page = 1, limit
       avatarUrl: row.paid_by_avatar || null,
     },
     splitType: row.split_type,
+    createdBy: row.created_by,
     splits: (row.splits || []).map((s) => ({
       userId: s.userId,
       name: s.name || null,
@@ -387,6 +418,7 @@ const formatExpense = (e, splits, profiles = {}) => {
     description: e.description,
     amount: parseFloat(e.amount),
     category: e.category || 'general',
+    createdBy: e.created_by,
     paidBy: {
       userId: e.paid_by,
       name: paidByProfile.name || null,

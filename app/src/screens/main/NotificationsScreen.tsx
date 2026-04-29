@@ -13,6 +13,11 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
 import useNotificationStore from '../../store/notificationStore';
 
+// Notification types that live in the Requests tab
+const REQUEST_TYPES = ['FRIEND_REQUEST', 'TRIP_MEMBER_ADDED', 'EVENT_MEMBER_ADDED'];
+
+// ── Time helper ───────────────────────────────────────────────────────────────
+
 function getRelativeTime(ts: number | string): string {
   const time = typeof ts === 'string' ? new Date(ts).getTime() : ts;
   const diff = Math.floor((Date.now() - time) / 1000);
@@ -22,8 +27,10 @@ function getRelativeTime(ts: number | string): string {
   return `${Math.floor(diff / 86400)} day${Math.floor(diff / 86400) > 1 ? 's' : ''} ago`;
 }
 
+// ── Icons ─────────────────────────────────────────────────────────────────────
+
 function getReminderIcon(reminderType?: string) {
-  if (reminderType === '1_week_before') {
+  if (reminderType === '1_week_before' || reminderType === '3_days_before') {
     return (
       <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
         <Circle cx={12} cy={12} r={10} stroke="#0d9488" strokeWidth={2} />
@@ -51,6 +58,47 @@ function getNotificationIcon(type: string, data?: Record<string, string>) {
     case 'TRIP_REMINDER':
     case 'EVENT_REMINDER':
       return getReminderIcon(data?.reminderType);
+
+    case 'TRIP_CANCELLED':
+      return (
+        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+          <Circle cx={12} cy={12} r={10} stroke="#ef4444" strokeWidth={2} />
+          <Path d="M15 9l-6 6M9 9l6 6" stroke="#ef4444" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case 'ITINERARY_UPDATED':
+      return (
+        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+          <Path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case 'DOCUMENT_UPLOADED':
+      return (
+        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+          <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case 'EXPENSE_ADDED':
+    case 'expense_added':
+      return (
+        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+          <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#f59e0b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case 'NEW_MEMBER_JOINED':
+    case 'TRIP_MILESTONE':
+      return (
+        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+          <Path d="M22 11.08V12a10 10 0 11-5.93-9.14" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          <Path d="M22 4L12 14.01l-3-3" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
     case 'trip_invite':
     case 'TRIP_MEMBER_ADDED':
       return (
@@ -58,18 +106,14 @@ function getNotificationIcon(type: string, data?: Record<string, string>) {
           <Path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2v11z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       );
-    case 'expense_added':
-      return (
-        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-          <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#f59e0b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        </Svg>
-      );
+
     case 'poll_created':
       return (
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
           <Path d="M18 20V10M12 20V4M6 20v-6" stroke="#6366f1" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       );
+
     case 'member_joined':
     case 'EVENT_MEMBER_ADDED':
     case 'FRIEND_REQUEST':
@@ -79,6 +123,7 @@ function getNotificationIcon(type: string, data?: Record<string, string>) {
           <Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="#10b981" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       );
+
     case 'TRIP_INVITE_ACCEPTED':
     case 'EVENT_INVITE_ACCEPTED':
       return (
@@ -87,6 +132,7 @@ function getNotificationIcon(type: string, data?: Record<string, string>) {
           <Path d="M22 4L12 14.01l-3-3" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       );
+
     case 'reminder':
       return (
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -94,6 +140,7 @@ function getNotificationIcon(type: string, data?: Record<string, string>) {
           <Path d="M12 6v6l4 2" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       );
+
     default:
       return (
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -106,30 +153,27 @@ function getNotificationIcon(type: string, data?: Record<string, string>) {
 
 function getIconBg(type: string) {
   switch (type) {
-    case 'TRIP_REMINDER':
-    case 'EVENT_REMINDER':
-    case 'trip_invite':
-    case 'TRIP_MEMBER_ADDED':
-    case 'TRIP_INVITE_ACCEPTED':
-    case 'EVENT_INVITE_ACCEPTED':
-    case 'reminder': return '#f0fdfa';
-    case 'expense_added': return '#fffbeb';
-    case 'poll_created': return '#eef2ff';
+    case 'TRIP_CANCELLED':                        return '#fef2f2';
+    case 'EXPENSE_ADDED':
+    case 'expense_added':                         return '#fffbeb';
+    case 'poll_created':                          return '#eef2ff';
     case 'member_joined':
     case 'EVENT_MEMBER_ADDED':
     case 'FRIEND_REQUEST':
-    case 'FRIEND_ACCEPTED': return '#ecfdf5';
-    default: return '#f8fafc';
+    case 'FRIEND_ACCEPTED':                       return '#ecfdf5';
+    case 'DOCUMENT_UPLOADED':                     return '#f8fafc';
+    default:                                      return '#f0fdfa';
   }
 }
 
+// ── Screen ────────────────────────────────────────────────────────────────────
+
 export default function NotificationsScreen({ navigation }: any) {
-  const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [activeTab, setActiveTab] = useState<'notifications' | 'requests'>('notifications');
   const {
     notifications,
     loading,
     hasMore,
-    unreadCount,
     fetchNotifications,
     markRead,
     markAllRead,
@@ -147,23 +191,46 @@ export default function NotificationsScreen({ navigation }: any) {
     setRefreshing(false);
   }, [fetchNotifications]);
 
+  // Split by type
+  const notificationsTabItems = notifications.filter(n => !REQUEST_TYPES.includes(n.type));
+  const requestsTabItems      = notifications.filter(n =>  REQUEST_TYPES.includes(n.type));
+  const displayed             = activeTab === 'notifications' ? notificationsTabItems : requestsTabItems;
+
+  // Per-tab unread counts
+  const notificationsUnread = notificationsTabItems.filter(n => !n.read).length;
+  const requestsUnread      = requestsTabItems.filter(n => !n.read).length;
+  const activeTabUnread     = activeTab === 'notifications' ? notificationsUnread : requestsUnread;
+
   const onEndReached = useCallback(() => {
-    if (!loading && hasMore) {
+    if (activeTab === 'notifications' && !loading && hasMore) {
       fetchNotifications(false);
     }
-  }, [loading, hasMore, fetchNotifications]);
-
-  const displayed = filter === 'unread'
-    ? notifications.filter(n => !n.read)
-    : notifications;
+  }, [activeTab, loading, hasMore, fetchNotifications]);
 
   const renderFooter = () => {
-    if (!loading) return null;
+    if (!loading || activeTab !== 'notifications') return null;
     return (
       <View style={styles.footerLoader}>
         <ActivityIndicator size="small" color="#0d9488" />
       </View>
     );
+  };
+
+  const handleCardPress = (item: any) => {
+    markRead(item.id);
+    const { type, data } = item;
+    if (data?.tripId && (
+      type === 'TRIP_REMINDER' || type === 'TRIP_MEMBER_ADDED' || type === 'TRIP_INVITE_ACCEPTED' ||
+      type === 'TRIP_CANCELLED' || type === 'ITINERARY_UPDATED' || type === 'DOCUMENT_UPLOADED' ||
+      type === 'EXPENSE_ADDED' || type === 'NEW_MEMBER_JOINED' || type === 'TRIP_MILESTONE'
+    )) {
+      navigation.navigate('TripDetail', { trip: { id: data.tripId } });
+    } else if (data?.eventId && (
+      type === 'EVENT_REMINDER' || type === 'EVENT_MEMBER_ADDED' || type === 'EVENT_INVITE_ACCEPTED'
+    )) {
+      navigation.navigate('EventDetail', { event: { id: data.eventId } });
+    }
+    // FRIEND_REQUEST / FRIEND_ACCEPTED — Accept button handles navigation; card tap = read only
   };
 
   return (
@@ -182,43 +249,63 @@ export default function NotificationsScreen({ navigation }: any) {
           </View>
         </View>
 
-        {/* Filter + Action row */}
-        <View style={styles.filterRow}>
+        {/* Tab bar */}
+        <View style={styles.tabBar}>
           <TouchableOpacity
-            style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
-            onPress={() => setFilter('all')}
+            style={[styles.tab, activeTab === 'notifications' && styles.tabActive]}
+            onPress={() => setActiveTab('notifications')}
             activeOpacity={0.8}>
-            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>All</Text>
+            <View style={styles.tabLabelRow}>
+              <Text style={[styles.tabText, activeTab === 'notifications' && styles.tabTextActive]}>
+                Notifications
+              </Text>
+              {notificationsUnread > 0 && (
+                <View style={styles.tabBadge}>
+                  <Text style={styles.tabBadgeText}>
+                    {notificationsUnread > 99 ? '99+' : notificationsUnread}
+                  </Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.filterTab, filter === 'unread' && styles.filterTabActive]}
-            onPress={() => setFilter('unread')}
+            style={[styles.tab, activeTab === 'requests' && styles.tabActive]}
+            onPress={() => setActiveTab('requests')}
             activeOpacity={0.8}>
-            <Text style={[styles.filterText, filter === 'unread' && styles.filterTextActive]}>
-              Unread{unreadCount > 0 ? ` (${unreadCount})` : ''}
-            </Text>
+            <View style={styles.tabLabelRow}>
+              <Text style={[styles.tabText, activeTab === 'requests' && styles.tabTextActive]}>
+                Requests
+              </Text>
+              {requestsUnread > 0 && (
+                <View style={styles.tabBadge}>
+                  <Text style={styles.tabBadgeText}>
+                    {requestsUnread > 99 ? '99+' : requestsUnread}
+                  </Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
-
-          {unreadCount > 0 && (
-            <TouchableOpacity
-              style={styles.markReadBtn}
-              onPress={markAllRead}
-              activeOpacity={0.8}>
-              <Text style={styles.markReadText}>Mark all read</Text>
-            </TouchableOpacity>
-          )}
         </View>
 
-        {/* Notification List */}
+        {/* Mark all read — active tab only */}
+        {activeTabUnread > 0 && (
+          <View style={styles.markReadRow}>
+            <TouchableOpacity onPress={markAllRead} activeOpacity={0.8}>
+              <Text style={styles.markReadText}>Mark all read</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Notification list */}
         <FlatList
           data={displayed}
           keyExtractor={item => item.id}
           contentContainerStyle={[styles.listContent, displayed.length === 0 && styles.listContentEmpty]}
           showsVerticalScrollIndicator={false}
-          onEndReached={filter === 'all' ? onEndReached : undefined}
+          onEndReached={onEndReached}
           onEndReachedThreshold={0.3}
-          ListFooterComponent={filter === 'all' ? renderFooter : null}
+          ListFooterComponent={renderFooter}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -231,11 +318,19 @@ export default function NotificationsScreen({ navigation }: any) {
             !loading ? (
               <View style={styles.emptyState}>
                 <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
-                  <Path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                  <Path
+                    d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"
+                    stroke="#cbd5e1"
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </Svg>
-                <Text style={styles.emptyTitle}>No notifications</Text>
+                <Text style={styles.emptyTitle}>
+                  {activeTab === 'requests' ? 'No requests' : 'No notifications'}
+                </Text>
                 <Text style={styles.emptySubtitle}>
-                  {filter === 'unread' ? 'You\'re all caught up!' : 'Nothing here yet'}
+                  {activeTab === 'requests' ? 'No pending requests' : 'Nothing here yet'}
                 </Text>
               </View>
             ) : null
@@ -243,17 +338,9 @@ export default function NotificationsScreen({ navigation }: any) {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.notifCard, !item.read && styles.notifCardUnread]}
-              onPress={() => {
-                markRead(item.id);
-                if ((item.type === 'TRIP_REMINDER' || item.type === 'TRIP_MEMBER_ADDED' || item.type === 'TRIP_INVITE_ACCEPTED') && item.data?.tripId) {
-                  navigation.navigate('TripDetail', { trip: { id: item.data.tripId } });
-                } else if ((item.type === 'EVENT_REMINDER' || item.type === 'EVENT_MEMBER_ADDED' || item.type === 'EVENT_INVITE_ACCEPTED') && item.data?.eventId) {
-                  navigation.navigate('EventDetail', { event: { id: item.data.eventId } });
-                }
-              }}
+              onPress={() => handleCardPress(item)}
               activeOpacity={0.85}>
 
-              {/* Unread accent bar */}
               {!item.read && <View style={styles.unreadAccent} />}
 
               <View style={[styles.notifIconWrap, { backgroundColor: getIconBg(item.type) }]}>
@@ -271,6 +358,30 @@ export default function NotificationsScreen({ navigation }: any) {
                 <Text style={styles.notifTime}>
                   {getRelativeTime(item.receivedAt ?? item.created_at ?? Date.now())}
                 </Text>
+
+                {/* Accept / Decline — FRIEND_REQUEST only */}
+                {item.type === 'FRIEND_REQUEST' && (
+                  <View style={styles.actionRow}>
+                    <TouchableOpacity
+                      style={styles.acceptBtn}
+                      onPress={() => {
+                        markRead(item.id);
+                        navigation.navigate('FriendProfile', {
+                          userId: item.data?.fromUserId ?? item.data?.userId,
+                          friendName: item.title,
+                        });
+                      }}
+                      activeOpacity={0.8}>
+                      <Text style={styles.acceptBtnText}>Accept</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.declineBtn}
+                      onPress={() => markRead(item.id)}
+                      activeOpacity={0.8}>
+                      <Text style={styles.declineBtnText}>Decline</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             </TouchableOpacity>
           )}
@@ -280,9 +391,12 @@ export default function NotificationsScreen({ navigation }: any) {
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
 
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -308,33 +422,57 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
 
-  filterRow: {
+  // Tab bar
+  tabBar: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    marginHorizontal: 20,
+    marginBottom: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: {
+    borderBottomColor: '#0d9488',
+  },
+  tabLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    gap: 8,
+    gap: 6,
   },
-  filterTab: {
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#f1f5f9',
-  },
-  filterTabActive: {
-    backgroundColor: '#0d9488',
-  },
-  filterText: {
-    fontSize: 13,
-    color: '#64748b',
+  tabText: {
+    fontSize: 14,
     fontWeight: '500',
+    color: '#64748b',
   },
-  filterTextActive: {
+  tabTextActive: {
+    color: '#0d9488',
+  },
+  tabBadge: {
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  tabBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
     color: '#ffffff',
   },
-  markReadBtn: {
+
+  // Mark all read
+  markReadRow: {
+    alignItems: 'flex-end',
+    paddingHorizontal: 20,
     paddingVertical: 6,
-    paddingLeft: 80,
   },
   markReadText: {
     fontSize: 13,
@@ -342,9 +480,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
+  // List
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 32,
+    paddingTop: 4,
   },
   listContentEmpty: {
     flexGrow: 1,
@@ -355,6 +495,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  // Notification card
   notifCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -382,7 +523,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: '#0d9488',
   },
-
   notifIconWrap: {
     width: 42,
     height: 42,
@@ -391,7 +531,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-
   notifContent: { flex: 1 },
   notifTitleRow: {
     flexDirection: 'row',
@@ -429,6 +568,38 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
+  // Accept / Decline action row (FRIEND_REQUEST)
+  actionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  acceptBtn: {
+    flex: 1,
+    backgroundColor: '#0d9488',
+    borderRadius: 8,
+    paddingVertical: 7,
+    alignItems: 'center',
+  },
+  acceptBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  declineBtn: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    paddingVertical: 7,
+    alignItems: 'center',
+  },
+  declineBtnText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748b',
+  },
+
+  // Empty state
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',

@@ -97,7 +97,7 @@ const updateTrip = async (req, res, next) => {
 // ── DELETE /trips/:id ─────────────────────────────────────────
 const deleteTrip = async (req, res, next) => {
   try {
-    await tripsService.deleteTrip(req.params.id);
+    await tripsService.deleteTrip(req.params.id, req.user.id);
     res.status(200).json({ success: true });
   } catch (error) {
     next(error);

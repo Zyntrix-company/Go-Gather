@@ -1,6 +1,7 @@
 const { query: db } = require('../../../config/database');
 const { deleteFromS3, getPresignedDownloadUrl, uploadToS3, sanitiseFilename } = require('../../../utils/s3.util');
 const { validateMimeFromBuffer } = require('../../../middleware/upload.middleware');
+const { createAndSendNotifications } = require('../../../utils/fcm.util');
 const { v4: uuidv4 } = require('uuid');
 
 const MAX_DOCS = 50;
@@ -48,8 +49,33 @@ const uploadDoc = async ({ parentType, parentId }, userId, file) => {
     [userId],
   );
   const profile = profileResult.rows[0];
+  const actorName = profile?.full_name || 'Someone';
 
-  return formatDoc(doc, downloadUrl, userId, profile?.full_name || null, profile?.avatar_url || null);
+  // Notify other members — fire-and-forget
+  (async () => {
+    try {
+      const memberTable = parentType === 'trip' ? 'trip_members' : 'event_members';
+      const parentCol   = parentType === 'trip' ? 'trip_id'     : 'event_id';
+      const parentTable = parentType === 'trip' ? 'trips'       : 'events';
+      const [membersResult, parentResult] = await Promise.all([
+        db(`SELECT u.id, u.fcm_token FROM ${memberTable} tm JOIN users u ON u.id = tm.user_id WHERE tm.${parentCol} = $1 AND tm.user_id != $2`, [parentId, userId]),
+        db(`SELECT name FROM ${parentTable} WHERE id = $1`, [parentId]),
+      ]);
+      if (membersResult.rows.length === 0) return;
+      const parentName = parentResult.rows[0]?.name || 'Your group';
+      const dataPayload = parentType === 'trip'
+        ? { tripId: parentId, parentName }
+        : { eventId: parentId, parentName };
+      createAndSendNotifications(
+        membersResult.rows,
+        { title: 'Document Added', body: `${actorName} added a document to "${parentName}".` },
+        'DOCUMENT_UPLOADED',
+        dataPayload,
+      );
+    } catch (_) { /* fire-and-forget */ }
+  })();
+
+  return formatDoc(doc, downloadUrl, userId, actorName, profile?.avatar_url || null);
 };
 
 const getDocs = async ({ parentType, parentId }) => {

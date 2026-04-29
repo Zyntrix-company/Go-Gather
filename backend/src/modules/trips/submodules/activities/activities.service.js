@@ -1,5 +1,7 @@
 const { query: db } = require('../../../../config/database');
 const { deleteFromS3 } = require('../../../../utils/s3.util');
+const { createAndSendNotifications } = require('../../../../utils/fcm.util');
+const { scheduleActivityReminders } = require('../../../../utils/reminders.cron');
 const sharedPhotos = require('../../../shared/photos/photos.service');
 const logger = require('../../../../utils/logger');
 
@@ -90,7 +92,31 @@ const createActivity = async (tripId, userId, body) => {
     [tripId, userId, title, date, timeToString(time), locationName || null, description || null, expenseId || null],
   );
 
-  return getActivityById(tripId, result.rows[0].id);
+  const activityId = result.rows[0].id;
+
+  // Notify other trip members — fire-and-forget
+  (async () => {
+    try {
+      const [membersResult, tripResult, actorResult] = await Promise.all([
+        db('SELECT u.id, u.fcm_token FROM trip_members tm JOIN users u ON u.id = tm.user_id WHERE tm.trip_id = $1 AND tm.user_id != $2', [tripId, userId]),
+        db('SELECT name FROM trips WHERE id = $1', [tripId]),
+        db('SELECT full_name FROM profiles WHERE user_id = $1', [userId]),
+      ]);
+      if (membersResult.rows.length === 0) return;
+      const tripName = tripResult.rows[0]?.name || 'Your trip';
+      const actorName = actorResult.rows[0]?.full_name || 'Someone';
+      createAndSendNotifications(
+        membersResult.rows,
+        { title: 'Itinerary Updated', body: `${actorName} added an activity to "${tripName}".` },
+        'ITINERARY_UPDATED',
+        { tripId, tripName, activityId },
+      );
+    } catch (err) {
+      logger.error('ITINERARY_UPDATED notification failed', { tripId, error: err.message });
+    }
+  })();
+
+  return getActivityById(tripId, activityId);
 };
 
 const updateActivity = async (actId, tripId, requesterId, requesterRole, updates) => {
@@ -146,6 +172,28 @@ const updateActivity = async (actId, tripId, requesterId, requesterRole, updates
     `UPDATE trip_activities SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx}`,
     values,
   );
+
+  // Notify other trip members — fire-and-forget
+  (async () => {
+    try {
+      const [membersResult, tripResult, actorResult] = await Promise.all([
+        db('SELECT u.id, u.fcm_token FROM trip_members tm JOIN users u ON u.id = tm.user_id WHERE tm.trip_id = $1 AND tm.user_id != $2', [tripId, requesterId]),
+        db('SELECT name FROM trips WHERE id = $1', [tripId]),
+        db('SELECT full_name FROM profiles WHERE user_id = $1', [requesterId]),
+      ]);
+      if (membersResult.rows.length === 0) return;
+      const tripName = tripResult.rows[0]?.name || 'Your trip';
+      const actorName = actorResult.rows[0]?.full_name || 'Someone';
+      createAndSendNotifications(
+        membersResult.rows,
+        { title: 'Itinerary Updated', body: `${actorName} updated an activity in "${tripName}".` },
+        'ITINERARY_UPDATED',
+        { tripId, tripName, activityId: actId },
+      );
+    } catch (err) {
+      logger.error('ITINERARY_UPDATED notification failed', { tripId, actId, error: err.message });
+    }
+  })();
 
   return getActivityById(tripId, actId);
 };

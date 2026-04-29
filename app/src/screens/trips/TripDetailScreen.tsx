@@ -76,6 +76,9 @@ type Expense = {
   splitAmong: string[]; date: string;
   activityId?: string | null;
   myAmount?: number;   // current user's share of this expense
+  /** Expense author (for edit/delete permissions) */
+  createdByUserId?: string;
+  splitBreakdown?: { userId: string; amount: number; percentage: number | null }[];
 };
 type Poll = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null };
 type Note = { id: string; title: string; body: string; category: 'general' | 'idea' | 'important' | 'todo'; date: string; pinned?: boolean };
@@ -99,6 +102,55 @@ const EXPENSE_CATS = [
   { label: 'Shopping', emoji: '🛍️' },
   { label: 'Other', emoji: '🌐' },
 ];
+/** API category slug → UI label used in EXPENSE_CATS */
+const EXPENSE_CAT_SLUG_TO_LABEL: Record<string, string> = {
+  general: 'General',
+  food: 'Food & Dining',
+  transportation: 'Transport',
+  accommodation: 'Stay',
+  entertainment: 'Entertainment',
+  shopping: 'Shopping',
+  other: 'Other',
+};
+
+function mapApiExpenseToState(e: any, currentUserId: string, members: TripMember[]): Expense {
+  const resolvePaidBy = (paidByRaw: any): string => {
+    const uid = typeof paidByRaw === 'object' && paidByRaw !== null
+      ? (paidByRaw.userId ?? paidByRaw.id ?? '')
+      : String(paidByRaw ?? '');
+    if (uid === currentUserId) return 'You';
+    const member = members.find(m => m.userId === uid);
+    if (member) return member.fullName;
+    if (typeof paidByRaw === 'object' && paidByRaw !== null)
+      return (paidByRaw.name ?? paidByRaw.fullName ?? uid) || 'Unknown';
+    return uid || 'Unknown';
+  };
+  const paidByStr = resolvePaidBy(e.paidBy);
+  const mySplit = (e.splits ?? []).find((s: any) => s.userId === currentUserId);
+  const myAmount = mySplit ? parseFloat(String(mySplit.amount ?? '0')) : 0;
+  const creatorRaw = e.createdBy ?? e.created_by;
+  const creatorId = typeof creatorRaw === 'object' && creatorRaw !== null
+    ? String((creatorRaw as any).userId ?? (creatorRaw as any).id ?? '')
+    : String(creatorRaw ?? '').trim();
+  return {
+    id: e.id,
+    description: e.description,
+    amount: parseFloat(String(e.amount)),
+    category: e.category ?? 'general',
+    paidBy: paidByStr,
+    splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
+    splitAmong: (e.splits ?? []).map((s: any) => s.userId),
+    date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
+    createdByUserId: creatorId || undefined,
+    activityId: (e as any).activityId ?? null,
+    myAmount,
+    splitBreakdown: (e.splits ?? []).map((s: any) => ({
+      userId: s.userId,
+      amount: parseFloat(String(s.amount ?? '0')),
+      percentage: s.percentage != null && s.percentage !== '' ? parseFloat(String(s.percentage)) : null,
+    })),
+  };
+}
 const NOTE_CATS = [
   { key: 'general', label: 'General', emoji: '📝' },
   { key: 'idea', label: 'Idea', emoji: '💡' },
@@ -378,6 +430,34 @@ function TripPhotoPreview({ photo }: { photo: PhotoItem }) {
   );
 }
 
+function renderTextWithLinks(text: string, textStyle: any, linkStyle: any) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return (
+    <Text style={textStyle}>
+      {parts.map((part, idx) => {
+        const isLink = /^https?:\/\/[^\s]+$/i.test(part);
+        if (!isLink) return <React.Fragment key={`${part}-${idx}`}>{part}</React.Fragment>;
+        return (
+          <Text
+            key={`${part}-${idx}`}
+            style={linkStyle}
+            onPress={async () => {
+              try {
+                const canOpen = await Linking.canOpenURL(part);
+                if (canOpen) await Linking.openURL(part);
+              } catch (_err) {
+                Toast.show({ type: 'error', text1: 'Unable to open link' });
+              }
+            }}
+          >
+            {part}
+          </Text>
+        );
+      })}
+    </Text>
+  );
+}
+
 function FriendAvatar({ uri, name, style }: { uri: string; name: string; style: any }) {
   const [failed, setFailed] = useState(false);
   if (!uri || failed) {
@@ -439,7 +519,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [showExpenses, setShowExpenses] = useState(false);
   const [showPolls, setShowPolls] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
-  const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
+  const [previewPhotoIndex, setPreviewPhotoIndex] = useState<number | null>(null);
   const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
   const [actDateError, setActDateError] = useState<string>('');
 
@@ -571,36 +651,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
           getExpenses(tripId),
           getBalances(tripId),
         ]);
-        const resolvePaidBy = (paidByRaw: any): string => {
-          const uid = typeof paidByRaw === 'object' && paidByRaw !== null
-            ? (paidByRaw.userId ?? paidByRaw.id ?? '')
-            : String(paidByRaw ?? '');
-          if (uid === currentUserId) return 'You';
-          const member = members.find(m => m.userId === uid);
-          if (member) return member.fullName;
-          // fallback: if object had a name directly
-          if (typeof paidByRaw === 'object' && paidByRaw !== null)
-            return (paidByRaw.name ?? paidByRaw.fullName ?? uid) || 'Unknown';
-          return uid || 'Unknown';
-        };
-        setExpenses((expRes.expenses ?? []).map(e => {
-          const paidByStr = resolvePaidBy(e.paidBy);
-          const mySplit = (e.splits ?? []).find((s: any) => s.userId === currentUserId);
-          const myAmount = mySplit ? parseFloat(mySplit.amount ?? '0') : 0;
-          return {
-            id: e.id,
-            description: e.description,
-            amount: parseFloat(e.amount),
-            category: e.category ?? 'general',
-            paidBy: paidByStr,
-            splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
-            splitAmong: (e.splits ?? []).map((s: any) => s.userId),
-            date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
-            createdBy: paidByStr,
-            activityId: (e as any).activityId ?? null,
-            myAmount,
-          };
-        }));
+        setExpenses((expRes.expenses ?? []).map(e => mapApiExpenseToState(e, currentUserId, members)));
         const { debts: parsedDebts, myBalance: parsedBal, totalExpenses: parsedTotal } = parseBalanceResponse(balRes, currentUserId, members);
         setBalances(parsedDebts);
         setMyBalance(parsedBal);
@@ -611,7 +662,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         setIsLoadingExpenses(false);
       }
     })();
-  }, [showExpenses, tripId]);
+  }, [showExpenses, tripId, currentUserId, members]);
 
   // ── Load docs when docs modal opens ──
   useEffect(() => {
@@ -742,6 +793,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     const ad = new Date(a.date); ad.setHours(0, 0, 0, 0);
     return ad.getTime() < _today;
   });
+  const previewPhoto = previewPhotoIndex !== null ? photos[previewPhotoIndex] ?? null : null;
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
   const memberCount = members.length;
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
@@ -821,19 +873,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         linkedExpenseId = expRes.expense.id;
         // Sync to expenses list so main expense management reflects it
         const exp = expRes.expense;
-        const d = new Date(exp.createdAt);
-        const uid572 = typeof exp.paidBy === 'object' && exp.paidBy !== null ? (exp.paidBy as any).userId ?? (exp.paidBy as any).id ?? '' : String(exp.paidBy ?? '');
-        const paidByStr = uid572 === currentUserId ? 'You' : ((members.find(m => m.userId === uid572)?.fullName ?? (exp.paidBy as any)?.name ?? uid572) || 'Unknown');
-        const mySplit572 = (exp.splits ?? []).find((s: any) => s.userId === currentUserId);
-        setExpenses(prev => [...prev, {
-          id: exp.id, description: exp.description, amount: parseFloat(String(exp.amount)),
-          category: exp.category ?? 'general', paidBy: paidByStr,
-          splitType: exp.splitType === 'equal' ? 'equally' : exp.splitType === 'percentage' ? 'percent' : 'amount',
-          splitAmong: (exp.splits ?? []).map((s: any) => s.userId),
-          date: `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`,
-          createdBy: paidByStr,
-          myAmount: mySplit572 ? parseFloat(mySplit572.amount ?? '0') : 0,
-        }]);
+        setExpenses(prev => [...prev, mapApiExpenseToState(exp, currentUserId, members)]);
         if (expRes.balances) setBalances(normalizeDebtArray(expRes.balances, currentUserId, members));
       }
 
@@ -922,8 +962,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   async function handleDeleteActivity(actId: string) {
     showConfirm({
-      title: 'Delete',
-      message: 'Remove this activity?',
+      title: 'Delete Activity',
+      message: 'This will permanently delete this activity. This action cannot be undone. Do you want to continue?',
       destructive: true,
       onConfirm: async () => {
         try {
@@ -932,6 +972,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
         } catch (err) { handleApiError(err); }
       },
     });
+  }
+
+  function openPhotoPreview(photoId: string) {
+    const idx = photos.findIndex(p => p.id === photoId);
+    if (idx >= 0) setPreviewPhotoIndex(idx);
+  }
+  function showPrevPhoto() {
+    if (previewPhotoIndex === null || photos.length <= 1) return;
+    setPreviewPhotoIndex((previewPhotoIndex - 1 + photos.length) % photos.length);
+  }
+  function showNextPhoto() {
+    if (previewPhotoIndex === null || photos.length <= 1) return;
+    setPreviewPhotoIndex((previewPhotoIndex + 1) % photos.length);
   }
 
   // ── Photo handlers (API-backed) ──
@@ -1024,23 +1077,31 @@ export default function TripDetailScreen({ route, navigation }: any) {
     // Build splitAmong — map 'You' → currentUserId, use only selected members
     const apiSplitType = expSplitType === 'equally' ? 'equal' : expSplitType === 'percent' ? 'percentage' : 'amount';
     const memberIds = expSplitAmong.map(id => id === 'You' ? currentUserId : id).filter(Boolean);
-    const splitAmong = apiSplitType === 'equal'
-      ? memberIds.map(id => ({ userId: id }))
-      : memberIds.map(id => ({
-        userId: id,
-        ...(apiSplitType === 'amount' ? { amount: amount / Math.max(memberIds.length, 1) } : { percentage: 100 / Math.max(memberIds.length, 1) }),
-      }));
+    let splitAmong: { userId: string; amount?: number; percentage?: number }[];
+    if (apiSplitType === 'equal') {
+      splitAmong = memberIds.map(userId => ({ userId }));
+    } else if (apiSplitType === 'amount') {
+      splitAmong = memberIds.map(userId => {
+        const detailKey = userId === currentUserId ? 'You' : userId;
+        return { userId, amount: parseFloat(expSplitDetails[detailKey] || '0') || 0 };
+      });
+    } else {
+      splitAmong = memberIds.map(userId => {
+        const detailKey = userId === currentUserId ? 'You' : userId;
+        return { userId, percentage: parseFloat(expSplitDetails[detailKey] || '0') || 0 };
+      });
+    }
 
     // Validation
     if (apiSplitType === 'amount') {
-      const sum = (splitAmong as any[]).reduce((s: number, x: any) => s + (x.amount ?? 0), 0);
+      const sum = splitAmong.reduce((s: number, x) => s + (x.amount ?? 0), 0);
       if (Math.abs(sum - amount) > 0.01) {
         showAlert({ title: 'Validation Error', message: 'Split amounts must sum to the total expense amount.' });
         return;
       }
     }
     if (apiSplitType === 'percentage') {
-      const sum = (splitAmong as any[]).reduce((s: number, x: any) => s + (x.percentage ?? 0), 0);
+      const sum = splitAmong.reduce((s: number, x) => s + (x.percentage ?? 0), 0);
       if (Math.abs(sum - 100) > 0.01) {
         showAlert({ title: 'Validation Error', message: 'Percentages must sum to 100.' });
         return;
@@ -1066,28 +1127,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
       let res: any;
       if (editingExpenseId) {
         res = await updateExpense(tripId, editingExpenseId, body);
-        setExpenses(p => p.map(e => e.id === editingExpenseId ? {
-          ...e, description: res.expense.description,
-          amount: parseFloat(res.expense.amount),
-          category: res.expense.category ?? e.category,
-        } : e));
+        const mapped = mapApiExpenseToState(res.expense, currentUserId, members);
+        setExpenses(p => p.map(e => e.id === editingExpenseId ? { ...mapped, activityId: e.activityId ?? mapped.activityId } : e));
         setEditingExpenseId(null);
       } else {
         res = await createExpense(tripId, body);
-        const exp = res.expense;
-        const d = new Date(exp.createdAt);
-        const uid817 = typeof exp.paidBy === 'object' && exp.paidBy !== null ? (exp.paidBy as any).userId ?? (exp.paidBy as any).id ?? '' : String(exp.paidBy ?? '');
-        const expPaidByStr = uid817 === currentUserId ? 'You' : ((members.find(m => m.userId === uid817)?.fullName ?? (exp.paidBy as any)?.name ?? uid817) || 'Unknown');
-        const mySplit817 = (exp.splits ?? []).find((s: any) => s.userId === currentUserId);
-        setExpenses(p => [...p, {
-          id: exp.id, description: exp.description, amount: parseFloat(exp.amount),
-          category: exp.category ?? 'general', paidBy: expPaidByStr,
-          splitType: exp.splitType === 'equal' ? 'equally' : exp.splitType === 'percentage' ? 'percent' : 'amount',
-          splitAmong: exp.splits.map((s: any) => s.userId),
-          date: `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`,
-          createdBy: expPaidByStr,
-          myAmount: mySplit817 ? parseFloat(mySplit817.amount ?? '0') : 0,
-        }]);
+        const mapped = mapApiExpenseToState(res.expense, currentUserId, members);
+        setExpenses(p => [...p, mapped]);
       }
       if (res.balances) {
         setBalances(normalizeDebtArray(res.balances, currentUserId, members));
@@ -1109,16 +1155,33 @@ export default function TripDetailScreen({ route, navigation }: any) {
   function startEditExpense(exp: Expense) {
     setExpDesc(exp.description);
     setExpAmount(String(exp.amount));
-    setExpCategory(EXPENSE_CATS.find(c => c.label === exp.category) || EXPENSE_CATS[0]);
+    const catLabel = EXPENSE_CAT_SLUG_TO_LABEL[exp.category] ?? exp.category;
+    setExpCategory(EXPENSE_CATS.find(c => c.label === catLabel) || EXPENSE_CATS[0]);
     setExpPaidBy(exp.paidBy);
     setExpSplitType(exp.splitType);
-    setExpSplitAmong(exp.splitAmong);
+    const among = (exp.splitAmong ?? []).map(uid => (uid === currentUserId ? 'You' : uid));
+    setExpSplitAmong(among.length ? among : ['You']);
+    const details: Record<string, string> = {};
+    if (exp.splitBreakdown?.length) {
+      exp.splitBreakdown.forEach(s => {
+        const key = s.userId === currentUserId ? 'You' : s.userId;
+        if (exp.splitType === 'amount') {
+          details[key] = String(s.amount);
+        } else if (exp.splitType === 'percent') {
+          const p = s.percentage != null && !Number.isNaN(s.percentage)
+            ? s.percentage
+            : (exp.amount > 0 ? (s.amount / exp.amount) * 100 : 0);
+          details[key] = String(Math.round(p * 100) / 100);
+        }
+      });
+    }
+    setExpSplitDetails(details);
     setEditingExpenseId(exp.id);
     setShowAddExpense(true);
   }
 
-  async function handleDeleteExpense(eid: string, createdBy: string) {
-    if (role !== 'admin' && createdBy !== currentUserId) {
+  async function handleDeleteExpense(eid: string, createdByUserId: string) {
+    if (role !== 'admin' && createdByUserId !== currentUserId) {
       Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'You can only delete your own expenses.' });
       return;
     }
@@ -1140,11 +1203,32 @@ export default function TripDetailScreen({ route, navigation }: any) {
   }
 
   async function handleSettleDebt(withUserId: string, amount: number) {
-    try {
-      const res = await settleDebt(tripId, { withUserId, amount });
-      setBalances(normalizeDebtArray(res.outstanding ?? [], currentUserId, members));
-      Toast.show({ type: 'success', text1: 'Settlement recorded!' });
-    } catch (err) { handleApiError(err); }
+    const amt = typeof amount === 'number' && !Number.isNaN(amount) ? amount : parseFloat(String(amount));
+    if (!amt || amt <= 0) {
+      showAlert({ title: 'Invalid amount', message: 'Enter a valid settlement amount.' });
+      return;
+    }
+    showConfirm({
+      title: 'Record settlement',
+      message: `Record a payment of ₹${amt.toFixed(2)} to settle this balance? Balances will update for everyone on the trip.`,
+      confirmText: 'Settle',
+      destructive: false,
+      onConfirm: async () => {
+        try {
+          const res = await settleDebt(tripId, { withUserId, amount: amt });
+          setBalances(normalizeDebtArray(res.outstanding ?? [], currentUserId, members));
+          const balData = await getBalances(tripId);
+          setMyBalance(balData.myBalance ?? 0);
+          setTotalExpenses(String(balData.totalExpenses ?? '0'));
+          if (Array.isArray(balData.debts)) {
+            setBalances(normalizeDebtArray(balData.debts, currentUserId, members));
+          }
+          Toast.show({ type: 'success', text1: 'Settlement recorded' });
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
   }
 
   // ── Poll handlers (API-backed) ──
@@ -1430,7 +1514,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 <View>
                   {Array.from(groups.entries()).map(([dateKey, acts]) => {
                     const isCollapsed = collapsedDates.has(dateKey);
-                    const hasMultiple = acts.length > 1;
+                    const hasMultiple = true;
                     const toggleCollapse = () => {
                       setCollapsedDates(prev => {
                         const next = new Set(prev);
@@ -1450,17 +1534,28 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           </Text>
                           {hasMultiple && (isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />)}
                         </TouchableOpacity>
-                        {!isCollapsed && acts.map((act, idx) => (
-                          <TouchableOpacity key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { borderBottomWidth: 0 }]} onPress={() => startEditActivity(act)} activeOpacity={0.7}>
-                            <Text style={styles.actTimeLabel}>
-                              {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
-                            </Text>
-                            <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
-                            <TouchableOpacity onPress={() => handleDeleteActivity(act.id)} style={styles.trashBtn} activeOpacity={0.7}>
-                              <TrashIcon />
-                            </TouchableOpacity>
-                          </TouchableOpacity>
-                        ))}
+                        {!isCollapsed && (
+                          <View style={styles.actItemsWrap}>
+                            {acts.map((act, idx) => (
+                              <TouchableOpacity key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]} onPress={() => startEditActivity(act)} activeOpacity={0.7}>
+                                <Text style={styles.actTimeLabel}>
+                                  {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
+                                </Text>
+                                <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
+                                <TouchableOpacity
+                                  onPress={(e) => {
+                                    e.stopPropagation?.();
+                                    handleDeleteActivity(act.id);
+                                  }}
+                                  style={styles.trashBtn}
+                                  activeOpacity={0.7}
+                                >
+                                  <TrashIcon />
+                                </TouchableOpacity>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
                       </View>
                     );
                   })}
@@ -1497,23 +1592,41 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     return d.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short' });
                   };
                   return (
-                    <View style={{ opacity: 0.65 }}>
-                      {Array.from(cGroups.entries()).map(([dateKey, acts]) => (
-                        <View key={dateKey} style={{ marginBottom: 8 }}>
-                          <View style={styles.actDateRow}>
-                            <Text style={styles.actDateLabel}>{fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}</Text>
-                            {acts.length > 1 && <ChevUp color="#0d9488" />}
+                    <View>
+                      {Array.from(cGroups.entries()).map(([dateKey, acts]) => {
+                        const collapsedKey = `completed:${dateKey}`;
+                        const isCollapsed = collapsedDates.has(collapsedKey);
+                        return (
+                          <View key={dateKey} style={{ marginBottom: 8 }}>
+                            <TouchableOpacity
+                              style={styles.actDateRow}
+                              onPress={() => {
+                                setCollapsedDates(prev => {
+                                  const next = new Set(prev);
+                                  next.has(collapsedKey) ? next.delete(collapsedKey) : next.add(collapsedKey);
+                                  return next;
+                                });
+                              }}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={styles.actDateLabel}>{fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}</Text>
+                              {isCollapsed ? <ChevDown /> : <ChevUp />}
+                            </TouchableOpacity>
+                            {!isCollapsed && (
+                              <View style={styles.actItemsWrap}>
+                                {acts.map((act, idx) => (
+                                  <TouchableOpacity key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]} activeOpacity={0.7} onPress={() => startEditActivity(act)}>
+                                    <Text style={styles.actTimeLabel}>
+                                      {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
+                                    </Text>
+                                    <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            )}
                           </View>
-                          {acts.map((act, idx) => (
-                            <View key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { borderBottomWidth: 0 }]}>
-                              <Text style={styles.actTimeLabel}>
-                                {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
-                              </Text>
-                              <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      ))}
+                        );
+                      })}
                     </View>
                   );
                 })()
@@ -1960,7 +2073,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     });
 
                     const renderPhotoThumb = (ph: PhotoItem) => (
-                      <TripPhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewPhoto(ph)} />
+                      <TripPhotoThumb key={ph.id} photo={ph} onPress={() => openPhotoPreview(ph.id)} />
                     );
 
                     return (
@@ -2005,11 +2118,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
         {/* ═══════════════════════════════════════════════════
           FULLSCREEN PHOTO PREVIEW
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
+        <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhotoIndex(null)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' }}>
             {/* Close — top left */}
             <TouchableOpacity
-              onPress={() => setPreviewPhoto(null)}
+              onPress={() => setPreviewPhotoIndex(null)}
               style={{ position: 'absolute', top: 48, left: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}
               activeOpacity={0.8}
             >
@@ -2028,7 +2141,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     destructive: true,
                     onConfirm: async () => {
                       await handleDeletePhoto(previewPhoto.id, previewPhoto.uploadedBy ?? '');
-                      setPreviewPhoto(null);
+                      setPreviewPhotoIndex(null);
                     },
                   });
                 }}
@@ -2042,6 +2155,24 @@ export default function TripDetailScreen({ route, navigation }: any) {
             )}
             {previewPhoto && (
               <TripPhotoPreview photo={previewPhoto} />
+            )}
+            {previewPhoto && photos.length > 1 && (
+              <>
+                <TouchableOpacity
+                  onPress={showPrevPhoto}
+                  activeOpacity={0.8}
+                  style={{ position: 'absolute', left: 12, top: '50%', marginTop: -22, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 28, lineHeight: 30 }}>{'‹'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={showNextPhoto}
+                  activeOpacity={0.8}
+                  style={{ position: 'absolute', right: 12, top: '50%', marginTop: -22, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 28, lineHeight: 30 }}>{'›'}</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         </Modal>
@@ -2073,10 +2204,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
         {/* ═══════════════════════════════════════════════════
           MODAL 5 — Expenses
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={() => { setShowExpenses(false); setShowAddExpense(false); }}>
+        <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); }}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '92%' }]}>
-              <DHeader title="Expenses" onClose={() => { setShowExpenses(false); setShowAddExpense(false); }} />
+              <DHeader title="Expenses" onClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); }} />
               <TabBar tabs={['All Expenses', 'Balances']} active={expTab} onSelect={t => setExpTab(t as any)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
@@ -2088,6 +2219,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       setExpSplitAmong(allIds);
                       setExpPaidBy('You');
                       setExpDesc(''); setExpAmount(''); setExpSplitType('equally'); setExpSplitDetails({});
+                      setEditingExpenseId(null);
                       setShowAddExpense(p => !p);
                     }} activeOpacity={0.85}>
                       <Text style={styles.tealBtnTxt}>+ Add Expense</Text>
@@ -2170,7 +2302,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           </TouchableOpacity>
                         ))}
                         <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                          <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddExpense(false)} activeOpacity={0.7}><Text style={styles.cancelTxt}>Cancel</Text></TouchableOpacity>
+                          <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowAddExpense(false); setEditingExpenseId(null); }} activeOpacity={0.7}><Text style={styles.cancelTxt}>Cancel</Text></TouchableOpacity>
                           <TouchableOpacity style={[styles.tealBtnFull, { flex: 1 }]} onPress={handleAddExpense} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>{editingExpenseId ? 'Update Expense' : 'Add Expense'}</Text></TouchableOpacity>
                         </View>
                       </View>
@@ -2220,10 +2352,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                 <View style={{ alignItems: 'flex-end' }}>
                                   <Text style={styles.expAmt}>₹{exp.amount.toFixed(2)}</Text>
                                   <Text style={{ fontSize: 11, color: balColor, marginBottom: 6 }}>{balText}</Text>
-                                  {(role === 'admin' || (exp as any).createdBy === currentUserId) && (
+                                  {(role === 'admin' || exp.createdByUserId === currentUserId) && (
                                     <View style={{ flexDirection: 'row', gap: 12 }}>
                                       <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text></TouchableOpacity>
-                                      <TouchableOpacity onPress={() => handleDeleteExpense(exp.id, (exp as any).createdBy ?? '')} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
+                                      <TouchableOpacity onPress={() => handleDeleteExpense(exp.id, exp.createdByUserId ?? '')} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
                                     </View>
                                   )}
                                 </View>
@@ -2427,9 +2559,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
                               <View style={{ flex: 1 }}>
                                 <Text style={styles.noteTitle}>{note.title}</Text>
                                 {!!note.body && (
-                                  <Text style={styles.noteBody} numberOfLines={expandedNoteId === note.id ? undefined : 2}>
-                                    {note.body}
-                                  </Text>
+                                  expandedNoteId === note.id
+                                    ? renderTextWithLinks(note.body, styles.noteBody, styles.noteLink)
+                                    : <Text style={styles.noteBody} numberOfLines={2}>{note.body}</Text>
                                 )}
                                 <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
                                   By You{note.date ? ` • ${note.date}` : ''}{expandedNoteId !== note.id ? '  tap to expand' : '  tap to collapse'}
@@ -2589,7 +2721,7 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   actionBtn: { alignItems: 'center', width: 62, gap: 4 },
   actionCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
-  actionLabel: { fontSize: 10, fontWeight: '400', color: '#0f172a', textAlign: 'center', lineHeight: 13 },
+  actionLabel: { fontSize: 13, fontWeight: '500', color: '#0f172a', textAlign: 'center', lineHeight: 16 },
 
   // Sections
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
@@ -2605,11 +2737,12 @@ const styles = StyleSheet.create({
   actRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f1f5f9' },
   actTitle: { fontSize: 12, fontWeight: '400', color: '#0f172a', marginBottom: 2 },
   actMeta: { fontSize: 11, color: '#94a3b8' },
-  actDateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, paddingHorizontal: 4, marginBottom: 2 },
-  actDateLabel: { fontSize: 12, fontWeight: '500', color: '#334155' },
-  actItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', gap: 10 },
-  actTimeLabel: { fontSize: 11, color: '#64748b', minWidth: 40, fontWeight: '400' },
-  actItemTitle: { flex: 1, fontSize: 12, fontWeight: '400', color: '#0f172a' },
+  actDateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4, marginBottom: 2 },
+  actDateLabel: { fontSize: 13, fontWeight: '500', color: '#334155' },
+  actItemsWrap: { marginLeft: 10, marginTop: 2 },
+  actItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10, borderWidth: 1, borderColor: '#edf2f7', borderRadius: 10, backgroundColor: '#fff', gap: 10, marginBottom: 6 },
+  actTimeLabel: { fontSize: 12, color: '#64748b', minWidth: 44, fontWeight: '500' },
+  actItemTitle: { flex: 1, fontSize: 13, fontWeight: '500', color: '#0f172a' },
   doneBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#f0fdfa', marginLeft: 8 },
   doneTxt: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
   trashBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
@@ -2713,5 +2846,6 @@ const styles = StyleSheet.create({
   noteCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
   noteTitle: { fontSize: 12, fontWeight: '500', color: '#0f172a', flex: 1 },
   noteBody: { fontSize: 11, color: '#64748b', lineHeight: 18 },
+  noteLink: { color: '#0d9488', textDecorationLine: 'underline' },
   catBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
 });

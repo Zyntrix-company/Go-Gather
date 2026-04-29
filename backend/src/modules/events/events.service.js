@@ -115,6 +115,7 @@ const createEvent = async (userId, body) => {
       const remindersToCreate = [
         { type: 'event_start',   date: new Date(start) },
         { type: '1_day_before',  date: new Date(start.getTime() - 86400000) },
+        { type: '3_days_before', date: new Date(start.getTime() - 3 * 86400000) },
         { type: '1_week_before', date: new Date(start.getTime() - 7 * 86400000) },
       ];
       for (const r of remindersToCreate) {
@@ -378,6 +379,7 @@ const updateEvent = async (eventId, updates) => {
       const remindersToCreate = [
         { type: 'event_start',   date: new Date(start) },
         { type: '1_day_before',  date: new Date(start.getTime() - 86400000) },
+        { type: '3_days_before', date: new Date(start.getTime() - 3 * 86400000) },
         { type: '1_week_before', date: new Date(start.getTime() - 7 * 86400000) },
       ];
       for (const r of remindersToCreate) {

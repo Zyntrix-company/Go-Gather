@@ -8,6 +8,15 @@ const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 const FCM_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'gatherrgo';
 const FCM_URL = `https://fcm.googleapis.com/v1/projects/${FCM_PROJECT_ID}/messages:send`;
 
+// Notification types that warrant immediate lock-screen interruption
+const CRITICAL_TYPES = new Set([
+  'TRIP_CANCELLED',
+  'FRIEND_REQUEST',
+  'FRIEND_ACCEPTED',
+  'TRIP_MEMBER_ADDED',
+  'EVENT_MEMBER_ADDED',
+]);
+
 let _auth = null;
 
 const getAuth = () => {
@@ -46,16 +55,13 @@ const getAccessToken = async () => {
 
 /**
  * Send a push notification via FCM v1 HTTP API.
- * Supports Android now; iOS (APNS) config is already included — just needs
- * GoogleService-Info.plist + APNs cert set up in Firebase console when ready.
  *
- * Fire-and-forget — failures are logged but do NOT propagate.
- *
- * @param {string} token                     FCM device token
+ * @param {string} token
  * @param {{title: string, body: string}} notification
  * @param {object} [data]                    Optional data payload (values auto-stringified)
+ * @param {'critical'|'default'} [priority]  'critical' = immediate lock-screen interrupt
  */
-const sendFCMNotification = async (token, notification, data = {}) => {
+const sendFCMNotification = async (token, notification, data = {}, priority = 'default') => {
   if (!token) return;
 
   try {
@@ -70,6 +76,8 @@ const sendFCMNotification = async (token, notification, data = {}) => {
       Object.entries(data).map(([k, v]) => [k, String(v)])
     );
 
+    const isCritical = priority === 'critical';
+
     const message = {
       message: {
         token,
@@ -79,16 +87,23 @@ const sendFCMNotification = async (token, notification, data = {}) => {
         },
         data: stringData,
         android: {
-          priority: 'high',
+          priority: 'high', // keep high so FCM delivers promptly; visual tier set by channel
           notification: {
             sound: 'default',
-            channel_id: 'default',
+            channel_id: isCritical ? 'critical' : 'default',
+            notification_priority: isCritical ? 'PRIORITY_HIGH' : 'PRIORITY_DEFAULT',
           },
         },
         // iOS — ready when APNs cert is added in Firebase console
         apns: {
-          headers: { 'apns-priority': '10' },
-          payload: { aps: { sound: 'default', badge: 1 } },
+          headers: { 'apns-priority': isCritical ? '10' : '5' },
+          payload: {
+            aps: {
+              sound: 'default',
+              badge: 1,
+              'interruption-level': isCritical ? 'time-sensitive' : 'active',
+            },
+          },
         },
       },
     };
@@ -100,7 +115,7 @@ const sendFCMNotification = async (token, notification, data = {}) => {
       },
       timeout: 5000,
     });
-    logger.info('FCM notification sent', { tokenSuffix: token.slice(-8) });
+    logger.info('FCM notification sent', { tokenSuffix: token.slice(-8), priority });
   } catch (error) {
     const detail = error.response?.data ?? error.message;
     logger.error('FCM notification failed', { detail, token: token?.slice(-8) });
@@ -148,7 +163,8 @@ const createAndSendNotification = async (userId, notification, type, data = {}) 
   try {
     const result = await db('SELECT fcm_token FROM users WHERE id = $1', [userId]);
     const token = result.rows[0]?.fcm_token;
-    if (token) await sendFCMNotification(token, notification, { ...data, type });
+    const priority = CRITICAL_TYPES.has(type) ? 'critical' : 'default';
+    if (token) await sendFCMNotification(token, notification, { ...data, type }, priority);
   } catch (err) {
     logger.error('Failed to push notification after persist', { userId, type, error: err.message });
   }
@@ -189,8 +205,9 @@ const createAndSendNotifications = async (users, notification, type, data = {}) 
   // Push to each user's FCM token (tokens already on the user objects, or fetch them)
   const tokens = users.map((u) => u.fcm_token).filter(Boolean);
   if (tokens.length === 0) return;
+  const priority = CRITICAL_TYPES.has(type) ? 'critical' : 'default';
   await Promise.allSettled(
-    tokens.map((token) => sendFCMNotification(token, notification, { ...data, type }))
+    tokens.map((token) => sendFCMNotification(token, notification, { ...data, type }, priority))
   );
 };
 

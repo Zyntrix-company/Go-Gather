@@ -176,6 +176,8 @@ export type Expense = {
   category?: string;
   splitType: 'equal' | 'amount' | 'percentage';
   paidBy: string;
+  /** User id of the member who created the expense (for permissions) */
+  createdBy?: string;
   parentType: string;
   parentId: string;
   createdAt: string;

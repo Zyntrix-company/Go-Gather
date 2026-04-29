@@ -432,6 +432,8 @@ export function CreateTripModal({
   const [memberTab, setMemberTab] = useState<'friends' | 'new'>('friends');
   const [friendSearch, setFriendSearch] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
+  const [invitePhone, setInvitePhone] = useState('');
+  const [inviteWhatsapp, setInviteWhatsapp] = useState('');
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [showStartDateTooltip, setShowStartDateTooltip] = useState(false);
@@ -543,7 +545,7 @@ export function CreateTripModal({
     setStartDateObj(undefined); setEndDateObj(undefined);
     setShowStartPicker(false); setShowEndPicker(false);
     setReminders(false); setUploadedDocs([]); setSelectedFriendIds([]);
-    setFriendSearch(''); setInviteEmail('');
+    setFriendSearch(''); setInviteEmail(''); setInvitePhone(''); setInviteWhatsapp('');
     // Banner state lives in the parent — do NOT reset it here so it
     // survives the user tapping Cancel and re-opening the modal.
     // Parent clears it only after a successful trip creation.
@@ -819,7 +821,7 @@ export function CreateTripModal({
             {/* Location */}
             <Text style={styles.ctLabel}>Location</Text>
             <View style={styles.ctLocationBox}>
-              <TextInput style={{ flex: 1, fontSize: 13, color: '#0f172a' }} placeholder="Search or tap pin for GPS" placeholderTextColor="#94a3b8" value={location} onChangeText={setLocation} />
+              <TextInput style={{ flex: 1, fontSize: 13, color: '#0f172a', paddingVertical: 0 }} placeholder="Search or tap pin for GPS" placeholderTextColor="#94a3b8" value={location} onChangeText={setLocation} />
               <TouchableOpacity onPress={handleFetchLocation} activeOpacity={0.7} disabled={fetchingLocation}>
                 {fetchingLocation
                   ? <ActivityIndicator size="small" color="#0d9488" />
@@ -876,7 +878,7 @@ export function CreateTripModal({
                     <Path d="M22 6l-10 7L2 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
                 </View>
-                <Text style={styles.ctRowText}>Extract Docs from Email</Text>
+                <Text style={styles.ctRowText}>Upload Docs from Email</Text>
               </View>
             </TouchableOpacity>
 
@@ -1057,8 +1059,22 @@ export function CreateTripModal({
                   {memberTab === 'new' && (
                     <>
                       <Text style={[styles.ctLabel, { marginTop: 0 }]}>Email Address</Text>
-                      <TextInput style={styles.ctInput} placeholder="Enter email address" placeholderTextColor="#94a3b8" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
-                      <TouchableOpacity style={[styles.ctCreateBtn, { alignSelf: 'stretch', marginTop: 8 }]} onPress={() => { if (inviteEmail.trim()) { showAlert({ title: 'Invite sent!', message: `Invitation sent to ${inviteEmail}` }); setInviteEmail(''); } }} activeOpacity={0.85}>
+                      <TextInput style={[styles.ctInput, { marginBottom: 8 }]} placeholder="Enter email address" placeholderTextColor="#94a3b8" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
+                      <Text style={styles.ctLabel}>Phone Number</Text>
+                      <TextInput style={[styles.ctInput, { marginBottom: 8 }]} placeholder="Enter phone number" placeholderTextColor="#94a3b8" value={invitePhone} onChangeText={setInvitePhone} keyboardType="phone-pad" />
+                      <Text style={styles.ctLabel}>WhatsApp Number</Text>
+                      <TextInput style={[styles.ctInput, { marginBottom: 8 }]} placeholder="Enter WhatsApp number" placeholderTextColor="#94a3b8" value={inviteWhatsapp} onChangeText={setInviteWhatsapp} keyboardType="phone-pad" />
+                      <TouchableOpacity
+                        style={[styles.ctCreateBtn, { alignSelf: 'stretch', marginTop: 4 }]}
+                        onPress={() => {
+                          const hasAny = inviteEmail.trim() || invitePhone.trim() || inviteWhatsapp.trim();
+                          if (hasAny) {
+                            const via = [inviteEmail.trim() && 'email', invitePhone.trim() && 'phone', inviteWhatsapp.trim() && 'WhatsApp'].filter(Boolean).join(', ');
+                            showAlert({ title: 'Invite sent!', message: `Invitation sent via ${via}` });
+                            setInviteEmail(''); setInvitePhone(''); setInviteWhatsapp('');
+                          }
+                        }}
+                        activeOpacity={0.85}>
                         <Text style={styles.ctCreateBtnText}>Send Invitation</Text>
                       </TouchableOpacity>
                     </>
@@ -1719,7 +1735,7 @@ const styles = StyleSheet.create({
   ctDateBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
   ctDateText: { flex: 1, fontSize: 13, color: '#0f172a' },
   ctLocationBox: { flexDirection: 'row', alignItems: 'center', borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
-  ctRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f8fafc', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  ctRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f8fafc', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
   ctRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   ctRowIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#2dd4bf', alignItems: 'center', justifyContent: 'center' },
   ctRowText: { fontSize: 13, fontWeight: '400', color: '#0f172a' },
@@ -1743,6 +1759,6 @@ const styles = StyleSheet.create({
   friendSelectRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 10, marginBottom: 4 },
   friendSelectAvatar: { width: 44, height: 44, borderRadius: 22 },
   checkCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
-  friendName: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
+  friendName: { fontSize: 13, fontWeight: '400', color: '#0f172a' },
   friendHandle: { fontSize: 13, color: '#64748b', marginTop: 2 },
 });

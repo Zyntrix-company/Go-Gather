@@ -1,5 +1,5 @@
 const { query: db, getClient } = require('../../config/database');
-const { createAndSendNotification } = require('../../utils/fcm.util');
+const { createAndSendNotification, createAndSendNotifications } = require('../../utils/fcm.util');
 const logger = require('../../utils/logger');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -343,6 +343,23 @@ const claimTripInvite = async (token, claimantId, preloaded) => {
       ).catch((err) => logger.error('Notification failed', { err: err.message }));
     }
 
+    // Notify other members (not admin, not new joiner) — fire-and-forget
+    const tripName = preloaded.context_name || 'Your trip';
+    db(
+      `SELECT u.id, u.fcm_token FROM trip_members tm
+       JOIN users u ON u.id = tm.user_id
+       WHERE tm.trip_id = $1 AND tm.user_id != $2 AND tm.user_id != $3`,
+      [invite.trip_id, claimantId, adminId || claimantId],
+    ).then((otherMembers) => {
+      if (otherMembers.rows.length === 0) return;
+      createAndSendNotifications(
+        otherMembers.rows,
+        { title: 'New Member Joined', body: `${claimantName} joined "${tripName}".` },
+        'NEW_MEMBER_JOINED',
+        { tripId: invite.trip_id },
+      ).catch((err) => logger.error('NEW_MEMBER_JOINED notification failed', { err: err.message }));
+    }).catch((err) => logger.error('Failed to fetch other trip members for notification', { err: err.message }));
+
     return { type: 'trip', tripId: invite.trip_id, tripName: preloaded.context_name || null };
   } catch (error) {
     await client.query('ROLLBACK');
@@ -429,6 +446,23 @@ const claimEventInvite = async (token, claimantId, preloaded) => {
         { eventId: invite.event_id, newMemberId: claimantId, screen: 'events' },
       ).catch((err) => logger.error('Notification failed', { err: err.message }));
     }
+
+    // Notify other members (not admin, not new joiner) — fire-and-forget
+    const eventName = preloaded.context_name || 'Your event';
+    db(
+      `SELECT u.id, u.fcm_token FROM event_members em
+       JOIN users u ON u.id = em.user_id
+       WHERE em.event_id = $1 AND em.user_id != $2 AND em.user_id != $3`,
+      [invite.event_id, claimantId, adminId || claimantId],
+    ).then((otherMembers) => {
+      if (otherMembers.rows.length === 0) return;
+      createAndSendNotifications(
+        otherMembers.rows,
+        { title: 'New Member Joined', body: `${claimantName} joined "${eventName}".` },
+        'NEW_MEMBER_JOINED',
+        { eventId: invite.event_id },
+      ).catch((err) => logger.error('NEW_MEMBER_JOINED notification failed', { err: err.message }));
+    }).catch((err) => logger.error('Failed to fetch other event members for notification', { err: err.message }));
 
     return { type: 'event', eventId: invite.event_id, eventName: preloaded.context_name || null };
   } catch (error) {

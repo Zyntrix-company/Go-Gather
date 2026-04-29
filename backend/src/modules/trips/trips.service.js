@@ -148,8 +148,9 @@ const createTrip = async (userId, body) => {
       start.setUTCHours(HOUR, MIN, 0, 0);
 
       const remindersToCreate = [
-        { type: 'trip_start', date: new Date(start) },
-        { type: '1_day_before', date: new Date(start.getTime() - 86400000) },
+        { type: 'trip_start',    date: new Date(start) },
+        { type: '1_day_before',  date: new Date(start.getTime() - 86400000) },
+        { type: '3_days_before', date: new Date(start.getTime() - 3 * 86400000) },
         { type: '1_week_before', date: new Date(start.getTime() - 7 * 86400000) },
       ];
       for (const r of remindersToCreate) {
@@ -404,8 +405,9 @@ const updateTrip = async (tripId, updates) => {
       const start = new Date(updates.startDate);
       start.setUTCHours(HOUR, MIN, 0, 0);
       const remindersToCreate = [
-        { type: 'trip_start', date: new Date(start) },
-        { type: '1_day_before', date: new Date(start.getTime() - 86400000) },
+        { type: 'trip_start',    date: new Date(start) },
+        { type: '1_day_before',  date: new Date(start.getTime() - 86400000) },
+        { type: '3_days_before', date: new Date(start.getTime() - 3 * 86400000) },
         { type: '1_week_before', date: new Date(start.getTime() - 7 * 86400000) },
       ];
       for (const r of remindersToCreate) {
@@ -430,11 +432,20 @@ const updateTrip = async (tripId, updates) => {
 
 // ─── Delete Trip ──────────────────────────────────────────────────────────────
 
-const deleteTrip = async (tripId) => {
-  const docsResult = await db("SELECT s3_key FROM docs WHERE parent_type = 'trip' AND parent_id = $1", [tripId]);
-  // photos table now includes activity photos (activity_id set) — single query covers all
-  const photosResult = await db("SELECT s3_key FROM photos WHERE parent_type = 'trip' AND parent_id = $1", [tripId]);
+const deleteTrip = async (tripId, actorId) => {
+  const [docsResult, photosResult, membersResult, tripResult] = await Promise.all([
+    db("SELECT s3_key FROM docs WHERE parent_type = 'trip' AND parent_id = $1", [tripId]),
+    db("SELECT s3_key FROM photos WHERE parent_type = 'trip' AND parent_id = $1", [tripId]),
+    db(
+      `SELECT u.id, u.fcm_token FROM trip_members tm
+       JOIN users u ON u.id = tm.user_id
+       WHERE tm.trip_id = $1${actorId ? ' AND tm.user_id != $2' : ''}`,
+      actorId ? [tripId, actorId] : [tripId],
+    ),
+    db('SELECT name FROM trips WHERE id = $1', [tripId]),
+  ]);
 
+  const tripName = tripResult.rows[0]?.name || 'Your trip';
   const s3Keys = [
     ...docsResult.rows.map((r) => r.s3_key),
     ...photosResult.rows.map((r) => r.s3_key),
@@ -442,6 +453,15 @@ const deleteTrip = async (tripId) => {
 
   if (s3Keys.length > 0) await batchDeleteFromS3(s3Keys);
   await db('DELETE FROM trips WHERE id = $1', [tripId]);
+
+  if (membersResult.rows.length > 0) {
+    createAndSendNotifications(
+      membersResult.rows,
+      { title: 'Trip Cancelled', body: `"${tripName}" has been cancelled by the organiser.` },
+      'TRIP_CANCELLED',
+      { tripId, tripName },
+    ).catch(() => {});
+  }
 };
 
 // ─── Invite Members — friend vs non-friend flow ───────────────────────────────

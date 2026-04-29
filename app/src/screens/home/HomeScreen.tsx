@@ -888,7 +888,7 @@ export default function HomeScreen({ navigation, route }: any) {
             <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>Create Event</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => handleAskSwee('How does GatherGo work?')}
+            onPress={() => navigation.navigate('HowItWorks')}
             activeOpacity={0.85}
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFA76A', borderRadius: 999, paddingVertical: 9, gap: 5 }}>
             <HelpCircle size={15} color="#fff" />

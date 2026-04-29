@@ -297,6 +297,8 @@ export function CreateEventModal({ visible, onClose, onSave }: {
   const [memberTab, setMemberTab] = useState<'friends' | 'new'>('friends');
   const [friendSearch, setFriendSearch] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
+  const [invitePhone, setInvitePhone] = useState('');
+  const [inviteWhatsapp, setInviteWhatsapp] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [reminders, setReminders] = useState(true);
@@ -391,7 +393,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
     setLocation(''); setFetchingLocation(false);
     setUploadedDocs([]); setSelectedFriendIds([]);
     setShowInviteModal(false); setShowEmailModal(false);
-    setMemberTab('friends'); setFriendSearch(''); setInviteEmail('');
+    setMemberTab('friends'); setFriendSearch(''); setInviteEmail(''); setInvitePhone(''); setInviteWhatsapp('');
     setReminders(true);
     setBannerImageUri(undefined); setBannerCropFraction(null);
     setCropPreviewUri(undefined);
@@ -667,7 +669,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
             <Text style={modal.label}>Location</Text>
             <View style={modal.locationBox}>
               <TextInput
-                style={{ flex: 1, fontSize: 13, color: '#0f172a' }}
+                style={{ flex: 1, fontSize: 13, color: '#0f172a', paddingVertical: 0 }}
                 placeholder="Search or tap pin for GPS"
                 placeholderTextColor="#94a3b8"
                 value={location}
@@ -729,7 +731,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
                     <Path d="M22 6l-10 7L2 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
                 </View>
-                <Text style={modal.ctRowText}>Extract Docs from Email</Text>
+                <Text style={modal.ctRowText}>Upload Docs from Email</Text>
               </View>
             </TouchableOpacity>
 
@@ -897,7 +899,15 @@ export function CreateEventModal({ visible, onClose, onSave }: {
                             activeOpacity={0.8}
                           >
                             <View style={modal.friendAvatar}>
-                              <Text style={modal.friendAvatarText}>{friend.name[0]}</Text>
+                              {friend.uri ? (
+                                <Image
+                                  source={{ uri: friend.uri }}
+                                  style={{ width: 38, height: 38, borderRadius: 19 }}
+                                  onError={() => {}}
+                                />
+                              ) : (
+                                <Text style={modal.friendAvatarText}>{friend.name[0]}</Text>
+                              )}
                             </View>
                             <View style={{ flex: 1 }}>
                               <Text style={modal.friendName}>{friend.name}</Text>
@@ -920,7 +930,7 @@ export function CreateEventModal({ visible, onClose, onSave }: {
                   <>
                     <Text style={[modal.label, { marginTop: 0 }]}>Email Address</Text>
                     <TextInput
-                      style={modal.input}
+                      style={[modal.input, { marginBottom: 8 }]}
                       placeholder="Enter email address"
                       placeholderTextColor="#94a3b8"
                       value={inviteEmail}
@@ -928,9 +938,34 @@ export function CreateEventModal({ visible, onClose, onSave }: {
                       keyboardType="email-address"
                       autoCapitalize="none"
                     />
+                    <Text style={modal.label}>Phone Number</Text>
+                    <TextInput
+                      style={[modal.input, { marginBottom: 8 }]}
+                      placeholder="Enter phone number"
+                      placeholderTextColor="#94a3b8"
+                      value={invitePhone}
+                      onChangeText={setInvitePhone}
+                      keyboardType="phone-pad"
+                    />
+                    <Text style={modal.label}>WhatsApp Number</Text>
+                    <TextInput
+                      style={[modal.input, { marginBottom: 8 }]}
+                      placeholder="Enter WhatsApp number"
+                      placeholderTextColor="#94a3b8"
+                      value={inviteWhatsapp}
+                      onChangeText={setInviteWhatsapp}
+                      keyboardType="phone-pad"
+                    />
                     <TouchableOpacity
-                      style={[modal.createBtn, { alignSelf: 'stretch', marginTop: 8 }]}
-                      onPress={() => { if (inviteEmail.trim()) { showAlert({ title: 'Invite sent!', message: `Invitation sent to ${inviteEmail}` }); setInviteEmail(''); } }}
+                      style={[modal.createBtn, { alignSelf: 'stretch', marginTop: 4 }]}
+                      onPress={() => {
+                        const hasAny = inviteEmail.trim() || invitePhone.trim() || inviteWhatsapp.trim();
+                        if (hasAny) {
+                          const via = [inviteEmail.trim() && 'email', invitePhone.trim() && 'phone', inviteWhatsapp.trim() && 'WhatsApp'].filter(Boolean).join(', ');
+                          showAlert({ title: 'Invite sent!', message: `Invitation sent via ${via}` });
+                          setInviteEmail(''); setInvitePhone(''); setInviteWhatsapp('');
+                        }
+                      }}
                       activeOpacity={0.85}
                     >
                       <Text style={modal.createBtnTxt}>Send Invitation</Text>
@@ -1448,9 +1483,9 @@ const modal = StyleSheet.create({
     width: 30, height: 30, borderRadius: 15,
     backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center',
   },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 8, gap: 12 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, gap: 6 },
 
-  label: { fontSize: 13, fontWeight: '400', color: '#0f172a', marginTop: 4 },
+  label: { fontSize: 13, fontWeight: '400', color: '#0f172a', marginTop: 2 },
   input: {
     borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 12,
     paddingHorizontal: 12, paddingVertical: 10,
@@ -1476,7 +1511,7 @@ const modal = StyleSheet.create({
   // Action rows (matching TripsScreen style)
   ctRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#f8fafc', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: '#f8fafc', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
   },
   ctRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   ctRowIcon: {
@@ -1526,7 +1561,7 @@ const modal = StyleSheet.create({
     backgroundColor: '#ccfbf1', alignItems: 'center', justifyContent: 'center',
   },
   friendAvatarText: { fontSize: 16, fontWeight: '600', color: colors.accent },
-  friendName: { fontSize: 14, fontWeight: '500', color: '#0f172a' },
+  friendName: { fontSize: 13, fontWeight: '400', color: '#0f172a' },
   checkCircle: {
     width: 24, height: 24, borderRadius: 12,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
