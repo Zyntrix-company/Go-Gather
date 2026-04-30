@@ -65,7 +65,7 @@ const isInQuietHours = (notificationSettings, timezone) => {
     hour: '2-digit', minute: '2-digit', hour12: false,
   });
   const parts = formatter.formatToParts(now);
-  const hour   = parseInt(parts.find((p) => p.type === 'hour').value, 10);
+  const hour   = parseInt(parts.find((p) => p.type === 'hour').value, 10) % 24; // % 24 handles '24' for midnight on some Node versions
   const minute = parseInt(parts.find((p) => p.type === 'minute').value, 10);
   const current = hour * 60 + minute;
 

@@ -4,6 +4,20 @@ const authenticateJWT = require('../../middleware/authenticate');
 
 const router = Router();
 
+// Dev-only: manually trigger cron jobs (no auth, local only)
+if (process.env.NODE_ENV !== 'production') {
+  const { processBatchedPushes } = require('../../utils/batching.cron');
+  const { processDigests } = require('../../utils/digest.cron');
+  router.post('/dev/flush-batches', async (req, res) => {
+    const count = await processBatchedPushes();
+    res.json({ flushed: count });
+  });
+  router.post('/dev/run-digest', async (req, res) => {
+    const count = await processDigests();
+    res.json({ sent: count });
+  });
+}
+
 router.use(authenticateJWT);
 
 // GET /notifications?page=1
