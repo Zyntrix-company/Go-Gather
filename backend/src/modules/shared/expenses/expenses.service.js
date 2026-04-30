@@ -161,6 +161,7 @@ const addExpense = async ({ parentType, parentId }, createdBy, body) => {
           { title: 'New Expense Added', body: `${actorName} added an expense of ${expenseAmount} to "${parentName}".` },
           'EXPENSE_ADDED',
           dataPayload,
+          { batched: true },
         );
       } catch (_) { /* fire-and-forget */ }
     });

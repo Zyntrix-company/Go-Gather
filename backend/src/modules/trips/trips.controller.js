@@ -195,6 +195,49 @@ const getTripReminders = async (req, res, next) => {
   }
 };
 
+// ── POST /trips/:id/mute ──────────────────────────────────────
+const muteTrip = async (req, res, next) => {
+  try {
+    const { query: db } = require('../../config/database');
+    await db(
+      `INSERT INTO trip_notification_mutes (user_id, trip_id)
+       VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [req.user.id, req.params.id],
+    );
+    res.status(200).json({ muted: true });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── DELETE /trips/:id/mute ────────────────────────────────────
+const unmuteTrip = async (req, res, next) => {
+  try {
+    const { query: db } = require('../../config/database');
+    await db(
+      'DELETE FROM trip_notification_mutes WHERE user_id = $1 AND trip_id = $2',
+      [req.user.id, req.params.id],
+    );
+    res.status(200).json({ muted: false });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ── GET /trips/:id/mute ───────────────────────────────────────
+const getTripMuteStatus = async (req, res, next) => {
+  try {
+    const { query: db } = require('../../config/database');
+    const result = await db(
+      'SELECT 1 FROM trip_notification_mutes WHERE user_id = $1 AND trip_id = $2',
+      [req.user.id, req.params.id],
+    );
+    res.status(200).json({ muted: result.rowCount > 0 });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createTrip,
   getTrips,
@@ -207,4 +250,7 @@ module.exports = {
   getInvite,
   acceptInvite,
   getTripReminders,
+  muteTrip,
+  unmuteTrip,
+  getTripMuteStatus,
 };

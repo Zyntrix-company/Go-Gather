@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
-  TextInput, Image, Platform, NativeModules, Dimensions,
+  TextInput, Image, Platform, NativeModules, Dimensions, Linking,
   ActivityIndicator,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -58,7 +59,12 @@ import { showAlert, showConfirm } from '../../store/alertStore';
 type DocItem = { id: string; name: string; uri: string; mimeType?: string };
 type PhotoItem = { id: string; uri: string; localUri?: string; name: string };
 type EventMemberLocal = { userId: string; fullName: string; avatarUrl?: string; role: 'admin' | 'member' };
-type ExpenseLocal = { id: string; description: string; amount: number; category: string; paidBy: string; splitType: 'equally' | 'amount' | 'percent'; splitAmong: string[]; date: string; myAmount?: number };
+type ExpenseLocal = {
+  id: string; description: string; amount: number; category: string;
+  paidBy: string; splitType: 'equally' | 'amount' | 'percent'; splitAmong: string[]; date: string; myAmount?: number;
+  createdByUserId?: string;
+  splitBreakdown?: { userId: string; amount: number; percentage: number | null }[];
+};
 type PollLocal = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null };
 type NoteLocal = { id: string; title: string; body: string; category: 'general' | 'idea' | 'important' | 'todo'; date: string; pinned?: boolean };
 type DebtLocal = { from: string; to: string; fromName: string; toName: string; amount: number };
@@ -74,6 +80,98 @@ const EXPENSE_CATS = [
   { label: 'Shopping', emoji: '🛍️' },
   { label: 'Other', emoji: '🌐' },
 ];
+
+const EXPENSE_CAT_SLUG_TO_LABEL: Record<string, string> = {
+  general: 'General',
+  food: 'Food & Dining',
+  transportation: 'Transport',
+  accommodation: 'Stay',
+  entertainment: 'Entertainment',
+  shopping: 'Shopping',
+  other: 'Other',
+};
+
+function normalizeDebtArray(
+  debts: any[],
+  currentUid: string,
+  membersList: { userId: string; fullName?: string }[],
+): DebtLocal[] {
+  return (debts ?? []).map((d: any) => ({
+    from: d.from,
+    to: d.to,
+    fromName: d.fromName || (d.from === currentUid ? 'You' : (membersList.find(m => m.userId === d.from)?.fullName || 'Member')),
+    toName: d.toName || (d.to === currentUid ? 'You' : (membersList.find(m => m.userId === d.to)?.fullName || 'Member')),
+    amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
+  }));
+}
+
+function mapApiEventExpenseToState(e: any, currentUserId: string, membersList: EventMemberLocal[]): ExpenseLocal {
+  const resolvePaidBy = (paidByRaw: any): string => {
+    if (typeof paidByRaw === 'object' && paidByRaw !== null) {
+      const uid = paidByRaw.userId ?? paidByRaw.id ?? '';
+      if (uid === currentUserId) return 'You';
+      return paidByRaw.name ?? paidByRaw.fullName ?? uid ?? 'Unknown';
+    }
+    const uid = String(paidByRaw ?? '');
+    if (uid === currentUserId) return 'You';
+    const member = membersList.find(m => m.userId === uid);
+    return member?.fullName ?? uid ?? 'Unknown';
+  };
+  const paidByStr = resolvePaidBy(e.paidBy);
+  const splits = e.splits ?? [];
+  const mySplit = splits.find((s: any) => s.userId === currentUserId);
+  const myAmount = mySplit ? parseFloat(String(mySplit.amount ?? '0')) : 0;
+  const creatorRaw = e.createdBy ?? e.created_by;
+  const creatorId = typeof creatorRaw === 'object' && creatorRaw !== null
+    ? String((creatorRaw as any).userId ?? (creatorRaw as any).id ?? '')
+    : String(creatorRaw ?? '').trim();
+  const catSlug = (e.category ?? 'general').toString().toLowerCase();
+  return {
+    id: e.id,
+    description: e.description,
+    amount: parseFloat(String(e.amount)),
+    category: catSlug,
+    paidBy: paidByStr,
+    splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
+    splitAmong: splits.map((s: any) => s.userId),
+    date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
+    myAmount,
+    createdByUserId: creatorId || undefined,
+    splitBreakdown: splits.map((s: any) => ({
+      userId: s.userId,
+      amount: parseFloat(String(s.amount ?? '0')),
+      percentage: s.percentage != null && s.percentage !== '' ? parseFloat(String(s.percentage)) : null,
+    })),
+  };
+}
+
+function renderTextWithLinks(text: string, textStyle: any, linkStyle: any) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return (
+    <Text style={textStyle}>
+      {parts.map((part, idx) => {
+        const isLink = /^https?:\/\/[^\s]+$/i.test(part);
+        if (!isLink) return <React.Fragment key={`${part}-${idx}`}>{part}</React.Fragment>;
+        return (
+          <Text
+            key={`${part}-${idx}`}
+            style={linkStyle}
+            onPress={async () => {
+              try {
+                const canOpen = await Linking.canOpenURL(part);
+                if (canOpen) await Linking.openURL(part);
+              } catch {
+                Toast.show({ type: 'error', text1: 'Unable to open link' });
+              }
+            }}
+          >
+            {part}
+          </Text>
+        );
+      })}
+    </Text>
+  );
+}
 
 const NOTE_CATS = [
   { key: 'general', label: 'General', emoji: '📝' },
@@ -259,7 +357,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [showPolls, setShowPolls] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showEditEvent, setShowEditEvent] = useState(false);
-  const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
+  const [previewPhotoIndex, setPreviewPhotoIndex] = useState<number | null>(null);
   const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
 
   // ── Data state ──
@@ -273,6 +371,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [myBalance, setMyBalance] = useState(0);
   const [polls, setPolls] = useState<PollLocal[]>([]);
   const [notes, setNotes] = useState<NoteLocal[]>([]);
+
+  const previewPhoto = previewPhotoIndex !== null ? photos[previewPhotoIndex] ?? null : null;
+  const myMemberRole = members.find(m => m.userId === currentUserId)?.role ?? 'member';
 
   // ── Load event detail and all modules from API on every focus ──
   useFocusEffect(
@@ -315,10 +416,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
             // Update docs
             setDocs(docsData.docs.map(d => ({ id: d.id, name: d.fileName, uri: d.downloadUrl ?? d.fileUrl ?? '', mimeType: d.mimeType })));
 
-            // Update photos
-            setPhotos(docsData => {
+            // Update photos (preserve localUri from previous session state)
+            setPhotos(prev => {
               const cache: Record<string, string> = {};
-              docsData.forEach(p => { if ((p as any).localUri) cache[p.id] = (p as any).localUri; });
+              prev.forEach(p => { if ((p as any).localUri) cache[p.id] = (p as any).localUri; });
               return photosData.photos.map(p => ({
                 id: p.id,
                 uri: p.url ?? p.fileUrl ?? '',
@@ -328,39 +429,14 @@ export default function EventDetailScreen({ route, navigation }: any) {
             });
 
             // Update expenses and balances
-            const resolvePaidBy = (paidByRaw: any): string => {
-              if (typeof paidByRaw === 'object' && paidByRaw !== null) {
-                const uid = paidByRaw.userId ?? paidByRaw.id ?? '';
-                if (uid === currentUserId) return 'You';
-                return paidByRaw.name ?? paidByRaw.fullName ?? uid ?? 'Unknown';
-              }
-              const uid = String(paidByRaw ?? '');
-              if (uid === currentUserId) return 'You';
-              const member = eventData.members.find((m: any) => m.userId === uid);
-              return member?.fullName ?? uid ?? 'Unknown';
-            };
-            setExpenses((expData.expenses ?? []).map(e => {
-              const paidByStr = resolvePaidBy(e.paidBy);
-              const splits = e.splits ?? [];
-              const mySplit = splits.find((s: any) => s.userId === currentUserId);
-              const myAmount = mySplit ? parseFloat(mySplit.amount ?? '0') : 0;
-              return {
-                id: e.id,
-                description: e.description,
-                amount: parseFloat(e.amount),
-                category: e.category ?? 'General',
-                paidBy: paidByStr,
-                splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
-                splitAmong: splits.map((s: any) => s.userId),
-                date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
-                myAmount,
-              };
+            const membersForMap: EventMemberLocal[] = eventData.members.map((m: any) => ({
+              userId: m.userId,
+              fullName: m.fullName ?? m.name ?? 'Member',
+              avatarUrl: m.avatarUrl,
+              role: m.role,
             }));
-            setBalances((balData.debts ?? []).map((d: any) => ({
-              from: d.from, to: d.to,
-              fromName: d.fromName ?? 'Member', toName: d.toName ?? 'Member',
-              amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
-            })));
+            setExpenses((expData.expenses ?? []).map(e => mapApiEventExpenseToState(e, currentUserId, membersForMap)));
+            setBalances(normalizeDebtArray(balData.debts, currentUserId, membersForMap));
             setMyBalance(balData.myBalance ?? 0);
 
             // Update polls
@@ -536,15 +612,26 @@ export default function EventDetailScreen({ route, navigation }: any) {
     });
   }
 
+  function openPhotoPreview(photoId: string) {
+    const idx = photos.findIndex(x => x.id === photoId);
+    if (idx >= 0) setPreviewPhotoIndex(idx);
+  }
+  function showPrevPhoto() {
+    if (previewPhotoIndex === null || photos.length <= 1) return;
+    setPreviewPhotoIndex((previewPhotoIndex - 1 + photos.length) % photos.length);
+  }
+  function showNextPhoto() {
+    if (previewPhotoIndex === null || photos.length <= 1) return;
+    setPreviewPhotoIndex((previewPhotoIndex + 1) % photos.length);
+  }
+
   async function handleAddExpense() {
     if (!expDesc.trim() || !expAmount) { showAlert({ title: 'Error', message: 'Please fill description and amount' }); return; }
     const amount = parseFloat(expAmount) || 0;
 
-    // Map local "You" placeholder to real user ID
     const resolveId = (id: string) => id === 'You' ? currentUserId : id;
     const splitAmongIds = expSplitAmong.map(resolveId);
 
-    // Validate that splitAmong doesn't have duplicate IDs
     const uniqueIds = new Set(splitAmongIds);
     if (uniqueIds.size !== splitAmongIds.length) {
       showAlert({ title: 'Error', message: 'Cannot split expense among same person twice' });
@@ -560,48 +647,55 @@ export default function EventDetailScreen({ route, navigation }: any) {
       return { userId: uid, amount: parseFloat(raw) || 0 };
     });
 
+    if (apiSplitType === 'amount') {
+      const sum = splitAmong.reduce((s: number, x: any) => s + (x.amount ?? 0), 0);
+      if (Math.abs(sum - amount) > 0.01) {
+        showAlert({ title: 'Validation Error', message: 'Split amounts must sum to the total expense amount.' });
+        return;
+      }
+    }
+    if (apiSplitType === 'percentage') {
+      const sum = splitAmong.reduce((s: number, x: any) => s + (x.percentage ?? 0), 0);
+      if (Math.abs(sum - 100) > 0.01) {
+        showAlert({ title: 'Validation Error', message: 'Percentages must sum to 100.' });
+        return;
+      }
+    }
+
+    const catMap: Record<string, string> = {
+      'General': 'general', 'Food & Dining': 'food', 'Transport': 'transportation',
+      'Stay': 'accommodation', 'Entertainment': 'entertainment', 'Shopping': 'shopping', 'Other': 'other',
+    };
+    const categorySlug = catMap[expCategory.label] ?? 'general';
+
     const paidByUserId = expPaidBy === 'You' ? currentUserId
       : members.find(m => m.fullName === expPaidBy)?.userId ?? currentUserId;
 
     try {
       if (editingExpenseId) {
         const res = await updateEventExpense(event.id, editingExpenseId, {
-          description: expDesc, amount, category: expCategory.label.toLowerCase(),
+          description: expDesc.trim(), amount, category: categorySlug,
           splitType: apiSplitType, splitAmong,
         });
-        setExpenses(p => p.map(e => e.id === editingExpenseId
-          ? { ...e, description: expDesc, amount, category: expCategory.label, paidBy: expPaidBy, splitType: expSplitType, splitAmong: expSplitAmong }
-          : e));
-        // Refresh balances after updating expense
+        const mapped = mapApiEventExpenseToState(res.expense, currentUserId, members);
+        setExpenses(p => p.map(e => e.id === editingExpenseId ? mapped : e));
+        if (res.balances) setBalances(normalizeDebtArray(res.balances, currentUserId, members));
         const balData = await getEventBalances(event.id);
-        setBalances((balData.debts ?? []).map((d: any) => ({
-          from: d.from, to: d.to,
-          fromName: d.fromName ?? 'Member', toName: d.toName ?? 'Member',
-          amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
-        })));
+        setBalances(normalizeDebtArray(balData.debts, currentUserId, members));
         setMyBalance(balData.myBalance ?? 0);
         setEditingExpenseId(null);
       } else {
         const res = await createEventExpense(event.id, {
-          description: expDesc, amount, category: expCategory.label.toLowerCase(),
+          description: expDesc.trim(), amount, category: categorySlug,
           paidBy: paidByUserId, splitType: apiSplitType, splitAmong,
         });
-        const e = res.expense;
-        const myAmt = e.splits.find(s => s.userId === currentUserId);
-        setExpenses(p => [...p, {
-          id: e.id, description: e.description, amount: parseFloat(e.amount),
-          category: expCategory.label, paidBy: expPaidBy, splitType: expSplitType,
-          splitAmong: expSplitAmong,
-          date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
-          myAmount: myAmt ? parseFloat(myAmt.amount) : undefined,
-        }]);
-        setBalances(res.balances.map(d => ({ from: d.from, to: d.to, fromName: d.fromName, toName: d.toName, amount: d.amount })));
-        // Refresh myBalance after creating expense
+        setExpenses(p => [...p, mapApiEventExpenseToState(res.expense, currentUserId, members)]);
+        if (res.balances) setBalances(normalizeDebtArray(res.balances, currentUserId, members));
         const balData = await getEventBalances(event.id);
+        setBalances(normalizeDebtArray(balData.debts, currentUserId, members));
         setMyBalance(balData.myBalance ?? 0);
       }
     } catch (err: any) {
-      // Improved error handling for duplicate key errors
       const errorMsg = err?.message?.toLowerCase() || '';
       if (errorMsg.includes('duplicate') || errorMsg.includes('unique')) {
         showAlert({ title: 'Duplicate Expense', message: 'This expense already exists. Please check your entries and try again.' });
@@ -619,31 +713,74 @@ export default function EventDetailScreen({ route, navigation }: any) {
   function startEditExpense(exp: ExpenseLocal) {
     setExpDesc(exp.description);
     setExpAmount(String(exp.amount));
-    setExpCategory(EXPENSE_CATS.find(c => c.label === exp.category) || EXPENSE_CATS[0]);
+    const catLabel = EXPENSE_CAT_SLUG_TO_LABEL[exp.category] ?? exp.category;
+    setExpCategory(EXPENSE_CATS.find(c => c.label === catLabel) || EXPENSE_CATS[0]);
     setExpPaidBy(exp.paidBy);
     setExpSplitType(exp.splitType);
-    setExpSplitAmong(exp.splitAmong);
+    const among = (exp.splitAmong ?? []).map(uid => (uid === currentUserId ? 'You' : uid));
+    setExpSplitAmong(among.length ? among : ['You']);
+    const details: Record<string, string> = {};
+    if (exp.splitBreakdown?.length) {
+      exp.splitBreakdown.forEach(s => {
+        const key = s.userId === currentUserId ? 'You' : s.userId;
+        if (exp.splitType === 'amount') {
+          details[key] = String(s.amount);
+        } else if (exp.splitType === 'percent') {
+          const p = s.percentage != null && !Number.isNaN(s.percentage)
+            ? s.percentage
+            : (exp.amount > 0 ? (s.amount / exp.amount) * 100 : 0);
+          details[key] = String(Math.round(p * 100) / 100);
+        }
+      });
+    }
+    setExpSplitDetails(details);
     setEditingExpenseId(exp.id);
     setShowAddExpense(true);
   }
 
-  function handleDeleteExpense(eid: string) {
+  function handleDeleteExpense(eid: string, createdByUserId: string) {
+    if (myMemberRole !== 'admin' && createdByUserId !== currentUserId) {
+      Toast.show({ type: 'error', text1: 'Permission denied', text2: 'You can only delete your own expenses.' });
+      return;
+    }
     showConfirm({
-      title: 'Delete',
-      message: 'Remove this expense?',
+      title: 'Delete Expense',
+      message: 'This will permanently remove this expense. This action cannot be undone.',
       destructive: true,
       onConfirm: async () => {
         try {
           await deleteEventExpense(event.id, eid);
           setExpenses(p => p.filter(e => e.id !== eid));
           const balData = await getEventBalances(event.id);
-          setBalances((balData.debts ?? []).map((d: any) => ({
-            from: d.from, to: d.to,
-            fromName: d.fromName ?? 'Member', toName: d.toName ?? 'Member',
-            amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
-          })));
+          setBalances(normalizeDebtArray(balData.debts, currentUserId, members));
           setMyBalance(balData.myBalance ?? 0);
         } catch (err) { handleApiError(err); }
+      },
+    });
+  }
+
+  function handleSettleEventDebt(withUserId: string, amount: number) {
+    const amt = typeof amount === 'number' && !Number.isNaN(amount) ? amount : parseFloat(String(amount));
+    if (!amt || amt <= 0) {
+      showAlert({ title: 'Invalid amount', message: 'Enter a valid settlement amount.' });
+      return;
+    }
+    showConfirm({
+      title: 'Record settlement',
+      message: `Record a payment of ₹${amt.toFixed(2)} to settle this balance? Balances will update for everyone on this event.`,
+      confirmText: 'Settle',
+      destructive: false,
+      onConfirm: async () => {
+        try {
+          const res = await settleEventDebt(event.id, { withUserId, amount: amt });
+          setBalances(normalizeDebtArray(res.outstanding ?? [], currentUserId, members));
+          const balData = await getEventBalances(event.id);
+          setMyBalance(balData.myBalance ?? 0);
+          setBalances(normalizeDebtArray(balData.debts, currentUserId, members));
+          Toast.show({ type: 'success', text1: 'Settlement recorded' });
+        } catch (err) {
+          handleApiError(err);
+        }
       },
     });
   }
@@ -814,8 +951,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
             docCount={docs.length}
             photoCount={photos.length}
             totalExpenses={totalExp}
-            typeBadge={event.type}
-            typeBadgeColor={event.typeColor}
             onEdit={openEditEvent}
           />
 
@@ -958,7 +1093,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   return (
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       {photos.slice(0, 3).map(p => (
-                        <TouchableOpacity key={p.id} onPress={() => setPreviewPhoto(p)} activeOpacity={0.85}>
+                        <TouchableOpacity key={p.id} onPress={() => openPhotoPreview(p.id)} activeOpacity={0.85}>
                           <Image
                             source={{ uri: p.localUri ?? p.uri }}
                             style={{ width: THUMB, height: THUMB, borderRadius: 10, backgroundColor: '#e2e8f0' }}
@@ -1261,7 +1396,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   ) : (
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {photos.map(ph => (
-                        <EventPhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewPhoto(ph)} />
+                        <EventPhotoThumb key={ph.id} photo={ph} onPress={() => openPhotoPreview(ph.id)} />
                       ))}
                     </View>
                   )}
@@ -1272,11 +1407,11 @@ export default function EventDetailScreen({ route, navigation }: any) {
         </Modal>
 
         {/* Fullscreen photo preview */}
-        <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
+        <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhotoIndex(null)}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' }}>
             {/* Close button — top left */}
             <TouchableOpacity
-              onPress={() => setPreviewPhoto(null)}
+              onPress={() => setPreviewPhotoIndex(null)}
               style={{ position: 'absolute', top: 48, left: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}
               activeOpacity={0.8}>
               <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
@@ -1295,7 +1430,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     try {
                       await deleteEventPhoto(event.id, previewPhoto.id);
                       setPhotos(p => p.filter(x => x.id !== previewPhoto.id));
-                      setPreviewPhoto(null);
+                      setPreviewPhotoIndex(null);
                     } catch (err) { handleApiError(err); }
                   },
                 });
@@ -1308,6 +1443,24 @@ export default function EventDetailScreen({ route, navigation }: any) {
             </TouchableOpacity>
             {previewPhoto && (
               <EventPhotoPreview photo={previewPhoto} />
+            )}
+            {previewPhoto && photos.length > 1 && (
+              <>
+                <TouchableOpacity
+                  onPress={showPrevPhoto}
+                  activeOpacity={0.8}
+                  style={{ position: 'absolute', left: 12, top: '50%', marginTop: -22, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 28, lineHeight: 30 }}>{'‹'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={showNextPhoto}
+                  activeOpacity={0.8}
+                  style={{ position: 'absolute', right: 12, top: '50%', marginTop: -22, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 28, lineHeight: 30 }}>{'›'}</Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         </Modal>
@@ -1339,10 +1492,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
         {/* ═══════════════════════════════════════════════════
             MODAL 4 — Expenses
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={() => { setShowExpenses(false); setShowAddExpense(false); }}>
+        <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); }}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '92%' }]}>
-              <DHeader title="Expenses" onClose={() => { setShowExpenses(false); setShowAddExpense(false); }} />
+              <DHeader title="Expenses" onClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); }} />
               <TabBar tabs={['All Expenses', 'Balances']} active={expTab} onSelect={t => setExpTab(t as any)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
@@ -1352,6 +1505,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       const allIds = ['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.userId)];
                       setExpSplitAmong(allIds); setExpPaidBy('You');
                       setExpDesc(''); setExpAmount(''); setExpSplitType('equally'); setExpSplitDetails({});
+                      setEditingExpenseId(null);
                       setShowAddExpense(p => !p);
                     }} activeOpacity={0.85}>
                       <Text style={styles.tealBtnTxt}>+ Add Expense</Text>
@@ -1419,7 +1573,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                           </TouchableOpacity>
                         ))}
                         <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                          <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddExpense(false)} activeOpacity={0.7}><Text style={styles.cancelTxt}>Cancel</Text></TouchableOpacity>
+                          <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowAddExpense(false); setEditingExpenseId(null); }} activeOpacity={0.7}><Text style={styles.cancelTxt}>Cancel</Text></TouchableOpacity>
                           <TouchableOpacity style={[styles.tealBtnFull, { flex: 1 }]} onPress={handleAddExpense} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>{editingExpenseId ? 'Update Expense' : 'Add Expense'}</Text></TouchableOpacity>
                         </View>
                       </View>
@@ -1443,7 +1597,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                           const balColor = exp.paidBy === 'You' ? '#0d9488' : '#ef4444';
                           return (
                             <View key={exp.id} style={styles.expRow}>
-                              <View style={styles.expIconBox}><Text style={{ fontSize: 18 }}>{EXPENSE_CATS.find(c => c.label === exp.category)?.emoji || '📦'}</Text></View>
+                              <View style={styles.expIconBox}><Text style={{ fontSize: 18 }}>{EXPENSE_CATS.find(c => c.label === (EXPENSE_CAT_SLUG_TO_LABEL[(exp.category || '').toLowerCase()] ?? exp.category))?.emoji || '📦'}</Text></View>
                               <View style={{ flex: 1, marginLeft: 10 }}>
                                 <Text style={styles.expName}>{exp.description}</Text>
                                 <Text style={styles.expMeta}>Paid by {exp.paidBy}</Text>
@@ -1452,10 +1606,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
                               <View style={{ alignItems: 'flex-end' }}>
                                 <Text style={styles.expAmt}>₹{exp.amount.toFixed(2)}</Text>
                                 <Text style={{ fontSize: 11, color: balColor, marginBottom: 6 }}>{balText}</Text>
-                                <View style={{ flexDirection: 'row', gap: 12 }}>
-                                  <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text></TouchableOpacity>
-                                  <TouchableOpacity onPress={() => handleDeleteExpense(exp.id)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
-                                </View>
+                                {(myMemberRole === 'admin' || exp.createdByUserId === currentUserId) && (
+                                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                                    <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text></TouchableOpacity>
+                                    <TouchableOpacity onPress={() => handleDeleteExpense(exp.id, exp.createdByUserId ?? '')} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
+                                  </View>
+                                )}
                               </View>
                             </View>
                           );
@@ -1492,13 +1648,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         </View>
                         {debt.from === currentUserId && (
                           <TouchableOpacity style={[styles.tealBtnFull, { paddingHorizontal: 12, paddingVertical: 6 }]}
-                            onPress={async () => {
-                              try {
-                                await settleEventDebt(event.id, { withUserId: debt.to, amount: debt.amount });
-                                setBalances(p => p.filter((_, j) => j !== i));
-                                setMyBalance(prev => prev + debt.amount);
-                              } catch (err) { handleApiError(err); }
-                            }} activeOpacity={0.85}>
+                            onPress={() => handleSettleEventDebt(debt.to, debt.amount)}
+                            activeOpacity={0.85}>
                             <Text style={[styles.tealBtnTxt, { fontSize: 12 }]}>Settle</Text>
                           </TouchableOpacity>
                         )}
@@ -1647,7 +1798,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
                               <View style={{ flex: 1 }}>
                                 <Text style={styles.noteTitle}>{note.title}</Text>
                                 {!!note.body && (
-                                  <Text style={styles.noteBody} numberOfLines={expandedNoteId === note.id ? undefined : 2}>{note.body}</Text>
+                                  expandedNoteId === note.id
+                                    ? renderTextWithLinks(note.body, styles.noteBody, styles.noteLink)
+                                    : <Text style={styles.noteBody} numberOfLines={2}>{note.body}</Text>
                                 )}
                                 <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
                                   {note.date ? `${note.date}` : ''}{expandedNoteId !== note.id ? '  tap to expand' : '  tap to collapse'}
@@ -1789,18 +1942,18 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   actionBtn: { alignItems: 'center', width: isSmall ? 52 : 62, gap: 4 },
   actionCircle: { width: isSmall ? 38 : 44, height: isSmall ? 38 : 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
-  actionLabel: { fontSize: isSmall ? 9 : 10, fontWeight: '400', color: '#0f172a', textAlign: 'center', lineHeight: 13 },
+  actionLabel: { fontSize: 13, fontWeight: '500', color: '#0f172a', textAlign: 'center', lineHeight: 16 },
 
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
   sectionTitle: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 5 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle1: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
 
-  descCard: { backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)' },
-  descText: { fontSize: 14, color: '#475569', lineHeight: 21 },
-  descEditCard: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#0d9488' },
-  descInput: { fontSize: 14, color: '#0f172a', lineHeight: 21, padding: 14, minHeight: 100, textAlignVertical: 'top' },
-  descEditFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+  descCard: { backgroundColor: 'transparent', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(13,148,136,0.2)' },
+  descText: { fontSize: 13, color: '#475569', lineHeight: 19 },
+  descEditCard: { backgroundColor: 'transparent', borderRadius: 14, borderWidth: 1.5, borderColor: 'rgba(13,148,136,0.35)' },
+  descInput: { fontSize: 13, color: '#0f172a', lineHeight: 19, padding: 14, minHeight: 100, textAlignVertical: 'top', backgroundColor: 'transparent' },
+  descEditFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'rgba(15,23,42,0.08)' },
   descWordCount: { fontSize: 11, color: '#94a3b8', fontWeight: '500' },
   descCancelBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: '#f1f5f9' },
   descCancelTxt: { fontSize: 13, color: '#64748b', fontWeight: '500' },
@@ -1879,6 +2032,7 @@ const styles = StyleSheet.create({
   noteCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
   noteTitle: { fontSize: 12, fontWeight: '500', color: '#0f172a', flex: 1 },
   noteBody: { fontSize: 12, color: '#64748b', lineHeight: 18 },
+  noteLink: { color: '#0d9488', textDecorationLine: 'underline' },
   catBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
 
   // ── Highlights sub-section styles ──

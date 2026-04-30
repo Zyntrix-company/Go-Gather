@@ -53,6 +53,47 @@ const getAccessToken = async () => {
   return tokenResult.token;
 };
 
+// Returns true if current time in the user's timezone falls inside the quiet window
+const isInQuietHours = (notificationSettings, timezone) => {
+  if (!notificationSettings?.quiet_hours_enabled) return false;
+  const quietStart = notificationSettings.quiet_start || '22:00';
+  const quietEnd   = notificationSettings.quiet_end   || '08:00';
+
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone || 'Asia/Kolkata',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const hour   = parseInt(parts.find((p) => p.type === 'hour').value, 10);
+  const minute = parseInt(parts.find((p) => p.type === 'minute').value, 10);
+  const current = hour * 60 + minute;
+
+  const [sh, sm] = quietStart.split(':').map(Number);
+  const [eh, em] = quietEnd.split(':').map(Number);
+  const start = sh * 60 + sm;
+  const end   = eh * 60 + em;
+
+  // Overnight range (e.g. 22:00 – 08:00)
+  return start > end ? current >= start || current < end : current >= start && current < end;
+};
+
+// Queue a batched FCM push — increments event_count if an open window already exists
+const queueBatchedPush = async (userId, type, parentId, parentName) => {
+  if (!userId || !parentId) return;
+  try {
+    await db(
+      `INSERT INTO notification_batch_queue (user_id, type, parent_id, parent_name, window_closes_at)
+       VALUES ($1, $2, $3, $4, NOW() + interval '2 hours')
+       ON CONFLICT (user_id, type, parent_id) WHERE flushed_at IS NULL
+       DO UPDATE SET event_count = notification_batch_queue.event_count + 1`,
+      [userId, type, parentId, parentName || ''],
+    );
+  } catch (err) {
+    logger.error('Failed to queue batched push', { userId, type, error: err.message });
+  }
+};
+
 /**
  * Send a push notification via FCM v1 HTTP API.
  *
@@ -147,7 +188,7 @@ const notifyUsers = async (users, notification, data = {}) => {
  * @param {string} type                  Notification type key (e.g. 'TRIP_REMINDER')
  * @param {object} [data]                Extra data stored in JSONB and sent in push payload
  */
-const createAndSendNotification = async (userId, notification, type, data = {}) => {
+const createAndSendNotification = async (userId, notification, type, data = {}, options = {}) => {
   if (!userId) return;
   try {
     await db(
@@ -159,12 +200,43 @@ const createAndSendNotification = async (userId, notification, type, data = {}) 
     logger.error('Failed to persist notification', { userId, type, error: err.message });
   }
 
-  // Fetch the user's current FCM token and push (best-effort)
+  if (options.batched) {
+    await queueBatchedPush(userId, type, data.tripId || data.eventId, data.tripName || data.parentName);
+    return;
+  }
+
+  // Fetch FCM token + notification settings (best-effort push)
   try {
-    const result = await db('SELECT fcm_token FROM users WHERE id = $1', [userId]);
-    const token = result.rows[0]?.fcm_token;
-    const priority = CRITICAL_TYPES.has(type) ? 'critical' : 'default';
-    if (token) await sendFCMNotification(token, notification, { ...data, type }, priority);
+    const result = await db(
+      'SELECT fcm_token, notification_settings, timezone FROM users WHERE id = $1',
+      [userId],
+    );
+    const row = result.rows[0];
+    const token = row?.fcm_token;
+    if (!token) return;
+
+    const isCritical = CRITICAL_TYPES.has(type);
+
+    // Quiet hours — suppress non-critical pushes
+    if (!isCritical && isInQuietHours(row.notification_settings, row.timezone)) {
+      logger.info('Suppressed push due to quiet hours', { userId, type });
+      return;
+    }
+
+    // Trip mute — suppress non-critical pushes for muted trips
+    if (!isCritical && data.tripId) {
+      const muteCheck = await db(
+        'SELECT 1 FROM trip_notification_mutes WHERE user_id = $1 AND trip_id = $2',
+        [userId, data.tripId],
+      );
+      if (muteCheck.rowCount > 0) {
+        logger.info('Suppressed push due to trip mute', { userId, type, tripId: data.tripId });
+        return;
+      }
+    }
+
+    const priority = isCritical ? 'critical' : 'default';
+    await sendFCMNotification(token, notification, { ...data, type }, priority);
   } catch (err) {
     logger.error('Failed to push notification after persist', { userId, type, error: err.message });
   }
@@ -179,7 +251,7 @@ const createAndSendNotification = async (userId, notification, type, data = {}) 
  * @param {string} type
  * @param {object} [data]
  */
-const createAndSendNotifications = async (users, notification, type, data = {}) => {
+const createAndSendNotifications = async (users, notification, type, data = {}, options = {}) => {
   if (!users || users.length === 0) return;
 
   // Bulk-insert one notification row per user
@@ -202,13 +274,38 @@ const createAndSendNotifications = async (users, notification, type, data = {}) 
     logger.error('Failed to bulk-persist notifications', { type, error: err.message });
   }
 
-  // Push to each user's FCM token (tokens already on the user objects, or fetch them)
-  const tokens = users.map((u) => u.fcm_token).filter(Boolean);
+  if (options.batched) {
+    const parentId = data.tripId || data.eventId;
+    const parentName = data.tripName || data.parentName;
+    await Promise.allSettled(
+      users.map((u) => queueBatchedPush(u.id, type, parentId, parentName)),
+    );
+    return;
+  }
+
+  // Filter out users who have muted this trip (non-critical only)
+  const isCritical = CRITICAL_TYPES.has(type);
+  let recipients = users;
+  if (!isCritical && data.tripId) {
+    try {
+      const muteResult = await db(
+        'SELECT user_id FROM trip_notification_mutes WHERE trip_id = $1 AND user_id = ANY($2::uuid[])',
+        [data.tripId, users.map((u) => u.id)],
+      );
+      const mutedIds = new Set(muteResult.rows.map((r) => r.user_id));
+      if (mutedIds.size > 0) recipients = users.filter((u) => !mutedIds.has(u.id));
+    } catch (err) {
+      logger.error('Failed to check trip mutes', { type, error: err.message });
+    }
+  }
+
+  // Push to each recipient's FCM token
+  const tokens = recipients.map((u) => u.fcm_token).filter(Boolean);
   if (tokens.length === 0) return;
-  const priority = CRITICAL_TYPES.has(type) ? 'critical' : 'default';
+  const priority = isCritical ? 'critical' : 'default';
   await Promise.allSettled(
     tokens.map((token) => sendFCMNotification(token, notification, { ...data, type }, priority))
   );
 };
 
-module.exports = { sendFCMNotification, notifyUsers, createAndSendNotification, createAndSendNotifications };
+module.exports = { sendFCMNotification, notifyUsers, createAndSendNotification, createAndSendNotifications, isInQuietHours };

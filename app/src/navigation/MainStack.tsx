@@ -9,6 +9,7 @@ import ChatDetailScreen from '../screens/main/ChatDetailScreen';
 import ArchivedScreen from '../screens/home/ArchivedScreen';
 import FriendProfileScreen from '../screens/main/FriendProfileScreen';
 import HowItWorksScreen from '../screens/home/HowItWorksScreen';
+import NotificationSettingsScreen from '../screens/main/NotificationSettingsScreen';
 
 export type MainStackParamList = {
   Home: { initialTab?: string } | undefined;
@@ -20,6 +21,7 @@ export type MainStackParamList = {
   Archived: undefined;
   FriendProfile: { userId: string; friendName: string };
   HowItWorks: undefined;
+  NotificationSettings: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -42,6 +44,7 @@ export default function MainStack() {
       <Stack.Screen name="Archived" component={ArchivedScreen} />
       <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
       <Stack.Screen name="HowItWorks" component={HowItWorksScreen} />
+      <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
     </Stack.Navigator>
   );
 }

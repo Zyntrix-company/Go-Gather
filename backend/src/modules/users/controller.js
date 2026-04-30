@@ -111,6 +111,30 @@ const getUserPhotos = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /users/notification-settings
+ */
+const getNotificationSettings = async (req, res, next) => {
+  try {
+    const result = await usersService.getNotificationSettings(req.user.id);
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /users/notification-settings
+ */
+const updateNotificationSettings = async (req, res, next) => {
+  try {
+    const result = await usersService.updateNotificationSettings(req.user.id, req.body);
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   saveProfile,
   uploadPhoto,
@@ -120,4 +144,6 @@ module.exports = {
   getUserProfile,
   getUserGallery,
   getUserPhotos,
+  getNotificationSettings,
+  updateNotificationSettings,
 };

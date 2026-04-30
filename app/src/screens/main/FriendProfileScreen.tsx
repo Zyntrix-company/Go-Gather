@@ -6,12 +6,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { Plane, CalendarDays } from 'lucide-react-native';
+import { Plane, CalendarDays, UserMinus } from 'lucide-react-native';
 import BlobBackground from '../../components/common/BlobBackground';
 import CachedImage from '../../components/common/CachedImage';
 import AppHeader from '../../components/common/AppHeader';
 import useNotificationStore from '../../store/notificationStore';
-import { getUserProfile } from '../../api/trips.api';
+import { getUserProfile, removeFriend, handleApiError } from '../../api/trips.api';
+import { showConfirm } from '../../store/alertStore';
+import Toast from 'react-native-toast-message';
 import { getUserGallery } from '../../api/ai.api';
 import { getTripPhotos } from '../../api/trips.api';
 import { getEventPhotos } from '../../api/events.api';
@@ -277,6 +279,24 @@ export default function FriendProfileScreen() {
   const handle = profile?.username ? `@${profile.username}` : '';
   const initial = displayName?.[0]?.toUpperCase() ?? '?';
 
+  function handleRemoveFriend() {
+    showConfirm({
+      title: 'Remove friend?',
+      message: `${displayName} will be removed from your friends list. You will not be able to undo this from here.`,
+      destructive: true,
+      confirmText: 'Remove',
+      onConfirm: async () => {
+        try {
+          await removeFriend(userId);
+          Toast.show({ type: 'success', text1: 'Friend removed' });
+          navigation.goBack();
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
+  }
+
   return (
     <BlobBackground>
       <SafeAreaView style={styles.container}>
@@ -318,7 +338,22 @@ export default function FriendProfileScreen() {
                 </View>
 
                 <View style={styles.profileInfo}>
-                  {displayName ? <Text style={styles.name}>{displayName}</Text> : null}
+                  {displayName ? (
+                    <View style={styles.nameHeaderWrap}>
+                      <Text style={styles.name} numberOfLines={2}>{displayName}</Text>
+                      {profile?.friendshipStatus === 'accepted' && (
+                        <TouchableOpacity
+                          style={styles.removeFriendIconBtn}
+                          onPress={handleRemoveFriend}
+                          activeOpacity={0.8}
+                          accessibilityLabel="Remove friend"
+                          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                        >
+                          <UserMinus size={15} color="#64748b" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ) : null}
                   {handle ? <Text style={styles.handle}>{handle}</Text> : null}
                   {profile?.country ? (
                     <View style={styles.locationRow}>
@@ -396,25 +431,51 @@ const styles = StyleSheet.create({
 
   // Profile card — matches GalleryTab layout exactly
   profileCard: { marginTop: 14, marginBottom: 28, alignItems: 'center' },
-  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32 },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32, alignSelf: 'stretch' },
   avatarWrap: { position: 'relative' },
-  profileInfo: { justifyContent: 'center', gap: 8 },
+  profileInfo: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 8 },
+  /** Name + remove chip: chip sits top-right, slightly lifted like a small popup */
+  nameHeaderWrap: {
+    position: 'relative',
+    alignSelf: 'stretch',
+    paddingRight: 40,
+    paddingTop: 2,
+    minHeight: 30,
+  },
+  removeFriendIconBtn: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 4,
+  },
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 3, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 37, fontWeight: '500', color: '#0d9488' },
-  name: { fontSize: 19, fontWeight: '500', color: '#0f172a' },
-  handle: { fontSize: 15, color: '#0d9488', fontWeight: '500' },
+  avatarInitial: { fontSize: 38, fontWeight: '600', color: '#0d9488' },
+  name: { fontSize: 21, fontWeight: '600', color: '#0f172a', lineHeight: 26 },
+  handle: { fontSize: 16, color: '#0d9488', fontWeight: '600' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locationText: { fontSize: 15, color: '#64748b' },
-  bio: { fontSize: 14, color: '#334155', textAlign: 'center', marginTop: 16, lineHeight: 22 },
+  locationText: { fontSize: 16, fontWeight: '600', color: '#64748b' },
+  bio: { fontSize: 15, fontWeight: '500', color: '#334155', textAlign: 'center', marginTop: 16, lineHeight: 24 },
 
   // Sections
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionIcon: { alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontSize: 16, fontWeight: '500', color: '#1e293b' },
+  sectionTitle: { fontSize: 17, fontWeight: '600', color: '#1e293b' },
   countBadge: { backgroundColor: '#f0fdfa', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: '#ccfbf1' },
-  countBadgeText: { fontSize: 12, fontWeight: '400', color: '#0d9488' },
+  countBadgeText: { fontSize: 13, fontWeight: '600', color: '#0d9488' },
   sectionSpacer: { height: 24 },
 
   // Grid
@@ -423,9 +484,9 @@ const styles = StyleSheet.create({
   gridCardImage: { width: '100%', height: '100%' },
   gridCardPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
   gridCardOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 32, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', paddingHorizontal: 8 },
-  gridCardText: { color: '#fff', fontSize: 12, fontWeight: '400', lineHeight: 15 },
+  gridCardText: { color: '#fff', fontSize: 13, fontWeight: '600', lineHeight: 16 },
   emptyCard: { width: CARD_W, height: 140, borderRadius: 14, borderWidth: 2, borderColor: '#e2e8f0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#fafafa' },
-  emptyCardText: { fontSize: 12, color: '#cbd5e1', fontWeight: '500' },
+  emptyCardText: { fontSize: 13, color: '#cbd5e1', fontWeight: '600' },
 
   // Modal
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 },

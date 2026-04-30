@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, Image,
-  Dimensions, StyleSheet, ActivityIndicator, Modal,
+  Dimensions, StyleSheet, ActivityIndicator, Modal, TextInput,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { launchImageLibrary } from 'react-native-image-picker';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { Plane, CalendarDays, PencilLine } from 'lucide-react-native';
+import { Plane, CalendarDays, PencilLine, Images } from 'lucide-react-native';
 import { getUserGallery } from '../../api/ai.api';
 import { getTripPhotos } from '../../api/trips.api';
 import { getEventPhotos } from '../../api/events.api';
@@ -108,6 +110,16 @@ type PhotoItem = {
   activityId?: string | null;
   activityTitle?: string | null;
 };
+
+type LocalAlbum = {
+  id: string;
+  name: string;
+  photos: PhotoItem[];
+};
+
+function galleryAlbumsStorageKey(userId: string) {
+  return `gogather_gallery_personal_albums_${userId}`;
+}
 
 // ─── Photo thumbnail with loading state ──────────────────────────────────────
 
@@ -310,6 +322,156 @@ function PhotosModal({
   );
 }
 
+// ─── Create personal album (local only) ─────────────────────────────────────
+
+function CreateAlbumModal({
+  visible,
+  onClose,
+  onCreate,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onCreate: (name: string) => void;
+}) {
+  const [name, setName] = useState('');
+  useEffect(() => {
+    if (visible) setName('');
+  }, [visible]);
+
+  const submit = () => {
+    const t = name.trim();
+    if (!t) return;
+    onCreate(t);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={styles.dialog}>
+          <View style={styles.dialogHeader}>
+            <Text style={styles.dialogTitle}>New album</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <CloseIcon />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.dialogBody}>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="Album name"
+              placeholderTextColor="#94a3b8"
+              style={styles.createAlbumInput}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={submit}
+            />
+            <TouchableOpacity
+              style={[styles.createAlbumBtn, !name.trim() && styles.createAlbumBtnDisabled]}
+              onPress={submit}
+              disabled={!name.trim()}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.createAlbumBtnText}>Create</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Personal album photos (device photos, no trip/event) ───────────────────
+
+function LocalAlbumPhotosModal({
+  visible,
+  album,
+  onClose,
+  onUpdateAlbum,
+}: {
+  visible: boolean;
+  album: LocalAlbum | null;
+  onClose: () => void;
+  onUpdateAlbum: (next: LocalAlbum) => void;
+}) {
+  const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
+
+  const addPhotos = () => {
+    if (!album) return;
+    launchImageLibrary(
+      {
+        mediaType: 'photo',
+        selectionLimit: 20,
+        includeBase64: false,
+        quality: 0.85,
+        maxWidth: 2048,
+        maxHeight: 2048,
+      },
+      (res) => {
+        if (res.didCancel || !res.assets?.length) return;
+        const ts = Date.now();
+        const newPhotos: PhotoItem[] = res.assets
+          .map((a, i) => ({
+            id: `local_${ts}_${i}`,
+            uri: a.uri ?? '',
+          }))
+          .filter((p) => p.uri);
+        if (!newPhotos.length) return;
+        onUpdateAlbum({ ...album, photos: [...album.photos, ...newPhotos] });
+      },
+    );
+  };
+
+  if (!album) return null;
+  const photos = album.photos;
+
+  return (
+    <>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <View style={styles.overlay}>
+          <View style={[styles.dialog, { maxHeight: '85%' }]}>
+            <View style={styles.dialogHeader}>
+              <Text style={styles.dialogTitle} numberOfLines={1}>{album.name}</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <CloseIcon />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.dialogBody}>
+                {photos.length === 0 && (
+                  <View style={styles.emptyCenter}>
+                    <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
+                      <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
+                      <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
+                      <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                    <Text style={styles.emptyTitle}>No photos yet</Text>
+                    <Text style={styles.emptySub}>Add photos from your library. They stay on this device.</Text>
+                  </View>
+                )}
+                {photos.length > 0 && (
+                  <View style={styles.thumbRow}>
+                    {photos.map((ph) => (
+                      <PhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewPhoto(ph)} />
+                    ))}
+                  </View>
+                )}
+                <TouchableOpacity style={styles.addPhotosBtn} onPress={addPhotos} activeOpacity={0.85}>
+                  <Text style={styles.addPhotosBtnText}>Add photos</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
+        <PreviewModal photo={previewPhoto} onClose={() => setPreviewPhoto(null)} />
+      </Modal>
+    </>
+  );
+}
+
 // ─── Main component ─────────────────────────────────────────────────────────
 
 interface GalleryTabProps {
@@ -335,6 +497,12 @@ export default function GalleryTab({
   // Photo modal state
   const [photoModal, setPhotoModal] = useState<{ id: string; name: string; type: 'trip' | 'event' } | null>(null);
 
+  // Personal albums (AsyncStorage, not tied to trips/events)
+  const [personalAlbums, setPersonalAlbums] = useState<LocalAlbum[]>([]);
+  const [albumsLoaded, setAlbumsLoaded] = useState(false);
+  const [showCreateAlbum, setShowCreateAlbum] = useState(false);
+  const [localAlbumOpen, setLocalAlbumOpen] = useState<LocalAlbum | null>(null);
+
   const userId: string = user?.id ?? '';
   const displayName = user?.fullName ?? '';
   const handle = user?.username ?? displayName.toLowerCase().replace(/ /g, '_') ?? 'username';
@@ -343,6 +511,52 @@ export default function GalleryTab({
   useEffect(() => {
     setAvatarError(false);
   }, [user?.photoUrl]);
+
+  // Load personal albums from device storage
+  useEffect(() => {
+    if (!userId) {
+      setPersonalAlbums([]);
+      setAlbumsLoaded(false);
+      return;
+    }
+    let cancelled = false;
+    AsyncStorage.getItem(galleryAlbumsStorageKey(userId))
+      .then((raw) => {
+        if (cancelled) return;
+        try {
+          const parsed = raw ? JSON.parse(raw) : [];
+          setPersonalAlbums(Array.isArray(parsed) ? parsed : []);
+        } catch {
+          setPersonalAlbums([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setAlbumsLoaded(true);
+      });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const createPersonalAlbum = (name: string) => {
+    const album: LocalAlbum = { id: `al_${Date.now()}`, name, photos: [] };
+    setPersonalAlbums((prev) => {
+      const next = [...prev, album];
+      if (userId) {
+        AsyncStorage.setItem(galleryAlbumsStorageKey(userId), JSON.stringify(next)).catch(() => {});
+      }
+      return next;
+    });
+  };
+
+  const updatePersonalAlbum = (nextAlbum: LocalAlbum) => {
+    setPersonalAlbums((prev) => {
+      const next = prev.map((a) => (a.id === nextAlbum.id ? nextAlbum : a));
+      if (userId) {
+        AsyncStorage.setItem(galleryAlbumsStorageKey(userId), JSON.stringify(next)).catch(() => {});
+      }
+      return next;
+    });
+    setLocalAlbumOpen((open) => (open?.id === nextAlbum.id ? nextAlbum : open));
+  };
 
   // Fetch gallery data when userId is available
   useEffect(() => {
@@ -403,7 +617,7 @@ export default function GalleryTab({
               {handle ? <Text style={styles.handle}>@{handle}</Text> : null}
               {user?.country ? (
                 <View style={styles.locationRow}>
-                  <PinIcon color="#0d9488" size={13} />
+                  <PinIcon color="#0d9488" size={12} />
                   <Text style={styles.locationText}>{user.country}</Text>
                 </View>
               ) : null}
@@ -462,6 +676,36 @@ export default function GalleryTab({
           }
         </View>
 
+        {/* ── Personal albums (on-device, not tied to trips/events) ── */}
+        <View style={styles.sectionSpacer} />
+        {!!userId && albumsLoaded && (
+          <>
+            <SectionHeader
+              title="Personal albums"
+              count={personalAlbums.length}
+              onAdd={() => setShowCreateAlbum(true)}
+              icon={<Images size={20} color="#0d9488" />}
+            />
+            <View style={styles.grid}>
+              {personalAlbums.length > 0 ? (
+                personalAlbums.map((album) => (
+                  <GridCard
+                    key={album.id}
+                    item={{
+                      id: album.id,
+                      name: album.name,
+                      bannerImageUrl: album.photos[0]?.uri,
+                    }}
+                    onPress={() => setLocalAlbumOpen(album)}
+                  />
+                ))
+              ) : (
+                <EmptyCard label="Tap + to create an album" />
+              )}
+            </View>
+          </>
+        )}
+
       </ScrollView>
 
       {/* ── Photos modal (outside ScrollView so it renders above) ── */}
@@ -474,6 +718,19 @@ export default function GalleryTab({
           onClose={() => setPhotoModal(null)}
         />
       )}
+
+      <CreateAlbumModal
+        visible={showCreateAlbum}
+        onClose={() => setShowCreateAlbum(false)}
+        onCreate={createPersonalAlbum}
+      />
+
+      <LocalAlbumPhotosModal
+        visible={!!localAlbumOpen}
+        album={localAlbumOpen}
+        onClose={() => setLocalAlbumOpen(null)}
+        onUpdateAlbum={updatePersonalAlbum}
+      />
     </>
   );
 }
@@ -486,7 +743,7 @@ const styles = StyleSheet.create({
   profileCard: { marginTop: 14, marginBottom: 28, alignItems: 'center' },
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32 },
   avatarWrap: { position: 'relative' },
-  profileInfo: { justifyContent: 'center', gap: 8 },
+  profileInfo: { justifyContent: 'center', gap: 4 },
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 3, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
   avatarInitial: { fontSize: 38, fontWeight: '700', color: '#0d9488' },
@@ -494,11 +751,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  name: { fontSize: 20, fontWeight: '400', color: '#0F172B' },
-  handle: { fontSize: 15, color: '#0d9488', fontWeight: '500' },
+  name: { fontSize: 18, fontWeight: '400', color: '#0F172B' },
+  handle: { fontSize: 14, color: '#0d9488', fontWeight: '500' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locationText: { fontSize: 15, color: '#45556C' },
-  bio: { fontSize: 14, color: '#45556C', textAlign: 'center', marginTop: 16, lineHeight: 22 },
+  locationText: { fontSize: 14, color: '#45556C' },
+  bio: { fontSize: 14, color: '#45556C', textAlign: 'center', marginTop: 12, lineHeight: 20 },
 
   loadingRow: { alignItems: 'center', marginBottom: 12 },
 
@@ -570,4 +827,33 @@ const styles = StyleSheet.create({
   },
   previewImg: { width: SCREEN_W, height: SCREEN_W * 1.2 },
   previewLoader: { position: 'absolute' },
+
+  createAlbumInput: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#0f172a',
+    marginBottom: 14,
+  },
+  createAlbumBtn: {
+    backgroundColor: '#0d9488',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  createAlbumBtnDisabled: { opacity: 0.45 },
+  createAlbumBtnText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+
+  addPhotosBtn: {
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#0d9488',
+    alignItems: 'center',
+  },
+  addPhotosBtnText: { fontSize: 15, fontWeight: '600', color: '#0d9488' },
 });

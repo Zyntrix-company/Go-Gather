@@ -592,3 +592,8 @@ export async function getFriends(search?: string) {
     total: number;
   };
 }
+
+export async function removeFriend(userId: string) {
+  const res = await client.delete(`/friends/${userId}`);
+  return res.data as { success: boolean };
+}

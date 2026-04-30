@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
-const { sendEmail, wrapEmail } = require('../../utils/mailer');
+const { sendEmail, wrapEmail, sendTripCancelledEmail } = require('../../utils/mailer');
 const { createAndSendNotifications, createAndSendNotification } = require('../../utils/fcm.util');
 const { batchDeleteFromS3, getPresignedDownloadUrl } = require('../../utils/s3.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
@@ -437,8 +437,10 @@ const deleteTrip = async (tripId, actorId) => {
     db("SELECT s3_key FROM docs WHERE parent_type = 'trip' AND parent_id = $1", [tripId]),
     db("SELECT s3_key FROM photos WHERE parent_type = 'trip' AND parent_id = $1", [tripId]),
     db(
-      `SELECT u.id, u.fcm_token FROM trip_members tm
+      `SELECT u.id, u.fcm_token, u.email, p.full_name
+       FROM trip_members tm
        JOIN users u ON u.id = tm.user_id
+       LEFT JOIN profiles p ON p.user_id = u.id
        WHERE tm.trip_id = $1${actorId ? ' AND tm.user_id != $2' : ''}`,
       actorId ? [tripId, actorId] : [tripId],
     ),
@@ -461,6 +463,14 @@ const deleteTrip = async (tripId, actorId) => {
       'TRIP_CANCELLED',
       { tripId, tripName },
     ).catch(() => {});
+
+    // Immediate email to each member — fire-and-forget
+    for (const member of membersResult.rows) {
+      if (member.email) {
+        sendTripCancelledEmail(member.email, member.full_name, tripName)
+          .catch((err) => logger.error('sendTripCancelledEmail failed', { userId: member.id, error: err.message }));
+      }
+    }
   }
 };
 

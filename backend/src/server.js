@@ -3,6 +3,8 @@ const config = require('./config');
 const logger = require('./utils/logger');
 const { pool } = require('./config/database');
 const { startRemindersCron } = require('./utils/reminders.cron');
+const { startBatchingCron } = require('./utils/batching.cron');
+const { startDigestCron } = require('./utils/digest.cron');
 
 const PORT = config.port;
 
@@ -15,6 +17,8 @@ const startServer = async () => {
 
     // Start background jobs
     startRemindersCron();
+    startBatchingCron();
+    startDigestCron();
 
     const server = app.listen(PORT, () => {
       logger.info(`GatherGo API running on port ${PORT}`, {

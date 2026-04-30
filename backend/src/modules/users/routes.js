@@ -46,6 +46,13 @@ router.get(
   controller.searchUsers,
 );
 
+// GET /users/notification-settings — fetch current user's notification prefs (requires auth)
+// MUST be before /:id to avoid Express treating "notification-settings" as a UUID
+router.get('/notification-settings', authenticateJWT, controller.getNotificationSettings);
+
+// PATCH /users/notification-settings — merge-update notification prefs (requires auth)
+router.patch('/notification-settings', authenticateJWT, controller.updateNotificationSettings);
+
 // ── Per-user routes ────────────────────────────────────────────────────────────
 
 // GET /users/:id/profile — Enhanced profile with friendship status + stats (requires auth)

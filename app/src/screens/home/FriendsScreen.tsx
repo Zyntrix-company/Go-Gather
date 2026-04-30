@@ -50,25 +50,12 @@ const AVATAR_COLORS = [
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
-const TrashIcon = () => (
-  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"
-      stroke="#ef4444"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
-
 // ─── Friend Row Component ─────────────────────────────────────────────────────
 
-function FriendRow({ friend, index, onView, onDelete }: {
+function FriendRow({ friend, index, onView }: {
   friend: Friend;
   index: number;
   onView: (friend: Friend) => void;
-  onDelete: (id: string) => void;
 }) {
   const fallbackAvatar = `https://i.pravatar.cc/150?u=${encodeURIComponent(friend.user.id)}`;
   const [imageUri, setImageUri] = useState<string>(friend.user.avatarUrl || fallbackAvatar);
@@ -118,14 +105,6 @@ function FriendRow({ friend, index, onView, onDelete }: {
           >
             <Text style={styles.viewBtnText}>View</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            onPress={() => onDelete(friend.user.id)}
-            activeOpacity={0.8}
-          >
-            <TrashIcon />
-          </TouchableOpacity>
         </View>
       </View>
       <View style={styles.separator} />
@@ -166,12 +145,6 @@ export default function FriendsScreen() {
 
   function handleViewFriend(friend: Friend) {
     navigation.navigate('FriendProfile', { userId: friend.user.id, friendName: friend.user.name ?? 'Friend' });
-  }
-
-  function handleDeleteFriend(id: string) {
-    // TODO: replace with API call to delete friend
-    setFriends(prev => prev.filter(f => f.user.id !== id));
-    console.log('delete friend', id);
   }
 
   function handleInviteFriends() {
@@ -278,12 +251,12 @@ export default function FriendsScreen() {
               {/* Connected Friends Label */}
               <Text style={styles.sectionLabel}>Connected Friends</Text>
 
-              {/* Search Bar */}
-              <View style={styles.searchContainer}>
-                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" style={styles.searchIcon}>
+              {/* Search bar — transparent so BlobBackground shows through */}
+              <View style={styles.searchBar}>
+                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" style={styles.searchIcon}>
                   <Path
                     d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    stroke="#94a3b8"
+                    stroke="#64748b"
                     strokeWidth={2}
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -292,7 +265,7 @@ export default function FriendsScreen() {
                 <TextInput
                   style={styles.searchInput}
                   placeholder="Search by name or handle..."
-                  placeholderTextColor="#94a3b8"
+                  placeholderTextColor="#64748b"
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                 />
@@ -313,7 +286,6 @@ export default function FriendsScreen() {
                         friend={friend}
                         index={idx}
                         onView={handleViewFriend}
-                        onDelete={handleDeleteFriend}
                       />
                     ))
                   ) : (
@@ -428,11 +400,11 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 20,
   },
-  headerTitle:{ fontFamily: 'Inter', fontSize: 20, fontWeight: '400', color: '#0F172B',
-    textAlign: 'center', lineHeight: 28, letterSpacing: 0, },
+  headerTitle:{ fontFamily: 'Inter', fontSize: 22, fontWeight: '600', color: '#0F172B',
+    textAlign: 'center', lineHeight: 30, letterSpacing: 0, },
 
   headerSubtitle: {
-    fontFamily: 'Inter', fontSize: 14, fontWeight: '400', color: '#45556C', textAlign: 'center', lineHeight: 19, letterSpacing: 0, marginTop: 9,},
+    fontFamily: 'Inter', fontSize: 15, fontWeight: '600', color: '#45556C', textAlign: 'center', lineHeight: 21, letterSpacing: 0, marginTop: 9,},
   // Invite Button
   inviteBtn: {
     backgroundColor: '#0d9488',
@@ -450,40 +422,43 @@ const styles = StyleSheet.create({
   },
   inviteBtnText: {
     color: '#fff',
-    fontSize: 15,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
     textAlign: 'center',
   },
 
   // Section Label
   sectionLabel: {
-     fontFamily: 'Inter', fontSize: 14, fontWeight: '400', color: '#45556C', lineHeight: 19, letterSpacing: 0, marginTop: 9, marginBottom: 10, },
+     fontFamily: 'Inter', fontSize: 15, fontWeight: '600', color: '#45556C', lineHeight: 21, letterSpacing: 0, marginTop: 9, marginBottom: 10, },
   
  
 
-  // Search Bar
-  searchContainer: {
+  // Search bar — transparent fill, same visual context as screen bg
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffff',
+    backgroundColor: 'transparent',
     borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: 'rgba(15, 23, 42, 0.12)',
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
   searchInput: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '600',
     color: '#0f172a',
     padding: 0,
+    backgroundColor: 'transparent',
   },
   noResultsText: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '600',
     color: '#94a3b8',
     textAlign: 'center',
     paddingVertical: 20,
@@ -495,7 +470,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '600',
     color: '#94a3b8',
   },
 
@@ -524,25 +500,27 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   avatarText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
   },
   friendInfo: {
     flex: 1,
   },
   friendName: {
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#0f172a',
     marginBottom: 2,
   },
   friendHandle: {
-    fontSize: 11,
+    fontSize: 12,
+    fontWeight: '600',
     color: '#0d9488',
     marginBottom: 2,
   },
   friendStats: {
-    fontSize: 10,
+    fontSize: 11,
+    fontWeight: '600',
     color: '#94a3b8',
   },
   friendActions: {
@@ -560,16 +538,8 @@ const styles = StyleSheet.create({
   },
   viewBtnText: {
     color: '#0d9488',
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  deleteBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: '#fff2f2',
-    alignItems: 'center',
-    justifyContent: 'center',
+    fontSize: 12,
+    fontWeight: '600',
   },
   separator: {
     height: 1,
@@ -586,13 +556,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 17,
+    fontWeight: '600',
     color: '#334155',
     marginBottom: 4,
   },
   emptyText: {
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '600',
     color: '#94a3b8',
     marginBottom: 20,
   },

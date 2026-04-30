@@ -312,10 +312,119 @@ const sendWelcomeEmail = async (email, fullName) => {
   });
 };
 
+// ─── Trip cancelled email ─────────────────────────────────────────────────────
+
+const sendTripCancelledEmail = async (recipientEmail, recipientName, tripName) => {
+  const firstName = recipientName ? recipientName.split(' ')[0] : 'there';
+  const html = wrapEmail(`
+    <h2 style="margin:0 0 10px 0; font-size:20px; font-weight:700; color:#111827;">
+      Trip Cancelled
+    </h2>
+    <p style="margin:0 0 20px 0; font-size:15px; color:#374151; line-height:1.65;">
+      Hi ${firstName}, we&rsquo;re sorry to let you know that
+      <strong>&ldquo;${tripName}&rdquo;</strong> has been cancelled by the organiser.
+    </p>
+    <p style="margin:0 0 28px 0; font-size:15px; color:#374151; line-height:1.65;">
+      Open the app to browse other upcoming trips or start planning a new one.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" class="cta-table"
+           style="margin:0 auto 28px auto; width:100%; max-width:240px;">
+      <tr>
+        <td class="cta-td" style="border-radius:8px; background-color:#0D9488;">
+          <a href="${config.websiteUrl || 'https://gatherrgo.com'}" class="cta-link"
+             style="display:block; padding:14px 32px; color:#ffffff;
+                    text-decoration:none; font-size:16px; font-weight:700;
+                    border-radius:8px; text-align:center;
+                    font-family:'Segoe UI',Arial,sans-serif;">
+            Open GatherrGo
+          </a>
+        </td>
+      </tr>
+    </table>
+  `);
+  return sendEmail({ to: recipientEmail, subject: `"${tripName}" has been cancelled`, html });
+};
+
+// ─── Friend request email ─────────────────────────────────────────────────────
+
+const sendConnectionRequestEmail = async (recipientEmail, recipientName, requesterName) => {
+  const firstName = recipientName ? recipientName.split(' ')[0] : 'there';
+  const html = wrapEmail(`
+    <h2 style="margin:0 0 10px 0; font-size:20px; font-weight:700; color:#111827;">
+      New Connection Request
+    </h2>
+    <p style="margin:0 0 20px 0; font-size:15px; color:#374151; line-height:1.65;">
+      Hi ${firstName}, <strong>${requesterName}</strong> wants to connect with you on GatherrGo.
+    </p>
+    <p style="margin:0 0 28px 0; font-size:15px; color:#374151; line-height:1.65;">
+      Open the app to accept or decline the request.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" class="cta-table"
+           style="margin:0 auto 28px auto; width:100%; max-width:240px;">
+      <tr>
+        <td class="cta-td" style="border-radius:8px; background-color:#0D9488;">
+          <a href="${config.websiteUrl || 'https://gatherrgo.com'}" class="cta-link"
+             style="display:block; padding:14px 32px; color:#ffffff;
+                    text-decoration:none; font-size:16px; font-weight:700;
+                    border-radius:8px; text-align:center;
+                    font-family:'Segoe UI',Arial,sans-serif;">
+            View Request
+          </a>
+        </td>
+      </tr>
+    </table>
+  `);
+  return sendEmail({
+    to: recipientEmail,
+    subject: `${requesterName} wants to connect on GatherrGo`,
+    html,
+  });
+};
+
+// ─── Friend request accepted email ───────────────────────────────────────────
+
+const sendRequestAcceptedEmail = async (recipientEmail, recipientName, accepterName) => {
+  const firstName = recipientName ? recipientName.split(' ')[0] : 'there';
+  const html = wrapEmail(`
+    <h2 style="margin:0 0 10px 0; font-size:20px; font-weight:700; color:#111827;">
+      Connection Accepted!
+    </h2>
+    <p style="margin:0 0 20px 0; font-size:15px; color:#374151; line-height:1.65;">
+      Hi ${firstName}, <strong>${accepterName}</strong> accepted your connection request.
+      You&rsquo;re now connected on GatherrGo!
+    </p>
+    <p style="margin:0 0 28px 0; font-size:15px; color:#374151; line-height:1.65;">
+      Start planning a trip together.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" class="cta-table"
+           style="margin:0 auto 28px auto; width:100%; max-width:240px;">
+      <tr>
+        <td class="cta-td" style="border-radius:8px; background-color:#0D9488;">
+          <a href="${config.websiteUrl || 'https://gatherrgo.com'}" class="cta-link"
+             style="display:block; padding:14px 32px; color:#ffffff;
+                    text-decoration:none; font-size:16px; font-weight:700;
+                    border-radius:8px; text-align:center;
+                    font-family:'Segoe UI',Arial,sans-serif;">
+            Open GatherrGo
+          </a>
+        </td>
+      </tr>
+    </table>
+  `);
+  return sendEmail({
+    to: recipientEmail,
+    subject: `${accepterName} accepted your connection request`,
+    html,
+  });
+};
+
 module.exports = {
   sendEmail,
   sendVerificationOTPEmail,
   sendPasswordResetOTPEmail,
   sendWelcomeEmail,
+  sendTripCancelledEmail,
+  sendConnectionRequestEmail,
+  sendRequestAcceptedEmail,
   wrapEmail,
 };

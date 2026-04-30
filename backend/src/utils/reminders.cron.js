@@ -131,9 +131,12 @@ const scheduleActivityReminders = async (activityId, tripId, activityDate, activ
   // Clear existing unsent reminders for this activity (handles updates)
   await db('DELETE FROM activity_reminders WHERE activity_id = $1 AND sent_at IS NULL', [activityId]);
 
-  // Fetch all trip members
+  // Fetch trip members who have lock_screen_reminders enabled (default: true)
   const membersResult = await db(
-    'SELECT u.id FROM trip_members tm JOIN users u ON u.id = tm.user_id WHERE tm.trip_id = $1',
+    `SELECT u.id FROM trip_members tm
+     JOIN users u ON u.id = tm.user_id
+     WHERE tm.trip_id = $1
+       AND (u.notification_settings->>'lock_screen_reminders')::text IS DISTINCT FROM 'false'`,
     [tripId],
   );
   if (membersResult.rows.length === 0) return;

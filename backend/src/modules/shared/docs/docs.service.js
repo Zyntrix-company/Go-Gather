@@ -71,6 +71,7 @@ const uploadDoc = async ({ parentType, parentId }, userId, file) => {
         { title: 'Document Added', body: `${actorName} added a document to "${parentName}".` },
         'DOCUMENT_UPLOADED',
         dataPayload,
+        { batched: true },
       );
     } catch (_) { /* fire-and-forget */ }
   })();

@@ -648,6 +648,48 @@ const getUserPhotos = async (targetId) => {
   };
 };
 
+/**
+ * GET /users/notification-settings
+ */
+const getNotificationSettings = async (userId) => {
+  const result = await db.query(
+    'SELECT notification_settings, timezone FROM users WHERE id = $1',
+    [userId],
+  );
+  const row = result.rows[0];
+  return { settings: row?.notification_settings || {}, timezone: row?.timezone || 'Asia/Kolkata' };
+};
+
+/**
+ * PATCH /users/notification-settings
+ */
+const updateNotificationSettings = async (userId, patch) => {
+  const { email_digest, lock_screen_reminders, quiet_hours_enabled, quiet_start, quiet_end, timezone } = patch;
+
+  if (email_digest !== undefined && !['daily', 'weekly', 'never'].includes(email_digest)) {
+    const err = new Error('email_digest must be daily, weekly, or never');
+    err.statusCode = 400; err.error = 'VALIDATION_ERROR'; throw err;
+  }
+
+  const settingsPatch = {};
+  if (email_digest !== undefined)         settingsPatch.email_digest = email_digest;
+  if (lock_screen_reminders !== undefined) settingsPatch.lock_screen_reminders = lock_screen_reminders;
+  if (quiet_hours_enabled !== undefined)   settingsPatch.quiet_hours_enabled = quiet_hours_enabled;
+  if (quiet_start !== undefined)           settingsPatch.quiet_start = quiet_start;
+  if (quiet_end !== undefined)             settingsPatch.quiet_end = quiet_end;
+
+  await db.query(
+    `UPDATE users
+     SET notification_settings = notification_settings || $1::jsonb,
+         timezone = COALESCE($2, timezone),
+         updated_at = NOW()
+     WHERE id = $3`,
+    [JSON.stringify(settingsPatch), timezone || null, userId],
+  );
+
+  return getNotificationSettings(userId);
+};
+
 module.exports = {
   saveProfile,
   uploadPhoto,
@@ -657,4 +699,6 @@ module.exports = {
   getUserProfile,
   getUserGallery,
   getUserPhotos,
+  getNotificationSettings,
+  updateNotificationSettings,
 };

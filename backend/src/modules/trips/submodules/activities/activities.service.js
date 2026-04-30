@@ -110,11 +110,17 @@ const createActivity = async (tripId, userId, body) => {
         { title: 'Itinerary Updated', body: `${actorName} added an activity to "${tripName}".` },
         'ITINERARY_UPDATED',
         { tripId, tripName, activityId },
+        { batched: true },
       );
     } catch (err) {
       logger.error('ITINERARY_UPDATED notification failed', { tripId, error: err.message });
     }
   })();
+
+  // Schedule lock-screen reminders (10/30/60 min before) — fire-and-forget
+  scheduleActivityReminders(activityId, tripId, date, timeToString(time)).catch((err) =>
+    logger.error('scheduleActivityReminders failed', { activityId, error: err.message }),
+  );
 
   return getActivityById(tripId, activityId);
 };
@@ -189,11 +195,19 @@ const updateActivity = async (actId, tripId, requesterId, requesterRole, updates
         { title: 'Itinerary Updated', body: `${actorName} updated an activity in "${tripName}".` },
         'ITINERARY_UPDATED',
         { tripId, tripName, activityId: actId },
+        { batched: true },
       );
     } catch (err) {
       logger.error('ITINERARY_UPDATED notification failed', { tripId, actId, error: err.message });
     }
   })();
+
+  // Reschedule lock-screen reminders whenever date or time changes — fire-and-forget
+  const effectiveDate = updates.date ?? act.activity_date;
+  const effectiveTime = updates.time !== undefined ? timeToString(updates.time) : act.activity_time;
+  scheduleActivityReminders(actId, tripId, effectiveDate, effectiveTime).catch((err) =>
+    logger.error('scheduleActivityReminders failed', { actId, error: err.message }),
+  );
 
   return getActivityById(tripId, actId);
 };

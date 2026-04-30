@@ -24,6 +24,7 @@ import Geolocation from '@react-native-community/geolocation';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
 import { showAlert, showConfirm } from '../../store/alertStore';
+import Toast from 'react-native-toast-message';
 import { getFriends } from '../../api/trips.api';
 import {
   getEvents,
@@ -1200,6 +1201,7 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
           if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
           else setPastEvents(p => p.filter(e => e.id !== id));
           setOpenMenuId(null);
+          Toast.show({ type: 'success', text1: 'Archived', text2: ev.name ? `"${ev.name}" moved to archive.` : 'Event moved to archive.' });
         } catch (err) {
           handleApiError(err);
         }
@@ -1218,6 +1220,7 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
           if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
           else setPastEvents(p => p.filter(e => e.id !== id));
           setOpenMenuId(null);
+          Toast.show({ type: 'success', text1: 'Deleted', text2: 'Event removed.' });
         } catch (err) {
           handleApiError(err);
         }

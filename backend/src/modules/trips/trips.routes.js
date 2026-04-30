@@ -156,6 +156,11 @@ router.post('/:id/polls/:pollId/vote', tripMemberMW, pollsCtrl.vote);
 // ─── Reminders ────────────────────────────────────────────────────────────────
 router.get('/:id/reminders', tripMemberMW, tripsController.getTripReminders);
 
+// ─── Notification mute ────────────────────────────────────────────────────────
+router.post('/:id/mute', tripMemberMW, tripsController.muteTrip);
+router.delete('/:id/mute', tripMemberMW, tripsController.unmuteTrip);
+router.get('/:id/mute', tripMemberMW, tripsController.getTripMuteStatus);
+
 // ─── Notes — multi-note schema ────────────────────────────────────────────────
 router.get('/:id/notes', tripMemberMW, notesCtrl.getNotes);
 router.post('/:id/notes', tripMemberMW, notesCtrl.createNote);

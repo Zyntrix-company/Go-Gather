@@ -4,7 +4,7 @@ const config = require('../../config');
 const { createAndSendNotification } = require('../../utils/fcm.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
 const { generateInviteShareText } = require('../../utils/shareText.util');
-const { sendEmail, wrapEmail } = require('../../utils/mailer');
+const { sendEmail, wrapEmail, sendConnectionRequestEmail, sendRequestAcceptedEmail } = require('../../utils/mailer');
 const { getPresignedDownloadUrl } = require('../../utils/s3.util');
 const logger = require('../../utils/logger');
 
@@ -126,6 +126,17 @@ const sendFriendRequest = async (requesterId, addresseeId) => {
     { connectionId, fromUserId: requesterId, screen: 'friends' },
   ).catch((err) => logger.error('Notification failed', { err: err.message }));
 
+  // Immediate email to addressee — fire-and-forget
+  db('SELECT u.email, p.full_name FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = $1', [addresseeId])
+    .then((r) => {
+      const row = r.rows[0];
+      if (row?.email) {
+        sendConnectionRequestEmail(row.email, row.full_name, requesterName)
+          .catch((err) => logger.error('sendConnectionRequestEmail failed', { err: err.message }));
+      }
+    })
+    .catch(() => {});
+
   return { connectionId, status: 'pending' };
 };
 
@@ -187,6 +198,17 @@ const respondFriendRequest = async (currentUserId, connectionId, action) => {
       'FRIEND_ACCEPTED',
       { connectionId, userId: currentUserId, screen: 'friends' },
     ).catch((err) => logger.error('Notification failed', { err: err.message }));
+
+    // Immediate email to the original requester — fire-and-forget
+    db('SELECT u.email, p.full_name FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = $1', [conn.requester_id])
+      .then((r) => {
+        const row = r.rows[0];
+        if (row?.email) {
+          sendRequestAcceptedEmail(row.email, row.full_name, accepterName)
+            .catch((err) => logger.error('sendRequestAcceptedEmail failed', { err: err.message }));
+        }
+      })
+      .catch(() => {});
 
     return {
       connectionId,
