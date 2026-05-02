@@ -1,24 +1,18 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Linkedin, Twitter, Github, Users, Target, Heart, MapPin } from 'lucide-react';
-import ankanImage from '../../assets/3d50851ea3a7044f8fbcb90a8e61eb6b754774e3.png';
-import akashImage from '../../assets/878f090182ab234a55dac737db84e4fad1d4c7ae.png';
 import SEO from '../components/SEO';
 
 const teamMembers = [
   {
-    name: "Ankan Nandi",
+    name: "Ankan",
     role: "Founder",
     location: "Bangalore, India",
-    image: ankanImage,
-    imagePosition: "object-[center_20%]"
   },
   {
-    name: "Akash Yadav",
+    name: "Akash",
     role: "Head of Technology",
     location: "Seattle, United States",
-    image: akashImage,
-    imagePosition: "object-[45%_30%]"
   }
 ];
 
@@ -27,7 +21,7 @@ export default function About() {
     <div className="pt-8 pb-16 px-6 max-w-7xl mx-auto space-y-16">
       <SEO
         title="About GatherrGo — Our Story, Mission & Team"
-        description="Meet the team behind GatherrGo — founded by Ankan Nandi and Akash Yadav with 30+ years of MAANG experience, building the future of group travel."
+        description="Meet the team behind GatherrGo — founded by Ankan and Akash with 30+ years of MAANG experience, building the future of group travel."
         canonical="/about"
       />
       
@@ -104,13 +98,6 @@ export default function About() {
               transition={{ delay: index * 0.1 }}
               className="group relative rounded-3xl overflow-hidden bg-white/60 backdrop-blur-sm border border-white/60 shadow-sm hover:shadow-md transition-all"
             >
-              <div className="aspect-[4/3] overflow-hidden">
-                <img 
-                  src={member.image} 
-                  alt={member.name} 
-                  className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${member.imagePosition}`}
-                />
-              </div>
               <div className="p-6 flex flex-col items-center text-center">
                 <h3 className="text-xl font-bold text-slate-900">{member.name}</h3>
                 <p className="text-teal-600 text-sm mb-1 font-medium">{member.role}</p>

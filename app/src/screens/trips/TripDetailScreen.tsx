@@ -475,7 +475,7 @@ function FriendAvatar({ uri, name, style }: { uri: string; name: string; style: 
 export default function TripDetailScreen({ route, navigation }: any) {
   const [trip, setTrip] = useState(route?.params?.trip);
   const rawUser = useAuthStore(s => s.user) as any;
-  const currentUserId: string = rawUser?.id ?? '';
+  const currentUserId: string = rawUser?.id ?? rawUser?.sub ?? '';
   const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
   const unreadCount = useNotificationStore(s => s.notifications.filter(n => !n.read).length);
 
@@ -639,7 +639,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         setIsLoadingInit(false);
       }
     })();
-  }, [tripId]));
+  }, [tripId, currentUserId]));
 
   // ── Load expenses + balances when expenses modal opens ──
   useEffect(() => {
@@ -1395,9 +1395,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
         const url = res.invited[0].branchUrl;
         showAlert({ title: 'Invite Link', message: `Share this link:\n${url}` });
       }
-      // Refresh members list
+      // Refresh members list (re-apply auth avatar for current user — same as initial load)
       const membersRes = await getTripMembers(tripId);
-      setMembers(membersRes.members);
+      const freshUrl = useAuthStore.getState().user?.photoUrl || useAuthStore.getState().user?.avatarUrl || null;
+      setMembers(membersRes.members.map((m: TripMember) =>
+        m.userId === currentUserId && freshUrl ? { ...m, avatarUrl: freshUrl } : m,
+      ));
       setInviteInput(''); setSelectedFriends([]);
     } catch (err) {
       handleApiError(err);

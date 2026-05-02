@@ -24,6 +24,7 @@ import { getArchivedEvents, unarchiveEvent, deleteEvent } from '../../api/events
 import { showConfirm } from '../../store/alertStore';
 import { UnifiedCard } from '../../components/common/Cards';
 import useAuthStore from '../../store/authStore';
+import { authFreshAvatarUrl, authUserId, resolveMemberAvatarUri } from '../../utils/avatarUri';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,23 +51,21 @@ type ArchivedEvent = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function patchAvatarUri(rawUri: string, prevUrl: string, freshUrl: string): string {
-  if (!rawUri || !freshUrl) return rawUri;
-  if (prevUrl && rawUri === prevUrl) return freshUrl;
-  try {
-    if (new URL(rawUri).pathname === new URL(freshUrl).pathname) return freshUrl;
-  } catch { /* malformed URL */ }
-  return rawUri;
-}
-
 function mapAvatars(memberAvatars: any[], memberCount: number): { members: { id: string; uri: string }[]; extraMembers: number } {
-  const { prevAvatarUrl, user } = useAuthStore.getState();
-  const freshUrl = user?.photoUrl || user?.avatarUrl || '';
+  const state = useAuthStore.getState();
+  const user = state.user;
   const sliced = (memberAvatars || []).slice(0, 2);
   const members = sliced.map((av: any, idx: number) => {
     const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
-    const uri = patchAvatarUri(rawUri, prevAvatarUrl ?? '', freshUrl);
-    return { id: uri || `av-${idx}`, uri };
+    const memberId = typeof av === 'string' ? undefined : (av.id != null ? String(av.id) : undefined);
+    const uri = resolveMemberAvatarUri(rawUri, {
+      memberId,
+      currentUserId: authUserId(user),
+      freshUrl: authFreshAvatarUrl(user),
+      prevUrl: state.prevAvatarUrl ?? '',
+    });
+    const stableId = memberId || uri || `av-${idx}`;
+    return { id: stableId, uri };
   });
   const extraMembers = sliced.length === 0
     ? (memberCount ?? 0)

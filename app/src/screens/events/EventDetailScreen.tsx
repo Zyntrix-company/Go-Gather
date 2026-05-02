@@ -52,6 +52,7 @@ import {
 } from '../../api/events.api';
 import { getFriends } from '../../api/trips.api';
 import useAuthStore from '../../store/authStore';
+import { authUserId } from '../../utils/avatarUri';
 import { showAlert, showConfirm } from '../../store/alertStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -344,7 +345,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
     description: rawEvent?.description ?? 'Join us for the annual Spring Music Festival in the heart of Central Park. Experience live performances from local and international artists across multiple stages.',
   });
 
-  const currentUserId = useAuthStore(s => s.user?.id ?? '');
+  const currentUserId = useAuthStore(s => authUserId(s.user));
   const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
   const [failedAvatarIds, setFailedAvatarIds] = useState<Set<string>>(new Set());
 
@@ -393,8 +394,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
             type: eventData.event.eventType ?? prev.type,
             description: eventData.event.description ?? prev.description,
           }));
-          const freshUrl = useAuthStore.getState().user?.photoUrl || useAuthStore.getState().user?.avatarUrl || null;
-          const cuid = useAuthStore.getState().user?.id ?? '';
+          const state = useAuthStore.getState();
+          const freshUrl = state.user?.photoUrl || state.user?.avatarUrl || null;
+          const cuid = authUserId(state.user);
           setMembers(eventData.members.map(m => ({
             userId: m.userId,
             fullName: m.fullName ?? (m as any).name ?? 'Member',

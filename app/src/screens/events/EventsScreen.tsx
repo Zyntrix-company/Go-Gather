@@ -9,6 +9,7 @@ import { CalendarPlus } from 'lucide-react-native';
 import DateInfoPopover from '../../components/common/DateInfoPopover';
 import { UnifiedCard } from '../../components/common/Cards';
 import useAuthStore from '../../store/authStore';
+import { authFreshAvatarUrl, authUserId, resolveMemberAvatarUri } from '../../utils/avatarUri';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -115,13 +116,21 @@ function fmtDateISO(d: Date): string {
   return d.toISOString().split('T')[0];
 }
 
-function patchAvatarUri(rawUri: string, prevUrl: string, freshUrl: string): string {
-  if (!rawUri || !freshUrl) return rawUri;
-  if (prevUrl && rawUri === prevUrl) return freshUrl;
-  try {
-    if (new URL(rawUri).pathname === new URL(freshUrl).pathname) return freshUrl;
-  } catch { /* malformed URL — fall through */ }
-  return rawUri;
+function mapMemberAvatarsForCard(memberAvatars: any[]): { id: string; uri: string }[] {
+  const state = useAuthStore.getState();
+  const user = state.user;
+  return (memberAvatars || []).slice(0, 2).map((av: any, i: number) => {
+    const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
+    const memberId = typeof av === 'string' ? undefined : (av.id != null ? String(av.id) : undefined);
+    const uri = resolveMemberAvatarUri(rawUri, {
+      memberId,
+      currentUserId: authUserId(user),
+      freshUrl: authFreshAvatarUrl(user),
+      prevUrl: state.prevAvatarUrl ?? '',
+    });
+    const stableId = memberId || uri || `ev-av-${i}`;
+    return { id: stableId, uri };
+  });
 }
 
 function mapApiEvent(e: ApiEvent): EventItem {
@@ -188,13 +197,7 @@ function EventCardFullLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
       name={event.name}
       location={event.location || 'Location TBD'}
       dateLabel={event.dateDisplay}
-      members={event.memberAvatars.slice(0, 2).map((av: any, i: number) => {
-        const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
-        const { prevAvatarUrl, user } = useAuthStore.getState();
-        const freshUrl = user?.photoUrl || user?.avatarUrl || '';
-        const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
-        return { id: uri || `ev-av-${i}`, uri };
-      })}
+      members={mapMemberAvatarsForCard(event.memberAvatars)}
       extraMembers={event.memberAvatars.length === 0
         ? (event.memberCount ?? 0)
         : Math.max(0, (event.memberCount ?? 0) - Math.min(event.memberAvatars.length, 2))}
@@ -224,13 +227,7 @@ function EventCardPastLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
       name={event.name}
       location={event.location || 'Location TBD'}
       dateLabel={event.dateDisplay}
-      members={event.memberAvatars.slice(0, 2).map((av: any, i: number) => {
-        const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
-        const { prevAvatarUrl, user } = useAuthStore.getState();
-        const freshUrl = user?.photoUrl || user?.avatarUrl || '';
-        const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
-        return { id: uri || `ev-av-${i}`, uri };
-      })}
+      members={mapMemberAvatarsForCard(event.memberAvatars)}
       extraMembers={event.memberAvatars.length === 0
         ? (event.memberCount ?? 0)
         : Math.max(0, (event.memberCount ?? 0) - Math.min(event.memberAvatars.length, 2))}

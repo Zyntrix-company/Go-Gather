@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import BlobBackground from '../../components/common/BlobBackground';
 import { getFriends, createFriendInvite } from '../../api/trips.api';
 import { showAlert } from '../../store/alertStore';
@@ -58,15 +58,21 @@ function FriendRow({ friend, index, onView }: {
   onView: (friend: Friend) => void;
 }) {
   const fallbackAvatar = `https://i.pravatar.cc/150?u=${encodeURIComponent(friend.user.id)}`;
-  const [imageUri, setImageUri] = useState<string>(friend.user.avatarUrl || fallbackAvatar);
+  const primaryUri = friend.user.avatarUrl || fallbackAvatar;
+  const [imgFailed, setImgFailed] = useState(false);
+  const displayUri = imgFailed ? fallbackAvatar : primaryUri;
   const firstLetter = friend.user.name?.[0]?.toUpperCase() || '?';
   const subtitle = friend.user.tag ? `@${friend.user.tag}` : '';
-  const avatarSource = { uri: imageUri };
+  const avatarSource = { uri: displayUri };
   const colorPair = AVATAR_COLORS[index % 6];
 
+  useEffect(() => {
+    setImgFailed(false);
+  }, [friend.user.avatarUrl, friend.user.id]);
+
   const handleImageError = () => {
-    if (imageUri !== fallbackAvatar) {
-      setImageUri(fallbackAvatar);
+    if (!imgFailed && friend.user.avatarUrl) {
+      setImgFailed(true);
     }
   };
 
@@ -126,22 +132,29 @@ export default function FriendsScreen() {
   const [inviteInput, setInviteInput] = useState('');
   const [isSending, setIsSending] = useState(false);
 
-  async function fetchFriends() {
+  const fetchFriends = useCallback(async () => {
     setIsLoading(true);
     try {
       const result = await getFriends(searchQuery.trim() || undefined);
-      setFriends(result.friends);
+      setFriends(
+        result.friends.map(f => ({
+          ...f,
+          mutualEventCount: (f as Friend).mutualEventCount ?? 0,
+        })),
+      );
     } catch (error) {
       console.error('[FriendsScreen] getFriends failed', error);
       setFriends([]);
     } finally {
       setIsLoading(false);
     }
-  }
-
-  useEffect(() => {
-    fetchFriends();
   }, [searchQuery]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchFriends();
+    }, [fetchFriends]),
+  );
 
   function handleViewFriend(friend: Friend) {
     navigation.navigate('FriendProfile', { userId: friend.user.id, friendName: friend.user.name ?? 'Friend' });

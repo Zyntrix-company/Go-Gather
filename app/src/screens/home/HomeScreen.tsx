@@ -40,6 +40,7 @@ import {
 import BlobBackground from '../../components/common/BlobBackground';
 import AppHeader from '../../components/common/AppHeader';
 import useAuthStore from '../../store/authStore';
+import { authFreshAvatarUrl, authUserId, resolveMemberAvatarUri } from '../../utils/avatarUri';
 import { showConfirm } from '../../store/alertStore';
 import useNotificationStore from '../../store/notificationStore';
 import useAuth from '../../hooks/useAuth';
@@ -332,15 +333,6 @@ function fmtFullDate(iso: string): string {
   if (isNaN(d.getTime())) return 'TBD';
   return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} ${d.getFullYear()}`;
 }
-function patchAvatarUri(rawUri: string, prevUrl: string, freshUrl: string): string {
-  if (!rawUri || !freshUrl) return rawUri;
-  if (prevUrl && rawUri === prevUrl) return freshUrl;
-  try {
-    if (new URL(rawUri).pathname === new URL(freshUrl).pathname) return freshUrl;
-  } catch { /* malformed URL — fall through */ }
-  return rawUri;
-}
-
 function mapApiTrip(t: any): Trip {
   const locName = typeof t.location === 'string'
     ? t.location
@@ -365,10 +357,17 @@ function mapApiTrip(t: any): Trip {
     bannerCropFraction: t.bannerCropFraction ?? null,
     members: (t.memberAvatars || []).slice(0, 2).map((av: any, idx: number) => {
       const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
-      const { prevAvatarUrl, user } = useAuthStore.getState();
-      const freshUrl = user?.photoUrl || user?.avatarUrl || '';
-      const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
-      return { id: uri || `av-${idx}`, uri };
+      const memberId = typeof av === 'string' ? undefined : (av.id != null ? String(av.id) : undefined);
+      const state = useAuthStore.getState();
+      const user = state.user;
+      const uri = resolveMemberAvatarUri(rawUri, {
+        memberId,
+        currentUserId: authUserId(user),
+        freshUrl: authFreshAvatarUrl(user),
+        prevUrl: state.prevAvatarUrl ?? '',
+      });
+      const stableId = memberId || uri || `av-${idx}`;
+      return { id: stableId, uri };
     }),
     extraMembers: (t.memberAvatars || []).length === 0
       ? (t.memberCount ?? 0)
@@ -1100,10 +1099,17 @@ export default function HomeScreen({ navigation, route }: any) {
             const rawAvatars: any[] = (ev.memberAvatars || []).slice(0, 2);
             const avatars: { id: string; uri: string }[] = rawAvatars.map((av: any, i: number) => {
               const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
-              const { prevAvatarUrl, user } = useAuthStore.getState();
-              const freshUrl = user?.photoUrl || user?.avatarUrl || '';
-              const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
-              return { id: uri || `ev-av-${i}`, uri };
+              const memberId = typeof av === 'string' ? undefined : (av.id != null ? String(av.id) : undefined);
+              const state = useAuthStore.getState();
+              const user = state.user;
+              const uri = resolveMemberAvatarUri(rawUri, {
+                memberId,
+                currentUserId: authUserId(user),
+                freshUrl: authFreshAvatarUrl(user),
+                prevUrl: state.prevAvatarUrl ?? '',
+              });
+              const stableId = memberId || uri || `ev-av-${i}`;
+              return { id: stableId, uri };
             });
             const evExtra = rawAvatars.length === 0
               ? (ev.memberCount ?? 0)

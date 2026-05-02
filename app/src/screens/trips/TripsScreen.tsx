@@ -31,6 +31,7 @@ import { UnifiedCard } from '../../components/common/Cards';
 import CachedImage from '../../components/common/CachedImage';
 import Toast from 'react-native-toast-message';
 import useAuthStore from '../../store/authStore';
+import { authFreshAvatarUrl, authUserId, resolveMemberAvatarUri } from '../../utils/avatarUri';
 import DateInfoPopover from '../../components/common/DateInfoPopover';
 import {
   getTrips,
@@ -212,15 +213,6 @@ function fmtDateNoYear(iso: string): string {
   return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
 }
 
-function patchAvatarUri(rawUri: string, prevUrl: string, freshUrl: string): string {
-  if (!rawUri || !freshUrl) return rawUri;
-  if (prevUrl && rawUri === prevUrl) return freshUrl;
-  try {
-    if (new URL(rawUri).pathname === new URL(freshUrl).pathname) return freshUrl;
-  } catch { /* malformed URL — fall through */ }
-  return rawUri;
-}
-
 function mapApiTrip(t: any): Trip {
   const locName = typeof t.location === 'string'
     ? t.location
@@ -246,10 +238,17 @@ function mapApiTrip(t: any): Trip {
     bannerCropFraction: t.bannerCropFraction ?? null,
     members: (t.memberAvatars || []).slice(0, 2).map((av: any, idx: number) => {
       const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
-      const { prevAvatarUrl, user } = useAuthStore.getState();
-      const freshUrl = user?.photoUrl || user?.avatarUrl || '';
-      const uri = patchAvatarUri(rawUri, prevAvatarUrl, freshUrl);
-      return { id: uri || `av-${idx}`, uri };
+      const memberId = typeof av === 'string' ? undefined : (av.id != null ? String(av.id) : undefined);
+      const state = useAuthStore.getState();
+      const user = state.user;
+      const uri = resolveMemberAvatarUri(rawUri, {
+        memberId,
+        currentUserId: authUserId(user),
+        freshUrl: authFreshAvatarUrl(user),
+        prevUrl: state.prevAvatarUrl ?? '',
+      });
+      const stableId = memberId || uri || `av-${idx}`;
+      return { id: stableId, uri };
     }),
     extraMembers: (t.memberAvatars || []).length === 0 ? (t.memberCount ?? 0) : Math.max(0, (t.memberCount ?? 0) - Math.min((t.memberAvatars || []).length, 2)),
   };
