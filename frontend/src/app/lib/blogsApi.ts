@@ -22,7 +22,7 @@ function apiRoot(): string {
 }
 
 export async function fetchBlogs(): Promise<BlogListItem[]> {
-  const res = await fetch(`${apiRoot()}/blogs`);
+  const res = await fetch(`${apiRoot()}/blogs?client=web`);
   if (!res.ok) {
     throw new Error(`Failed to load blogs (${res.status})`);
   }

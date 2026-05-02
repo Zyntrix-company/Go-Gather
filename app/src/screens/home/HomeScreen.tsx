@@ -514,7 +514,7 @@ export default function HomeScreen({ navigation, route }: any) {
     async function fetchStaticHomeData() {
       try {
         setBlogsLoading(true);
-        const blogsRes = await fetch(`${API_BASE}/blogs`);
+        const blogsRes = await fetch(`${API_BASE}/blogs?client=app`);
         if (blogsRes.ok) setBlogs(await blogsRes.json());
       } catch { /* silently fall back to empty */ } finally { setBlogsLoading(false); }
       try {

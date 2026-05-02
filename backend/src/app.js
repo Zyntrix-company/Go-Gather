@@ -21,6 +21,8 @@ const aiRoutes = require('./modules/ai/ai.routes');
 const blogsRoutes         = require('./modules/blogs/blogs.routes');
 const dealsRoutes         = require('./modules/deals/deals.routes');
 const notificationsRoutes = require('./modules/notifications/notifications.routes');
+const adminRoutes        = require('./modules/admin/admin.routes');
+const { recordRequest }  = require('./modules/admin/admin.middleware');
 
 const app = express();
 
@@ -67,6 +69,9 @@ app.use((req, _res, next) => {
   express.urlencoded({ extended: true, limit: '50mb' })(req, _res, next);
 });
 
+// In-process request counter for admin health endpoint
+app.use(recordRequest);
+
 // HTTP request logging via morgan → winston
 const morganStream = {
   write: (message) => logger.http(message.trim()),
@@ -102,6 +107,7 @@ app.use('/blogs',         blogsRoutes);
 app.use('/deals',         dealsRoutes);
 app.use('/notifications', notificationsRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/admin',       adminRoutes);
 app.use('/auth',        emailAuthRoutes);
 app.use('/email-docs',  emailDocsRouter);
 

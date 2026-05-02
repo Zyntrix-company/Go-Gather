@@ -35,7 +35,6 @@ export default function Contact() {
           subject: formData.subject,
           country: selectedCountry?.name ?? formData.country,
           message: formData.message,
-          to: import.meta.env.VITE_CONTACT_RECEIVER_EMAIL,
         }),
       });
 
