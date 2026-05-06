@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { Plane, CalendarDays, PencilLine, Images } from 'lucide-react-native';
+import { Plane, CalendarDays, PencilLine } from 'lucide-react-native';
 import { getUserGallery } from '../../api/ai.api';
 import { getTripPhotos } from '../../api/trips.api';
 import { getEventPhotos } from '../../api/events.api';
@@ -24,7 +24,6 @@ const PinIcon = ({ color = '#94a3b8', size = 13 }) => (
   </Svg>
 );
 
-
 const CameraIcon = () => (
   <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
     <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
@@ -38,6 +37,17 @@ const CloseIcon = () => (
   </Svg>
 );
 
+const XIcon = ({ color = '#fff', size = 13 }: { color?: string; size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path d="M18 6L6 18M6 6l12 12" stroke={color} strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+const CheckIcon = () => (
+  <Svg width={17} height={17} viewBox="0 0 24 24" fill="none">
+    <Path d="M20 6L9 17l-5-5" stroke="#0d9488" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
 
 // ─── Section header ─────────────────────────────────────────────────────────
 
@@ -64,7 +74,7 @@ function SectionHeader({ title, count, onAdd, icon }: { title: string; count: nu
   );
 }
 
-// ─── Gallery grid card ──────────────────────────────────────────────────────
+// ─── Gallery grid card (read-only, for API-driven trips/events) ──────────────
 
 function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
   const [imgError, setImgError] = useState(false);
@@ -102,7 +112,7 @@ function EmptyCard({ label }: { label: string }) {
   );
 }
 
-// ─── Photo type ──────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 type PhotoItem = {
   id: string;
@@ -111,14 +121,16 @@ type PhotoItem = {
   activityTitle?: string | null;
 };
 
-type LocalAlbum = {
+type CustomCard = {
   id: string;
   name: string;
+  bannerImageUrl?: string;
+  type: 'trip' | 'event';
   photos: PhotoItem[];
 };
 
-function galleryAlbumsStorageKey(userId: string) {
-  return `gogather_gallery_personal_albums_${userId}`;
+function customCardsStorageKey(userId: string) {
+  return `gogather_gallery_custom_cards_${userId}`;
 }
 
 // ─── Photo thumbnail with loading state ──────────────────────────────────────
@@ -152,7 +164,7 @@ function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void 
   );
 }
 
-// ─── Full-screen preview with loading indicator ───────────────────────────────
+// ─── Full-screen preview ─────────────────────────────────────────────────────
 
 function PreviewModal({ photo, onClose }: { photo: PhotoItem | null; onClose: () => void }) {
   const [previewLoading, setPreviewLoading] = useState(true);
@@ -182,7 +194,7 @@ function PreviewModal({ photo, onClose }: { photo: PhotoItem | null; onClose: ()
   );
 }
 
-// ─── Photos modal ─────────────────────────────────────────────────────────────
+// ─── Photos modal (for API-driven trip/event cards) ───────────────────────────
 
 function PhotosModal({
   visible,
@@ -225,7 +237,6 @@ function PhotosModal({
     return () => { cancelled = true; };
   }, [visible, parentId, parentType]);
 
-  // Group: activity photos by activityTitle, then direct photos
   const activityGroups: Record<string, PhotoItem[]> = {};
   const directPhotos: PhotoItem[] = [];
   photos.forEach((ph) => {
@@ -246,14 +257,12 @@ function PhotosModal({
       <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
         <View style={styles.overlay}>
           <View style={[styles.dialog, { maxHeight: '85%' }]}>
-            {/* Header */}
             <View style={styles.dialogHeader}>
               <Text style={styles.dialogTitle}>{title}</Text>
               <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <CloseIcon />
               </TouchableOpacity>
             </View>
-
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.dialogBody}>
                 {loading && (
@@ -261,7 +270,6 @@ function PhotosModal({
                     <ActivityIndicator color="#0d9488" />
                   </View>
                 )}
-
                 {!loading && photos.length === 0 && (
                   <View style={styles.emptyCenter}>
                     <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
@@ -273,10 +281,8 @@ function PhotosModal({
                     <Text style={styles.emptySub}>No memories captured for this {parentType}.</Text>
                   </View>
                 )}
-
                 {!loading && photos.length > 0 && (
                   <View>
-                    {/* Activity groups */}
                     {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
                       <View key={actTitle} style={{ marginBottom: 16 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
@@ -289,7 +295,6 @@ function PhotosModal({
                         </View>
                       </View>
                     ))}
-                    {/* Direct photos */}
                     {directPhotos.length > 0 && (
                       <View style={{ marginBottom: 8 }}>
                         {Object.keys(activityGroups).length > 0 && (
@@ -313,8 +318,6 @@ function PhotosModal({
           </View>
         </View>
       </Modal>
-
-      {/* Full-screen preview */}
       <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
         <PreviewModal photo={previewPhoto} onClose={() => setPreviewPhoto(null)} />
       </Modal>
@@ -322,26 +325,46 @@ function PhotosModal({
   );
 }
 
-// ─── Create personal album (local only) ─────────────────────────────────────
+// ─── Create card modal (name + banner image picker) ──────────────────────────
 
-function CreateAlbumModal({
+function CreateCardModal({
   visible,
+  type,
   onClose,
   onCreate,
 }: {
   visible: boolean;
+  type: 'trip' | 'event';
   onClose: () => void;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, bannerUri?: string) => void;
 }) {
   const [name, setName] = useState('');
+  const [bannerUri, setBannerUri] = useState<string | undefined>();
+  const [bannerImgError, setBannerImgError] = useState(false);
+
   useEffect(() => {
-    if (visible) setName('');
+    if (visible) {
+      setName('');
+      setBannerUri(undefined);
+      setBannerImgError(false);
+    }
   }, [visible]);
+
+  const pickBanner = () => {
+    launchImageLibrary(
+      { mediaType: 'photo', selectionLimit: 1, quality: 0.9, maxWidth: 1200, maxHeight: 800 },
+      (res) => {
+        if (res.didCancel || !res.assets?.length) return;
+        const uri = res.assets[0].uri;
+        if (uri) { setBannerUri(uri); setBannerImgError(false); }
+      },
+    );
+  };
 
   const submit = () => {
     const t = name.trim();
     if (!t) return;
-    onCreate(t);
+    onCreate(t, bannerUri);
     onClose();
   };
 
@@ -350,19 +373,45 @@ function CreateAlbumModal({
       <View style={styles.overlay}>
         <View style={styles.dialog}>
           <View style={styles.dialogHeader}>
-            <Text style={styles.dialogTitle}>New album</Text>
+            <Text style={styles.dialogTitle}>
+              New {type === 'trip' ? 'trip' : 'event'} album
+            </Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <CloseIcon />
             </TouchableOpacity>
           </View>
           <View style={styles.dialogBody}>
+            {/* Banner image picker */}
+            <TouchableOpacity onPress={pickBanner} style={styles.bannerPicker} activeOpacity={0.8}>
+              {bannerUri && !bannerImgError ? (
+                <Image
+                  source={{ uri: bannerUri }}
+                  style={styles.bannerPreview}
+                  resizeMode="cover"
+                  onError={() => setBannerImgError(true)}
+                />
+              ) : (
+                <View style={styles.bannerPlaceholder}>
+                  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+                    <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    <Circle cx={12} cy={13} r={4} stroke="#cbd5e1" strokeWidth={1.5} />
+                  </Svg>
+                  <Text style={styles.bannerPickerLabel}>Add cover photo</Text>
+                </View>
+              )}
+              {bannerUri && !bannerImgError && (
+                <View style={styles.bannerEditBadge}>
+                  <PencilLine size={13} color="#fff" />
+                </View>
+              )}
+            </TouchableOpacity>
+
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder="Album name"
+              placeholder={type === 'trip' ? 'Trip name' : 'Event name'}
               placeholderTextColor="#94a3b8"
               style={styles.createAlbumInput}
-              autoFocus
               returnKeyType="done"
               onSubmitEditing={submit}
             />
@@ -381,23 +430,29 @@ function CreateAlbumModal({
   );
 }
 
-// ─── Personal album photos (device photos, no trip/event) ───────────────────
+// ─── Custom card photos modal (view mode + edit mode toggled by pencil) ──────
 
-function LocalAlbumPhotosModal({
+function CustomCardPhotosModal({
   visible,
-  album,
+  card,
   onClose,
-  onUpdateAlbum,
+  onUpdateCard,
 }: {
   visible: boolean;
-  album: LocalAlbum | null;
+  card: CustomCard | null;
   onClose: () => void;
-  onUpdateAlbum: (next: LocalAlbum) => void;
+  onUpdateCard: (next: CustomCard) => void;
 }) {
+  const [editMode, setEditMode] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
 
+  // Reset to view mode whenever the modal opens/closes or card changes
+  useEffect(() => {
+    if (!visible) setEditMode(false);
+  }, [visible]);
+
   const addPhotos = () => {
-    if (!album) return;
+    if (!card) return;
     launchImageLibrary(
       {
         mediaType: 'photo',
@@ -411,31 +466,52 @@ function LocalAlbumPhotosModal({
         if (res.didCancel || !res.assets?.length) return;
         const ts = Date.now();
         const newPhotos: PhotoItem[] = res.assets
-          .map((a, i) => ({
-            id: `local_${ts}_${i}`,
-            uri: a.uri ?? '',
-          }))
+          .map((a, i) => ({ id: `local_${ts}_${i}`, uri: a.uri ?? '' }))
           .filter((p) => p.uri);
         if (!newPhotos.length) return;
-        onUpdateAlbum({ ...album, photos: [...album.photos, ...newPhotos] });
+        onUpdateCard({ ...card, photos: [...card.photos, ...newPhotos] });
       },
     );
   };
 
-  if (!album) return null;
-  const photos = album.photos;
+  const deletePhoto = (photoId: string) => {
+    if (!card) return;
+    onUpdateCard({ ...card, photos: card.photos.filter((p) => p.id !== photoId) });
+  };
+
+  if (!card) return null;
+  const photos = card.photos;
 
   return (
     <>
       <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
         <View style={styles.overlay}>
           <View style={[styles.dialog, { maxHeight: '85%' }]}>
+            {/* Header: title + pencil (view) or Done (edit) + close */}
             <View style={styles.dialogHeader}>
-              <Text style={styles.dialogTitle} numberOfLines={1}>{album.name}</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <CloseIcon />
-              </TouchableOpacity>
+              <Text style={styles.dialogTitle} numberOfLines={1}>{card.name}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                {editMode ? (
+                  <TouchableOpacity
+                    onPress={() => setEditMode(false)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <CheckIcon />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setEditMode(true)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <PencilLine size={18} color="#0d9488" />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <CloseIcon />
+                </TouchableOpacity>
+              </View>
             </View>
+
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.dialogBody}>
                 {photos.length === 0 && (
@@ -446,25 +522,48 @@ function LocalAlbumPhotosModal({
                       <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                     </Svg>
                     <Text style={styles.emptyTitle}>No photos yet</Text>
-                    <Text style={styles.emptySub}>Add photos from your library. They stay on this device.</Text>
+                    <Text style={styles.emptySub}>
+                      {editMode ? 'Tap "Add photos" below to fill this album.' : 'Tap the pencil icon to add photos.'}
+                    </Text>
                   </View>
                 )}
+
                 {photos.length > 0 && (
                   <View style={styles.thumbRow}>
                     {photos.map((ph) => (
-                      <PhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewPhoto(ph)} />
+                      <View key={ph.id} style={{ position: 'relative' }}>
+                        <PhotoThumb
+                          photo={ph}
+                          onPress={() => !editMode && setPreviewPhoto(ph)}
+                        />
+                        {/* Delete button only visible in edit mode */}
+                        {editMode && (
+                          <TouchableOpacity
+                            onPress={() => deletePhoto(ph.id)}
+                            style={styles.thumbDeleteBtn}
+                            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                          >
+                            <XIcon size={9} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     ))}
                   </View>
                 )}
-                <TouchableOpacity style={styles.addPhotosBtn} onPress={addPhotos} activeOpacity={0.85}>
-                  <Text style={styles.addPhotosBtnText}>Add photos</Text>
-                </TouchableOpacity>
+
+                {/* Add photos button only in edit mode */}
+                {editMode && (
+                  <TouchableOpacity style={styles.addPhotosBtn} onPress={addPhotos} activeOpacity={0.85}>
+                    <Text style={styles.addPhotosBtnText}>Add photos</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </ScrollView>
           </View>
         </View>
       </Modal>
 
+      {/* Full-screen preview only in view mode */}
       <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
         <PreviewModal photo={previewPhoto} onClose={() => setPreviewPhoto(null)} />
       </Modal>
@@ -476,7 +575,7 @@ function LocalAlbumPhotosModal({
 
 interface GalleryTabProps {
   user: any;
-  trips?: any[];           // fallback from HomeScreen
+  trips?: any[];
   onEditProfile: () => void;
   onNavigateToTrip: (trip: any) => void;
   onSetActiveTab: (tab: string) => void;
@@ -487,78 +586,80 @@ export default function GalleryTab({
   user,
   trips: propTrips = [],
   onEditProfile,
-  onSetActiveTab,
 }: GalleryTabProps) {
   const [avatarError, setAvatarError] = useState(false);
   const [galleryTrips, setGalleryTrips] = useState<any[]>([]);
   const [galleryEvents, setGalleryEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Photo modal state
+  // Photo modal for API-driven trip/event cards
   const [photoModal, setPhotoModal] = useState<{ id: string; name: string; type: 'trip' | 'event' } | null>(null);
 
-  // Personal albums (AsyncStorage, not tied to trips/events)
-  const [personalAlbums, setPersonalAlbums] = useState<LocalAlbum[]>([]);
-  const [albumsLoaded, setAlbumsLoaded] = useState(false);
-  const [showCreateAlbum, setShowCreateAlbum] = useState(false);
-  const [localAlbumOpen, setLocalAlbumOpen] = useState<LocalAlbum | null>(null);
+  // Custom cards (local, stored in AsyncStorage)
+  const [customCards, setCustomCards] = useState<CustomCard[]>([]);
+  const [cardsLoaded, setCardsLoaded] = useState(false);
+  const [showCreateCard, setShowCreateCard] = useState<'trip' | 'event' | null>(null);
+  const [openCard, setOpenCard] = useState<CustomCard | null>(null);
 
   const userId: string = user?.id ?? '';
   const displayName = user?.fullName ?? '';
   const handle = user?.username ?? displayName.toLowerCase().replace(/ /g, '_') ?? 'username';
 
-  // Reset avatar error when photo URL changes
   useEffect(() => {
     setAvatarError(false);
   }, [user?.photoUrl]);
 
-  // Load personal albums from device storage
+  // Load custom cards from device storage
   useEffect(() => {
     if (!userId) {
-      setPersonalAlbums([]);
-      setAlbumsLoaded(false);
+      setCustomCards([]);
+      setCardsLoaded(false);
       return;
     }
     let cancelled = false;
-    AsyncStorage.getItem(galleryAlbumsStorageKey(userId))
+    AsyncStorage.getItem(customCardsStorageKey(userId))
       .then((raw) => {
         if (cancelled) return;
         try {
           const parsed = raw ? JSON.parse(raw) : [];
-          setPersonalAlbums(Array.isArray(parsed) ? parsed : []);
+          setCustomCards(Array.isArray(parsed) ? parsed : []);
         } catch {
-          setPersonalAlbums([]);
+          setCustomCards([]);
         }
       })
-      .finally(() => {
-        if (!cancelled) setAlbumsLoaded(true);
-      });
+      .finally(() => { if (!cancelled) setCardsLoaded(true); });
     return () => { cancelled = true; };
   }, [userId]);
 
-  const createPersonalAlbum = (name: string) => {
-    const album: LocalAlbum = { id: `al_${Date.now()}`, name, photos: [] };
-    setPersonalAlbums((prev) => {
-      const next = [...prev, album];
-      if (userId) {
-        AsyncStorage.setItem(galleryAlbumsStorageKey(userId), JSON.stringify(next)).catch(() => {});
-      }
-      return next;
-    });
+  const saveCustomCards = (next: CustomCard[]) => {
+    setCustomCards(next);
+    if (userId) {
+      AsyncStorage.setItem(customCardsStorageKey(userId), JSON.stringify(next)).catch(() => {});
+    }
   };
 
-  const updatePersonalAlbum = (nextAlbum: LocalAlbum) => {
-    setPersonalAlbums((prev) => {
-      const next = prev.map((a) => (a.id === nextAlbum.id ? nextAlbum : a));
-      if (userId) {
-        AsyncStorage.setItem(galleryAlbumsStorageKey(userId), JSON.stringify(next)).catch(() => {});
-      }
-      return next;
-    });
-    setLocalAlbumOpen((open) => (open?.id === nextAlbum.id ? nextAlbum : open));
+  const createCustomCard = (name: string, bannerUri?: string) => {
+    const card: CustomCard = {
+      id: `cc_${Date.now()}`,
+      name,
+      bannerImageUrl: bannerUri,
+      type: showCreateCard ?? 'trip',
+      photos: [],
+    };
+    saveCustomCards([...customCards, card]);
   };
 
-  // Fetch gallery data when userId is available
+  const updateCustomCard = (next: CustomCard) => {
+    const updated = customCards.map((c) => (c.id === next.id ? next : c));
+    saveCustomCards(updated);
+    setOpenCard((prev) => (prev?.id === next.id ? next : prev));
+  };
+
+  const deleteCustomCard = (id: string) => {
+    saveCustomCards(customCards.filter((c) => c.id !== id));
+  };
+
+  // Fetch gallery data from server
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
@@ -570,18 +671,17 @@ export default function GalleryTab({
         setGalleryEvents(data.events ?? []);
       })
       .catch(() => {
-        if (!cancelled) {
-          setGalleryTrips(propTrips);
-        }
+        if (!cancelled) setGalleryTrips(propTrips);
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const displayTrips = galleryTrips.length > 0 ? galleryTrips : propTrips;
+
+  const customTripCards = customCards.filter((c) => c.type === 'trip');
+  const customEventCards = customCards.filter((c) => c.type === 'event');
 
   return (
     <>
@@ -589,7 +689,6 @@ export default function GalleryTab({
 
         {/* ── Profile card ── */}
         <View style={styles.profileCard}>
-          {/* Top row: avatar left, info right */}
           <View style={styles.profileRow}>
             <View style={styles.avatarWrap}>
               {user?.photoUrl && !avatarError ? (
@@ -604,7 +703,6 @@ export default function GalleryTab({
                 </View>
               )}
             </View>
-
             <View style={styles.profileInfo}>
               {displayName ? (
                 <View style={styles.nameRow}>
@@ -623,8 +721,6 @@ export default function GalleryTab({
               ) : null}
             </View>
           </View>
-
-          {/* Bio below, centered */}
           {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
         </View>
 
@@ -638,77 +734,61 @@ export default function GalleryTab({
         {/* ── Gallery of Trips ── */}
         <SectionHeader
           title="Gallery of Trips"
-          count={displayTrips.length}
-          onAdd={() => onSetActiveTab('trips')}
+          count={displayTrips.length + customTripCards.length}
+          onAdd={() => setShowCreateCard('trip')}
           icon={<Plane size={20} color="#0d9488" />}
         />
         <View style={styles.grid}>
-          {displayTrips.length > 0
-            ? displayTrips.map((trip: any) => (
-                <GridCard
-                  key={trip.id}
-                  item={trip}
-                  onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip' })}
-                />
-              ))
-            : !loading && <EmptyCard label="No past trips yet" />
-          }
+          {displayTrips.map((trip: any) => (
+            <GridCard
+              key={trip.id}
+              item={trip}
+              onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip' })}
+            />
+          ))}
+          {cardsLoaded && customTripCards.map((card) => (
+            <GridCard
+              key={card.id}
+              item={{ id: card.id, name: card.name, bannerImageUrl: card.bannerImageUrl }}
+              onPress={() => setOpenCard(card)}
+            />
+          ))}
+          {displayTrips.length === 0 && customTripCards.length === 0 && !loading && (
+            <EmptyCard label="Tap + to create a trip album" />
+          )}
         </View>
 
         {/* ── Gallery of Events ── */}
         <View style={styles.sectionSpacer} />
         <SectionHeader
           title="Gallery of Events"
-          count={galleryEvents.length}
-          onAdd={() => onSetActiveTab('events')}
+          count={galleryEvents.length + customEventCards.length}
+          onAdd={() => setShowCreateCard('event')}
           icon={<CalendarDays size={20} color="#f59e0b" />}
         />
         <View style={styles.grid}>
-          {galleryEvents.length > 0
-            ? galleryEvents.map((ev: any) => (
-                <GridCard
-                  key={ev.id}
-                  item={ev}
-                  onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event' })}
-                />
-              ))
-            : !loading && <EmptyCard label="No past events yet" />
-          }
-        </View>
-
-        {/* ── Personal albums (on-device, not tied to trips/events) ── */}
-        <View style={styles.sectionSpacer} />
-        {!!userId && albumsLoaded && (
-          <>
-            <SectionHeader
-              title="Personal albums"
-              count={personalAlbums.length}
-              onAdd={() => setShowCreateAlbum(true)}
-              icon={<Images size={20} color="#0d9488" />}
+          {galleryEvents.map((ev: any) => (
+            <GridCard
+              key={ev.id}
+              item={ev}
+              onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event' })}
             />
-            <View style={styles.grid}>
-              {personalAlbums.length > 0 ? (
-                personalAlbums.map((album) => (
-                  <GridCard
-                    key={album.id}
-                    item={{
-                      id: album.id,
-                      name: album.name,
-                      bannerImageUrl: album.photos[0]?.uri,
-                    }}
-                    onPress={() => setLocalAlbumOpen(album)}
-                  />
-                ))
-              ) : (
-                <EmptyCard label="Tap + to create an album" />
-              )}
-            </View>
-          </>
-        )}
+          ))}
+          {cardsLoaded && customEventCards.map((card) => (
+            <GridCard
+              key={card.id}
+              item={{ id: card.id, name: card.name, bannerImageUrl: card.bannerImageUrl }}
+              onPress={() => setOpenCard(card)}
+            />
+          ))}
+          {galleryEvents.length === 0 && customEventCards.length === 0 && !loading && (
+            <EmptyCard label="Tap + to create an event album" />
+          )}
+        </View>
 
       </ScrollView>
 
-      {/* ── Photos modal (outside ScrollView so it renders above) ── */}
+      {/* ── Modals (outside ScrollView) ── */}
       {photoModal && (
         <PhotosModal
           visible
@@ -719,17 +799,18 @@ export default function GalleryTab({
         />
       )}
 
-      <CreateAlbumModal
-        visible={showCreateAlbum}
-        onClose={() => setShowCreateAlbum(false)}
-        onCreate={createPersonalAlbum}
+      <CreateCardModal
+        visible={showCreateCard !== null}
+        type={showCreateCard ?? 'trip'}
+        onClose={() => setShowCreateCard(null)}
+        onCreate={createCustomCard}
       />
 
-      <LocalAlbumPhotosModal
-        visible={!!localAlbumOpen}
-        album={localAlbumOpen}
-        onClose={() => setLocalAlbumOpen(null)}
-        onUpdateAlbum={updatePersonalAlbum}
+      <CustomCardPhotosModal
+        visible={!!openCard}
+        card={openCard}
+        onClose={() => setOpenCard(null)}
+        onUpdateCard={updateCustomCard}
       />
     </>
   );
@@ -747,9 +828,7 @@ const styles = StyleSheet.create({
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 3, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
   avatarInitial: { fontSize: 38, fontWeight: '700', color: '#0d9488' },
-  editBtn: {
-    alignItems: 'center', justifyContent: 'center',
-  },
+  editBtn: { alignItems: 'center', justifyContent: 'center' },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   name: { fontSize: 18, fontWeight: '400', color: '#0F172B' },
   handle: { fontSize: 14, color: '#0d9488', fontWeight: '500' },
@@ -817,6 +896,19 @@ const styles = StyleSheet.create({
   thumbLoader: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' },
   thumbError: { width: 80, height: 80, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' },
 
+  // Per-photo delete button inside CustomCardPhotosModal
+  thumbDeleteBtn: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(220,38,38,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   // Full-screen preview
   previewBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' },
   previewClose: {
@@ -827,6 +919,33 @@ const styles = StyleSheet.create({
   },
   previewImg: { width: SCREEN_W, height: SCREEN_W * 1.2 },
   previewLoader: { position: 'absolute' },
+
+  // Create card modal
+  bannerPicker: {
+    width: '100%',
+    height: 140,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 14,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderStyle: 'dashed',
+  },
+  bannerPreview: { width: '100%', height: '100%' },
+  bannerPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  bannerPickerLabel: { fontSize: 13, color: '#94a3b8', fontWeight: '500' },
+  bannerEditBadge: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   createAlbumInput: {
     borderWidth: 1,

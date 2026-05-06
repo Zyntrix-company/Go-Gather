@@ -18,10 +18,7 @@ export default function Blogs() {
     fetchBlogs()
       .then((list) => {
         if (!cancelled) {
-          const sorted = [...list].sort(
-            (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
-          );
-          setPosts(sorted);
+          setPosts(list);
         }
       })
       .catch((e: Error) => {

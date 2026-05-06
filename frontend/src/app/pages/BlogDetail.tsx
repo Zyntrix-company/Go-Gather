@@ -8,7 +8,16 @@ import {
   type BlogDetail as BlogDetailType,
 } from '../lib/blogsApi';
 
-function renderContentBlocks(content: string): React.ReactNode[] {
+/** Detect whether a string contains HTML tags (rich-text from admin editor). */
+function isHtml(str: string): boolean {
+  return /<[a-z][\s\S]*>/i.test(str);
+}
+
+/**
+ * Legacy plain-text renderer — used for older posts that were saved as plain text
+ * (double-newline paragraphs, numbered headings like "1. Section Title").
+ */
+function renderPlainTextBlocks(content: string): React.ReactNode[] {
   const blocks = content.split(/\n\n+/).map((b) => b.trim()).filter(Boolean);
   return blocks.map((block, idx) => {
     const lines = block.split('\n');
@@ -28,23 +37,15 @@ function renderContentBlocks(content: string): React.ReactNode[] {
         </React.Fragment>
       );
     }
-
     if (numberedHeading && !rest) {
       return (
-        <h2
-          key={idx}
-          className="text-lg md:text-xl font-bold text-[#1a1a1a] mt-10 mb-3 first:mt-0"
-        >
+        <h2 key={idx} className="text-lg md:text-xl font-bold text-[#1a1a1a] mt-10 mb-3 first:mt-0">
           {first}
         </h2>
       );
     }
-
     return (
-      <p
-        key={idx}
-        className="text-[#1a1a1a]/90 text-base leading-[1.75] mb-6 whitespace-pre-line"
-      >
+      <p key={idx} className="text-[#1a1a1a]/90 text-base leading-[1.75] mb-6 whitespace-pre-line">
         {block}
       </p>
     );
@@ -167,7 +168,16 @@ export default function BlogDetail() {
           loading="eager"
         />
 
-        <div className="font-sans text-left max-w-none">{renderContentBlocks(blog.content)}</div>
+        {isHtml(blog.content) ? (
+          <div
+            className="blog-prose"
+            dangerouslySetInnerHTML={{ __html: blog.content }}
+          />
+        ) : (
+          <div className="font-sans text-left max-w-none">
+            {renderPlainTextBlocks(blog.content)}
+          </div>
+        )}
       </div>
     </article>
   );

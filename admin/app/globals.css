@@ -21,3 +21,26 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Rich Text Editor content area ── */
+.rich-editor-body:empty:before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+}
+.rich-editor-body h2 { font-size: 1.125rem; font-weight: 700; color: #0f172a; margin: 1rem 0 0.4rem; }
+.rich-editor-body h3 { font-size: 1rem;    font-weight: 700; color: #0f172a; margin: 0.8rem 0 0.3rem; }
+.rich-editor-body p  { margin: 0 0 0.75rem; }
+.rich-editor-body ul { list-style: disc;    padding-left: 1.4rem; margin: 0 0 0.75rem; }
+.rich-editor-body ol { list-style: decimal; padding-left: 1.4rem; margin: 0 0 0.75rem; }
+.rich-editor-body li { margin-bottom: 0.25rem; }
+.rich-editor-body blockquote {
+  border-left: 3px solid #0d9488;
+  padding-left: 0.875rem;
+  color: #475569;
+  margin: 0.75rem 0;
+  font-style: italic;
+}
+.rich-editor-body strong, .rich-editor-body b { font-weight: 700; }
+.rich-editor-body em, .rich-editor-body i    { font-style: italic; }
+.rich-editor-body u                          { text-decoration: underline; }

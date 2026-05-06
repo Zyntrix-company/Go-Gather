@@ -41,7 +41,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type EventItem = {
+export type EventItem = {
   id: string;
   name: string;
   type: string;
@@ -277,8 +277,9 @@ function BannerImage({
 
 // ─── Create Event Modal ───────────────────────────────────────────────────────
 
-export function CreateEventModal({ visible, onClose, onSave }: {
+export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }: {
   visible: boolean; onClose: () => void; onSave: (ev: EventItem) => void;
+  initialFriendIds?: string[];
 }) {
   const [name, setName] = useState('');
   const [type, setType] = useState('Other');
@@ -379,6 +380,12 @@ export function CreateEventModal({ visible, onClose, onSave }: {
       setApiFriends(mapped);
     }).catch(() => { });
   }, [showInviteModal]);
+
+  useEffect(() => {
+    if (visible && initialFriendIds && initialFriendIds.length > 0) {
+      setSelectedFriendIds(initialFriendIds);
+    }
+  }, [visible]);
 
   const filteredFriends = apiFriends.filter(f =>
     f.name.toLowerCase().includes(friendSearch.toLowerCase()) ||

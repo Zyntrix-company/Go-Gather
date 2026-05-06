@@ -16,9 +16,9 @@ import Toast from 'react-native-toast-message';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import BlobBackground from '../../components/common/BlobBackground';
 import { getFriends, createFriendInvite, createTrip, uploadTripPhotos, updateTrip as apiUpdateTrip } from '../../api/trips.api';
-import { createEvent } from '../../api/events.api';
 import { showAlert } from '../../store/alertStore';
 import { CreateTripModal, BannerCropFraction } from '../trips/TripsScreen';
+import { CreateEventModal } from '../events/EventsScreen';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -187,10 +187,6 @@ export default function FriendsScreen() {
 
   // Create Event modal
   const [showEventModal, setShowEventModal] = useState(false);
-  const [eventName, setEventName] = useState('');
-  const [eventDate, setEventDate] = useState('');
-  const [eventType, setEventType] = useState('');
-  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
 
   const fetchFriends = useCallback(async () => {
     setIsLoading(true);
@@ -249,38 +245,7 @@ export default function FriendsScreen() {
   }
 
   function handleOpenCreateEvent() {
-    setEventName('');
-    setEventDate('');
-    setEventType('');
     setShowEventModal(true);
-  }
-
-  async function handleCreateEvent() {
-    if (!eventName.trim()) {
-      showAlert({ title: 'Error', message: 'Event name is required' });
-      return;
-    }
-    if (!eventDate.trim()) {
-      showAlert({ title: 'Error', message: 'Event date is required (YYYY-MM-DD)' });
-      return;
-    }
-    if (isCreatingEvent) return;
-    setIsCreatingEvent(true);
-    try {
-      await createEvent({
-        name: eventName.trim(),
-        eventDate: eventDate.trim(),
-        eventType: eventType.trim() || undefined,
-        friendIds: Array.from(selectedIds),
-      });
-      Toast.show({ type: 'success', text1: 'Event created!', text2: `${selectedIds.size} friend${selectedIds.size !== 1 ? 's' : ''} added` });
-      setShowEventModal(false);
-      setSelectedIds(new Set());
-    } catch (err) {
-      showAlert({ title: 'Error', message: 'Failed to create event. Please try again.' });
-    } finally {
-      setIsCreatingEvent(false);
-    }
   }
 
   function handleInviteFriends() {
@@ -573,79 +538,17 @@ export default function FriendsScreen() {
         }}
       />
 
-      {/* ── Create Event Modal ── */}
-      <Modal visible={showEventModal} transparent animationType="slide" onRequestClose={() => setShowEventModal(false)}>
-          <View style={modalStyles.overlay}>
-            <View style={modalStyles.dialog}>
-              {/* Header */}
-              <View style={modalStyles.dHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={modalStyles.dTitle}>Create Event</Text>
-                  <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                    {selectedFriends.length} friend{selectedFriends.length !== 1 ? 's' : ''} will be invited
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => setShowEventModal(false)} style={modalStyles.closeBtn} activeOpacity={0.7}>
-                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                    <Path d="M18 6L6 18M6 6l12 12" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                </TouchableOpacity>
-              </View>
-
-              <ScrollView style={{ paddingHorizontal: 16, paddingVertical: 14 }} showsVerticalScrollIndicator={false}>
-                {/* Selected friends chips */}
-                <Text style={modalStyles.sectionLabel}>Inviting</Text>
-                <View style={modalStyles.chipsRow}>
-                  {selectedFriends.map((f, i) => (
-                    <View key={f.user.id} style={[modalStyles.chip, { backgroundColor: AVATAR_COLORS[i % 6].bg }]}>
-                      <Text style={[modalStyles.chipText, { color: AVATAR_COLORS[i % 6].text }]}>
-                        {f.user.name || 'Unknown'}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-
-                {/* Form */}
-                <Text style={[modalStyles.sectionLabel, { marginTop: 14 }]}>Event Details</Text>
-
-                <Text style={modalStyles.fieldLabel}>Event Name *</Text>
-                <TextInput
-                  style={modalStyles.fInput}
-                  placeholder="e.g. Beach Party"
-                  placeholderTextColor="#94a3b8"
-                  value={eventName}
-                  onChangeText={setEventName}
-                />
-
-                <Text style={modalStyles.fieldLabel}>Event Date *</Text>
-                <TextInput
-                  style={modalStyles.fInput}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#94a3b8"
-                  value={eventDate}
-                  onChangeText={setEventDate}
-                  keyboardType="numeric"
-                />
-
-                <Text style={modalStyles.fieldLabel}>Event Type</Text>
-                <TextInput
-                  style={[modalStyles.fInput, { marginBottom: 20 }]}
-                  placeholder="e.g. Party, Meetup, Dinner…"
-                  placeholderTextColor="#94a3b8"
-                  value={eventType}
-                  onChangeText={setEventType}
-                />
-
-                <TouchableOpacity style={[modalStyles.primaryBtn, modalStyles.primaryBtnEvent]} onPress={handleCreateEvent} activeOpacity={0.85} disabled={isCreatingEvent}>
-                  {isCreatingEvent
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <Text style={modalStyles.primaryBtnTxt}>Create Event</Text>}
-                </TouchableOpacity>
-                <View style={{ height: 16 }} />
-              </ScrollView>
-            </View>
-          </View>
-      </Modal>
+      {/* ── Create Event Modal (reuses EventsScreen modal) ── */}
+      <CreateEventModal
+        visible={showEventModal}
+        onClose={() => setShowEventModal(false)}
+        initialFriendIds={Array.from(selectedIds)}
+        onSave={() => {
+          Toast.show({ type: 'success', text1: 'Event created!', text2: `${selectedIds.size} friend${selectedIds.size !== 1 ? 's' : ''} added` });
+          setShowEventModal(false);
+          setSelectedIds(new Set());
+        }}
+      />
     </BlobBackground>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { apiJSON, apiFetch, getToken } from '../../../lib/api';
 
 const EMPTY = {
@@ -166,13 +166,11 @@ function EditorModal({ editing, form, setForm, saving, error, onClose, onSave })
             <Field label="Category *" value={form.category} onChange={(v) => setForm((f) => ({ ...f, category: v }))} placeholder="TRAVEL TIPS" />
             <Field label="Author" value={form.author} onChange={(v) => setForm((f) => ({ ...f, author: v }))} />
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Content *</label>
-            <textarea value={form.content} onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
-              required rows={10}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none text-sm text-slate-800 resize-y font-mono"
-              placeholder="Full post content…" />
-          </div>
+          <RichTextEditor
+            value={form.content}
+            onChange={(html) => setForm((f) => ({ ...f, content: html }))}
+            editingKey={editing === 'new' ? 'new' : editing?.id}
+          />
           <div className="grid grid-cols-2 gap-4">
             <Field label="Sort order (web)" type="number" value={form.sortOrderWeb} onChange={(v) => setForm((f) => ({ ...f, sortOrderWeb: v }))} placeholder="1" />
             <Field label="Sort order (app)" type="number" value={form.sortOrderApp} onChange={(v) => setForm((f) => ({ ...f, sortOrderApp: v }))} placeholder="1" />
@@ -311,6 +309,89 @@ function ImageField({ value, onChange }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Rich Text Editor ─────────────────────────────────────────── */
+const TOOLBAR_BUTTONS = [
+  { cmd: 'bold',             icon: <><strong>B</strong></>,                        title: 'Bold (Ctrl+B)' },
+  { cmd: 'italic',           icon: <em>I</em>,                                     title: 'Italic (Ctrl+I)' },
+  { cmd: 'underline',        icon: <span style={{ textDecoration: 'underline' }}>U</span>, title: 'Underline (Ctrl+U)' },
+  { cmd: 'h2',               icon: 'H2',                                           title: 'Heading 2',  block: true },
+  { cmd: 'h3',               icon: 'H3',                                           title: 'Heading 3',  block: true },
+  { cmd: 'p',                icon: 'P¶',                                           title: 'Paragraph',  block: true },
+  { cmd: 'insertUnorderedList', icon: '• List',                                    title: 'Bullet list' },
+  { cmd: 'insertOrderedList',   icon: '1. List',                                   title: 'Numbered list' },
+  { cmd: 'blockquote',       icon: '" Quote',                                      title: 'Blockquote', block: true },
+  { cmd: 'removeFormat',     icon: 'Clear',                                        title: 'Remove formatting' },
+];
+
+function RichTextEditor({ value, onChange, editingKey }) {
+  const ref = useRef(null);
+  const skipSyncRef = useRef(false);
+
+  // When the editing key changes (opening a new post or switching posts),
+  // re-seed the editor with the stored HTML.
+  useEffect(() => {
+    if (ref.current && !skipSyncRef.current) {
+      ref.current.innerHTML = value || '';
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingKey]);
+
+  const exec = useCallback((cmd, block) => {
+    ref.current?.focus();
+    if (block) {
+      document.execCommand('formatBlock', false, cmd);
+    } else {
+      document.execCommand(cmd, false, null);
+    }
+    // Sync immediately after command
+    skipSyncRef.current = true;
+    onChange(ref.current?.innerHTML || '');
+    setTimeout(() => { skipSyncRef.current = false; }, 0);
+  }, [onChange]);
+
+  function handleInput() {
+    onChange(ref.current?.innerHTML || '');
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500/20 overflow-hidden">
+      {/* Toolbar */}
+      <div className="flex flex-wrap gap-1 px-3 py-2 bg-slate-50 border-b border-slate-200">
+        {TOOLBAR_BUTTONS.map(({ cmd, icon, title, block }) => (
+          <button
+            key={cmd}
+            type="button"
+            title={title}
+            onMouseDown={(e) => { e.preventDefault(); exec(cmd, block); }}
+            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-white hover:text-teal-700 hover:shadow-sm border border-transparent hover:border-slate-200 transition-all select-none"
+          >
+            {icon}
+          </button>
+        ))}
+      </div>
+
+      {/* Editable area */}
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        className="min-h-[240px] px-4 py-3 text-sm text-slate-800 outline-none overflow-y-auto rich-editor-body"
+        style={{ lineHeight: '1.75', maxHeight: 480 }}
+        data-placeholder="Write your full post content here…"
+      />
+
+      {/* Hint */}
+      <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100 text-xs text-slate-400 flex gap-4">
+        <span>Ctrl+B bold</span>
+        <span>Ctrl+I italic</span>
+        <span>Ctrl+U underline</span>
+        <span>Select text, then click a toolbar button to format</span>
+      </div>
     </div>
   );
 }

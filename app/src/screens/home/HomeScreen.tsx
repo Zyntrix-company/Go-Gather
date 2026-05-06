@@ -67,6 +67,174 @@ import { UnifiedCard } from '../../components/common/Cards';
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const INSIGHT_IMG_H = SCREEN_H < 700 ? 140 : SCREEN_H < 800 ? 160 : 192;
 
+// ─── Lightweight HTML → React Native renderer ─────────────────────────────────
+// Handles: <h2>, <h3>, <p>, <ul>/<ol>/<li>, <blockquote>,
+//          inline: <strong>/<b>, <em>/<i>, <u>, plain text nodes.
+
+type InlineStyle = { fontWeight?: string; fontStyle?: string; textDecorationLine?: string };
+
+function parseInlineHtml(raw: string, baseStyle: InlineStyle = {}): React.ReactNode[] {
+  // Split on inline tags: <strong>, <b>, <em>, <i>, <u> and their closing counterparts.
+  const parts: React.ReactNode[] = [];
+  const re = /<(\/?)(?:strong|b|em|i|u)\b[^>]*>/gi;
+  let style: InlineStyle = { ...baseStyle };
+  let last = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = re.exec(raw)) !== null) {
+    if (match.index > last) {
+      const text = raw.slice(last, match.index).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+      if (text) parts.push(<Text key={key++} style={style}>{text}</Text>);
+    }
+    const closing = match[1] === '/';
+    const tag = match[0].replace(/<\/?/g, '').replace(/>.*/, '').toLowerCase();
+    if (!closing) {
+      if (tag === 'strong' || tag === 'b') style = { ...style, fontWeight: '700' };
+      if (tag === 'em' || tag === 'i')     style = { ...style, fontStyle: 'italic' };
+      if (tag === 'u')                     style = { ...style, textDecorationLine: 'underline' };
+    } else {
+      // On close, reset only that property (simplistic: reset all to base)
+      style = { ...baseStyle };
+    }
+    last = match.index + match[0].length;
+  }
+  if (last < raw.length) {
+    const text = raw.slice(last).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+    if (text) parts.push(<Text key={key++} style={style}>{text}</Text>);
+  }
+  return parts;
+}
+
+function stripTags(html: string): string {
+  return html.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
+}
+
+function renderHtmlContent(html: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let key = 0;
+
+  // Normalise: collapse whitespace between tags
+  const src = html.replace(/>\s+</g, '><').trim();
+
+  // Extract top-level block elements
+  const blockRe = /<(h2|h3|p|ul|ol|blockquote|div|br)\b([^>]*)>([\s\S]*?)<\/\1>|<br\s*\/?>/gi;
+  let last = 0;
+  let m: RegExpExecArray | null;
+
+  while ((m = blockRe.exec(src)) !== null) {
+    // Any raw text before this block becomes a paragraph
+    if (m.index > last) {
+      const raw = src.slice(last, m.index).trim();
+      if (raw) {
+        nodes.push(
+          <Text key={key++} style={{ fontSize: 15, color: '#334155', lineHeight: 26, marginBottom: 16 }}>
+            {parseInlineHtml(raw)}
+          </Text>,
+        );
+      }
+    }
+
+    const tag = (m[1] || 'br').toLowerCase();
+    const inner = m[3] ?? '';
+
+    if (tag === 'h2') {
+      nodes.push(
+        <Text key={key++} style={{ fontSize: 18, fontWeight: '700', color: '#0f172a', marginTop: 20, marginBottom: 6, lineHeight: 26 }}>
+          {stripTags(inner)}
+        </Text>,
+      );
+    } else if (tag === 'h3') {
+      nodes.push(
+        <Text key={key++} style={{ fontSize: 16, fontWeight: '700', color: '#0f172a', marginTop: 16, marginBottom: 4, lineHeight: 24 }}>
+          {stripTags(inner)}
+        </Text>,
+      );
+    } else if (tag === 'blockquote') {
+      nodes.push(
+        <View key={key++} style={{ borderLeftWidth: 3, borderLeftColor: '#0d9488', paddingLeft: 12, marginBottom: 16, backgroundColor: '#f0fdfa', borderRadius: 4, paddingVertical: 8, paddingRight: 8 }}>
+          <Text style={{ fontSize: 15, color: '#334155', lineHeight: 24, fontStyle: 'italic' }}>
+            {parseInlineHtml(inner)}
+          </Text>
+        </View>,
+      );
+    } else if (tag === 'ul' || tag === 'ol') {
+      const items = inner.match(/<li\b[^>]*>([\s\S]*?)<\/li>/gi) || [];
+      items.forEach((liHtml, idx) => {
+        const liInner = liHtml.replace(/<\/?li\b[^>]*>/gi, '');
+        const bullet = tag === 'ul' ? '•' : `${idx + 1}.`;
+        nodes.push(
+          <View key={key++} style={{ flexDirection: 'row', marginBottom: 6, paddingLeft: 4 }}>
+            <Text style={{ fontSize: 15, color: '#334155', lineHeight: 26, marginRight: 8, minWidth: 16 }}>{bullet}</Text>
+            <Text style={{ flex: 1, fontSize: 15, color: '#334155', lineHeight: 26 }}>
+              {parseInlineHtml(liInner)}
+            </Text>
+          </View>,
+        );
+      });
+    } else if (tag === 'br') {
+      nodes.push(<View key={key++} style={{ height: 10 }} />);
+    } else {
+      // <p> and <div>
+      const inlines = parseInlineHtml(inner);
+      if (inlines.length > 0) {
+        nodes.push(
+          <Text key={key++} style={{ fontSize: 15, color: '#334155', lineHeight: 26, marginBottom: 14 }}>
+            {inlines}
+          </Text>,
+        );
+      }
+    }
+    last = m.index + m[0].length;
+  }
+
+  // Trailing plain text
+  if (last < src.length) {
+    const raw = src.slice(last).trim();
+    if (raw) {
+      nodes.push(
+        <Text key={key++} style={{ fontSize: 15, color: '#334155', lineHeight: 26, marginBottom: 14 }}>
+          {parseInlineHtml(raw)}
+        </Text>,
+      );
+    }
+  }
+
+  return nodes;
+}
+
+function isHtmlContent(str: string): boolean {
+  return /<[a-z][\s\S]*>/i.test(str);
+}
+
+/** Render blog content — HTML (from admin editor) or legacy plain text */
+function renderBlogContent(raw: string): React.ReactNode {
+  if (!raw) return null;
+  if (isHtmlContent(raw)) return renderHtmlContent(raw);
+
+  // Legacy: split on blank lines, treat emoji-leading lines as headings
+  const paragraphs = raw.split(/\n{2,}/).map((p: string) => p.trim()).filter(Boolean);
+  return paragraphs.map((para: string, i: number) => {
+    const isHeading = /^\p{Emoji}/u.test(para) && para.split('\n')[0].length < 80;
+    if (isHeading) {
+      const [heading, ...rest] = para.split('\n');
+      return (
+        <View key={i} style={{ marginBottom: 16 }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#0f172a', lineHeight: 24, marginBottom: rest.length ? 6 : 0 }}>
+            {heading}
+          </Text>
+          {rest.length > 0 && (
+            <Text style={{ fontSize: 15, color: '#334155', lineHeight: 26 }}>{rest.join('\n')}</Text>
+          )}
+        </View>
+      );
+    }
+    return (
+      <Text key={i} style={{ fontSize: 15, color: '#334155', lineHeight: 26, marginBottom: 16 }}>{para}</Text>
+    );
+  });
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Trip = {
@@ -1224,36 +1392,7 @@ export default function HomeScreen({ navigation, route }: any) {
                   <ActivityIndicator color="#0d9488" size="small" />
                   <Text style={{ fontSize: 13, color: '#94a3b8' }}>Loading article…</Text>
                 </View>
-              ) : (() => {
-                const raw = selectedBlog?.content ?? selectedBlog?.body ?? selectedBlog?.description ?? selectedBlog?.excerpt ?? '';
-                if (!raw) return null;
-                // Split on one or more blank lines to get paragraphs, keep single-line breaks intact
-                const paragraphs = raw.split(/\n{2,}/).map((p: string) => p.trim()).filter(Boolean);
-                return paragraphs.map((para: string, i: number) => {
-                  // Lines that start with an emoji are treated as section headings
-                  const isHeading = /^\p{Emoji}/u.test(para) && para.split('\n')[0].length < 80;
-                  if (isHeading) {
-                    const [heading, ...rest] = para.split('\n');
-                    return (
-                      <View key={i} style={{ marginBottom: 16 }}>
-                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#0f172a', lineHeight: 24, marginBottom: rest.length ? 6 : 0 }}>
-                          {heading}
-                        </Text>
-                        {rest.length > 0 && (
-                          <Text style={{ fontSize: 15, color: '#334155', lineHeight: 26 }}>
-                            {rest.join('\n')}
-                          </Text>
-                        )}
-                      </View>
-                    );
-                  }
-                  return (
-                    <Text key={i} style={{ fontSize: 15, color: '#334155', lineHeight: 26, marginBottom: 16 }}>
-                      {para}
-                    </Text>
-                  );
-                });
-              })()}
+              ) : renderBlogContent(selectedBlog?.content ?? selectedBlog?.body ?? selectedBlog?.description ?? selectedBlog?.excerpt ?? '')}
             </View>
 
             {/* ── Footer CTA ── */}
