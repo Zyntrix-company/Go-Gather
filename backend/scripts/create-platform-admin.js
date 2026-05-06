@@ -16,7 +16,8 @@ const crypto = require('crypto');
 const { query, pool } = require('../src/config/database');
 
 async function main() {
-  const email = process.env.PLATFORM_ADMIN_EMAIL;
+  // Normalize to lowercase so it matches what the login validator does (normalizeEmail)
+  const email = (process.env.PLATFORM_ADMIN_EMAIL || '').toLowerCase().trim();
   if (!email) {
     console.error('ERROR: PLATFORM_ADMIN_EMAIL env var is required.');
     process.exit(1);

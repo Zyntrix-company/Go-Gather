@@ -5,8 +5,8 @@ import { apiJSON } from '../../../lib/api';
 
 export default function OverviewPage() {
   const [summary, setSummary] = useState(null);
-  const [growth, setGrowth] = useState(null);
-  const [days, setDays] = useState(30);
+  const [growth,  setGrowth]  = useState(null);
+  const [days,    setDays]    = useState(30);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -14,106 +14,107 @@ export default function OverviewPage() {
     Promise.all([
       apiJSON('/admin/dashboard/summary'),
       apiJSON(`/admin/dashboard/growth?days=${days}`),
-    ]).then(([s, g]) => {
-      setSummary(s);
-      setGrowth(g);
-    }).finally(() => setLoading(false));
+    ]).then(([s, g]) => { setSummary(s); setGrowth(g); }).finally(() => setLoading(false));
   }, [days]);
 
-  if (loading) return <PageSkeleton />;
+  if (loading) return <Skeleton />;
   if (!summary) return null;
+
+  const totalTrips  = summary.trips.upcoming  + summary.trips.active  + summary.trips.completed;
+  const totalEvents = summary.events.upcoming + summary.events.active + summary.events.completed;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      <PageHeader days={days} setDays={setDays} />
-      <SummaryCards summary={summary} />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <TripEventBuckets summary={summary} />
-        {growth && <GrowthChart growth={growth} />}
-      </div>
-    </div>
-  );
-}
-
-function PageHeader({ days, setDays }) {
-  return (
-    <div className="flex items-center justify-between">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: 'var(--font-nunito, sans-serif)' }}>
-          Overview
-        </h1>
-        <p className="text-sm text-slate-500 mt-0.5">Platform snapshot</p>
-      </div>
-      <select
-        value={days}
-        onChange={(e) => setDays(Number(e.target.value))}
-        className="text-sm border border-slate-200 rounded-xl px-3 py-1.5 text-slate-700 bg-white focus:outline-none focus:border-teal-500"
-      >
-        <option value={7}>Last 7 days</option>
-        <option value={30}>Last 30 days</option>
-        <option value={90}>Last 90 days</option>
-      </select>
-    </div>
-  );
-}
-
-function SummaryCards({ summary }) {
-  const cards = [
-    { label: 'Total Users', value: summary.users.total, sub: `${summary.users.active} active`, color: 'teal' },
-    { label: 'Trips', value: summary.trips.active + summary.trips.upcoming, sub: `${summary.trips.upcoming} upcoming`, color: 'slate' },
-    { label: 'Events', value: summary.events.active + summary.events.upcoming, sub: `${summary.events.upcoming} upcoming`, color: 'slate' },
-    { label: 'Contact', value: summary.contact.total, sub: `${summary.contact.unread} unread`, color: summary.contact.unread > 0 ? 'amber' : 'slate' },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {cards.map((c) => (
-        <div key={c.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{c.label}</p>
-          <p className={`text-3xl font-bold mt-1 ${c.color === 'teal' ? 'text-teal-600' : c.color === 'amber' ? 'text-amber-600' : 'text-slate-800'}`}>
-            {c.value.toLocaleString()}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">{c.sub}</p>
+      {/* Header */}
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900" style={{ fontFamily: 'var(--font-nunito,sans-serif)' }}>
+            Business Insights
+          </h1>
+          <p className="text-sm text-slate-500 mt-0.5">Platform overview · admin accounts excluded</p>
         </div>
-      ))}
+        <select value={days} onChange={(e) => setDays(Number(e.target.value))}
+          className="text-sm border border-slate-200 rounded-xl px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-teal-500">
+          <option value={7}>Last 7 days</option>
+          <option value={30}>Last 30 days</option>
+          <option value={90}>Last 90 days</option>
+        </select>
+      </div>
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard label="Registered Users"  value={summary.users.registered}
+          sub="all time, excl. admins" color="teal" />
+        <KpiCard label="Active Users"      value={summary.users.active}
+          sub={`signed in last ${days}d`} color="teal" />
+        <KpiCard label="Trips"             value={totalTrips}
+          sub={`${summary.trips.active} active`} color="slate" />
+        <KpiCard label="Events"            value={totalEvents}
+          sub={`${summary.events.active} active`} color="slate" />
+      </div>
+
+      {/* Buckets + growth */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <BucketTable summary={summary} />
+        {growth && <GrowthChart growth={growth} days={days} />}
+      </div>
     </div>
   );
 }
 
-function TripEventBuckets({ summary }) {
+/* ── KPI card ─────────────────────────────────────────────────── */
+function KpiCard({ label, value, sub, color }) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</p>
+      <p className={`text-3xl font-bold mt-1 tabular-nums ${color === 'teal' ? 'text-teal-600' : 'text-slate-800'}`}>
+        {value.toLocaleString()}
+      </p>
+      <p className="text-xs text-slate-400 mt-1">{sub}</p>
+    </div>
+  );
+}
+
+/* ── Bucket table ─────────────────────────────────────────────── */
+function BucketTable({ summary }) {
   const rows = [
-    { label: 'Trips upcoming', value: summary.trips.upcoming },
-    { label: 'Trips active', value: summary.trips.active },
-    { label: 'Trips completed', value: summary.trips.completed },
-    { label: 'Trips archived', value: summary.trips.archived },
-    { label: 'Events upcoming', value: summary.events.upcoming },
-    { label: 'Events active', value: summary.events.active },
-    { label: 'Events completed', value: summary.events.completed },
-    { label: 'Events archived', value: summary.events.archived },
+    { label: 'Upcoming trips',   value: summary.trips.upcoming,   dot: 'bg-blue-400' },
+    { label: 'Active trips',     value: summary.trips.active,     dot: 'bg-teal-500' },
+    { label: 'Completed trips',  value: summary.trips.completed,  dot: 'bg-slate-300' },
+    { label: 'Archived trips',   value: summary.trips.archived,   dot: 'bg-slate-200' },
+    null,
+    { label: 'Upcoming events',  value: summary.events.upcoming,  dot: 'bg-blue-400' },
+    { label: 'Active events',    value: summary.events.active,    dot: 'bg-teal-500' },
+    { label: 'Completed events', value: summary.events.completed, dot: 'bg-slate-300' },
+    { label: 'Archived events',  value: summary.events.archived,  dot: 'bg-slate-200' },
   ];
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
       <h2 className="text-sm font-bold text-slate-800 mb-4">Activity Buckets</h2>
       <div className="space-y-2">
-        {rows.map((r) => (
-          <div key={r.label} className="flex items-center justify-between text-sm">
-            <span className="text-slate-600">{r.label}</span>
-            <span className="font-semibold text-slate-800">{r.value}</span>
-          </div>
-        ))}
+        {rows.map((r, i) =>
+          r ? (
+            <div key={r.label} className="flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2 text-slate-600">
+                <span className={`w-2 h-2 rounded-full ${r.dot} shrink-0`} />{r.label}
+              </span>
+              <span className="font-semibold text-slate-800 tabular-nums">{r.value}</span>
+            </div>
+          ) : <div key={i} className="border-t border-slate-50 my-1" />,
+        )}
       </div>
     </div>
   );
 }
 
-function GrowthChart({ growth }) {
+/* ── SVG growth chart ─────────────────────────────────────────── */
+function GrowthChart({ growth, days }) {
   const series = [
-    { key: 'users', label: 'Users', color: '#0d9488' },
-    { key: 'trips', label: 'Trips', color: '#64748b' },
+    { key: 'users',  label: 'Users',  color: '#0d9488' },
+    { key: 'trips',  label: 'Trips',  color: '#475569' },
     { key: 'events', label: 'Events', color: '#94a3b8' },
   ];
 
-  // Build a unified date index
   const dateSet = new Set();
   series.forEach(({ key }) => growth[key].forEach((d) => dateSet.add(d.date)));
   const dates = Array.from(dateSet).sort();
@@ -127,29 +128,18 @@ function GrowthChart({ growth }) {
   const allCounts = series.flatMap(({ key }) => growth[key].map((d) => d.count));
   const maxVal = Math.max(...allCounts, 1);
 
-  const W = 480;
-  const H = 160;
-  const PAD = { t: 8, r: 8, b: 28, l: 28 };
-  const innerW = W - PAD.l - PAD.r;
-  const innerH = H - PAD.t - PAD.b;
+  const W = 520; const H = 180;
+  const PAD = { t: 10, r: 12, b: 30, l: 30 };
+  const iW = W - PAD.l - PAD.r; const iH = H - PAD.t - PAD.b;
+  const xp = (i) => PAD.l + (i / Math.max(dates.length - 1, 1)) * iW;
+  const yp = (v) => PAD.t + iH - (v / maxVal) * iH;
 
-  const xPos = (i) => PAD.l + (i / Math.max(dates.length - 1, 1)) * innerW;
-  const yPos = (v) => PAD.t + innerH - (v / maxVal) * innerH;
-
-  function linePath(key) {
-    if (!dates.length) return '';
-    return dates
-      .map((d, i) => {
-        const v = dataByKey[key][d] ?? 0;
-        return `${i === 0 ? 'M' : 'L'}${xPos(i).toFixed(1)},${yPos(v).toFixed(1)}`;
-      })
-      .join(' ');
-  }
+  const gridVals = [0, Math.round(maxVal * 0.25), Math.round(maxVal * 0.5), Math.round(maxVal * 0.75), maxVal];
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 lg:col-span-2">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-bold text-slate-800">Growth — last {growth.days} days</h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-bold text-slate-800">Growth — last {days} days</h2>
         <div className="flex gap-3">
           {series.map((s) => (
             <span key={s.key} className="flex items-center gap-1 text-xs text-slate-500">
@@ -161,57 +151,50 @@ function GrowthChart({ growth }) {
       </div>
 
       {dates.length === 0 ? (
-        <p className="text-sm text-slate-400 py-8 text-center">No data for this period</p>
+        <p className="text-sm text-slate-400 text-center py-10">No registrations in this period</p>
       ) : (
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: '180px' }}>
-          {/* Gridlines */}
-          {[0, 0.25, 0.5, 0.75, 1].map((f) => {
-            const y = PAD.t + f * innerH;
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 200 }}>
+          {gridVals.map((v) => {
+            const y = yp(v);
             return (
-              <g key={f}>
-                <line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y} stroke="#e2e8f0" strokeWidth="1" />
-                <text x={PAD.l - 4} y={y + 4} textAnchor="end" fontSize="9" fill="#94a3b8">
-                  {Math.round(maxVal * (1 - f))}
-                </text>
+              <g key={v}>
+                <line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y} stroke="#f1f5f9" strokeWidth="1" />
+                <text x={PAD.l - 4} y={y + 4} textAnchor="end" fontSize="9" fill="#94a3b8">{v}</text>
               </g>
             );
           })}
-          {/* X axis labels (first/mid/last) */}
-          {[0, Math.floor(dates.length / 2), dates.length - 1].map((i) => (
-            <text key={i} x={xPos(i)} y={H - 6} textAnchor="middle" fontSize="9" fill="#94a3b8">
-              {dates[i]?.slice(5)}
-            </text>
-          ))}
-          {/* Lines */}
-          {series.map((s) => (
-            <path
-              key={s.key}
-              d={linePath(s.key)}
-              fill="none"
-              stroke={s.color}
-              strokeWidth="2"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          ))}
+          {/* X axis — show ~5 labels */}
+          {dates.filter((_, i) => dates.length <= 7 || i % Math.ceil(dates.length / 5) === 0 || i === dates.length - 1).map((d) => {
+            const i = dates.indexOf(d);
+            return (
+              <text key={d} x={xp(i)} y={H - 6} textAnchor="middle" fontSize="9" fill="#94a3b8">{d.slice(5)}</text>
+            );
+          })}
+          {series.map(({ key, color }) => {
+            const path = dates.map((d, i) => {
+              const v = dataByKey[key][d] ?? 0;
+              return `${i === 0 ? 'M' : 'L'}${xp(i).toFixed(1)},${yp(v).toFixed(1)}`;
+            }).join(' ');
+            return <path key={key} d={path} fill="none" stroke={color} strokeWidth="2"
+              strokeLinejoin="round" strokeLinecap="round" />;
+          })}
         </svg>
       )}
     </div>
   );
 }
 
-function PageSkeleton() {
+/* ── Skeleton ─────────────────────────────────────────────────── */
+function Skeleton() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto animate-pulse">
-      <div className="h-8 w-32 bg-slate-200 rounded-xl" />
+      <div className="h-8 w-48 bg-slate-200 rounded-xl" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-slate-100 h-28" />
-        ))}
+        {[...Array(4)].map((_, i) => <div key={i} className="bg-white rounded-2xl border border-slate-100 h-28" />)}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-100 h-64" />
-        <div className="bg-white rounded-2xl border border-slate-100 h-64 lg:col-span-2" />
+        <div className="bg-white rounded-2xl border border-slate-100 h-72" />
+        <div className="bg-white rounded-2xl border border-slate-100 h-72 lg:col-span-2" />
       </div>
     </div>
   );

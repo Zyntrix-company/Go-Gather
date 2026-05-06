@@ -56,7 +56,7 @@ export default function SecurityPage() {
     }
     setLoading(true);
     try {
-      await post('/auth/reset-password', { email, otp, newPassword });
+      await post('/auth/reset-password', { email, otp, password: newPassword });
       setSuccess('Password changed successfully. Please sign in with your new password.');
       clearToken();
       setTimeout(() => router.replace('/login'), 2000);

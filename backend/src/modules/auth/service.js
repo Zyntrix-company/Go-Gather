@@ -174,6 +174,11 @@ const login = async ({ email, password, deviceToken, platform }) => {
     throw err;
   }
 
+  await db.query(
+    'UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1',
+    [user.id],
+  );
+
   const tokens = await issueTokenPair(user);
 
   // Register SNS device endpoint on every login

@@ -99,7 +99,13 @@
       "PowerShell(Write-Host \"=== BACKEND DIRECTORY ===\" -ForegroundColor Cyan; Get-ChildItem -Path \"E:\\\\Go Gather\\\\backend\" -Recurse -Force | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\(\"E:\\\\Go Gather\\\\\", \"\"\\) })",
       "PowerShell(Write-Host \"=== BACKEND/SRC STRUCTURE ===\" -ForegroundColor Cyan; Get-ChildItem -Path \"E:\\\\Go Gather\\\\backend\\\\src\" -Recurse | Where-Object { $_.FullName -notmatch 'node_modules|coverage' } | Select-Object @{N=\"Path\";E={$_.FullName.Replace\\(\"E:\\\\Go Gather\\\\backend\\\\src\\\\\", \"\"\\)}} | Format-Table -AutoSize)",
       "PowerShell(Write-Host \"=== ADMIN DIRECTORY ===\" -ForegroundColor Cyan; Get-ChildItem -Path \"E:\\\\Go Gather\\\\admin\" -Recurse -Force | Where-Object { $_.FullName -notmatch 'node_modules' } | Select-Object @{N=\"Path\";E={$_.FullName.Replace\\(\"E:\\\\Go Gather\\\\admin\\\\\", \"\"\\)}} | Format-Table -AutoSize)",
-      "PowerShell(Write-Host \"=== FRONTEND/SRC STRUCTURE ===\" -ForegroundColor Cyan; Get-ChildItem -Path \"E:\\\\Go Gather\\\\frontend\\\\src\" -Recurse -Force | Where-Object { $_.FullName -notmatch 'node_modules' } | Select-Object @{N=\"Path\";E={$_.FullName.Replace\\(\"E:\\\\Go Gather\\\\frontend\\\\src\\\\\", \"\"\\)}} | Format-Table -AutoSize)"
+      "PowerShell(Write-Host \"=== FRONTEND/SRC STRUCTURE ===\" -ForegroundColor Cyan; Get-ChildItem -Path \"E:\\\\Go Gather\\\\frontend\\\\src\" -Recurse -Force | Where-Object { $_.FullName -notmatch 'node_modules' } | Select-Object @{N=\"Path\";E={$_.FullName.Replace\\(\"E:\\\\Go Gather\\\\frontend\\\\src\\\\\", \"\"\\)}} | Format-Table -AutoSize)",
+      "Bash(Get-ChildItem -Path \"E:\\\\Go Gather\\\\backend\\\\src\" -Recurse -Name)",
+      "Bash(Select-Object -First 100)",
+      "Bash(grep -E \"\\\\.js$\")",
+      "Bash(Get-ChildItem -Path \"app\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")"
     ]
   }
 }

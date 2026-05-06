@@ -797,6 +797,16 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
   const memberCount = members.length;
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
+
+  // Card badge counts — prefer live array length once loaded, fall back to apiStats
+  const cardCounts = {
+    docs: Math.max(docs.length, apiStats?.docCount ?? 0),
+    members: Math.max(members.length, apiStats?.memberCount ?? 0),
+    photos: Math.max(photos.length, apiStats?.photoVideoCount ?? 0),
+    expenses: expenses.length,
+    polls: polls.length,
+    notes: notes.length,
+  };
   const memberIds = new Set(members.map(m => m.userId));
   const filteredFriends = apiFriends
     .filter(f => !memberIds.has(f.id) && f.name.toLowerCase().includes(memberSearch.toLowerCase()))
@@ -1460,25 +1470,39 @@ export default function TripDetailScreen({ route, navigation }: any) {
           <View style={styles.actionsWrap}>
             <View style={styles.actionsRow}>
               {[
-                { label: 'Add\nActivity', bg: '#E7F8F2', ic: '#0D9488', p: 'plus', fn: () => setShowAddAct(true) },
-                { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true) },
-                { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true) },
-                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => setShowPhotos(true) },
+                { label: 'Add\nActivity', bg: '#E7F8F2', ic: '#0D9488', p: 'plus', fn: () => setShowAddAct(true), count: 0 },
+                { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true), count: cardCounts.docs },
+                { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true), count: cardCounts.members },
+                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => setShowPhotos(true), count: cardCounts.photos },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
-                  <View style={[styles.actionCircle, { backgroundColor: btn.bg }]}><ActionIcon path={btn.p} color={btn.ic} /></View>
+                  <View style={{ position: 'relative' }}>
+                    <View style={[styles.actionCircle, { backgroundColor: btn.bg }]}><ActionIcon path={btn.p} color={btn.ic} /></View>
+                    {btn.count > 0 && (
+                      <View style={styles.cardBadge}>
+                        <Text style={styles.cardBadgeText}>{btn.count > 99 ? '99+' : btn.count}</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.actionLabel}>{btn.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <View style={styles.actionsRow}>
               {[
-                { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => setShowExpenses(true) },
-                { label: 'Polls', bg: '#F1EBFF', ic: '#8B5CF6', p: 'polls', fn: () => setShowPolls(true) },
-                { label: 'Notes', bg: '#E8F7EA', ic: '#10B981', p: 'notes', fn: () => setShowNotes(true) },
+                { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => setShowExpenses(true), count: cardCounts.expenses },
+                { label: 'Polls', bg: '#F1EBFF', ic: '#8B5CF6', p: 'polls', fn: () => setShowPolls(true), count: cardCounts.polls },
+                { label: 'Notes', bg: '#E8F7EA', ic: '#10B981', p: 'notes', fn: () => setShowNotes(true), count: cardCounts.notes },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
-                  <View style={[styles.actionCircle, { backgroundColor: btn.bg }]}><ActionIcon path={btn.p} color={btn.ic} /></View>
+                  <View style={{ position: 'relative' }}>
+                    <View style={[styles.actionCircle, { backgroundColor: btn.bg }]}><ActionIcon path={btn.p} color={btn.ic} /></View>
+                    {btn.count > 0 && (
+                      <View style={styles.cardBadge}>
+                        <Text style={styles.cardBadgeText}>{btn.count > 99 ? '99+' : btn.count}</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.actionLabel}>{btn.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -1517,7 +1541,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 <View>
                   {Array.from(groups.entries()).map(([dateKey, acts]) => {
                     const isCollapsed = collapsedDates.has(dateKey);
-                    const hasMultiple = true;
+                    const hasMultiple = acts.length > 1;
                     const toggleCollapse = () => {
                       setCollapsedDates(prev => {
                         const next = new Set(prev);
@@ -1545,16 +1569,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                   {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
                                 </Text>
                                 <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
-                                <TouchableOpacity
-                                  onPress={(e) => {
-                                    e.stopPropagation?.();
-                                    handleDeleteActivity(act.id);
-                                  }}
-                                  style={styles.trashBtn}
-                                  activeOpacity={0.7}
-                                >
-                                  <TrashIcon />
-                                </TouchableOpacity>
                               </TouchableOpacity>
                             ))}
                           </View>
@@ -1603,17 +1617,17 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           <View key={dateKey} style={{ marginBottom: 8 }}>
                             <TouchableOpacity
                               style={styles.actDateRow}
-                              onPress={() => {
+                              onPress={acts.length > 1 ? () => {
                                 setCollapsedDates(prev => {
                                   const next = new Set(prev);
                                   next.has(collapsedKey) ? next.delete(collapsedKey) : next.add(collapsedKey);
                                   return next;
                                 });
-                              }}
-                              activeOpacity={0.7}
+                              } : undefined}
+                              activeOpacity={acts.length > 1 ? 0.7 : 1}
                             >
                               <Text style={styles.actDateLabel}>{fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}</Text>
-                              {isCollapsed ? <ChevDown /> : <ChevUp />}
+                              {acts.length > 1 && (isCollapsed ? <ChevDown /> : <ChevUp />)}
                             </TouchableOpacity>
                             {!isCollapsed && (
                               <View style={styles.actItemsWrap}>
@@ -1661,7 +1675,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         <Modal visible={showAddAct} transparent animationType="fade" onRequestClose={() => { resetActForm(); setShowAddAct(false); }}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '92%' }]}>
-              <DHeader title="Add Activity" onClose={() => { resetActForm(); setShowAddAct(false); }} />
+              <DHeader title={editingActivityId ? 'View Activity' : 'Add Activity'} onClose={() => { resetActForm(); setShowAddAct(false); }} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.dBody}>
 
@@ -1846,7 +1860,24 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 </View>
               </ScrollView>
               <View style={styles.dFooterSingle}>
-                <TouchableOpacity style={styles.tealBtnFull} onPress={handleAddActivity} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>{editingActivityId ? 'Update Activity' : 'Add Activity'}</Text></TouchableOpacity>
+                {editingActivityId ? (
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      style={[styles.cancelBtn, { borderWidth: 1, borderColor: '#fecaca' }]}
+                      onPress={() => { resetActForm(); setShowAddAct(false); handleDeleteActivity(editingActivityId); }}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={{ fontSize: 13, color: '#ef4444', fontWeight: '500' }}>Delete Activity</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.tealBtnFull, { flex: 1 }]} onPress={handleAddActivity} activeOpacity={0.85}>
+                      <Text style={styles.tealBtnTxt}>Update Activity</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.tealBtnFull} onPress={handleAddActivity} activeOpacity={0.85}>
+                    <Text style={styles.tealBtnTxt}>Add Activity</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           </View>
@@ -2725,6 +2756,8 @@ const styles = StyleSheet.create({
   actionBtn: { alignItems: 'center', width: 62, gap: 4 },
   actionCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   actionLabel: { fontSize: 13, fontWeight: '500', color: '#0f172a', textAlign: 'center', lineHeight: 16 },
+  cardBadge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#ffffff', paddingHorizontal: 3, zIndex: 10 },
+  cardBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '700', lineHeight: 13 },
 
   // Sections
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
@@ -2737,15 +2770,15 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 13, color: '#64748b', fontWeight: '400', marginTop: 10 },
   emptySub: { fontSize: 12, color: '#94a3b8', marginTop: 4, textAlign: 'center' },
 
-  actRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f1f5f9' },
+  actRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f1f5f9' },
   actTitle: { fontSize: 12, fontWeight: '400', color: '#0f172a', marginBottom: 2 },
   actMeta: { fontSize: 11, color: '#94a3b8' },
   actDateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4, marginBottom: 2 },
   actDateLabel: { fontSize: 13, fontWeight: '500', color: '#334155' },
-  actItemsWrap: { marginLeft: 10, marginTop: 2 },
-  actItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 10, borderWidth: 1, borderColor: '#edf2f7', borderRadius: 10, backgroundColor: '#fff', gap: 10, marginBottom: 6 },
+  actItemsWrap: { marginLeft: 0, marginTop: 2 },
+  actItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 4, borderWidth: 1, borderColor: 'transparent', borderRadius: 10, backgroundColor: 'transparent', gap: 10, marginBottom: 6 },
   actTimeLabel: { fontSize: 12, color: '#64748b', minWidth: 44, fontWeight: '500' },
-  actItemTitle: { flex: 1, fontSize: 13, fontWeight: '500', color: '#0f172a' },
+  actItemTitle: { flex: 1, fontSize: 11, fontWeight: '500', color: '#0f172a' },
   doneBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#f0fdfa', marginLeft: 8 },
   doneTxt: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
   trashBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },

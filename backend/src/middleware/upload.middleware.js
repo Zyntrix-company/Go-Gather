@@ -174,11 +174,31 @@ const createTripFilesUpload = () => multer({
   },
 });
 
+// ── Blog image upload (JPEG, PNG, WebP — 10 MB max) ──────────
+const BLOG_IMAGE_MAX_SIZE = 10 * MB;
+const BLOG_IMAGE_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+const createBlogImageUpload = () => multer({
+  storage: memoryStorage,
+  limits: { fileSize: BLOG_IMAGE_MAX_SIZE },
+  fileFilter: (_req, file, cb) => {
+    if (BLOG_IMAGE_ALLOWED_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      const err = new Error('Blog images must be JPEG, PNG, or WebP (max 10 MB)');
+      err.statusCode = 400;
+      err.error = 'INVALID_FILE_TYPE';
+      cb(err, false);
+    }
+  },
+});
+
 const docUpload = createDocUpload();
 const photoUpload = createPhotoUpload();
 const avatarUpload = createAvatarUpload();
 const activityPhotoUpload = createActivityPhotoUpload();
 const tripFilesUpload = createTripFilesUpload();
+const blogImageUpload = createBlogImageUpload();
 
 module.exports = {
   docUpload,
@@ -186,6 +206,7 @@ module.exports = {
   avatarUpload,
   activityPhotoUpload,
   tripFilesUpload,
+  blogImageUpload,
   handleMulterError,
   validateMimeFromBuffer,
 };

@@ -548,6 +548,16 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const memberCount = members.length;
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
+
+  // Card badge counts — all data loaded upfront so use live array lengths
+  const cardCounts = {
+    docs: docs.length,
+    members: members.length,
+    photos: photos.length,
+    expenses: expenses.length,
+    polls: polls.length,
+    notes: notes.length,
+  };
   const memberIdSet = new Set(members.map(m => m.userId));
   const filteredFriends = apiFriends
     .filter(f => !memberIdSet.has(f.id) && f.name.toLowerCase().includes(memberSearch.toLowerCase()));
@@ -961,13 +971,20 @@ export default function EventDetailScreen({ route, navigation }: any) {
             {/* Row 1: Docs | Members | Photos | Expenses */}
             <View style={styles.actionsRow}>
               {[
-                { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true) },
-                { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true) },
-                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => setShowPhotos(true) },
-                { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => setShowExpenses(true) },
+                { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true), count: cardCounts.docs },
+                { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true), count: cardCounts.members },
+                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => setShowPhotos(true), count: cardCounts.photos },
+                { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => setShowExpenses(true), count: cardCounts.expenses },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
-                  <View style={[styles.actionCircle, { backgroundColor: btn.bg }]}><ActionIcon path={btn.p} color={btn.ic} /></View>
+                  <View style={{ position: 'relative' }}>
+                    <View style={[styles.actionCircle, { backgroundColor: btn.bg }]}><ActionIcon path={btn.p} color={btn.ic} /></View>
+                    {btn.count > 0 && (
+                      <View style={styles.cardBadge}>
+                        <Text style={styles.cardBadgeText}>{btn.count > 99 ? '99+' : btn.count}</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.actionLabel}>{btn.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -975,11 +992,25 @@ export default function EventDetailScreen({ route, navigation }: any) {
             {/* Row 2: Polls under Docs (col 0), Notes under Members (col 1), rest empty */}
             <View style={styles.actionsRow}>
               <TouchableOpacity style={styles.actionBtn} onPress={() => setShowPolls(true)} activeOpacity={0.8}>
-                <View style={[styles.actionCircle, { backgroundColor: '#F1EBFF' }]}><ActionIcon path="polls" color="#8B5CF6" /></View>
+                <View style={{ position: 'relative' }}>
+                  <View style={[styles.actionCircle, { backgroundColor: '#F1EBFF' }]}><ActionIcon path="polls" color="#8B5CF6" /></View>
+                  {cardCounts.polls > 0 && (
+                    <View style={styles.cardBadge}>
+                      <Text style={styles.cardBadgeText}>{cardCounts.polls > 99 ? '99+' : cardCounts.polls}</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.actionLabel}>Polls</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionBtn} onPress={() => setShowNotes(true)} activeOpacity={0.8}>
-                <View style={[styles.actionCircle, { backgroundColor: '#E8F7EA' }]}><ActionIcon path="notes" color="#10B981" /></View>
+                <View style={{ position: 'relative' }}>
+                  <View style={[styles.actionCircle, { backgroundColor: '#E8F7EA' }]}><ActionIcon path="notes" color="#10B981" /></View>
+                  {cardCounts.notes > 0 && (
+                    <View style={styles.cardBadge}>
+                      <Text style={styles.cardBadgeText}>{cardCounts.notes > 99 ? '99+' : cardCounts.notes}</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.actionLabel}>Notes</Text>
               </TouchableOpacity>
               {/* Spacers to keep alignment with 4-col grid */}
@@ -1945,6 +1976,8 @@ const styles = StyleSheet.create({
   actionBtn: { alignItems: 'center', width: isSmall ? 52 : 62, gap: 4 },
   actionCircle: { width: isSmall ? 38 : 44, height: isSmall ? 38 : 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   actionLabel: { fontSize: 13, fontWeight: '500', color: '#0f172a', textAlign: 'center', lineHeight: 16 },
+  cardBadge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#ffffff', paddingHorizontal: 3, zIndex: 10 },
+  cardBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '700', lineHeight: 13 },
 
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
   sectionTitle: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 5 },
