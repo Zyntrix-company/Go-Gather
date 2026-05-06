@@ -59,6 +59,7 @@ import {
   handleApiError,
 } from '../../api/trips.api';
 import type { TripMember, Debt } from '../../api/trips.api';
+import { loadSeenCounts, markSeen, badgeCount, type SeenCounts } from '../../utils/seenCounts';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -486,7 +487,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [balances, setBalances] = useState<Debt[]>([]);
   const [myBalance, setMyBalance] = useState<number>(0);
   const [totalExpenses, setTotalExpenses] = useState<string>('0.00');
-  const [apiStats, setApiStats] = useState<{ memberCount: number; docCount: number; photoVideoCount: number; totalExpenseAmount: number } | null>(null);
+  const [apiStats, setApiStats] = useState<{ memberCount: number; docCount: number; photoVideoCount: number; totalExpenseAmount: number; expenseCount: number; pollCount: number; noteCount: number } | null>(null);
+  const [seenCounts, setSeenCounts] = useState<SeenCounts>({});
 
   // ── Loading / submitting flags ──
   const [, setIsLoadingInit] = useState(true);
@@ -616,6 +618,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         setTrip((prev: any) => ({ ...prev, ...detailRes.trip, location: locStr }));
         setRole(detailRes.role);
         if ((detailRes as any).stats) setApiStats((detailRes as any).stats);
+        loadSeenCounts('trip', tripId).then(setSeenCounts);
         const freshUrl = useAuthStore.getState().user?.photoUrl || useAuthStore.getState().user?.avatarUrl || null;
         setMembers(membersRes.members.map((m: TripMember) =>
           m.userId === currentUserId && freshUrl ? { ...m, avatarUrl: freshUrl } : m
@@ -651,7 +654,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
           getExpenses(tripId),
           getBalances(tripId),
         ]);
-        setExpenses((expRes.expenses ?? []).map(e => mapApiExpenseToState(e, currentUserId, members)));
+        const mapped = (expRes.expenses ?? []).map(e => mapApiExpenseToState(e, currentUserId, members));
+        setExpenses(mapped);
+        markSeen('trip', tripId, 'expenses', mapped.length, setSeenCounts);
         const { debts: parsedDebts, myBalance: parsedBal, totalExpenses: parsedTotal } = parseBalanceResponse(balRes, currentUserId, members);
         setBalances(parsedDebts);
         setMyBalance(parsedBal);
@@ -672,6 +677,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       try {
         const res = await getDocs(tripId);
         setDocs(res.docs.map(d => ({ id: d.id, name: d.fileName, uri: (d as any).downloadUrl ?? d.fileUrl ?? '', uploadedBy: d.uploadedBy, mimeType: d.mimeType })));
+        markSeen('trip', tripId, 'docs', res.docs.length, setSeenCounts);
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -701,6 +707,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
             activityTitle: p.activityTitle ?? null,
           }));
         });
+        markSeen('trip', tripId, 'photos', res.photos.length, setSeenCounts);
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -716,7 +723,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       setIsLoadingNotes(true);
       try {
         const res = await getNotes(tripId);
-        setNotes(res.notes.map(n => ({
+        const mapped = res.notes.map(n => ({
           id: n.id,
           title: n.title,
           body: n.content,
@@ -724,7 +731,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
           date: new Date(n.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
           pinned: (n as any).isFavorited ?? (n as any).isFavorite ?? (n as any).pinned ?? false,
           createdBy: n.createdBy,
-        })));
+        }));
+        setNotes(mapped);
+        markSeen('trip', tripId, 'notes', mapped.length, setSeenCounts);
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -740,13 +749,15 @@ export default function TripDetailScreen({ route, navigation }: any) {
       setIsLoadingPolls(true);
       try {
         const res = await getPolls(tripId);
-        setPolls(res.polls.map(p => ({
+        const mapped = res.polls.map(p => ({
           id: p.id,
           question: p.question,
           options: p.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount ?? 0, votedByMe: o.votedByMe ?? false })),
           myVoteOptionId: p.myVoteOptionId ?? null,
           createdBy: p.createdBy,
-        })));
+        }));
+        setPolls(mapped);
+        markSeen('trip', tripId, 'polls', mapped.length, setSeenCounts);
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -760,9 +771,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
     if (!showMembers || !tripId) return;
     getTripMembers(tripId).then(res => {
       const freshUrl = useAuthStore.getState().user?.photoUrl || useAuthStore.getState().user?.avatarUrl || null;
-      setMembers(res.members.map((m: TripMember) =>
+      const mapped = res.members.map((m: TripMember) =>
         m.userId === currentUserId && freshUrl ? { ...m, avatarUrl: freshUrl } : m
-      ));
+      );
+      setMembers(mapped);
+      markSeen('trip', tripId, 'members', mapped.length, setSeenCounts);
     }).catch(handleApiError);
     getFriends().then(res => setApiFriends(res.friends.map(f => ({ id: f.user.id, name: f.user.name, avatarUrl: f.user.avatarUrl })))).catch(() => { });
   }, [showMembers, tripId]);
@@ -798,14 +811,23 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const memberCount = members.length;
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
 
-  // Card badge counts — prefer live array length once loaded, fall back to apiStats
-  const cardCounts = {
+  // Live counts — prefer loaded array, fall back to stats from initial API fetch
+  const liveCounts = {
     docs: Math.max(docs.length, apiStats?.docCount ?? 0),
     members: Math.max(members.length, apiStats?.memberCount ?? 0),
     photos: Math.max(photos.length, apiStats?.photoVideoCount ?? 0),
-    expenses: expenses.length,
-    polls: polls.length,
-    notes: notes.length,
+    expenses: Math.max(expenses.length, apiStats?.expenseCount ?? 0),
+    polls: Math.max(polls.length, apiStats?.pollCount ?? 0),
+    notes: Math.max(notes.length, apiStats?.noteCount ?? 0),
+  };
+  // Badge = new items since user last opened that section (0 if never opened)
+  const badgeCounts = {
+    docs: badgeCount(liveCounts.docs, seenCounts.docs),
+    members: badgeCount(liveCounts.members, seenCounts.members),
+    photos: badgeCount(liveCounts.photos, seenCounts.photos),
+    expenses: badgeCount(liveCounts.expenses, seenCounts.expenses),
+    polls: badgeCount(liveCounts.polls, seenCounts.polls),
+    notes: badgeCount(liveCounts.notes, seenCounts.notes),
   };
   const memberIds = new Set(members.map(m => m.userId));
   const filteredFriends = apiFriends
@@ -1471,9 +1493,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
             <View style={styles.actionsRow}>
               {[
                 { label: 'Add\nActivity', bg: '#E7F8F2', ic: '#0D9488', p: 'plus', fn: () => setShowAddAct(true), count: 0 },
-                { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true), count: cardCounts.docs },
-                { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true), count: cardCounts.members },
-                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => setShowPhotos(true), count: cardCounts.photos },
+                { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true), count: badgeCounts.docs },
+                { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true), count: badgeCounts.members },
+                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => setShowPhotos(true), count: badgeCounts.photos },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
                   <View style={{ position: 'relative' }}>
@@ -1490,9 +1512,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
             </View>
             <View style={styles.actionsRow}>
               {[
-                { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => setShowExpenses(true), count: cardCounts.expenses },
-                { label: 'Polls', bg: '#F1EBFF', ic: '#8B5CF6', p: 'polls', fn: () => setShowPolls(true), count: cardCounts.polls },
-                { label: 'Notes', bg: '#E8F7EA', ic: '#10B981', p: 'notes', fn: () => setShowNotes(true), count: cardCounts.notes },
+                { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => setShowExpenses(true), count: badgeCounts.expenses },
+                { label: 'Polls', bg: '#F1EBFF', ic: '#8B5CF6', p: 'polls', fn: () => setShowPolls(true), count: badgeCounts.polls },
+                { label: 'Notes', bg: '#E8F7EA', ic: '#10B981', p: 'notes', fn: () => setShowNotes(true), count: badgeCounts.notes },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
                   <View style={{ position: 'relative' }}>

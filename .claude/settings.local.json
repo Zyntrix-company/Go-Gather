@@ -105,7 +105,10 @@
       "Bash(grep -E \"\\\\.js$\")",
       "Bash(Get-ChildItem -Path \"app\" -Directory)",
       "Bash(Select-Object Name)",
-      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")"
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
+      "Bash(findstr -i \"async-storage\")",
+      "Bash(findstr /n \"polls\\\\|notes\\\\|poll_options\\\\|trip_notes\" \"E:\\\\Go Gather\\\\backend\\\\src\\\\modules\\\\trips\\\\trips.service.js\")",
+      "Bash(findstr *)"
     ]
   }
 }

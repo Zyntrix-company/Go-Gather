@@ -301,7 +301,13 @@ const getEventById = async (eventId) => {
        (SELECT COUNT(*) FROM docs
         WHERE parent_type = 'event' AND parent_id = e.id)::int AS doc_count,
        (SELECT COALESCE(SUM(amount), 0) FROM expenses
-        WHERE parent_type = 'event' AND parent_id = e.id) AS total_expense_amount
+        WHERE parent_type = 'event' AND parent_id = e.id) AS total_expense_amount,
+       (SELECT COUNT(*) FROM expenses
+        WHERE parent_type = 'event' AND parent_id = e.id)::int AS expense_count,
+       (SELECT COUNT(*) FROM polls
+        WHERE parent_type = 'event' AND parent_id = e.id)::int AS poll_count,
+       (SELECT COUNT(*) FROM notes
+        WHERE parent_type = 'event' AND parent_id = e.id)::int AS note_count
      FROM events e
      WHERE e.id = $1`,
     [eventId],
@@ -332,6 +338,9 @@ const getEventById = async (eventId) => {
       photoVideoCount: e.photo_video_count,
       docCount: e.doc_count,
       totalExpenseAmount: parseFloat(e.total_expense_amount),
+      expenseCount: e.expense_count,
+      pollCount: e.poll_count,
+      noteCount: e.note_count,
     },
   };
 };

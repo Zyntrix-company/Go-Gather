@@ -54,6 +54,7 @@ import { getFriends } from '../../api/trips.api';
 import useAuthStore from '../../store/authStore';
 import { authUserId } from '../../utils/avatarUri';
 import { showAlert, showConfirm } from '../../store/alertStore';
+import { loadSeenCounts, markSeen, badgeCount, type SeenCounts } from '../../utils/seenCounts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -372,6 +373,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [myBalance, setMyBalance] = useState(0);
   const [polls, setPolls] = useState<PollLocal[]>([]);
   const [notes, setNotes] = useState<NoteLocal[]>([]);
+  const [seenCounts, setSeenCounts] = useState<SeenCounts>({});
+  const [apiStats, setApiStats] = useState<{ memberCount: number; docCount: number; photoVideoCount: number; totalExpenseAmount: number; expenseCount: number; pollCount: number; noteCount: number } | null>(null);
 
   const previewPhoto = previewPhotoIndex !== null ? photos[previewPhotoIndex] ?? null : null;
   const myMemberRole = members.find(m => m.userId === currentUserId)?.role ?? 'member';
@@ -384,8 +387,13 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
       const loadAllData = async () => {
         try {
-          // Load event detail first
-          const eventData = await getEventDetail(event.id);
+          // Load event detail + seen counts in parallel
+          const [eventData, seen] = await Promise.all([
+            getEventDetail(event.id),
+            loadSeenCounts('event', event.id),
+          ]);
+          setSeenCounts(seen);
+          if ((eventData as any).stats) setApiStats((eventData as any).stats);
           setEvent(prev => ({
             ...prev,
             name: eventData.event.name,
@@ -549,14 +557,23 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
 
-  // Card badge counts — all data loaded upfront so use live array lengths
-  const cardCounts = {
-    docs: docs.length,
-    members: members.length,
-    photos: photos.length,
-    expenses: expenses.length,
-    polls: polls.length,
-    notes: notes.length,
+  // Live counts — all data loaded upfront; fall back to apiStats before arrays populate
+  const liveCounts = {
+    docs: Math.max(docs.length, apiStats?.docCount ?? 0),
+    members: Math.max(members.length, apiStats?.memberCount ?? 0),
+    photos: Math.max(photos.length, apiStats?.photoVideoCount ?? 0),
+    expenses: Math.max(expenses.length, apiStats?.expenseCount ?? 0),
+    polls: Math.max(polls.length, apiStats?.pollCount ?? 0),
+    notes: Math.max(notes.length, apiStats?.noteCount ?? 0),
+  };
+  // Badge = new items since user last opened that section (0 if never opened)
+  const badgeCounts = {
+    docs: badgeCount(liveCounts.docs, seenCounts.docs),
+    members: badgeCount(liveCounts.members, seenCounts.members),
+    photos: badgeCount(liveCounts.photos, seenCounts.photos),
+    expenses: badgeCount(liveCounts.expenses, seenCounts.expenses),
+    polls: badgeCount(liveCounts.polls, seenCounts.polls),
+    notes: badgeCount(liveCounts.notes, seenCounts.notes),
   };
   const memberIdSet = new Set(members.map(m => m.userId));
   const filteredFriends = apiFriends
@@ -971,10 +988,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
             {/* Row 1: Docs | Members | Photos | Expenses */}
             <View style={styles.actionsRow}>
               {[
-                { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true), count: cardCounts.docs },
-                { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true), count: cardCounts.members },
-                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => setShowPhotos(true), count: cardCounts.photos },
-                { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => setShowExpenses(true), count: cardCounts.expenses },
+                { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => { setShowDocs(true); markSeen('event', event.id, 'docs', liveCounts.docs, setSeenCounts); }, count: badgeCounts.docs },
+                { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => { setShowMembers(true); markSeen('event', event.id, 'members', liveCounts.members, setSeenCounts); }, count: badgeCounts.members },
+                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => { setShowPhotos(true); markSeen('event', event.id, 'photos', liveCounts.photos, setSeenCounts); }, count: badgeCounts.photos },
+                { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => { setShowExpenses(true); markSeen('event', event.id, 'expenses', liveCounts.expenses, setSeenCounts); }, count: badgeCounts.expenses },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
                   <View style={{ position: 'relative' }}>
@@ -991,23 +1008,23 @@ export default function EventDetailScreen({ route, navigation }: any) {
             </View>
             {/* Row 2: Polls under Docs (col 0), Notes under Members (col 1), rest empty */}
             <View style={styles.actionsRow}>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => setShowPolls(true)} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => { setShowPolls(true); markSeen('event', event.id, 'polls', liveCounts.polls, setSeenCounts); }} activeOpacity={0.8}>
                 <View style={{ position: 'relative' }}>
                   <View style={[styles.actionCircle, { backgroundColor: '#F1EBFF' }]}><ActionIcon path="polls" color="#8B5CF6" /></View>
-                  {cardCounts.polls > 0 && (
+                  {badgeCounts.polls > 0 && (
                     <View style={styles.cardBadge}>
-                      <Text style={styles.cardBadgeText}>{cardCounts.polls > 99 ? '99+' : cardCounts.polls}</Text>
+                      <Text style={styles.cardBadgeText}>{badgeCounts.polls > 99 ? '99+' : badgeCounts.polls}</Text>
                     </View>
                   )}
                 </View>
                 <Text style={styles.actionLabel}>Polls</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => setShowNotes(true)} activeOpacity={0.8}>
+              <TouchableOpacity style={styles.actionBtn} onPress={() => { setShowNotes(true); markSeen('event', event.id, 'notes', liveCounts.notes, setSeenCounts); }} activeOpacity={0.8}>
                 <View style={{ position: 'relative' }}>
                   <View style={[styles.actionCircle, { backgroundColor: '#E8F7EA' }]}><ActionIcon path="notes" color="#10B981" /></View>
-                  {cardCounts.notes > 0 && (
+                  {badgeCounts.notes > 0 && (
                     <View style={styles.cardBadge}>
-                      <Text style={styles.cardBadgeText}>{cardCounts.notes > 99 ? '99+' : cardCounts.notes}</Text>
+                      <Text style={styles.cardBadgeText}>{badgeCounts.notes > 99 ? '99+' : badgeCounts.notes}</Text>
                     </View>
                   )}
                 </View>

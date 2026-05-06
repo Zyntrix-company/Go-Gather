@@ -325,6 +325,9 @@ const getTripById = async (tripId) => {
        (SELECT COUNT(*) FROM photos WHERE parent_type = 'trip' AND parent_id = t.id)::int AS photo_video_count,
        (SELECT COUNT(*) FROM docs WHERE parent_type = 'trip' AND parent_id = t.id)::int AS doc_count,
        (SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE parent_type = 'trip' AND parent_id = t.id) AS total_expense_amount,
+       (SELECT COUNT(*) FROM expenses WHERE parent_type = 'trip' AND parent_id = t.id)::int AS expense_count,
+       (SELECT COUNT(*) FROM polls WHERE parent_type = 'trip' AND parent_id = t.id)::int AS poll_count,
+       (SELECT COUNT(*) FROM notes WHERE parent_type = 'trip' AND parent_id = t.id)::int AS note_count,
        (SELECT COUNT(*) FROM trip_activities WHERE trip_id = t.id AND is_completed = false)::int AS upcoming_activity_count,
        (SELECT COUNT(*) FROM trip_activities WHERE trip_id = t.id AND is_completed = true)::int AS completed_activity_count
      FROM trips t
@@ -360,6 +363,9 @@ const getTripById = async (tripId) => {
       photoVideoCount: t.photo_video_count,
       docCount: t.doc_count,
       totalExpenseAmount: parseFloat(t.total_expense_amount),
+      expenseCount: t.expense_count,
+      pollCount: t.poll_count,
+      noteCount: t.note_count,
       upcomingActivityCount: t.upcoming_activity_count,
       completedActivityCount: t.completed_activity_count,
     },
