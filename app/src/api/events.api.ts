@@ -111,7 +111,11 @@ export async function createEvent(body: {
 
 export async function getEventDetail(eventId: string) {
   const res = await client.get(`/events/${eventId}`);
-  return res.data as EventDetail;
+  return res.data as EventDetail & { stats?: any; unreadCounts?: Record<string, number> };
+}
+
+export async function markEventSectionViewed(eventId: string, section: string) {
+  await client.post(`/events/${eventId}/sections/${section}/view`).catch(() => { /* non-critical */ });
 }
 
 export async function updateEvent(eventId: string, body: Partial<{

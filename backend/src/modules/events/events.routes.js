@@ -102,6 +102,9 @@ router.post('/:eventId/polls/:pollId/vote', eventMemberMW, ctrl.vote);
 // ─── Reminders ────────────────────────────────────────────────────────────────
 router.get('/:eventId/reminders', eventMemberMW, ctrl.getEventReminders);
 
+// ─── Section views (badge tracking) ──────────────────────────────────────────
+router.post('/:eventId/sections/:section/view', eventMemberMW, ctrl.markSectionViewed);
+
 // ─── Notes ────────────────────────────────────────────────────────────────────
 router.get('/:eventId/notes', eventMemberMW, ctrl.getNotes);
 router.post('/:eventId/notes', eventMemberMW, ctrl.createNote);

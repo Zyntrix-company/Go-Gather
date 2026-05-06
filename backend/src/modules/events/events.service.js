@@ -291,7 +291,7 @@ const getEvents = async (userId, { status, page = 1, limit = 20 } = {}) => {
 
 // ─── Get Event Detail ─────────────────────────────────────────────────────────
 
-const getEventById = async (eventId) => {
+const getEventById = async (eventId, currentUserId) => {
   const eventResult = await db(
     `SELECT
        e.*,
@@ -307,10 +307,47 @@ const getEventById = async (eventId) => {
        (SELECT COUNT(*) FROM polls
         WHERE parent_type = 'event' AND parent_id = e.id)::int AS poll_count,
        (SELECT COUNT(*) FROM notes
-        WHERE parent_type = 'event' AND parent_id = e.id)::int AS note_count
+        WHERE parent_type = 'event' AND parent_id = e.id)::int AS note_count,
+       -- Unread counts: items added by others after this user's last view of each section
+       (SELECT COUNT(*) FROM docs
+        WHERE parent_type = 'event' AND parent_id = e.id
+          AND uploaded_by != $2
+          AND created_at > COALESCE(
+            (SELECT viewed_at FROM section_views WHERE user_id = $2 AND parent_type = 'event' AND parent_id = e.id AND section = 'docs'),
+            NOW()))::int AS unread_docs,
+       (SELECT COUNT(*) FROM photos
+        WHERE parent_type = 'event' AND parent_id = e.id
+          AND uploaded_by != $2
+          AND created_at > COALESCE(
+            (SELECT viewed_at FROM section_views WHERE user_id = $2 AND parent_type = 'event' AND parent_id = e.id AND section = 'photos'),
+            NOW()))::int AS unread_photos,
+       (SELECT COUNT(*) FROM expenses
+        WHERE parent_type = 'event' AND parent_id = e.id
+          AND created_by != $2
+          AND created_at > COALESCE(
+            (SELECT viewed_at FROM section_views WHERE user_id = $2 AND parent_type = 'event' AND parent_id = e.id AND section = 'expenses'),
+            NOW()))::int AS unread_expenses,
+       (SELECT COUNT(*) FROM polls
+        WHERE parent_type = 'event' AND parent_id = e.id
+          AND created_by != $2
+          AND created_at > COALESCE(
+            (SELECT viewed_at FROM section_views WHERE user_id = $2 AND parent_type = 'event' AND parent_id = e.id AND section = 'polls'),
+            NOW()))::int AS unread_polls,
+       (SELECT COUNT(*) FROM notes
+        WHERE parent_type = 'event' AND parent_id = e.id
+          AND created_by != $2
+          AND created_at > COALESCE(
+            (SELECT viewed_at FROM section_views WHERE user_id = $2 AND parent_type = 'event' AND parent_id = e.id AND section = 'notes'),
+            NOW()))::int AS unread_notes,
+       (SELECT COUNT(*) FROM event_members
+        WHERE event_id = e.id
+          AND user_id != $2
+          AND joined_at > COALESCE(
+            (SELECT viewed_at FROM section_views WHERE user_id = $2 AND parent_type = 'event' AND parent_id = e.id AND section = 'members'),
+            NOW()))::int AS unread_members
      FROM events e
      WHERE e.id = $1`,
-    [eventId],
+    [eventId, currentUserId],
   );
   if (eventResult.rowCount === 0) return null;
   const e = eventResult.rows[0];
@@ -341,6 +378,14 @@ const getEventById = async (eventId) => {
       expenseCount: e.expense_count,
       pollCount: e.poll_count,
       noteCount: e.note_count,
+    },
+    unreadCounts: {
+      docs: e.unread_docs,
+      photos: e.unread_photos,
+      expenses: e.unread_expenses,
+      polls: e.unread_polls,
+      notes: e.unread_notes,
+      members: e.unread_members,
     },
   };
 };
@@ -756,6 +801,19 @@ const buildInviteEmail = ({ inviterName, eventName, deepLink, expiresAt }) =>
     </p>
   `);
 
+const VALID_SECTIONS = ['docs', 'members', 'photos', 'expenses', 'polls', 'notes'];
+
+const markSectionViewed = async (eventId, userId, section) => {
+  if (!VALID_SECTIONS.includes(section)) throw new Error('Invalid section');
+  await db(
+    `INSERT INTO section_views (user_id, parent_type, parent_id, section, viewed_at)
+     VALUES ($1, 'event', $2, $3, NOW())
+     ON CONFLICT (user_id, parent_type, parent_id, section)
+     DO UPDATE SET viewed_at = NOW()`,
+    [userId, eventId, section],
+  );
+};
+
 module.exports = {
   createEvent,
   getEvents,
@@ -770,4 +828,5 @@ module.exports = {
   acceptEventInvite,
   getEventMembers,
   removeEventMember,
+  markSectionViewed,
 };

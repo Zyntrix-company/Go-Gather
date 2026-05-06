@@ -74,7 +74,7 @@ const getTrips = async (req, res, next) => {
 // ── GET /trips/:id ────────────────────────────────────────────
 const getTripById = async (req, res, next) => {
   try {
-    const data = await tripsService.getTripById(req.params.id);
+    const data = await tripsService.getTripById(req.params.id, req.user.id);
     if (!data) {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Trip not found', statusCode: 404 });
     }
@@ -100,6 +100,19 @@ const deleteTrip = async (req, res, next) => {
     await tripsService.deleteTrip(req.params.id, req.user.id);
     res.status(200).json({ success: true });
   } catch (error) {
+    next(error);
+  }
+};
+
+// ── POST /trips/:id/confirm ───────────────────────────────────
+const confirmTrip = async (req, res, next) => {
+  try {
+    const result = await tripsService.confirmTrip(req.params.id);
+    res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.error, message: error.message, statusCode: error.statusCode });
+    }
     next(error);
   }
 };
@@ -238,6 +251,15 @@ const getTripMuteStatus = async (req, res, next) => {
   }
 };
 
+const markSectionViewed = async (req, res, next) => {
+  try {
+    await tripsService.markSectionViewed(req.params.id, req.user.id, req.params.section);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   createTrip,
   getTrips,
@@ -246,6 +268,7 @@ module.exports = {
   deleteTrip,
   archiveTrip,
   unarchiveTrip,
+  confirmTrip,
   inviteMembers,
   getInvite,
   acceptInvite,
@@ -253,4 +276,5 @@ module.exports = {
   muteTrip,
   unmuteTrip,
   getTripMuteStatus,
+  markSectionViewed,
 };

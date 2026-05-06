@@ -59,7 +59,7 @@ import {
   handleApiError,
 } from '../../api/trips.api';
 import type { TripMember, Debt } from '../../api/trips.api';
-import { loadSeenCounts, markSeen, badgeCount, type SeenCounts } from '../../utils/seenCounts';
+import { markTripSectionViewed } from '../../api/trips.api';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -487,8 +487,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [balances, setBalances] = useState<Debt[]>([]);
   const [myBalance, setMyBalance] = useState<number>(0);
   const [totalExpenses, setTotalExpenses] = useState<string>('0.00');
-  const [apiStats, setApiStats] = useState<{ memberCount: number; docCount: number; photoVideoCount: number; totalExpenseAmount: number; expenseCount: number; pollCount: number; noteCount: number } | null>(null);
-  const [seenCounts, setSeenCounts] = useState<SeenCounts>({});
+  const [apiStats, setApiStats] = useState<{ memberCount: number; docCount: number; photoVideoCount: number; totalExpenseAmount: number } | null>(null);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
   // ── Loading / submitting flags ──
   const [, setIsLoadingInit] = useState(true);
@@ -618,7 +618,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         setTrip((prev: any) => ({ ...prev, ...detailRes.trip, location: locStr }));
         setRole(detailRes.role);
         if ((detailRes as any).stats) setApiStats((detailRes as any).stats);
-        loadSeenCounts('trip', tripId).then(setSeenCounts);
+        if ((detailRes as any).unreadCounts) setUnreadCounts((detailRes as any).unreadCounts);
         const freshUrl = useAuthStore.getState().user?.photoUrl || useAuthStore.getState().user?.avatarUrl || null;
         setMembers(membersRes.members.map((m: TripMember) =>
           m.userId === currentUserId && freshUrl ? { ...m, avatarUrl: freshUrl } : m
@@ -656,7 +656,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
         ]);
         const mapped = (expRes.expenses ?? []).map(e => mapApiExpenseToState(e, currentUserId, members));
         setExpenses(mapped);
-        markSeen('trip', tripId, 'expenses', mapped.length, setSeenCounts);
+        setUnreadCounts(prev => ({ ...prev, expenses: 0 }));
+        markTripSectionViewed(tripId, 'expenses');
         const { debts: parsedDebts, myBalance: parsedBal, totalExpenses: parsedTotal } = parseBalanceResponse(balRes, currentUserId, members);
         setBalances(parsedDebts);
         setMyBalance(parsedBal);
@@ -677,7 +678,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
       try {
         const res = await getDocs(tripId);
         setDocs(res.docs.map(d => ({ id: d.id, name: d.fileName, uri: (d as any).downloadUrl ?? d.fileUrl ?? '', uploadedBy: d.uploadedBy, mimeType: d.mimeType })));
-        markSeen('trip', tripId, 'docs', res.docs.length, setSeenCounts);
+        setUnreadCounts(prev => ({ ...prev, docs: 0 }));
+        markTripSectionViewed(tripId, 'docs');
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -707,7 +709,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
             activityTitle: p.activityTitle ?? null,
           }));
         });
-        markSeen('trip', tripId, 'photos', res.photos.length, setSeenCounts);
+        setUnreadCounts(prev => ({ ...prev, photos: 0 }));
+        markTripSectionViewed(tripId, 'photos');
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -733,7 +736,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
           createdBy: n.createdBy,
         }));
         setNotes(mapped);
-        markSeen('trip', tripId, 'notes', mapped.length, setSeenCounts);
+        setUnreadCounts(prev => ({ ...prev, notes: 0 }));
+        markTripSectionViewed(tripId, 'notes');
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -757,7 +761,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
           createdBy: p.createdBy,
         }));
         setPolls(mapped);
-        markSeen('trip', tripId, 'polls', mapped.length, setSeenCounts);
+        setUnreadCounts(prev => ({ ...prev, polls: 0 }));
+        markTripSectionViewed(tripId, 'polls');
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -775,7 +780,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
         m.userId === currentUserId && freshUrl ? { ...m, avatarUrl: freshUrl } : m
       );
       setMembers(mapped);
-      markSeen('trip', tripId, 'members', mapped.length, setSeenCounts);
+      setUnreadCounts(prev => ({ ...prev, members: 0 }));
+      markTripSectionViewed(tripId, 'members');
     }).catch(handleApiError);
     getFriends().then(res => setApiFriends(res.friends.map(f => ({ id: f.user.id, name: f.user.name, avatarUrl: f.user.avatarUrl })))).catch(() => { });
   }, [showMembers, tripId]);
@@ -811,23 +817,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const memberCount = members.length;
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
 
-  // Live counts — prefer loaded array, fall back to stats from initial API fetch
-  const liveCounts = {
-    docs: Math.max(docs.length, apiStats?.docCount ?? 0),
-    members: Math.max(members.length, apiStats?.memberCount ?? 0),
-    photos: Math.max(photos.length, apiStats?.photoVideoCount ?? 0),
-    expenses: Math.max(expenses.length, apiStats?.expenseCount ?? 0),
-    polls: Math.max(polls.length, apiStats?.pollCount ?? 0),
-    notes: Math.max(notes.length, apiStats?.noteCount ?? 0),
-  };
-  // Badge = new items since user last opened that section (0 if never opened)
+  // Badges = server-computed unread counts (items added by others since user last viewed)
   const badgeCounts = {
-    docs: badgeCount(liveCounts.docs, seenCounts.docs),
-    members: badgeCount(liveCounts.members, seenCounts.members),
-    photos: badgeCount(liveCounts.photos, seenCounts.photos),
-    expenses: badgeCount(liveCounts.expenses, seenCounts.expenses),
-    polls: badgeCount(liveCounts.polls, seenCounts.polls),
-    notes: badgeCount(liveCounts.notes, seenCounts.notes),
+    docs: unreadCounts.docs ?? 0,
+    members: unreadCounts.members ?? 0,
+    photos: unreadCounts.photos ?? 0,
+    expenses: unreadCounts.expenses ?? 0,
+    polls: unreadCounts.polls ?? 0,
+    notes: unreadCounts.notes ?? 0,
   };
   const memberIds = new Set(members.map(m => m.userId));
   const filteredFriends = apiFriends

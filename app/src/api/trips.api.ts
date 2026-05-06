@@ -244,7 +244,11 @@ export async function createTrip(body: {
 
 export async function getTripDetail(tripId: string) {
   const res = await client.get(`/trips/${tripId}`);
-  return res.data as { trip: Trip; role: 'admin' | 'member' };
+  return res.data as { trip: Trip; role: 'admin' | 'member'; stats?: any; unreadCounts?: Record<string, number> };
+}
+
+export async function markTripSectionViewed(tripId: string, section: string) {
+  await client.post(`/trips/${tripId}/sections/${section}/view`).catch(() => { /* non-critical */ });
 }
 
 export async function updateTrip(tripId: string, body: Partial<{ name: string; startDate: string; endDate: string; location: TripLocation; bannerImageUrl: string; bannerCropFraction: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null }>) {

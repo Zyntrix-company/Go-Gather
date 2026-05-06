@@ -402,6 +402,8 @@ export type CreateTripModalProps = {
   setBannerImageType: (v: string) => void;
   bannerCropFraction: BannerCropFraction | null;
   setBannerCropFraction: (v: BannerCropFraction | null) => void;
+  // Pre-select friends (e.g. when opening from Friends screen)
+  initialFriendIds?: string[];
 };
 
 export function CreateTripModal({
@@ -414,6 +416,7 @@ export function CreateTripModal({
   setBannerImageType,
   bannerCropFraction,
   setBannerCropFraction,
+  initialFriendIds,
 }: CreateTripModalProps) {
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
@@ -648,6 +651,12 @@ export function CreateTripModal({
   function toggleFriend(id: string) {
     setSelectedFriendIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   }
+
+  useEffect(() => {
+    if (visible && initialFriendIds && initialFriendIds.length > 0) {
+      setSelectedFriendIds(initialFriendIds);
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (!showInviteModal) return;

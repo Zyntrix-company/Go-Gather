@@ -35,7 +35,7 @@ const getEvents = async (req, res, next) => {
 // ── GET /events/:eventId ──────────────────────────────────────
 const getEventById = async (req, res, next) => {
   try {
-    const data = await eventsService.getEventById(req.params.eventId);
+    const data = await eventsService.getEventById(req.params.eventId, req.user.id);
     if (!data) {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Event not found', statusCode: 404 });
     }
@@ -515,6 +515,15 @@ const getEventReminders = async (req, res, next) => {
   }
 };
 
+const markSectionViewed = async (req, res, next) => {
+  try {
+    await eventsService.markSectionViewed(req.params.eventId, req.user.id, req.params.section);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   // Core
   createEvent,
@@ -561,4 +570,6 @@ module.exports = {
   deleteNote,
   // Reminders
   getEventReminders,
+  // Section views
+  markSectionViewed,
 };

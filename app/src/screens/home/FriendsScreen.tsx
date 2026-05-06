@@ -11,12 +11,14 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import Svg, { Path, Circle, Polyline, Rect } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import BlobBackground from '../../components/common/BlobBackground';
-import { getFriends, createFriendInvite } from '../../api/trips.api';
+import { getFriends, createFriendInvite, createTrip, uploadTripPhotos, updateTrip as apiUpdateTrip } from '../../api/trips.api';
+import { createEvent } from '../../api/events.api';
 import { showAlert } from '../../store/alertStore';
+import { CreateTripModal, BannerCropFraction } from '../trips/TripsScreen';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,27 +37,34 @@ type Friend = {
   connectedAt: string;
 };
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-
 // Avatar color palette
 const AVATAR_COLORS = [
-  { bg: '#ddd6fe', text: '#7c3aed' }, // Purple
-  { bg: '#fde68a', text: '#92400e' }, // Yellow
-  { bg: '#99f6e4', text: '#0f766e' }, // Teal
-  { bg: '#fecaca', text: '#b91c1c' }, // Red
-  { bg: '#e9d5ff', text: '#7e22ce' }, // Violet
-  { bg: '#bfdbfe', text: '#1d4ed8' }, // Blue
+  { bg: '#ddd6fe', text: '#7c3aed' },
+  { bg: '#fde68a', text: '#92400e' },
+  { bg: '#99f6e4', text: '#0f766e' },
+  { bg: '#fecaca', text: '#b91c1c' },
+  { bg: '#e9d5ff', text: '#7e22ce' },
+  { bg: '#bfdbfe', text: '#1d4ed8' },
 ];
-
-// ─── Icons ────────────────────────────────────────────────────────────────────
 
 // ─── Friend Row Component ─────────────────────────────────────────────────────
 
-function FriendRow({ friend, index, onView }: {
+function FriendRow({
+  friend,
+  index,
+  onView,
+  isSelecting,
+  isSelected,
+  onSelect,
+  onLongPress,
+}: {
   friend: Friend;
   index: number;
   onView: (friend: Friend) => void;
+  isSelecting: boolean;
+  isSelected: boolean;
+  onSelect: (friend: Friend) => void;
+  onLongPress: (friend: Friend) => void;
 }) {
   const fallbackAvatar = `https://i.pravatar.cc/150?u=${encodeURIComponent(friend.user.id)}`;
   const primaryUri = friend.user.avatarUrl || fallbackAvatar;
@@ -76,11 +85,42 @@ function FriendRow({ friend, index, onView }: {
     }
   };
 
+  function handlePress() {
+    if (isSelecting) {
+      onSelect(friend);
+    } else {
+      onView(friend);
+    }
+  }
+
   return (
     <>
-      <View style={styles.friendRow}>
+      <TouchableOpacity
+        style={[styles.friendRow, isSelected && styles.friendRowSelected]}
+        onPress={handlePress}
+        onLongPress={() => onLongPress(friend)}
+        activeOpacity={0.7}
+        delayLongPress={300}
+      >
+        {/* Checkbox — visible in selection mode */}
+        {isSelecting && (
+          <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
+            {isSelected && (
+              <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
+                <Path
+                  d="M20 6L9 17l-5-5"
+                  stroke="#fff"
+                  strokeWidth={3}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
+            )}
+          </View>
+        )}
+
         {/* Avatar */}
-        <View style={[styles.avatar, { backgroundColor: colorPair.bg }]}> 
+        <View style={[styles.avatar, { backgroundColor: colorPair.bg }]}>
           {avatarSource ? (
             <Image
               source={avatarSource}
@@ -102,17 +142,19 @@ function FriendRow({ friend, index, onView }: {
           </Text>
         </View>
 
-        {/* Actions */}
-        <View style={styles.friendActions}>
-          <TouchableOpacity
-            style={styles.viewBtn}
-            onPress={() => onView(friend)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.viewBtnText}>View</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+        {/* Actions — hidden during selection mode */}
+        {!isSelecting && (
+          <View style={styles.friendActions}>
+            <TouchableOpacity
+              style={styles.viewBtn}
+              onPress={() => onView(friend)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.viewBtnText}>View</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </TouchableOpacity>
       <View style={styles.separator} />
     </>
   );
@@ -126,11 +168,29 @@ export default function FriendsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Multi-select
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const isSelecting = selectedIds.size > 0;
+  const selectedFriends = friends.filter(f => selectedIds.has(f.user.id));
+
   // Invite modal
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteMethod, setInviteMethod] = useState<'email' | 'sms' | 'whatsapp'>('email');
   const [inviteInput, setInviteInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+
+  // Create Trip modal (reuses TripsScreen modal)
+  const [showTripModal, setShowTripModal] = useState(false);
+  const [bannerImageUri, setBannerImageUri] = useState<string | undefined>(undefined);
+  const [bannerImageType, setBannerImageType] = useState<string>('image/jpeg');
+  const [bannerCropFraction, setBannerCropFraction] = useState<BannerCropFraction | null>(null);
+
+  // Create Event modal
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventName, setEventName] = useState('');
+  const [eventDate, setEventDate] = useState('');
+  const [eventType, setEventType] = useState('');
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
 
   const fetchFriends = useCallback(async () => {
     setIsLoading(true);
@@ -158,6 +218,69 @@ export default function FriendsScreen() {
 
   function handleViewFriend(friend: Friend) {
     navigation.navigate('FriendProfile', { userId: friend.user.id, friendName: friend.user.name ?? 'Friend' });
+  }
+
+  function handleLongPress(friend: Friend) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.add(friend.user.id);
+      return next;
+    });
+  }
+
+  function handleToggleSelect(friend: Friend) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(friend.user.id)) {
+        next.delete(friend.user.id);
+      } else {
+        next.add(friend.user.id);
+      }
+      return next;
+    });
+  }
+
+  function handleClearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  function handleOpenCreateTrip() {
+    setShowTripModal(true);
+  }
+
+  function handleOpenCreateEvent() {
+    setEventName('');
+    setEventDate('');
+    setEventType('');
+    setShowEventModal(true);
+  }
+
+  async function handleCreateEvent() {
+    if (!eventName.trim()) {
+      showAlert({ title: 'Error', message: 'Event name is required' });
+      return;
+    }
+    if (!eventDate.trim()) {
+      showAlert({ title: 'Error', message: 'Event date is required (YYYY-MM-DD)' });
+      return;
+    }
+    if (isCreatingEvent) return;
+    setIsCreatingEvent(true);
+    try {
+      await createEvent({
+        name: eventName.trim(),
+        eventDate: eventDate.trim(),
+        eventType: eventType.trim() || undefined,
+        friendIds: Array.from(selectedIds),
+      });
+      Toast.show({ type: 'success', text1: 'Event created!', text2: `${selectedIds.size} friend${selectedIds.size !== 1 ? 's' : ''} added` });
+      setShowEventModal(false);
+      setSelectedIds(new Set());
+    } catch (err) {
+      showAlert({ title: 'Error', message: 'Failed to create event. Please try again.' });
+    } finally {
+      setIsCreatingEvent(false);
+    }
   }
 
   function handleInviteFriends() {
@@ -196,20 +319,52 @@ export default function FriendsScreen() {
   return (
     <BlobBackground>
       <SafeAreaView style={styles.safe}>
+
+        {/* ── Selection Action Bar ── */}
+        {isSelecting && (
+          <View style={styles.selectionBar}>
+            <TouchableOpacity onPress={handleClearSelection} style={styles.selectionCancelBtn} activeOpacity={0.7}>
+              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                <Path d="M18 6L6 18M6 6l12 12" stroke="#64748b" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
+              <Text style={styles.selectionCancelText}>{selectedIds.size} selected</Text>
+            </TouchableOpacity>
+
+            <View style={styles.selectionActions}>
+              <TouchableOpacity style={styles.selectionActionBtn} onPress={handleOpenCreateTrip} activeOpacity={0.8}>
+                <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
+                  <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  <Polyline points="9 22 9 12 15 12 15 22" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={styles.selectionActionText}>Trip</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={[styles.selectionActionBtn, styles.selectionActionBtnEvent]} onPress={handleOpenCreateEvent} activeOpacity={0.8}>
+                <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
+                  <Rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={[styles.selectionActionText, styles.selectionActionTextEvent]}>Event</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Your Friends</Text>
-            <Text style={styles.headerSubtitle}>Connect and enjoy together</Text>
-          </View>
+          {/* Header — hidden when selecting */}
+          {!isSelecting && (
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>Your Friends</Text>
+              <Text style={styles.headerSubtitle}>Connect and enjoy together</Text>
+            </View>
+          )}
 
           {showingEmptyState ? (
             <>
-              {/* Empty State */}
               <View style={styles.emptyState}>
                 <View style={styles.emptyIcon}>
                   <Svg width={80} height={80} viewBox="0 0 24 24" fill="none">
@@ -221,70 +376,44 @@ export default function FriendsScreen() {
                       strokeLinejoin="round"
                     />
                     <Circle cx={10} cy={8} r={5} stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    <Path
-                      d="M19 16v6"
-                      stroke="#94a3b8"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <Path
-                      d="M22 19h-6"
-                      stroke="#94a3b8"
-                      strokeWidth={2}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
+                    <Path d="M19 16v6" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    <Path d="M22 19h-6" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
                 </View>
                 <Text style={styles.emptyTitle}>No friends yet</Text>
                 <Text style={styles.emptyText}>Invite your friends to join GatherGo</Text>
-
-                {/* Empty state invite button */}
-                <TouchableOpacity
-                  style={[styles.inviteBtn, { marginTop: 20 }]}
-                  onPress={handleInviteFriends}
-                  activeOpacity={0.85}
-                >
+                <TouchableOpacity style={[styles.inviteBtn, { marginTop: 20 }]} onPress={handleInviteFriends} activeOpacity={0.85}>
                   <Text style={styles.inviteBtnText}>Invite Friends</Text>
                 </TouchableOpacity>
               </View>
             </>
           ) : (
             <>
-              {/* Invite Button */}
-              <TouchableOpacity
-                style={styles.inviteBtn}
-                onPress={handleInviteFriends}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.inviteBtnText}>Invite Friends</Text>
-              </TouchableOpacity>
+              {!isSelecting && (
+                <TouchableOpacity style={styles.inviteBtn} onPress={handleInviteFriends} activeOpacity={0.85}>
+                  <Text style={styles.inviteBtnText}>Invite Friends</Text>
+                </TouchableOpacity>
+              )}
 
-              {/* Connected Friends Label */}
-              <Text style={styles.sectionLabel}>Connected Friends</Text>
+              <Text style={styles.sectionLabel}>
+                {isSelecting ? 'Tap friends to select / deselect' : 'Connected Friends'}
+              </Text>
 
-              {/* Search bar — transparent so BlobBackground shows through */}
-              <View style={styles.searchBar}>
-                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" style={styles.searchIcon}>
-                  <Path
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    stroke="#64748b"
-                    strokeWidth={2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+              {!isSelecting && (
+                <View style={styles.searchBar}>
+                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" style={styles.searchIcon}>
+                    <Path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search by name or handle..."
+                    placeholderTextColor="#64748b"
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
                   />
-                </Svg>
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search by name or handle..."
-                  placeholderTextColor="#64748b"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-              </View>
+                </View>
+              )}
 
-              {/* Friends List */}
               {isLoading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="small" color="#0d9488" />
@@ -299,12 +428,20 @@ export default function FriendsScreen() {
                         friend={friend}
                         index={idx}
                         onView={handleViewFriend}
+                        isSelecting={isSelecting}
+                        isSelected={selectedIds.has(friend.user.id)}
+                        onSelect={handleToggleSelect}
+                        onLongPress={handleLongPress}
                       />
                     ))
                   ) : (
                     <Text style={styles.noResultsText}>No friends match your search</Text>
                   )}
                 </View>
+              )}
+
+              {isSelecting && (
+                <Text style={styles.selectHint}>Long press any friend to start selecting</Text>
               )}
             </>
           )}
@@ -315,7 +452,6 @@ export default function FriendsScreen() {
       <Modal visible={showInviteModal} transparent animationType="fade" onRequestClose={() => setShowInviteModal(false)}>
         <View style={modalStyles.overlay}>
           <View style={modalStyles.dialog}>
-            {/* Header */}
             <View style={modalStyles.dHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={modalStyles.dTitle}>Invite Friends</Text>
@@ -327,7 +463,6 @@ export default function FriendsScreen() {
                 </Svg>
               </TouchableOpacity>
             </View>
-
             <View style={{ paddingHorizontal: 16, paddingVertical: 18 }}>
               <Text style={modalStyles.sectionLabel}>Send via</Text>
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
@@ -368,7 +503,6 @@ export default function FriendsScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <TextInput
                   style={[modalStyles.fInput, { flex: 1 }]}
@@ -382,13 +516,135 @@ export default function FriendsScreen() {
                 <TouchableOpacity style={modalStyles.sendBtn} onPress={handleSendInvite} activeOpacity={0.85} disabled={isSending}>
                   {isSending
                     ? <ActivityIndicator size="small" color="#fff" />
-                    : <Text style={modalStyles.sendBtnTxt}>Send</Text>
-                  }
+                    : <Text style={modalStyles.sendBtnTxt}>Send</Text>}
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* ── Create Trip Modal (reuses TripsScreen modal) ── */}
+      <CreateTripModal
+        visible={showTripModal}
+        onClose={() => setShowTripModal(false)}
+        initialFriendIds={Array.from(selectedIds)}
+        bannerImageUri={bannerImageUri}
+        setBannerImageUri={setBannerImageUri}
+        bannerImageType={bannerImageType}
+        setBannerImageType={setBannerImageType}
+        bannerCropFraction={bannerCropFraction}
+        setBannerCropFraction={setBannerCropFraction}
+        onSave={async (data) => {
+          const cropFraction = data.bannerCropFraction as BannerCropFraction | null;
+          const res = await createTrip({
+            name: data.name as string,
+            startDate: (data.startDateISO ?? data.startDate ?? '') as string,
+            endDate: (data.endDateISO ?? data.endDate ?? '') as string,
+            location: { name: (data.location as string) || 'TBD' },
+            friendIds: (data.friendIds as string[] | undefined)?.length ? data.friendIds as string[] : undefined,
+            emails: data.inviteEmail ? [data.inviteEmail as string] : undefined,
+            reminders: data.reminders as boolean | undefined,
+            ...(cropFraction && { bannerCropFraction: cropFraction }),
+          });
+          let newTrip = res.trip;
+          const localUri = data.bannerImageUrl as string | undefined;
+          const isLocalUri = localUri && (localUri.startsWith('file://') || localUri.startsWith('content://') || localUri.startsWith('file:'));
+          if (isLocalUri) {
+            try {
+              const photoRes = await uploadTripPhotos(newTrip.id, [{
+                uri: localUri,
+                type: (data.bannerImageType as string) ?? 'image/jpeg',
+                name: `banner.${((data.bannerImageType as string) ?? 'image/jpeg').split('/')[1] ?? 'jpg'}`,
+              }]);
+              const photo = photoRes.photos?.[0];
+              const permanentUrl = (photo as Record<string, unknown>)?.fileUrl as string ?? photo?.url;
+              if (permanentUrl) {
+                await apiUpdateTrip(newTrip.id, { bannerImageUrl: permanentUrl, ...(cropFraction && { bannerCropFraction: cropFraction }) });
+              }
+            } catch (e) { console.warn('Banner upload failed:', e); }
+          }
+          Toast.show({ type: 'success', text1: 'Trip created!', text2: `${selectedIds.size} friend${selectedIds.size !== 1 ? 's' : ''} added` });
+          setBannerImageUri(undefined);
+          setBannerImageType('image/jpeg');
+          setBannerCropFraction(null);
+          setShowTripModal(false);
+          setSelectedIds(new Set());
+        }}
+      />
+
+      {/* ── Create Event Modal ── */}
+      <Modal visible={showEventModal} transparent animationType="slide" onRequestClose={() => setShowEventModal(false)}>
+          <View style={modalStyles.overlay}>
+            <View style={modalStyles.dialog}>
+              {/* Header */}
+              <View style={modalStyles.dHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={modalStyles.dTitle}>Create Event</Text>
+                  <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                    {selectedFriends.length} friend{selectedFriends.length !== 1 ? 's' : ''} will be invited
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowEventModal(false)} style={modalStyles.closeBtn} activeOpacity={0.7}>
+                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                    <Path d="M18 6L6 18M6 6l12 12" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={{ paddingHorizontal: 16, paddingVertical: 14 }} showsVerticalScrollIndicator={false}>
+                {/* Selected friends chips */}
+                <Text style={modalStyles.sectionLabel}>Inviting</Text>
+                <View style={modalStyles.chipsRow}>
+                  {selectedFriends.map((f, i) => (
+                    <View key={f.user.id} style={[modalStyles.chip, { backgroundColor: AVATAR_COLORS[i % 6].bg }]}>
+                      <Text style={[modalStyles.chipText, { color: AVATAR_COLORS[i % 6].text }]}>
+                        {f.user.name || 'Unknown'}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Form */}
+                <Text style={[modalStyles.sectionLabel, { marginTop: 14 }]}>Event Details</Text>
+
+                <Text style={modalStyles.fieldLabel}>Event Name *</Text>
+                <TextInput
+                  style={modalStyles.fInput}
+                  placeholder="e.g. Beach Party"
+                  placeholderTextColor="#94a3b8"
+                  value={eventName}
+                  onChangeText={setEventName}
+                />
+
+                <Text style={modalStyles.fieldLabel}>Event Date *</Text>
+                <TextInput
+                  style={modalStyles.fInput}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#94a3b8"
+                  value={eventDate}
+                  onChangeText={setEventDate}
+                  keyboardType="numeric"
+                />
+
+                <Text style={modalStyles.fieldLabel}>Event Type</Text>
+                <TextInput
+                  style={[modalStyles.fInput, { marginBottom: 20 }]}
+                  placeholder="e.g. Party, Meetup, Dinner…"
+                  placeholderTextColor="#94a3b8"
+                  value={eventType}
+                  onChangeText={setEventType}
+                />
+
+                <TouchableOpacity style={[modalStyles.primaryBtn, modalStyles.primaryBtnEvent]} onPress={handleCreateEvent} activeOpacity={0.85} disabled={isCreatingEvent}>
+                  {isCreatingEvent
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={modalStyles.primaryBtnTxt}>Create Event</Text>}
+                </TouchableOpacity>
+                <View style={{ height: 16 }} />
+              </ScrollView>
+            </View>
+          </View>
       </Modal>
     </BlobBackground>
   );
@@ -409,15 +665,84 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
+  // Selection bar
+  selectionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#f8fafc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  selectionCancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  selectionCancelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  selectionActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  selectionActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#0d9488',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  selectionActionBtnEvent: {
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#0d9488',
+  },
+  selectionActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  selectionActionTextEvent: {
+    color: '#0d9488',
+  },
+  selectHint: {
+    fontSize: 12,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+
   // Header
   header: {
     marginBottom: 20,
   },
-  headerTitle:{ fontFamily: 'Inter', fontSize: 22, fontWeight: '600', color: '#0F172B',
-    textAlign: 'center', lineHeight: 30, letterSpacing: 0, },
-
+  headerTitle: {
+    fontFamily: 'Inter',
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#0F172B',
+    textAlign: 'center',
+    lineHeight: 30,
+    letterSpacing: 0,
+  },
   headerSubtitle: {
-    fontFamily: 'Inter', fontSize: 15, fontWeight: '600', color: '#45556C', textAlign: 'center', lineHeight: 21, letterSpacing: 0, marginTop: 9,},
+    fontFamily: 'Inter',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#45556C',
+    textAlign: 'center',
+    lineHeight: 21,
+    letterSpacing: 0,
+    marginTop: 9,
+  },
+
   // Invite Button
   inviteBtn: {
     backgroundColor: '#0d9488',
@@ -426,7 +751,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     alignSelf: 'center',
     marginBottom: 16,
-    gap: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
@@ -442,11 +766,17 @@ const styles = StyleSheet.create({
 
   // Section Label
   sectionLabel: {
-     fontFamily: 'Inter', fontSize: 15, fontWeight: '600', color: '#45556C', lineHeight: 21, letterSpacing: 0, marginTop: 9, marginBottom: 10, },
-  
- 
+    fontFamily: 'Inter',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#45556C',
+    lineHeight: 21,
+    letterSpacing: 0,
+    marginTop: 9,
+    marginBottom: 10,
+  },
 
-  // Search bar — transparent fill, same visual context as screen bg
+  // Search bar
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -496,7 +826,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
+    borderRadius: 8,
   },
+  friendRowSelected: {
+    backgroundColor: 'rgba(13, 148, 136, 0.07)',
+  },
+
+  // Checkbox
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    flexShrink: 0,
+  },
+  checkboxSelected: {
+    backgroundColor: '#0d9488',
+    borderColor: '#0d9488',
+  },
+
   avatar: {
     width: 40,
     height: 40,
@@ -583,15 +936,119 @@ const styles = StyleSheet.create({
 });
 
 const modalStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
-  dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', overflow: 'hidden' },
-  dHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.52)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  dialog: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: '100%',
+    overflow: 'hidden',
+    maxHeight: '85%',
+  },
+  dHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
   dTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
-  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-  sectionLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  fInput: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#0f172a' },
-  inviteIconBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
-  inviteIconBtnActive: { borderColor: '#0d9488', backgroundColor: '#0d9488' },
-  sendBtn: { backgroundColor: '#0d9488', borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#334155',
+    marginBottom: 6,
+    marginTop: 10,
+  },
+  fInput: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+    color: '#0f172a',
+  },
+
+  // Friend chips
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  // Primary action button
+  primaryBtn: {
+    backgroundColor: '#0d9488',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  primaryBtnEvent: {
+    backgroundColor: '#6366f1',
+  },
+  primaryBtnTxt: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+
+  // Invite modal specifics
+  inviteIconBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteIconBtnActive: {
+    borderColor: '#0d9488',
+    backgroundColor: '#0d9488',
+  },
+  sendBtn: {
+    backgroundColor: '#0d9488',
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   sendBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

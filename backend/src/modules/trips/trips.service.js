@@ -317,7 +317,7 @@ const getTrips = async (userId, { status, page = 1, limit = 20 } = {}) => {
 // ─── Get Trip Detail ──────────────────────────────────────────────────────────
 // Single SQL query with subqueries — no N+1
 
-const getTripById = async (tripId) => {
+const getTripById = async (tripId, currentUserId) => {
   const tripResult = await db(
     `SELECT
        t.*,
@@ -329,10 +329,48 @@ const getTripById = async (tripId) => {
        (SELECT COUNT(*) FROM polls WHERE parent_type = 'trip' AND parent_id = t.id)::int AS poll_count,
        (SELECT COUNT(*) FROM notes WHERE parent_type = 'trip' AND parent_id = t.id)::int AS note_count,
        (SELECT COUNT(*) FROM trip_activities WHERE trip_id = t.id AND is_completed = false)::int AS upcoming_activity_count,
-       (SELECT COUNT(*) FROM trip_activities WHERE trip_id = t.id AND is_completed = true)::int AS completed_activity_count
+       (SELECT COUNT(*) FROM trip_activities WHERE trip_id = t.id AND is_completed = true)::int AS completed_activity_count,
+       -- Unread counts: items added by others after this user's last view of each section
+       -- If no view record exists COALESCE falls back to NOW() so first-visit badge = 0
+       (SELECT COUNT(*) FROM docs
+        WHERE parent_type = 'trip' AND parent_id = t.id
+          AND uploaded_by != $2
+          AND created_at > COALESCE(
+            (SELECT viewed_at FROM section_views WHERE user_id = $2 AND parent_type = 'trip' AND parent_id = t.id AND section = 'docs'),
+            NOW()))::int AS unread_docs,
+       (SELECT COUNT(*) FROM photos
+        WHERE parent_type = 'trip' AND parent_id = t.id
+          AND uploaded_by != $2
+          AND created_at > COALESCE(
+            (SELECT viewed_at FROM section_views WHERE user_id = $2 AND parent_type = 'trip' AND parent_id = t.id AND section = 'photos'),
+            NOW()))::int AS unread_photos,
+       (SELECT COUNT(*) FROM expenses
+        WHERE parent_type = 'trip' AND parent_id = t.id
+          AND created_by != $2
+          AND created_at > COALESCE(
+            (SELECT viewed_at FROM section_views WHERE user_id = $2 AND parent_type = 'trip' AND parent_id = t.id AND section = 'expenses'),
+            NOW()))::int AS unread_expenses,
+       (SELECT COUNT(*) FROM polls
+        WHERE parent_type = 'trip' AND parent_id = t.id
+          AND created_by != $2
+          AND created_at > COALESCE(
+            (SELECT viewed_at FROM section_views WHERE user_id = $2 AND parent_type = 'trip' AND parent_id = t.id AND section = 'polls'),
+            NOW()))::int AS unread_polls,
+       (SELECT COUNT(*) FROM notes
+        WHERE parent_type = 'trip' AND parent_id = t.id
+          AND created_by != $2
+          AND created_at > COALESCE(
+            (SELECT viewed_at FROM section_views WHERE user_id = $2 AND parent_type = 'trip' AND parent_id = t.id AND section = 'notes'),
+            NOW()))::int AS unread_notes,
+       (SELECT COUNT(*) FROM trip_members
+        WHERE trip_id = t.id
+          AND user_id != $2
+          AND joined_at > COALESCE(
+            (SELECT viewed_at FROM section_views WHERE user_id = $2 AND parent_type = 'trip' AND parent_id = t.id AND section = 'members'),
+            NOW()))::int AS unread_members
      FROM trips t
      WHERE t.id = $1`,
-    [tripId],
+    [tripId, currentUserId],
   );
   if (tripResult.rowCount === 0) return null;
   const t = tripResult.rows[0];
@@ -368,6 +406,14 @@ const getTripById = async (tripId) => {
       noteCount: t.note_count,
       upcomingActivityCount: t.upcoming_activity_count,
       completedActivityCount: t.completed_activity_count,
+    },
+    unreadCounts: {
+      docs: t.unread_docs,
+      photos: t.unread_photos,
+      expenses: t.unread_expenses,
+      polls: t.unread_polls,
+      notes: t.unread_notes,
+      members: t.unread_members,
     },
   };
 };
@@ -721,6 +767,37 @@ const unarchiveTrip = async (tripId) => {
   return enrichTrip(result.rows[0]);
 };
 
+// ─── Confirm Trip (TRIP_MILESTONE) ───────────────────────────────────────────
+
+const confirmTrip = async (tripId) => {
+  const [tripResult, membersResult] = await Promise.all([
+    db('SELECT name FROM trips WHERE id = $1', [tripId]),
+    db(
+      `SELECT u.id, u.fcm_token FROM trip_members tm
+       JOIN users u ON u.id = tm.user_id
+       WHERE tm.trip_id = $1`,
+      [tripId],
+    ),
+  ]);
+
+  if (tripResult.rowCount === 0) {
+    const err = new Error('Trip not found'); err.statusCode = 404; err.error = 'NOT_FOUND'; throw err;
+  }
+
+  const tripName = tripResult.rows[0].name;
+
+  if (membersResult.rows.length > 0) {
+    createAndSendNotifications(
+      membersResult.rows,
+      { title: 'Trip Confirmed 🎉', body: `"${tripName}" has been confirmed. You're going!` },
+      'TRIP_MILESTONE',
+      { tripId, tripName },
+    ).catch(() => {});
+  }
+
+  return { tripId, tripName, notified: membersResult.rows.length };
+};
+
 // ─── Email template ───────────────────────────────────────────────────────────
 
 const buildInviteEmail = ({ inviterName, tripName, deepLink, expiresAt }) =>
@@ -754,6 +831,19 @@ const buildInviteEmail = ({ inviterName, tripName, deepLink, expiresAt }) =>
     </p>
   `);
 
+const VALID_SECTIONS = ['docs', 'members', 'photos', 'expenses', 'polls', 'notes'];
+
+const markSectionViewed = async (tripId, userId, section) => {
+  if (!VALID_SECTIONS.includes(section)) throw new Error('Invalid section');
+  await db(
+    `INSERT INTO section_views (user_id, parent_type, parent_id, section, viewed_at)
+     VALUES ($1, 'trip', $2, $3, NOW())
+     ON CONFLICT (user_id, parent_type, parent_id, section)
+     DO UPDATE SET viewed_at = NOW()`,
+    [userId, tripId, section],
+  );
+};
+
 module.exports = {
   createTrip,
   getTrips,
@@ -762,7 +852,9 @@ module.exports = {
   deleteTrip,
   archiveTrip,
   unarchiveTrip,
+  confirmTrip,
   inviteToTrip,
   getInviteByToken,
   acceptInvite,
+  markSectionViewed,
 };

@@ -77,6 +77,7 @@ router.post(
 router.get('/', validators.getTripsQuery, validate, tripsController.getTrips);
 router.get('/:id', validators.tripIdParam, validate, tripMemberMW, tripsController.getTripById);
 router.put('/:id', validators.updateTripValidation, validate, tripMemberMW, tripAdminMW, tripsController.updateTrip);
+router.post('/:id/confirm', validators.tripIdParam, validate, tripMemberMW, tripAdminMW, tripsController.confirmTrip);
 router.post('/:id/archive', validators.tripIdParam, validate, tripMemberMW, tripAdminMW, tripsController.archiveTrip);
 router.post('/:id/unarchive', validators.tripIdParam, validate, tripMemberMW, tripAdminMW, tripsController.unarchiveTrip);
 router.delete('/:id', validators.tripIdParam, validate, tripMemberMW, tripAdminMW, tripsController.deleteTrip);
@@ -160,6 +161,9 @@ router.get('/:id/reminders', tripMemberMW, tripsController.getTripReminders);
 router.post('/:id/mute', tripMemberMW, tripsController.muteTrip);
 router.delete('/:id/mute', tripMemberMW, tripsController.unmuteTrip);
 router.get('/:id/mute', tripMemberMW, tripsController.getTripMuteStatus);
+
+// ─── Section views (badge tracking) ──────────────────────────────────────────
+router.post('/:id/sections/:section/view', tripMemberMW, tripsController.markSectionViewed);
 
 // ─── Notes — multi-note schema ────────────────────────────────────────────────
 router.get('/:id/notes', tripMemberMW, notesCtrl.getNotes);
