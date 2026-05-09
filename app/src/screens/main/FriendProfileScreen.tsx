@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
-  Dimensions, StyleSheet, ActivityIndicator, Modal, Image,
+  Dimensions, StyleSheet, ActivityIndicator, Modal, Image, Animated, FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -65,23 +65,15 @@ function SectionHeader({ title, count, icon }: { title: string; count: number; i
 function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
   const [imgError, setImgError] = useState(false);
   const hasImage = item.bannerImageUrl && !imgError;
-  const hasSubtitle = !!item.gallerySubtitle?.trim();
   return (
-    <TouchableOpacity
-      style={[styles.gridCard, hasSubtitle && styles.gridCardTall]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
+    <TouchableOpacity style={styles.gridCard} onPress={onPress} activeOpacity={0.85}>
       {hasImage ? (
         <CachedImage uri={item.bannerImageUrl} style={styles.gridCardImage} resizeMode="cover" onError={() => setImgError(true)} />
       ) : (
         <View style={styles.gridCardPlaceholder}><CameraIcon /></View>
       )}
-      <View style={[styles.gridCardOverlay, hasSubtitle && styles.gridCardOverlayTall]}>
+      <View style={styles.gridCardOverlay}>
         <Text style={styles.gridCardText} numberOfLines={1}>{item.name}</Text>
-        {hasSubtitle && (
-          <Text style={styles.gridCardSubtitle} numberOfLines={1}>{item.gallerySubtitle}</Text>
-        )}
       </View>
     </TouchableOpacity>
   );
@@ -96,24 +88,88 @@ function EmptyCard({ label }: { label: string }) {
   );
 }
 
-type PhotoItem = { id: string; uri: string; activityId?: string | null; activityTitle?: string | null };
+// ─── Profile skeleton ─────────────────────────────────────────────────────────
+
+const fpSkStyles = StyleSheet.create({
+  profileCard: { marginTop: 14, marginBottom: 28, alignItems: 'center' },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32, alignSelf: 'stretch' },
+  avatar: { width: 112, height: 112, borderRadius: 56, backgroundColor: '#e2e8f0' },
+  profileInfo: { flex: 1, gap: 8 },
+  nameBar: { width: 160, height: 20, borderRadius: 6, backgroundColor: '#e2e8f0' },
+  handleBar: { width: 100, height: 16, borderRadius: 5, backgroundColor: '#e2e8f0' },
+  locationBar: { width: 80, height: 14, borderRadius: 5, backgroundColor: '#e2e8f0' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  iconBox: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#e2e8f0' },
+  titleBar: { width: 120, height: 16, borderRadius: 6, backgroundColor: '#e2e8f0' },
+  card: { width: CARD_W, height: 140, borderRadius: 14, backgroundColor: '#E8E4DF' },
+});
+
+function FriendProfileSkeleton() {
+  const pulse = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.85, duration: 750, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.4, duration: 750, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [pulse]);
+
+  const cardKeys = [0, 1, 2, 3];
+
+  return (
+    <Animated.View style={{ opacity: pulse }}>
+      <View style={fpSkStyles.profileCard}>
+        <View style={fpSkStyles.profileRow}>
+          <View style={fpSkStyles.avatar} />
+          <View style={fpSkStyles.profileInfo}>
+            <View style={fpSkStyles.nameBar} />
+            <View style={fpSkStyles.handleBar} />
+            <View style={fpSkStyles.locationBar} />
+          </View>
+        </View>
+      </View>
+      <View style={fpSkStyles.header}>
+        <View style={fpSkStyles.iconBox} />
+        <View style={fpSkStyles.titleBar} />
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+        {cardKeys.map(k => <View key={k} style={fpSkStyles.card} />)}
+      </View>
+      <View style={{ height: 24 }} />
+      <View style={fpSkStyles.header}>
+        <View style={fpSkStyles.iconBox} />
+        <View style={fpSkStyles.titleBar} />
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+        {cardKeys.map(k => <View key={k} style={fpSkStyles.card} />)}
+      </View>
+    </Animated.View>
+  );
+}
+
+type PhotoItem = { id: string; uri: string; localUri?: string; activityId?: string | null; activityTitle?: string | null };
 
 function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void }) {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const prevUri = useRef(photo.uri);
+  const displayUri = photo.localUri ?? photo.uri;
+  const prevUri = useRef(displayUri);
   useEffect(() => {
-    if (prevUri.current !== photo.uri) {
-      prevUri.current = photo.uri;
+    if (prevUri.current !== displayUri) {
+      prevUri.current = displayUri;
       setFailed(false);
       setLoading(true);
     }
-  }, [photo.uri]);
+  }, [displayUri]);
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.thumb}>
       {!failed ? (
         <>
-          <CachedImage uri={photo.uri} style={styles.thumbImg} resizeMode="cover" onLoad={() => setLoading(false)} onError={() => { setLoading(false); setFailed(true); }} />
+          <CachedImage uri={displayUri} style={styles.thumbImg} resizeMode="cover" onLoad={() => setLoading(false)} onError={() => { setLoading(false); setFailed(true); }} />
           {loading && <View style={styles.thumbLoader}><ActivityIndicator size="small" color="#0d9488" /></View>}
         </>
       ) : (
@@ -123,9 +179,24 @@ function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void 
   );
 }
 
-function PreviewModal({ photo, onClose }: { photo: PhotoItem | null; onClose: () => void }) {
-  const [previewLoading, setPreviewLoading] = useState(true);
-  useEffect(() => { if (photo) setPreviewLoading(true); }, [photo?.uri]);
+function PreviewItem({ photo }: { photo: PhotoItem }) {
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { setLoading(true); }, [photo.uri]);
+  return (
+    <View style={{ width: SCREEN_W, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <CachedImage uri={photo.localUri ?? photo.uri} style={styles.previewImg} resizeMode="contain" onLoad={() => setLoading(false)} onError={() => setLoading(false)} />
+      {loading && <ActivityIndicator style={styles.previewLoader} size="large" color="#fff" />}
+    </View>
+  );
+}
+
+function PreviewModal({ photos, initialIndex, onClose }: {
+  photos: PhotoItem[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const listRef = useRef<any>(null);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
   return (
     <View style={styles.previewBg}>
       <TouchableOpacity onPress={onClose} style={styles.previewClose} activeOpacity={0.8}>
@@ -133,11 +204,23 @@ function PreviewModal({ photo, onClose }: { photo: PhotoItem | null; onClose: ()
           <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       </TouchableOpacity>
-      {photo && (
-        <>
-          <CachedImage uri={photo.uri} style={styles.previewImg} resizeMode="contain" onLoad={() => setPreviewLoading(false)} onError={() => setPreviewLoading(false)} />
-          {previewLoading && <ActivityIndicator style={styles.previewLoader} size="large" color="#fff" />}
-        </>
+      <FlatList
+        ref={listRef}
+        data={photos}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        initialScrollIndex={initialIndex}
+        getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
+        style={{ flex: 1, alignSelf: 'stretch' }}
+        onMomentumScrollEnd={e => setCurrentIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
+        renderItem={({ item }) => <PreviewItem photo={item} />}
+        keyExtractor={item => item.id}
+      />
+      {photos.length > 1 && (
+        <View style={styles.previewCounter}>
+          <Text style={styles.previewCounterText}>{currentIndex + 1} / {photos.length}</Text>
+        </View>
       )}
     </View>
   );
@@ -149,19 +232,20 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
 }) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const localUriCache = useRef<Record<string, string>>({});
 
   useEffect(() => {
     if (!visible || !parentId) return;
     let cancelled = false;
+    const capturedCache = { ...localUriCache.current };
+
     setLoading(true);
     setPhotos([]);
 
     let fetcher: Promise<{ photos?: any[] }>;
 
     if (userId) {
-      // Viewing a friend's gallery — use the user photos endpoint which doesn't
-      // require trip/event membership. Filter the response to this specific parent.
       fetcher = getUserPhotos(userId).then((data) => {
         const parentList: any[] = parentType === 'trip' ? (data.trips ?? []) : (data.events ?? []);
         const match = parentList.find((p: any) => p.id === parentId);
@@ -181,6 +265,7 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
         setPhotos((data.photos ?? []).map((ph: any) => ({
           id: ph.id,
           uri: ph.uri ?? ph.url ?? ph.fileUrl ?? '',
+          localUri: capturedCache[ph.id],
           activityId: ph.activityId ?? null,
           activityTitle: ph.activityTitle ?? null,
         })));
@@ -207,16 +292,18 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
         <View style={styles.overlay}>
           <View style={[styles.dialog, { maxHeight: '85%' }]}>
             <View style={styles.dialogHeader}>
-              <Text style={styles.dialogTitle}>{title}</Text>
+              <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
+                <Text style={styles.dialogTitle} numberOfLines={1}>{title}</Text>
+                {gallerySubtitle?.trim() ? (
+                  <Text style={styles.modalSubtitleText}>{gallerySubtitle}</Text>
+                ) : null}
+              </View>
               <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <CloseIcon />
               </TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.dialogBody}>
-                {gallerySubtitle?.trim() ? (
-                  <Text style={styles.subtitleDisplay}>{gallerySubtitle}</Text>
-                ) : null}
                 {loading && <View style={styles.modalLoadingRow}><ActivityIndicator color="#0d9488" /></View>}
 
                 {!loading && photos.length === 0 && (
@@ -241,7 +328,7 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
                           <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
                         </View>
                         <View style={styles.thumbRow}>
-                          {actPhotos.map(ph => <PhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewPhoto(ph)} />)}
+                          {actPhotos.map(ph => <PhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewIndex(photos.findIndex(p => p.id === ph.id))} />)}
                         </View>
                       </View>
                     ))}
@@ -257,7 +344,7 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
                           </View>
                         )}
                         <View style={styles.thumbRow}>
-                          {directPhotos.map(ph => <PhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewPhoto(ph)} />)}
+                          {directPhotos.map(ph => <PhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewIndex(photos.findIndex(p => p.id === ph.id))} />)}
                         </View>
                       </View>
                     )}
@@ -269,8 +356,8 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
         </View>
       </Modal>
 
-      <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
-        <PreviewModal photo={previewPhoto} onClose={() => setPreviewPhoto(null)} />
+      <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
+        <PreviewModal photos={photos} initialIndex={previewIndex ?? 0} onClose={() => setPreviewIndex(null)} />
       </Modal>
     </>
   );
@@ -346,9 +433,9 @@ export default function FriendProfileScreen() {
         />
 
         {loading ? (
-          <View style={styles.loadingCenter}>
-            <ActivityIndicator size="large" color="#0d9488" />
-          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <FriendProfileSkeleton />
+          </ScrollView>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
@@ -464,8 +551,6 @@ const styles = StyleSheet.create({
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   screenTitle: { fontSize: 18, fontWeight: '500', color: '#45556C', marginLeft: 12, flex: 1 },
 
-  loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 4 },
 
   // Profile card — matches GalleryTab layout exactly
@@ -547,10 +632,12 @@ const styles = StyleSheet.create({
   thumbLoader: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' },
   thumbError: { width: 80, height: 80, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' },
 
-  previewBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' },
+  previewBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' },
   previewClose: { position: 'absolute', top: 48, left: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   previewImg: { width: SCREEN_W, height: SCREEN_W * 1.2 },
   previewLoader: { position: 'absolute' },
+  previewCounter: { position: 'absolute', bottom: 36, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
+  previewCounterText: { color: '#fff', fontSize: 13, fontWeight: '500' },
 
-  subtitleDisplay: { fontSize: 13, color: '#64748b', fontStyle: 'italic', marginBottom: 12, paddingHorizontal: 2 },
+  modalSubtitleText: { fontSize: 13, color: '#0d9488', fontWeight: '500', fontStyle: 'italic', marginTop: 3 },
 });

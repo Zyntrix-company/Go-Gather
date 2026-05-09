@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, Image,
-  Dimensions, StyleSheet, ActivityIndicator, Modal, TextInput,
+  Dimensions, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, FlatList,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { Plane, CalendarDays, PencilLine } from 'lucide-react-native';
+import { Plane, CalendarDays, PencilLine, Pen } from 'lucide-react-native';
 import { getUserGallery, getUserPhotos, upsertGallerySubtitle } from '../../api/ai.api';
 import { getTripPhotos, uploadTripPhotos, deleteTripPhoto } from '../../api/trips.api';
 import { getEventPhotos, uploadEventPhotos, deleteEventPhoto } from '../../api/events.api';
@@ -77,27 +77,12 @@ function SectionHeader({ title, count, onAdd, icon }: { title: string; count: nu
 
 // ─── Gallery grid card ────────────────────────────────────────────────────────
 
-function GridCard({
-  item,
-  onPress,
-  isOwner,
-  onEditPress,
-}: {
-  item: any;
-  onPress: () => void;
-  isOwner?: boolean;
-  onEditPress?: () => void;
-}) {
+function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
   const [imgError, setImgError] = useState(false);
   const hasImage = item.bannerImageUrl && !imgError;
-  const hasSubtitle = !!item.gallerySubtitle?.trim();
 
   return (
-    <TouchableOpacity
-      style={[styles.gridCard, hasSubtitle && styles.gridCardTall]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
+    <TouchableOpacity style={styles.gridCard} onPress={onPress} activeOpacity={0.85}>
       {hasImage ? (
         <CachedImage
           uri={item.bannerImageUrl}
@@ -110,23 +95,9 @@ function GridCard({
           <CameraIcon />
         </View>
       )}
-      <View style={[styles.gridCardOverlay, hasSubtitle && styles.gridCardOverlayTall]}>
+      <View style={styles.gridCardOverlay}>
         <Text style={styles.gridCardText} numberOfLines={1}>{item.name}</Text>
-        {hasSubtitle && (
-          <Text style={styles.gridCardSubtitle} numberOfLines={1}>
-            {item.gallerySubtitle}
-          </Text>
-        )}
       </View>
-      {isOwner && onEditPress && (
-        <TouchableOpacity
-          style={styles.gridCardEditBtn}
-          onPress={onEditPress}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-        >
-          <PencilLine size={10} color="#fff" />
-        </TouchableOpacity>
-      )}
     </TouchableOpacity>
   );
 }
@@ -142,11 +113,58 @@ function EmptyCard({ label }: { label: string }) {
   );
 }
 
+// ─── Gallery skeleton ────────────────────────────────────────────────────────
+
+const skStyles = StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  iconBox: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#e2e8f0' },
+  titleBar: { width: 120, height: 16, borderRadius: 6, backgroundColor: '#e2e8f0' },
+  card: { width: CARD_W, height: 140, borderRadius: 14, backgroundColor: '#E8E4DF' },
+});
+
+function GallerySkeleton() {
+  const pulse = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.85, duration: 750, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.4, duration: 750, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [pulse]);
+
+  const cardKeys = [0, 1, 2, 3];
+
+  return (
+    <Animated.View style={{ opacity: pulse }}>
+      <View style={skStyles.header}>
+        <View style={skStyles.iconBox} />
+        <View style={skStyles.titleBar} />
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+        {cardKeys.map(k => <View key={k} style={skStyles.card} />)}
+      </View>
+      <View style={{ height: 24 }} />
+      <View style={skStyles.header}>
+        <View style={skStyles.iconBox} />
+        <View style={skStyles.titleBar} />
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+        {cardKeys.map(k => <View key={k} style={skStyles.card} />)}
+      </View>
+    </Animated.View>
+  );
+}
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type PhotoItem = {
   id: string;
   uri: string;
+  localUri?: string;   // local file:// URI from picker — shown optimistically, survives refetch
   activityId?: string | null;
   activityTitle?: string | null;
 };
@@ -168,20 +186,23 @@ function customCardsStorageKey(userId: string) {
 function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void }) {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const prevUri = useRef(photo.uri);
+  // Prefer local file URI — always available, no network needed.
+  // Falls back to server URL (CDN or presigned).
+  const displayUri = photo.localUri ?? photo.uri;
+  const prevUri = useRef(displayUri);
   useEffect(() => {
-    if (prevUri.current !== photo.uri) {
-      prevUri.current = photo.uri;
+    if (prevUri.current !== displayUri) {
+      prevUri.current = displayUri;
       setFailed(false);
       setLoading(true);
     }
-  }, [photo.uri]);
+  }, [displayUri]);
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.thumb}>
       {!failed ? (
         <>
           <CachedImage
-            uri={photo.uri}
+            uri={displayUri}
             style={styles.thumbImg}
             resizeMode="cover"
             onLoad={() => setLoading(false)}
@@ -202,11 +223,32 @@ function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void 
   );
 }
 
-// ─── Full-screen preview ─────────────────────────────────────────────────────
+// ─── Full-screen preview (swipeable) ────────────────────────────────────────
 
-function PreviewModal({ photo, onClose }: { photo: PhotoItem | null; onClose: () => void }) {
-  const [previewLoading, setPreviewLoading] = useState(true);
-  useEffect(() => { if (photo) setPreviewLoading(true); }, [photo?.uri]);
+function PreviewItem({ photo }: { photo: PhotoItem }) {
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { setLoading(true); }, [photo.uri]);
+  return (
+    <View style={{ width: SCREEN_W, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <CachedImage
+        uri={photo.localUri ?? photo.uri}
+        style={styles.previewImg}
+        resizeMode="contain"
+        onLoad={() => setLoading(false)}
+        onError={() => setLoading(false)}
+      />
+      {loading && <ActivityIndicator style={styles.previewLoader} size="large" color="#fff" />}
+    </View>
+  );
+}
+
+function PreviewModal({ photos, initialIndex, onClose }: {
+  photos: PhotoItem[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const listRef = useRef<any>(null);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
   return (
     <View style={styles.previewBg}>
       <TouchableOpacity onPress={onClose} style={styles.previewClose} activeOpacity={0.8}>
@@ -214,19 +256,23 @@ function PreviewModal({ photo, onClose }: { photo: PhotoItem | null; onClose: ()
           <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       </TouchableOpacity>
-      {photo && (
-        <>
-          <CachedImage
-            uri={photo.uri}
-            style={styles.previewImg}
-            resizeMode="contain"
-            onLoad={() => setPreviewLoading(false)}
-            onError={() => setPreviewLoading(false)}
-          />
-          {previewLoading && (
-            <ActivityIndicator style={styles.previewLoader} size="large" color="#fff" />
-          )}
-        </>
+      <FlatList
+        ref={listRef}
+        data={photos}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        initialScrollIndex={initialIndex}
+        getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
+        style={{ flex: 1, alignSelf: 'stretch' }}
+        onMomentumScrollEnd={e => setCurrentIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
+        renderItem={({ item }) => <PreviewItem photo={item} />}
+        keyExtractor={item => item.id}
+      />
+      {photos.length > 1 && (
+        <View style={styles.previewCounter}>
+          <Text style={styles.previewCounterText}>{currentIndex + 1} / {photos.length}</Text>
+        </View>
       )}
     </View>
   );
@@ -243,7 +289,6 @@ function PhotosModal({
   userId,
   isOwner,
   gallerySubtitle: initialSubtitle,
-  defaultEditMode,
   onSubtitleSaved,
 }: {
   visible: boolean;
@@ -254,7 +299,6 @@ function PhotosModal({
   userId?: string;
   isOwner?: boolean;
   gallerySubtitle?: string | null;
-  defaultEditMode?: boolean;
   onSubtitleSaved?: (subtitle: string | null) => void;
 }) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
@@ -262,19 +306,17 @@ function PhotosModal({
   const [editMode, setEditMode] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [subtitleDraft, setSubtitleDraft] = useState('');
   const [savingSubtitle, setSavingSubtitle] = useState(false);
+  // Persists localUri map so it survives setPhotos([]) calls during refetch.
+  const localUriCache = useRef<Record<string, string>>({});
 
   useEffect(() => {
     if (visible) {
-      setEditMode(!!defaultEditMode);
-      setSubtitleDraft(initialSubtitle ?? '');
-    } else {
       setEditMode(false);
+      setSubtitleDraft(initialSubtitle ?? '');
     }
-  // defaultEditMode intentionally not in deps — only read on open
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   // Keep subtitleDraft in sync if initialSubtitle changes between opens
@@ -285,6 +327,10 @@ function PhotosModal({
   const loadPhotos = () => {
     if (!parentId) return;
     let cancelled = false;
+    // Snapshot the localUri map BEFORE clearing photos so it is available
+    // inside the async callback (setPhotos([]) would wipe it from prev otherwise).
+    const capturedCache = { ...localUriCache.current };
+
     setLoading(true);
     setPhotos([]);
 
@@ -306,13 +352,13 @@ function PhotosModal({
     fetcher
       .then((data) => {
         if (cancelled) return;
-        const mapped: PhotoItem[] = ((data as any).photos ?? []).map((ph: any) => ({
+        setPhotos(((data as any).photos ?? []).map((ph: any) => ({
           id: ph.id,
           uri: ph.uri ?? ph.url ?? ph.fileUrl ?? '',
+          localUri: capturedCache[ph.id],
           activityId: ph.activityId ?? null,
           activityTitle: ph.activityTitle ?? null,
-        }));
-        setPhotos(mapped);
+        })));
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -331,24 +377,51 @@ function PhotosModal({
       { mediaType: 'photo', selectionLimit: 20, quality: 0.85, maxWidth: 2048, maxHeight: 2048 },
       async (res) => {
         if (res.didCancel || !res.assets?.length) return;
+
+        const assets = res.assets.map((a) => ({
+          uri: a.uri ?? '',
+          type: a.type ?? 'image/jpeg',
+          name: a.fileName ?? 'photo.jpg',
+        })).filter((a) => a.uri);
+        if (!assets.length) return;
+
+        // Optimistic: add photos immediately with local file URIs so they display
+        // right away without waiting for the S3 upload to complete.
+        const tempIds = assets.map((_, i) => `temp_${Date.now()}_${i}`);
+        setPhotos((prev) => [
+          ...prev,
+          ...assets.map((a, i) => ({
+            id: tempIds[i],
+            uri: a.uri,
+            localUri: a.uri,
+            activityId: null,
+            activityTitle: null,
+          })),
+        ]);
+
         setUploading(true);
         try {
-          const assets = res.assets.map((a) => ({
-            uri: a.uri ?? '',
-            type: a.type ?? 'image/jpeg',
-            name: a.fileName ?? 'photo.jpg',
-          }));
           const result = parentType === 'trip'
             ? await uploadTripPhotos(parentId, assets)
             : await uploadEventPhotos(parentId, assets);
-          const newPhotos: PhotoItem[] = result.photos.map((ph: any) => ({
-            id: ph.id,
-            uri: ph.url ?? ph.fileUrl ?? '',
-            activityId: null,
-            activityTitle: null,
-          }));
-          setPhotos((prev) => [...prev, ...newPhotos]);
+
+          // Replace temp entries with server-backed photos; keep localUri as fallback
+          setPhotos((prev) => {
+            const withoutTemps = prev.filter((p) => !tempIds.includes(p.id));
+            const uploaded: PhotoItem[] = result.photos.map((ph: any, i: number) => ({
+              id: ph.id,
+              uri: ph.url ?? ph.fileUrl ?? assets[i]?.uri ?? '',
+              localUri: assets[i]?.uri,
+              activityId: null,
+              activityTitle: null,
+            }));
+            // Persist localUris so they survive the next setPhotos([]) call in loadPhotos
+            uploaded.forEach((p) => { if (p.localUri) localUriCache.current[p.id] = p.localUri; });
+            return [...withoutTemps, ...uploaded];
+          });
         } catch (err: any) {
+          // Roll back optimistic entries on failure
+          setPhotos((prev) => prev.filter((p) => !tempIds.includes(p.id)));
           const status = err?.response?.status;
           Toast.show({
             type: 'error',
@@ -410,7 +483,7 @@ function PhotosModal({
 
   const renderThumb = (ph: PhotoItem) => (
     <View key={ph.id} style={{ position: 'relative' }}>
-      <PhotoThumb photo={ph} onPress={() => !editMode && setPreviewPhoto(ph)} />
+      <PhotoThumb photo={ph} onPress={() => !editMode && setPreviewIndex(photos.findIndex(p => p.id === ph.id))} />
       {editMode && isOwner && (
         <TouchableOpacity
           style={styles.thumbDeleteBtn}
@@ -433,7 +506,26 @@ function PhotosModal({
         <View style={styles.overlay}>
           <View style={[styles.dialog, { maxHeight: '85%' }]}>
             <View style={styles.dialogHeader}>
-              <Text style={styles.dialogTitle} numberOfLines={1}>{title}</Text>
+              {/* Left side: title + subtitle */}
+              <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
+                <Text style={styles.dialogTitle} numberOfLines={1}>{title}</Text>
+                {/* Subtitle shown right under the name — editable for owner, display-only for viewers */}
+                {(editMode && isOwner && !userId) ? (
+                  <TextInput
+                    value={subtitleDraft}
+                    onChangeText={setSubtitleDraft}
+                    placeholder="Add a short description…"
+                    placeholderTextColor="#94a3b8"
+                    style={styles.modalSubtitleInput}
+                    maxLength={80}
+                    returnKeyType="done"
+                  />
+                ) : (initialSubtitle?.trim() ? (
+                  <Text style={styles.modalSubtitleText}>{initialSubtitle}</Text>
+                ) : null)}
+              </View>
+
+              {/* Right side: edit toggle + close */}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 {isOwner && !userId && (
                   editMode ? (
@@ -452,7 +544,7 @@ function PhotosModal({
                       onPress={() => setEditMode(true)}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <PencilLine size={18} color="#0d9488" />
+                      <Pen size={18} color="#0d9488" />
                     </TouchableOpacity>
                   )
                 )}
@@ -464,21 +556,6 @@ function PhotosModal({
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.dialogBody}>
-
-                {/* Subtitle row — editable in edit mode, display-only otherwise */}
-                {(editMode && isOwner && !userId) ? (
-                  <TextInput
-                    value={subtitleDraft}
-                    onChangeText={setSubtitleDraft}
-                    placeholder="Add a short subtitle (optional)"
-                    placeholderTextColor="#94a3b8"
-                    style={styles.subtitleInput}
-                    maxLength={80}
-                    returnKeyType="done"
-                  />
-                ) : (initialSubtitle?.trim() ? (
-                  <Text style={styles.subtitleDisplay}>{initialSubtitle}</Text>
-                ) : null)}
 
                 {loading && (
                   <View style={styles.modalLoadingRow}>
@@ -553,8 +630,8 @@ function PhotosModal({
           </View>
         </View>
       </Modal>
-      <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
-        <PreviewModal photo={previewPhoto} onClose={() => setPreviewPhoto(null)} />
+      <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
+        <PreviewModal photos={photos} initialIndex={previewIndex ?? 0} onClose={() => setPreviewIndex(null)} />
       </Modal>
     </>
   );
@@ -679,7 +756,7 @@ function CustomCardPhotosModal({
   onUpdateCard: (next: CustomCard) => void;
 }) {
   const [editMode, setEditMode] = useState(false);
-  const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   // Reset to view mode whenever the modal opens/closes or card changes
   useEffect(() => {
@@ -769,7 +846,7 @@ function CustomCardPhotosModal({
                       <View key={ph.id} style={{ position: 'relative' }}>
                         <PhotoThumb
                           photo={ph}
-                          onPress={() => !editMode && setPreviewPhoto(ph)}
+                          onPress={() => !editMode && setPreviewIndex(photos.findIndex(p => p.id === ph.id))}
                         />
                         {/* Delete button only visible in edit mode */}
                         {editMode && (
@@ -799,8 +876,8 @@ function CustomCardPhotosModal({
       </Modal>
 
       {/* Full-screen preview only in view mode */}
-      <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhoto(null)}>
-        <PreviewModal photo={previewPhoto} onClose={() => setPreviewPhoto(null)} />
+      <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
+        <PreviewModal photos={photos} initialIndex={previewIndex ?? 0} onClose={() => setPreviewIndex(null)} />
       </Modal>
     </>
   );
@@ -833,7 +910,6 @@ export default function GalleryTab({
     name: string;
     type: 'trip' | 'event';
     subtitle: string | null;
-    startInEdit?: boolean;
   } | null>(null);
 
   // Custom cards (local, stored in AsyncStorage)
@@ -958,7 +1034,7 @@ export default function GalleryTab({
                 <View style={styles.nameRow}>
                   <Text style={styles.name}>{displayName}</Text>
                   <TouchableOpacity style={styles.editBtn} onPress={onEditProfile} activeOpacity={0.8}>
-                    <PencilLine size={15} color="#64748b" />
+                    <Pen size={15} color="#64748b" />
                   </TouchableOpacity>
                 </View>
               ) : null}
@@ -974,71 +1050,67 @@ export default function GalleryTab({
           {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
         </View>
 
-        {/* ── Loading spinner ── */}
-        {loading && (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color="#0d9488" />
-          </View>
+        {/* ── Skeleton while loading, real sections after ── */}
+        {loading ? (
+          <GallerySkeleton />
+        ) : (
+          <>
+            {/* ── Gallery of Trips ── */}
+            <SectionHeader
+              title="Gallery of Trips"
+              count={displayTrips.length + customTripCards.length}
+              onAdd={() => setShowCreateCard('trip')}
+              icon={<Plane size={20} color="#0d9488" />}
+            />
+            <View style={styles.grid}>
+              {displayTrips.map((trip: any) => (
+                <GridCard
+                  key={trip.id}
+                  item={trip}
+                  onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null })}
+                />
+              ))}
+              {cardsLoaded && customTripCards.map((card) => (
+                <GridCard
+                  key={card.id}
+                  item={{ id: card.id, name: card.name, bannerImageUrl: card.bannerImageUrl }}
+                  onPress={() => setOpenCard(card)}
+                />
+              ))}
+              {displayTrips.length === 0 && customTripCards.length === 0 && (
+                <EmptyCard label="Tap + to create a trip album" />
+              )}
+            </View>
+
+            {/* ── Gallery of Events ── */}
+            <View style={styles.sectionSpacer} />
+            <SectionHeader
+              title="Gallery of Events"
+              count={galleryEvents.length + customEventCards.length}
+              onAdd={() => setShowCreateCard('event')}
+              icon={<CalendarDays size={20} color="#f59e0b" />}
+            />
+            <View style={styles.grid}>
+              {galleryEvents.map((ev: any) => (
+                <GridCard
+                  key={ev.id}
+                  item={ev}
+                  onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null })}
+                />
+              ))}
+              {cardsLoaded && customEventCards.map((card) => (
+                <GridCard
+                  key={card.id}
+                  item={{ id: card.id, name: card.name, bannerImageUrl: card.bannerImageUrl }}
+                  onPress={() => setOpenCard(card)}
+                />
+              ))}
+              {galleryEvents.length === 0 && customEventCards.length === 0 && (
+                <EmptyCard label="Tap + to create an event album" />
+              )}
+            </View>
+          </>
         )}
-
-        {/* ── Gallery of Trips ── */}
-        <SectionHeader
-          title="Gallery of Trips"
-          count={displayTrips.length + customTripCards.length}
-          onAdd={() => setShowCreateCard('trip')}
-          icon={<Plane size={20} color="#0d9488" />}
-        />
-        <View style={styles.grid}>
-          {displayTrips.map((trip: any) => (
-            <GridCard
-              key={trip.id}
-              item={trip}
-              isOwner
-              onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null })}
-              onEditPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null, startInEdit: true })}
-            />
-          ))}
-          {cardsLoaded && customTripCards.map((card) => (
-            <GridCard
-              key={card.id}
-              item={{ id: card.id, name: card.name, bannerImageUrl: card.bannerImageUrl }}
-              onPress={() => setOpenCard(card)}
-            />
-          ))}
-          {displayTrips.length === 0 && customTripCards.length === 0 && !loading && (
-            <EmptyCard label="Tap + to create a trip album" />
-          )}
-        </View>
-
-        {/* ── Gallery of Events ── */}
-        <View style={styles.sectionSpacer} />
-        <SectionHeader
-          title="Gallery of Events"
-          count={galleryEvents.length + customEventCards.length}
-          onAdd={() => setShowCreateCard('event')}
-          icon={<CalendarDays size={20} color="#f59e0b" />}
-        />
-        <View style={styles.grid}>
-          {galleryEvents.map((ev: any) => (
-            <GridCard
-              key={ev.id}
-              item={ev}
-              isOwner
-              onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null })}
-              onEditPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null, startInEdit: true })}
-            />
-          ))}
-          {cardsLoaded && customEventCards.map((card) => (
-            <GridCard
-              key={card.id}
-              item={{ id: card.id, name: card.name, bannerImageUrl: card.bannerImageUrl }}
-              onPress={() => setOpenCard(card)}
-            />
-          ))}
-          {galleryEvents.length === 0 && customEventCards.length === 0 && !loading && (
-            <EmptyCard label="Tap + to create an event album" />
-          )}
-        </View>
 
       </ScrollView>
 
@@ -1051,7 +1123,6 @@ export default function GalleryTab({
           parentType={photoModal.type}
           isOwner
           gallerySubtitle={photoModal.subtitle}
-          defaultEditMode={photoModal.startInEdit}
           onSubtitleSaved={(subtitle) => handleSubtitleSaved(photoModal.id, photoModal.type, subtitle)}
           onClose={() => setPhotoModal(null)}
         />
@@ -1093,8 +1164,6 @@ const styles = StyleSheet.create({
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   locationText: { fontSize: 14, color: '#45556C' },
   bio: { fontSize: 14, color: '#45556C', textAlign: 'center', marginTop: 12, lineHeight: 20 },
-
-  loadingRow: { alignItems: 'center', marginBottom: 12 },
 
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1182,7 +1251,7 @@ const styles = StyleSheet.create({
   },
 
   // Full-screen preview
-  previewBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' },
+  previewBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' },
   previewClose: {
     position: 'absolute', top: 48, left: 20, zIndex: 10,
     width: 36, height: 36, borderRadius: 18,
@@ -1191,6 +1260,11 @@ const styles = StyleSheet.create({
   },
   previewImg: { width: SCREEN_W, height: SCREEN_W * 1.2 },
   previewLoader: { position: 'absolute' },
+  previewCounter: {
+    position: 'absolute', bottom: 36, alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12,
+  },
+  previewCounterText: { color: '#fff', fontSize: 13, fontWeight: '500' },
 
   // Create card modal
   bannerPicker: {
@@ -1248,22 +1322,20 @@ const styles = StyleSheet.create({
   },
   addPhotosBtnText: { fontSize: 15, fontWeight: '600', color: '#0d9488' },
 
-  subtitleInput: {
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    fontSize: 14,
-    color: '#0f172a',
-    marginBottom: 14,
-    backgroundColor: '#f8fafc',
-  },
-  subtitleDisplay: {
+  modalSubtitleText: {
     fontSize: 13,
-    color: '#64748b',
+    color: '#0d9488',
+    fontWeight: '500',
     fontStyle: 'italic',
-    marginBottom: 12,
-    paddingHorizontal: 2,
+    marginTop: 3,
+  },
+  modalSubtitleInput: {
+    fontSize: 13,
+    color: '#0d9488',
+    borderBottomWidth: 1,
+    borderBottomColor: '#0d9488',
+    paddingVertical: 3,
+    marginTop: 5,
+    paddingHorizontal: 0,
   },
 });

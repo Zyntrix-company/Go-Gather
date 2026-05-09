@@ -482,19 +482,23 @@ const getUserGallery = async (targetId) => {
   const { getPresignedDownloadUrl } = require('../../utils/s3.util');
   const cloudfrontDomain = config.s3?.cloudfrontDomain;
 
-  // Resolve a raw S3/CloudFront URL to a 1-hour presigned URL.
-  // External URLs (Unsplash, etc.) pass through unchanged.
+  // Resolve a raw URL for banner display.
+  // - External URLs (Unsplash, etc.) pass through unchanged.
+  // - CloudFront CDN URLs are already publicly accessible — return as-is.
+  //   (Generating a presigned S3 URL from a CDN URL fails when OAC is active.)
+  // - Direct S3 URLs need a presigned URL for private-bucket access.
   const presignBanner = async (rawUrl) => {
     if (!rawUrl) return null;
     try {
       const hostname = new URL(rawUrl).hostname;
-      const isOwn = (
-        (cloudfrontDomain && hostname === cloudfrontDomain) ||
-        hostname.endsWith('.amazonaws.com')
-      );
-      if (!isOwn) return rawUrl;
-      const key = new URL(rawUrl).pathname.replace(/^\//, '');
-      return key ? await getPresignedDownloadUrl(key) : rawUrl;
+      // If CloudFront is configured and this URL is from our CDN, return it directly.
+      if (cloudfrontDomain && hostname === cloudfrontDomain) return rawUrl;
+      // For direct S3 URLs, generate a presigned download URL.
+      if (hostname.endsWith('.amazonaws.com')) {
+        const key = new URL(rawUrl).pathname.replace(/^\//, '');
+        return key ? await getPresignedDownloadUrl(key) : rawUrl;
+      }
+      return rawUrl;
     } catch {
       return rawUrl;
     }
@@ -599,7 +603,11 @@ const getUserPhotos = async (targetId) => {
   const eventMap = new Map();
 
   for (const row of photosResult.rows) {
-    const presignedUrl = await getPresignedDownloadUrl(row.s3_key);
+    // Mirror the same CloudFront guard used in shared photos.service.js:
+    // when CloudFront is configured the stored file_url IS the CDN URL — skip presigning
+    // (presigned S3 URLs fail when the bucket uses OAC, which blocks direct S3 access).
+    const cloudfrontDomain = config.s3?.cloudfrontDomain;
+    const presignedUrl = cloudfrontDomain ? null : await getPresignedDownloadUrl(row.s3_key);
     const photo = {
       id:            row.id,
       fileUrl:       row.file_url,

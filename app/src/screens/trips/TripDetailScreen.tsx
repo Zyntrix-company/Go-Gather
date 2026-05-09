@@ -3,8 +3,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
   TextInput, Animated, PanResponder, Image, Platform, Linking, NativeModules,
-  ActivityIndicator,
+  ActivityIndicator, FlatList, Dimensions,
 } from 'react-native';
+const { width: SCREEN_W } = Dimensions.get('window');
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
@@ -420,10 +421,10 @@ function TripPhotoPreview({ photo }: { photo: PhotoItem }) {
   const [loading, setLoading] = useState(true);
   useEffect(() => { setLoading(true); }, [photo.uri]);
   return (
-    <>
+    <View style={{ width: SCREEN_W, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
       <CachedImage
         uri={photo.localUri ?? photo.uri}
-        style={{ width: '100%', height: '75%' }}
+        style={{ width: SCREEN_W, height: SCREEN_W * 1.2 }}
         resizeMode="contain"
         onLoad={() => setLoading(false)}
         onError={() => setLoading(false)}
@@ -437,7 +438,7 @@ function TripPhotoPreview({ photo }: { photo: PhotoItem }) {
           </View>
         </View>
       )}
-    </>
+    </View>
   );
 }
 
@@ -532,6 +533,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [showPolls, setShowPolls] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [previewPhotoIndex, setPreviewPhotoIndex] = useState<number | null>(null);
+  const photoListRef = useRef<any>(null);
   const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
   const [actDateError, setActDateError] = useState<string>('');
 
@@ -1017,18 +1019,23 @@ export default function TripDetailScreen({ route, navigation }: any) {
   }
   function showPrevPhoto() {
     if (previewPhotoIndex === null || photos.length <= 1) return;
-    setPreviewPhotoIndex((previewPhotoIndex - 1 + photos.length) % photos.length);
+    const next = (previewPhotoIndex - 1 + photos.length) % photos.length;
+    setPreviewPhotoIndex(next);
+    photoListRef.current?.scrollToIndex({ index: next, animated: true });
   }
   function showNextPhoto() {
     if (previewPhotoIndex === null || photos.length <= 1) return;
-    setPreviewPhotoIndex((previewPhotoIndex + 1) % photos.length);
+    const next = (previewPhotoIndex + 1) % photos.length;
+    setPreviewPhotoIndex(next);
+    photoListRef.current?.scrollToIndex({ index: next, animated: true });
   }
 
   // ── Photo handlers (API-backed) ──
 
   function handlePickPhoto(cam: boolean) {
     const fn = cam ? launchCamera : launchImageLibrary;
-    fn({ mediaType: 'mixed' }, async res => {
+    const opts = cam ? { mediaType: 'mixed' as const } : { mediaType: 'mixed' as const, selectionLimit: 20 };
+    fn(opts, async res => {
       if (res.didCancel || res.errorCode) return;
       const assets = (res.assets || []).map(a => ({
         uri: a.uri ?? '',
@@ -2206,7 +2213,20 @@ export default function TripDetailScreen({ route, navigation }: any) {
           FULLSCREEN PHOTO PREVIEW
       ═══════════════════════════════════════════════════ */}
         <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhotoIndex(null)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' }}>
+            <FlatList
+              ref={photoListRef}
+              data={photos}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              initialScrollIndex={previewPhotoIndex ?? 0}
+              getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
+              style={{ flex: 1 }}
+              onMomentumScrollEnd={e => setPreviewPhotoIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
+              renderItem={({ item }) => <TripPhotoPreview photo={item} />}
+              keyExtractor={item => item.id}
+            />
             {/* Close — top left */}
             <TouchableOpacity
               onPress={() => setPreviewPhotoIndex(null)}
@@ -2240,10 +2260,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 </Svg>
               </TouchableOpacity>
             )}
-            {previewPhoto && (
-              <TripPhotoPreview photo={previewPhoto} />
-            )}
-            {previewPhoto && photos.length > 1 && (
+            {photos.length > 1 && (
               <>
                 <TouchableOpacity
                   onPress={showPrevPhoto}
@@ -2259,6 +2276,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 >
                   <Text style={{ color: '#fff', fontSize: 28, lineHeight: 30 }}>{'›'}</Text>
                 </TouchableOpacity>
+                <View style={{ position: 'absolute', bottom: 36, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
+                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>{(previewPhotoIndex ?? 0) + 1} / {photos.length}</Text>
+                </View>
               </>
             )}
           </View>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
   TextInput, Image, Platform, NativeModules, Dimensions, Linking,
-  ActivityIndicator,
+  ActivityIndicator, FlatList,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -325,16 +325,16 @@ function EventPhotoPreview({ photo }: { photo: PhotoItem }) {
   const [loading, setLoading] = useState(true);
   useEffect(() => { setLoading(true); }, [photo.uri]);
   return (
-    <>
+    <View style={{ width: SCREEN_W, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
       <CachedImage
         uri={photo.localUri ?? photo.uri}
-        style={{ width: '100%', height: '75%' }}
+        style={{ width: SCREEN_W, height: SCREEN_W * 1.2 }}
         resizeMode="contain"
         onLoad={() => setLoading(false)}
         onError={() => setLoading(false)}
       />
       {loading && <ActivityIndicator style={{ position: 'absolute' }} size="large" color="#fff" />}
-    </>
+    </View>
   );
 }
 
@@ -370,6 +370,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [showNotes, setShowNotes] = useState(false);
   const [showEditEvent, setShowEditEvent] = useState(false);
   const [previewPhotoIndex, setPreviewPhotoIndex] = useState<number | null>(null);
+  const photoListRef = useRef<any>(null);
   const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
 
   // ── Data state ──
@@ -605,7 +606,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   function handlePickPhoto(cam: boolean) {
     const fn = cam ? launchCamera : launchImageLibrary;
-    fn({ mediaType: 'photo', maxWidth: 1280, maxHeight: 1280, quality: 0.7 }, async res => {
+    const opts = cam ? { mediaType: 'photo' as const, maxWidth: 1280, maxHeight: 1280, quality: 0.7 } : { mediaType: 'photo' as const, maxWidth: 1280, maxHeight: 1280, quality: 0.7, selectionLimit: 20 };
+    fn(opts, async res => {
       if (res.didCancel || res.errorCode) return;
       const assets = (res.assets || []).filter(a => a.uri);
       if (!assets.length) return;
@@ -642,11 +644,15 @@ export default function EventDetailScreen({ route, navigation }: any) {
   }
   function showPrevPhoto() {
     if (previewPhotoIndex === null || photos.length <= 1) return;
-    setPreviewPhotoIndex((previewPhotoIndex - 1 + photos.length) % photos.length);
+    const next = (previewPhotoIndex - 1 + photos.length) % photos.length;
+    setPreviewPhotoIndex(next);
+    photoListRef.current?.scrollToIndex({ index: next, animated: true });
   }
   function showNextPhoto() {
     if (previewPhotoIndex === null || photos.length <= 1) return;
-    setPreviewPhotoIndex((previewPhotoIndex + 1) % photos.length);
+    const next = (previewPhotoIndex + 1) % photos.length;
+    setPreviewPhotoIndex(next);
+    photoListRef.current?.scrollToIndex({ index: next, animated: true });
   }
 
   async function handleAddExpense() {
@@ -1478,7 +1484,20 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
         {/* Fullscreen photo preview */}
         <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhotoIndex(null)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' }}>
+            <FlatList
+              ref={photoListRef}
+              data={photos}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              initialScrollIndex={previewPhotoIndex ?? 0}
+              getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
+              style={{ flex: 1 }}
+              onMomentumScrollEnd={e => setPreviewPhotoIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
+              renderItem={({ item }) => <EventPhotoPreview photo={item} />}
+              keyExtractor={item => item.id}
+            />
             {/* Close button — top left */}
             <TouchableOpacity
               onPress={() => setPreviewPhotoIndex(null)}
@@ -1489,32 +1508,31 @@ export default function EventDetailScreen({ route, navigation }: any) {
               </Svg>
             </TouchableOpacity>
             {/* Delete button — top right */}
-            <TouchableOpacity
-              onPress={() => {
-                if (!previewPhoto) return;
-                showConfirm({
-                  title: 'Delete Photo',
-                  message: 'Remove this photo?',
-                  destructive: true,
-                  onConfirm: async () => {
-                    try {
-                      await deleteEventPhoto(event.id, previewPhoto.id);
-                      setPhotos(p => p.filter(x => x.id !== previewPhoto.id));
-                      setPreviewPhotoIndex(null);
-                    } catch (err) { handleApiError(err); }
-                  },
-                });
-              }}
-              style={{ position: 'absolute', top: 48, right: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(239,68,68,0.85)', alignItems: 'center', justifyContent: 'center' }}
-              activeOpacity={0.8}>
-              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-              </Svg>
-            </TouchableOpacity>
             {previewPhoto && (
-              <EventPhotoPreview photo={previewPhoto} />
+              <TouchableOpacity
+                onPress={() => {
+                  if (!previewPhoto) return;
+                  showConfirm({
+                    title: 'Delete Photo',
+                    message: 'Remove this photo?',
+                    destructive: true,
+                    onConfirm: async () => {
+                      try {
+                        await deleteEventPhoto(event.id, previewPhoto.id);
+                        setPhotos(p => p.filter(x => x.id !== previewPhoto.id));
+                        setPreviewPhotoIndex(null);
+                      } catch (err) { handleApiError(err); }
+                    },
+                  });
+                }}
+                style={{ position: 'absolute', top: 48, right: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(239,68,68,0.85)', alignItems: 'center', justifyContent: 'center' }}
+                activeOpacity={0.8}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                  <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+              </TouchableOpacity>
             )}
-            {previewPhoto && photos.length > 1 && (
+            {photos.length > 1 && (
               <>
                 <TouchableOpacity
                   onPress={showPrevPhoto}
@@ -1530,6 +1548,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 >
                   <Text style={{ color: '#fff', fontSize: 28, lineHeight: 30 }}>{'›'}</Text>
                 </TouchableOpacity>
+                <View style={{ position: 'absolute', bottom: 36, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
+                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>{(previewPhotoIndex ?? 0) + 1} / {photos.length}</Text>
+                </View>
               </>
             )}
           </View>
