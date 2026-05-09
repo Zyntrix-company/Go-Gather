@@ -48,3 +48,6 @@ Dockerfile
 
 # Local archives
 app.zip
+
+# Internal / local docs (not pushed)
+docs/
