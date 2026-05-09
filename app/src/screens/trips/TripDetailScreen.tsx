@@ -12,7 +12,7 @@ import SweeIcon from '../../components/common/SweeIcon';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { WebView } from 'react-native-webview';
 // DocumentPicker loaded dynamically to avoid crash if native module not yet linked
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import AppDatePicker from '../../components/common/AppDatePicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import LocationAutocomplete from '../../components/common/LocationAutocomplete';
 import CachedImage from '../../components/common/CachedImage';
@@ -538,7 +538,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── Add Activity form ──
   const [actTitle, setActTitle] = useState('');
   const [actDate, setActDate] = useState<Date | undefined>(undefined);
-  const [showActDatePicker, setShowActDatePicker] = useState(false);
   const [actHour, setActHour] = useState(''); // kept for edit-load compat
   const [actMin, setActMin] = useState(''); // kept for edit-load compat
   const [actLocation, setActLocation] = useState('');
@@ -608,8 +607,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [editLocation, setEditLocation] = useState('');
   const [editStartDate, setEditStartDate] = useState<Date>(new Date());
   const [editEndDate, setEditEndDate] = useState<Date>(new Date());
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
   const [editStartDateError, setEditStartDateError] = useState<string | null>(null);
   const [editEndDateError, setEditEndDateError] = useState<string | null>(null);
 
@@ -1741,17 +1738,18 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-end' }}>
                     <View style={{ flex: 3 }}>
                       <Text style={styles.fLabel}>Date</Text>
-                      <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowActDatePicker(true)} activeOpacity={0.8}>
-                        <Text style={{ fontSize: 13, color: actDate ? '#0f172a' : '#94a3b8' }}>{actDate ? fmtDate(actDate) : 'Select date'}</Text>
-                      </TouchableOpacity>
-                      {showActDatePicker && (
-                        <DateTimePicker value={actDate || new Date()} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                          onChange={(e: DateTimePickerEvent, d?: Date) => { if (Platform.OS === 'android') setShowActDatePicker(false); if (e.type === 'set' && d) { setActDate(d); setActDateError(''); } else if (e.type === 'dismissed') setShowActDatePicker(false); }} />
-                      )}
-                      {showActDatePicker && Platform.OS === 'ios' && (
-                        <TouchableOpacity style={[styles.tealBtnFull, { marginTop: 6 }]} onPress={() => setShowActDatePicker(false)}><Text style={styles.tealBtnTxt}>Done</Text></TouchableOpacity>
-                      )}
-                      {!!actDateError && <Text style={{ fontSize: 11, color: '#ef4444', marginTop: 3 }}>{actDateError}</Text>}
+                      <AppDatePicker
+                        mode="trip"
+                        value={actDate ? `${actDate.getFullYear()}-${String(actDate.getMonth() + 1).padStart(2, '0')}-${String(actDate.getDate()).padStart(2, '0')}` : ''}
+                        onChange={(iso) => {
+                          const [y, m, d] = iso.split('-').map(n => parseInt(n, 10));
+                          setActDate(new Date(y, m - 1, d));
+                          setActDateError('');
+                        }}
+                        placeholder="Select date"
+                        error={actDateError || null}
+                        title="Activity date"
+                      />
                     </View>
                     <View style={{ flex: 2 }}>
                       <Text style={styles.fLabel}>Time</Text>
@@ -2783,61 +2781,30 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <Text style={styles.fLabel}>Trip Name</Text>
                   <TextInput style={styles.fInput} placeholder="e.g., Tokyo Getaway" placeholderTextColor="#94a3b8" value={editName} onChangeText={setEditName} />
                   <Text style={styles.fLabel}>Start Date</Text>
-                  <TouchableOpacity style={[styles.fInputTouch, editStartDateError && { borderColor: '#ef4444', borderWidth: 1.5 }]} onPress={() => setShowStartPicker(true)} activeOpacity={0.8}>
-                    <Text style={{ color: '#0f172a', fontSize: 14 }}>
-                      {`${String(editStartDate.getDate()).padStart(2, '0')}/${String(editStartDate.getMonth() + 1).padStart(2, '0')}/${String(editStartDate.getFullYear()).slice(-2)}`}
-                    </Text>
-                  </TouchableOpacity>
-                  {editStartDateError && (
-                    <Text style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{editStartDateError}</Text>
-                  )}
-                  {showStartPicker && (
-                    <DateTimePicker
-                      value={editStartDate}
-                      mode="date"
-                      display="default"
-                      onChange={(_: DateTimePickerEvent, d?: Date) => {
-                        setShowStartPicker(false);
-                        if (d) {
-                          const validation = validateDateRange(d);
-                          if (validation.isValid) {
-                            setEditStartDate(d);
-                            setEditStartDateError(null);
-                          } else {
-                            setEditStartDateError(validation.error || '');
-                          }
-                        }
-                      }}
-                    />
-                  )}
+                  <AppDatePicker
+                    mode="trip"
+                    value={`${editStartDate.getFullYear()}-${String(editStartDate.getMonth() + 1).padStart(2, '0')}-${String(editStartDate.getDate()).padStart(2, '0')}`}
+                    onChange={(iso) => {
+                      const [y, m, d] = iso.split('-').map(n => parseInt(n, 10));
+                      setEditStartDate(new Date(y, m - 1, d));
+                      setEditStartDateError(null);
+                    }}
+                    error={editStartDateError}
+                    title="Edit start date"
+                  />
                   <Text style={styles.fLabel}>End Date</Text>
-                  <TouchableOpacity style={[styles.fInputTouch, editEndDateError && { borderColor: '#ef4444', borderWidth: 1.5 }]} onPress={() => setShowEndPicker(true)} activeOpacity={0.8}>
-                    <Text style={{ color: '#0f172a', fontSize: 14 }}>
-                      {`${String(editEndDate.getDate()).padStart(2, '0')}/${String(editEndDate.getMonth() + 1).padStart(2, '0')}/${String(editEndDate.getFullYear()).slice(-2)}`}
-                    </Text>
-                  </TouchableOpacity>
-                  {editEndDateError && (
-                    <Text style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{editEndDateError}</Text>
-                  )}
-                  {showEndPicker && (
-                    <DateTimePicker
-                      value={editEndDate}
-                      mode="date"
-                      display="default"
-                      onChange={(_: DateTimePickerEvent, d?: Date) => {
-                        setShowEndPicker(false);
-                        if (d) {
-                          const validation = validateDateRange(d);
-                          if (validation.isValid) {
-                            setEditEndDate(d);
-                            setEditEndDateError(null);
-                          } else {
-                            setEditEndDateError(validation.error || '');
-                          }
-                        }
-                      }}
-                    />
-                  )}
+                  <AppDatePicker
+                    mode="trip"
+                    minDate={editStartDate}
+                    value={`${editEndDate.getFullYear()}-${String(editEndDate.getMonth() + 1).padStart(2, '0')}-${String(editEndDate.getDate()).padStart(2, '0')}`}
+                    onChange={(iso) => {
+                      const [y, m, d] = iso.split('-').map(n => parseInt(n, 10));
+                      setEditEndDate(new Date(y, m - 1, d));
+                      setEditEndDateError(null);
+                    }}
+                    error={editEndDateError}
+                    title="Edit end date"
+                  />
                   <Text style={styles.fLabel}>Location</Text>
                   <View style={{ zIndex: 10 }}>
                     <LocationAutocomplete

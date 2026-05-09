@@ -179,6 +179,58 @@ export default function BlogDetail() {
           </div>
         )}
       </div>
+
+      {/* App Download Banner */}
+      <div className="max-w-[880px] mx-auto px-6 mt-16 mb-4">
+        <div className="rounded-2xl bg-gradient-to-br from-[#e8f5f5] to-[#d0eded] px-8 py-10 flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="text-center md:text-left">
+            <p className="text-xs font-semibold tracking-widest uppercase text-[#008080] mb-2">
+              Travel smarter
+            </p>
+            <h2 className="text-2xl md:text-3xl font-bold text-[#1a1a1a] leading-snug mb-3">
+              Get the GatherrGo app
+            </h2>
+            <p className="text-[#555] text-sm max-w-xs">
+              Discover trips, events &amp; experiences — all in one place. Download now and start exploring.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row md:flex-col gap-3 shrink-0">
+            {/* App Store */}
+            <a
+              href="#"
+              aria-label="Download on the App Store"
+              className="flex items-center gap-3 bg-[#1a1a1a] hover:bg-[#333] text-white rounded-xl px-5 py-3 transition-colors w-48"
+            >
+              <svg viewBox="0 0 24 24" className="w-7 h-7 shrink-0 fill-white" aria-hidden>
+                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+              </svg>
+              <div className="leading-tight">
+                <span className="block text-[10px] text-white/70 font-medium">Download on the</span>
+                <span className="block text-base font-semibold">App Store</span>
+              </div>
+            </a>
+
+            {/* Google Play */}
+            <a
+              href="#"
+              aria-label="Get it on Google Play"
+              className="flex items-center gap-3 bg-[#1a1a1a] hover:bg-[#333] text-white rounded-xl px-5 py-3 transition-colors w-48"
+            >
+              <svg viewBox="0 0 24 24" className="w-7 h-7 shrink-0" aria-hidden>
+                <path fill="#ea4335" d="M3.18 23.76a2 2 0 0 1-.97-1.76V2a2 2 0 0 1 .97-1.76l.11-.06 11.67 11.67v.27L3.29 23.82z" />
+                <path fill="#fbbc04" d="M18.82 15.87l-3.88-3.87v-.27l3.88-3.87.09.05 4.6 2.61a2.02 2.02 0 0 1 0 3.52l-4.6 2.61z" />
+                <path fill="#34a853" d="M18.91 15.82L7.13 24c-.5.35-1.14.4-1.68.14l12.57-12.57z" />
+                <path fill="#4285f4" d="M5.45-.14c.54-.26 1.18-.21 1.68.14L18.91 8.18 6.34 20.75z" />
+              </svg>
+              <div className="leading-tight">
+                <span className="block text-[10px] text-white/70 font-medium">Get it on</span>
+                <span className="block text-base font-semibold">Google Play</span>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
     </article>
   );
 }

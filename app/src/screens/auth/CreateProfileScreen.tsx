@@ -19,6 +19,7 @@ import Svg, { Path } from 'react-native-svg';
 import Logo from '../../components/common/Logo';
 import LegalModal from '../../components/common/LegalModal';
 import BlobBackground from '../../components/common/BlobBackground';
+import AppDatePicker from '../../components/common/AppDatePicker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -590,19 +591,20 @@ export default function CreateProfileScreen({ navigation }: any) {
             <LegalModal visible={showLegal} type="terms" onClose={() => setShowLegal(false)} />
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Date of Birth <Text style={styles.required}>*</Text></Text>
-              <TextInput
-                style={[styles.input, focusedField === 'dob' && styles.inputFocused, dobSubmitError && styles.inputError]}
-                placeholder={`DD/MM/YYYY`}
-                placeholderTextColor="#94a3b8"
-                value={dobText}
-                onChangeText={handleDobChange}
-                onFocus={() => setFocusedField('dob')}
-                onBlur={() => setFocusedField(null)}
-                keyboardType="numeric"
-                maxLength={10}
-                selectionColor="#0d9488"
-                underlineColorAndroid="transparent"
-                editable={!busy}
+              <AppDatePicker
+                mode="dob"
+                value={dob}
+                onChange={(iso) => {
+                  setDob(iso);
+                  setDobText(iso ? (() => { const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; })() : '');
+                  setValue('dob', iso, { shouldValidate: true });
+                  setDobSubmitError(false);
+                }}
+                placeholder="DD/MM/YYYY"
+                format="dd/mm/yyyy"
+                error={dobSubmitError ? ' ' : null}
+                disabled={busy}
+                title="Date of birth"
               />
               {dobSubmitError && (
                 <View style={styles.dobHintRow}>

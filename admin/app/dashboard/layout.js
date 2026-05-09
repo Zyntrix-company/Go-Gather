@@ -14,6 +14,7 @@ const NAV = [
   { href: '/dashboard/contact',      label: 'Feedback',           icon: MailIcon },
   { href: '/dashboard/blogs',        label: 'Blogs',              icon: BookIcon },
   { href: '/dashboard/deals',        label: 'Amazing Deals',      icon: TagIcon },
+  { href: '/dashboard/promo-video',  label: 'Promo Video',        icon: VideoIcon },
   { href: '/dashboard/legal',        label: 'Legal',              icon: FileTextIcon },
   { href: '/dashboard/security',     label: 'Security',           icon: ShieldIcon },
 ];
@@ -126,6 +127,12 @@ function BookIcon({ className }) {
 function TagIcon({ className }) {
   return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M3 3h8l9.5 9.5a2 2 0 010 2.83l-5.17 5.17a2 2 0 01-2.83 0L3 11V3z" />
+  </svg>;
+}
+function VideoIcon({ className }) {
+  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round"
+      d="M15 10l4.553-2.07A1 1 0 0121 8.845v6.31a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
   </svg>;
 }
 function ShieldIcon({ className }) {

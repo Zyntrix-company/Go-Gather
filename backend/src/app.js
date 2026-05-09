@@ -20,6 +20,7 @@ const { authRouter: emailAuthRoutes, emailDocsRouter } = require('./modules/emai
 const aiRoutes = require('./modules/ai/ai.routes');
 const blogsRoutes         = require('./modules/blogs/blogs.routes');
 const dealsRoutes         = require('./modules/deals/deals.routes');
+const promoVideoRoutes    = require('./modules/promo-video/promo-video.routes');
 const notificationsRoutes = require('./modules/notifications/notifications.routes');
 const adminRoutes        = require('./modules/admin/admin.routes');
 const { recordRequest }  = require('./modules/admin/admin.middleware');
@@ -109,6 +110,7 @@ app.use('/invites', invitesRoutes);
 app.use('/ai',            aiRoutes);
 app.use('/blogs',         blogsRoutes);
 app.use('/deals',         dealsRoutes);
+app.use('/promo-video',   promoVideoRoutes);
 app.use('/notifications', notificationsRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/admin',       adminRoutes);

@@ -193,6 +193,25 @@ const createBlogImageUpload = () => multer({
   },
 });
 
+// ── Promo video upload (MP4 / MOV — 200 MB max) ─────────────
+const PROMO_VIDEO_MAX_SIZE = 200 * MB;
+const PROMO_VIDEO_ALLOWED_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
+
+const createPromoVideoUpload = () => multer({
+  storage: memoryStorage,
+  limits: { fileSize: PROMO_VIDEO_MAX_SIZE },
+  fileFilter: (_req, file, cb) => {
+    if (PROMO_VIDEO_ALLOWED_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      const err = new Error('Promo video must be MP4, MOV, or WebM (max 200 MB)');
+      err.statusCode = 400;
+      err.error = 'INVALID_FILE_TYPE';
+      cb(err, false);
+    }
+  },
+});
+
 // ── Deal image upload (same config as blog images) ───────────
 const createDealImageUpload = () => multer({
   storage: memoryStorage,
@@ -216,6 +235,7 @@ const activityPhotoUpload = createActivityPhotoUpload();
 const tripFilesUpload = createTripFilesUpload();
 const blogImageUpload = createBlogImageUpload();
 const dealImageUpload = createDealImageUpload();
+const promoVideoUpload = createPromoVideoUpload();
 
 module.exports = {
   docUpload,
@@ -225,6 +245,7 @@ module.exports = {
   tripFilesUpload,
   blogImageUpload,
   dealImageUpload,
+  promoVideoUpload,
   handleMulterError,
   validateMimeFromBuffer,
 };

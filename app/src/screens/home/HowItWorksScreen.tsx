@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Polygon } from 'react-native-svg';
+import Video from 'react-native-video';
 import BlobBackground from '../../components/common/BlobBackground';
 import colors from '../../theme/colors';
 import { GATHERGO_FAQS } from '../../content/faqs';
+import { API_BASE } from '../../api/client';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -36,6 +38,15 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 }
 
 export default function HowItWorksScreen({ navigation }: { navigation: any }) {
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/promo-video`)
+      .then(r => r.json())
+      .then(data => { if (data?.videoUrl) setVideoUrl(data.videoUrl); })
+      .catch(() => {});
+  }, []);
+
   return (
     <SafeAreaView style={styles.safe}>
       <BlobBackground>
@@ -54,14 +65,37 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scroll}>
 
-          {/* Video placeholder */}
+          {/* Promotional / demo video */}
           <View style={styles.videoWrap}>
-            <View style={styles.videoPlaceholder}>
-              <View style={styles.playBtn}>
-                <Polygon points="10,8 10,16 16,12" fill="#fff" />
+            {videoUrl ? (
+              <Video
+                source={{ uri: videoUrl }}
+                style={styles.videoPlayer}
+                resizeMode="cover"
+                muted
+                repeat
+                paused={false}
+                controls={false}
+                ignoreSilentSwitch="ignore"
+                playInBackground={false}
+                playWhenInactive={false}
+                bufferConfig={{
+                  minBufferMs: 15000,
+                  maxBufferMs: 50000,
+                  bufferForPlaybackMs: 2500,
+                  bufferForPlaybackAfterRebufferMs: 5000,
+                }}
+              />
+            ) : (
+              <View style={styles.videoPlaceholder}>
+                <View style={styles.playBtn}>
+                  <Svg width={24} height={24} viewBox="0 0 24 24">
+                    <Polygon points="10,8 10,16 16,12" fill="#fff" />
+                  </Svg>
+                </View>
+                <Text style={styles.videoLabel}>Demo video coming soon</Text>
               </View>
-              <Text style={styles.videoLabel}>Demo video coming soon</Text>
-            </View>
+            )}
           </View>
 
           {/* About */}
@@ -145,6 +179,12 @@ const styles = StyleSheet.create({
 
   // Video
   videoWrap: { borderRadius: 16, overflow: 'hidden' },
+  videoPlayer: {
+    width: '100%',
+    height: SCREEN_W * 0.56,
+    backgroundColor: '#000',
+    borderRadius: 16,
+  },
   videoPlaceholder: {
     width: '100%',
     height: SCREEN_W * 0.56,

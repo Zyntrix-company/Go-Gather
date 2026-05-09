@@ -29,12 +29,13 @@ const sanitiseFilename = (filename) => {
  * @param {string} mimeType
  * @returns {Promise<string>} - Public or CDN URL
  */
-const uploadToS3 = async (buffer, key, mimeType) => {
+const uploadToS3 = async (buffer, key, mimeType, extras = {}) => {
   const command = new PutObjectCommand({
     Bucket: config.s3.bucket,
     Key: key,
     Body: buffer,
     ContentType: mimeType,
+    ...extras,
   });
 
   await s3Client.send(command);

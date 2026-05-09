@@ -10,7 +10,7 @@ import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { WebView } from 'react-native-webview';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import AppDatePicker from '../../components/common/AppDatePicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import LocationAutocomplete from '../../components/common/LocationAutocomplete';
 import CachedImage from '../../components/common/CachedImage';
@@ -551,7 +551,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [editLocation, setEditLocation] = useState('');
   const [editType, setEditType] = useState('');
   const [editDateObj, setEditDateObj] = useState<Date | undefined>(undefined);
-  const [showEditDatePicker, setShowEditDatePicker] = useState(false);
   const [showEditTypeDrop, setShowEditTypeDrop] = useState(false);
   const [editDateError, setEditDateError] = useState<string | null>(null);
 
@@ -961,7 +960,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
     setEditType(event.type);
     setEditDateObj(undefined);
     setShowEditTypeDrop(false);
-    setShowEditDatePicker(false);
     setShowEditEvent(true);
   }
 
@@ -2016,43 +2014,18 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   )}
 
                   <Text style={styles.fLabel}>Event Date</Text>
-                  <TouchableOpacity
-                    style={[styles.fInputTouch, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, editDateError && { borderColor: '#ef4444', borderWidth: 1.5 }]}
-                    onPress={() => setShowEditDatePicker(true)} activeOpacity={0.8}>
-                    <Text style={{ fontSize: 13, color: editDateObj ? '#0f172a' : '#94a3b8' }}>
-                      {editDateObj
-                        ? editDateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                        : event.dateLine || 'Select date'}
-                    </Text>
-                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                      <Rect x={3} y={4} width={18} height={18} rx={2} stroke={editDateError ? '#ef4444' : '#94a3b8'} strokeWidth={1.8} />
-                      <Path d="M16 2v4M8 2v4M3 10h18" stroke={editDateError ? '#ef4444' : '#94a3b8'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                  </TouchableOpacity>
-                  {editDateError && (
-                    <Text style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{editDateError}</Text>
-                  )}
-                  {showEditDatePicker && (
-                    <DateTimePicker
-                      value={editDateObj ?? new Date()}
-                      mode="date"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(_: DateTimePickerEvent, d?: Date) => {
-                        if (Platform.OS === 'android') setShowEditDatePicker(false);
-                        if (d) {
-                          const validation = validateDateRange(d);
-                          if (validation.isValid) {
-                            setEditDateObj(d);
-                            setEditDateError(null);
-                          } else {
-                            setEditDateError(validation.error || '');
-                            setEditDateObj(undefined);
-                          }
-                        }
-                        else setShowEditDatePicker(false);
-                      }}
-                    />
-                  )}
+                  <AppDatePicker
+                    mode="event"
+                    value={editDateObj ? `${editDateObj.getFullYear()}-${String(editDateObj.getMonth() + 1).padStart(2, '0')}-${String(editDateObj.getDate()).padStart(2, '0')}` : ''}
+                    onChange={(iso) => {
+                      const [y, m, d] = iso.split('-').map(n => parseInt(n, 10));
+                      setEditDateObj(new Date(y, m - 1, d));
+                      setEditDateError(null);
+                    }}
+                    placeholder={event.dateLine || 'Select date'}
+                    error={editDateError}
+                    title="Edit event date"
+                  />
 
                   <Text style={styles.fLabel}>Location</Text>
                   <View style={{ zIndex: 10 }}>

@@ -5,10 +5,10 @@ const { HeadBucketCommand } = require('@aws-sdk/client-s3');
 const { GoogleAuth } = require('google-auth-library');
 const authenticateJWT = require('../../middleware/authenticate');
 const { requirePlatformAdmin, getCount30m } = require('./admin.middleware');
-const { blogImageUpload, dealImageUpload, handleMulterError } = require('../../middleware/upload.middleware');
+const { blogImageUpload, dealImageUpload, promoVideoUpload, handleMulterError } = require('../../middleware/upload.middleware');
 const { query } = require('../../config/database');
 const { sesClient, s3Client } = require('../../config/aws');
-const { uploadToS3, sanitiseFilename } = require('../../utils/s3.util');
+const { uploadToS3, deleteFromS3, sanitiseFilename } = require('../../utils/s3.util');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const legalService = require('../legal/legal.service');
@@ -509,6 +509,63 @@ router.delete('/blogs/:id', async (req, res, next) => {
   try {
     const { rowCount } = await query('DELETE FROM blogs WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Blog not found' });
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+
+/* ─── Promo Video ────────────────────────────────────────────── */
+
+router.get('/promo-video', async (_req, res, next) => {
+  try {
+    const { rows } = await query('SELECT id, video_url, s3_key, created_at, updated_at FROM promo_video WHERE id = 1');
+    res.json(rows.length ? rows[0] : null);
+  } catch (err) { next(err); }
+});
+
+router.post('/promo-video/upload',
+  promoVideoUpload.single('video'),
+  handleMulterError,
+  async (req, res, next) => {
+    if (!req.file) return res.status(400).json({ error: 'No video file provided' });
+    try {
+      const safeName = sanitiseFilename(req.file.originalname);
+      const key = `promo-video/${uuidv4()}-${safeName}`;
+
+      // Upload to S3 with long-lived cache so CloudFront edges serve without revalidation
+      await uploadToS3(req.file.buffer, key, req.file.mimetype, {
+        CacheControl: 'public, max-age=31536000',
+      });
+
+      const url = config.s3.cloudfrontDomain
+        ? `https://${config.s3.cloudfrontDomain}/${key}`
+        : `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${key}`;
+
+      // Fetch old key before upsert so we can delete it from S3
+      const { rows: existing } = await query('SELECT s3_key FROM promo_video WHERE id = 1');
+      const oldKey = existing[0]?.s3_key ?? null;
+
+      await query(
+        `INSERT INTO promo_video (id, video_url, s3_key)
+         VALUES (1, $1, $2)
+         ON CONFLICT (id) DO UPDATE SET video_url = $1, s3_key = $2, updated_at = NOW()`,
+        [url, key],
+      );
+
+      // Delete old S3 object after successful DB write
+      if (oldKey && oldKey !== key) {
+        deleteFromS3(oldKey).catch((e) => logger.warn('Failed to delete old promo video from S3', { key: oldKey, error: e.message }));
+      }
+
+      res.json({ videoUrl: url });
+    } catch (err) { next(err); }
+  },
+);
+
+router.delete('/promo-video', async (_req, res, next) => {
+  try {
+    const { rows } = await query('DELETE FROM promo_video WHERE id = 1 RETURNING s3_key');
+    if (!rows.length) return res.status(404).json({ error: 'No promo video set' });
+    deleteFromS3(rows[0].s3_key).catch((e) => logger.warn('Failed to delete promo video from S3', { key: rows[0].s3_key, error: e.message }));
     res.status(204).end();
   } catch (err) { next(err); }
 });

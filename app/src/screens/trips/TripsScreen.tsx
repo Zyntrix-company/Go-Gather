@@ -22,7 +22,7 @@ import {
   Pressable,
 } from 'react-native';
 import LocationAutocomplete from '../../components/common/LocationAutocomplete';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import AppDatePicker from '../../components/common/AppDatePicker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { Plane } from 'lucide-react-native';
@@ -423,8 +423,6 @@ export function CreateTripModal({
   const [endDateObj, setEndDateObj] = useState<Date | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiFriends, setApiFriends] = useState<typeof CT_FRIENDS>([]);
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
   const [reminders, setReminders] = useState(false);
   const [uploadedDocs, setUploadedDocs] = useState<{ uri: string; name: string; type: string }[]>([]);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
@@ -543,7 +541,6 @@ export function CreateTripModal({
   function reset() {
     setName(''); setLocation('');
     setStartDateObj(undefined); setEndDateObj(undefined);
-    setShowStartPicker(false); setShowEndPicker(false);
     setReminders(false); setUploadedDocs([]); setSelectedFriendIds([]);
     setFriendSearch(''); setInviteEmail(''); setInvitePhone(''); setInviteWhatsapp('');
     // Banner state lives in the parent — do NOT reset it here so it
@@ -669,17 +666,19 @@ export function CreateTripModal({
                     </Svg>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={[styles.ctDateBox, startDateError && { borderColor: '#ef4444', borderWidth: 1.5 }]} onPress={() => { setShowEndPicker(false); setShowStartPicker(true); }} activeOpacity={0.8}>
-                  <Text style={[styles.ctDateText, { flex: 1, color: startDateObj ? '#0f172a' : '#94a3b8' }]}>
-                    {startDateObj ? formatDate(startDateObj) : 'DD/MM/YY'}
-                  </Text>
-                  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                    <Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke={startDateError ? '#ef4444' : '#0d9488'} strokeWidth={2} />
-                    <Path d="M16 2v4M8 2v4M3 10h18" stroke={startDateError ? '#ef4444' : '#0d9488'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                </TouchableOpacity>
-                {startDateError && (
-                  <Text style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{startDateError}</Text>
+                <AppDatePicker
+                  mode="trip"
+                  value={startDateObj ? `${startDateObj.getFullYear()}-${String(startDateObj.getMonth() + 1).padStart(2, '0')}-${String(startDateObj.getDate()).padStart(2, '0')}` : ''}
+                  onChange={(iso) => {
+                    const [y, m, d] = iso.split('-').map(n => parseInt(n, 10));
+                    setStartDateObj(new Date(y, m - 1, d));
+                    setStartDateError(null);
+                  }}
+                  error={startDateError}
+                  title="Select start date"
+                />
+                {!startDateError && (
+                  <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Up to 365 days from today</Text>
                 )}
               </View>
               <View style={{ flex: 1, gap: 8 }}>
@@ -704,73 +703,23 @@ export function CreateTripModal({
                     </Svg>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={[styles.ctDateBox, endDateError && { borderColor: '#ef4444', borderWidth: 1.5 }]} onPress={() => { setShowStartPicker(false); setShowEndPicker(true); }} activeOpacity={0.8}>
-                  <Text style={[styles.ctDateText, { flex: 1, color: endDateObj ? '#0f172a' : '#94a3b8' }]}>
-                    {endDateObj ? formatDate(endDateObj) : 'DD/MM/YY'}
-                  </Text>
-                  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                    <Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke={endDateError ? '#ef4444' : '#0d9488'} strokeWidth={2} />
-                    <Path d="M16 2v4M8 2v4M3 10h18" stroke={endDateError ? '#ef4444' : '#0d9488'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                </TouchableOpacity>
-                {endDateError && (
-                  <Text style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{endDateError}</Text>
+                <AppDatePicker
+                  mode="trip"
+                  value={endDateObj ? `${endDateObj.getFullYear()}-${String(endDateObj.getMonth() + 1).padStart(2, '0')}-${String(endDateObj.getDate()).padStart(2, '0')}` : ''}
+                  minDate={startDateObj}
+                  onChange={(iso) => {
+                    const [y, m, d] = iso.split('-').map(n => parseInt(n, 10));
+                    setEndDateObj(new Date(y, m - 1, d));
+                    setEndDateError(null);
+                  }}
+                  error={endDateError}
+                  title="Select end date"
+                />
+                {!endDateError && (
+                  <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Up to 365 days from today</Text>
                 )}
               </View>
             </View>
-
-            {showStartPicker && (
-              <DateTimePicker
-                value={startDateObj || new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(event: DateTimePickerEvent, date?: Date) => {
-                  if (Platform.OS === 'android') setShowStartPicker(false);
-                  if (event.type === 'set' && date) {
-                    const validation = validateDateRange(date);
-                    if (validation.isValid) {
-                      setStartDateObj(date);
-                      setStartDateError(null);
-                    } else {
-                      setStartDateError(validation.error || '');
-                      setStartDateObj(undefined);
-                    }
-                  }
-                  else if (event.type === 'dismissed') setShowStartPicker(false);
-                }}
-              />
-            )}
-            {showStartPicker && Platform.OS === 'ios' && (
-              <TouchableOpacity onPress={() => setShowStartPicker(false)} style={styles.ctCreateBtn}>
-                <Text style={styles.ctCreateBtnText}>Done</Text>
-              </TouchableOpacity>
-            )}
-            {showEndPicker && (
-              <DateTimePicker
-                value={endDateObj || startDateObj || new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(event: DateTimePickerEvent, date?: Date) => {
-                  if (Platform.OS === 'android') setShowEndPicker(false);
-                  if (event.type === 'set' && date) {
-                    const validation = validateDateRange(date);
-                    if (validation.isValid) {
-                      setEndDateObj(date);
-                      setEndDateError(null);
-                    } else {
-                      setEndDateError(validation.error || '');
-                      setEndDateObj(undefined);
-                    }
-                  }
-                  else if (event.type === 'dismissed') setShowEndPicker(false);
-                }}
-              />
-            )}
-            {showEndPicker && Platform.OS === 'ios' && (
-              <TouchableOpacity onPress={() => setShowEndPicker(false)} style={styles.ctCreateBtn}>
-                <Text style={styles.ctCreateBtnText}>Done</Text>
-              </TouchableOpacity>
-            )}
 
             {/* Location */}
             <Text style={styles.ctLabel}>Location</Text>

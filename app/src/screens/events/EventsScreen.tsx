@@ -19,7 +19,7 @@ type BannerCropFraction = {
   imgFracW: number;
   imgFracH: number;
 };
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import AppDatePicker from '../../components/common/AppDatePicker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import LocationAutocomplete from '../../components/common/LocationAutocomplete';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -285,7 +285,6 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
   const [type, setType] = useState('Other');
   const [showTypeDrop, setShowTypeDrop] = useState(false);
   const [dateObj, setDateObj] = useState<Date | undefined>(undefined);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [location, setLocation] = useState('');
   const [uploadedDocs, setUploadedDocs] = useState<{ uri: string; name: string; type: string }[]>([]);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
@@ -393,7 +392,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
 
   function reset() {
     setName(''); setType('Other'); setShowTypeDrop(false);
-    setDateObj(undefined); setShowDatePicker(false);
+    setDateObj(undefined);
     setLocation(''); setFetchingLocation(false);
     setUploadedDocs([]); setSelectedFriendIds([]);
     setShowInviteModal(false); setShowEmailModal(false);
@@ -584,38 +583,19 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
                 </Svg>
               </TouchableOpacity>
             </View>
-            <TouchableOpacity style={[modal.input, modal.row, dateError && { borderColor: '#ef4444', borderWidth: 1.5 }]} onPress={() => setShowDatePicker(true)} activeOpacity={0.8}>
-              <Text style={{ fontSize: 14, color: dateObj ? '#0f172a' : '#94a3b8', flex: 1 }}>
-                {dateObj ? fmtDateDisplay(dateObj) : 'DD/MM/YY'}
-              </Text>
-              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                <Rect x={3} y={4} width={18} height={18} rx={2} stroke={dateError ? '#ef4444' : '#94a3b8'} strokeWidth={1.8} />
-                <Path d="M16 2v4M8 2v4M3 10h18" stroke={dateError ? '#ef4444' : '#94a3b8'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-              </Svg>
-            </TouchableOpacity>
-            {dateError && (
-              <Text style={{ fontSize: 12, color: '#ef4444', marginTop: 4 }}>{dateError}</Text>
-            )}
-            {showDatePicker && (
-              <DateTimePicker
-                value={dateObj ?? new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(_: DateTimePickerEvent, d?: Date) => {
-                  if (Platform.OS === 'android') setShowDatePicker(false);
-                  if (d) {
-                    const validation = validateDateRange(d);
-                    if (validation.isValid) {
-                      setDateObj(d);
-                      setDateError(null);
-                    } else {
-                      setDateError(validation.error || '');
-                      setDateObj(undefined);
-                    }
-                  }
-                  else setShowDatePicker(false);
-                }}
-              />
+            <AppDatePicker
+              mode="event"
+              value={dateObj ? `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}` : ''}
+              onChange={(iso) => {
+                const [y, m, d] = iso.split('-').map(n => parseInt(n, 10));
+                setDateObj(new Date(y, m - 1, d));
+                setDateError(null);
+              }}
+              error={dateError}
+              title="Select event date"
+            />
+            {!dateError && (
+              <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Up to 365 days from today</Text>
             )}
 
             {/* Location */}
