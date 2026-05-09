@@ -418,6 +418,64 @@ const sendRequestAcceptedEmail = async (recipientEmail, recipientName, accepterN
   });
 };
 
+// ─── Legal document update notice ─────────────────────────────────────────────
+
+/**
+ * Notify a verified user that Privacy Policy or Terms were updated.
+ * @param {string} to
+ * @param {{ documentType: 'privacy'|'terms', version: string, effectiveAt: Date|string }} meta
+ */
+const sendLegalUpdateEmail = async (to, { documentType, version, effectiveAt }) => {
+  const site = config.websiteUrl || 'https://www.gatherrgo.com';
+  const isPrivacy = documentType === 'privacy';
+  const label = isPrivacy ? 'Privacy Policy' : 'Terms & Conditions';
+  const path = isPrivacy ? '/privacy' : '/terms';
+  const url = `${site.replace(/\/$/, '')}${path}?v=${encodeURIComponent(version)}`;
+  const eff = effectiveAt instanceof Date ? effectiveAt.toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  }) : String(effectiveAt);
+
+  const html = wrapEmail(`
+    <h2 style="margin:0 0 10px 0; font-size:20px; font-weight:700; color:#111827;">
+      ${label} updated
+    </h2>
+    <p style="margin:0 0 16px 0; font-size:15px; color:#374151; line-height:1.65;">
+      We have published a new version of our <strong>${label}</strong>
+      (version <strong>${version}</strong>, effective <strong>${eff}</strong>).
+    </p>
+    <p style="margin:0 0 24px 0; font-size:15px; color:#374151; line-height:1.65;">
+      Please review the updated document in the GatherrGo app under Settings, or on our website.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" class="cta-table"
+           style="margin:0 auto 28px auto; width:100%; max-width:280px;">
+      <tr>
+        <td class="cta-td" style="border-radius:8px; background-color:#0D9488;">
+          <a href="${url}" class="cta-link"
+             style="display:block; padding:14px 32px; color:#ffffff;
+                    text-decoration:none; font-size:16px; font-weight:700;
+                    border-radius:8px; text-align:center;
+                    font-family:'Segoe UI',Arial,sans-serif;">
+            Read ${isPrivacy ? 'Privacy Policy' : 'Terms'}
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0; font-size:13px; color:#6B7280; line-height:1.5;">
+      If the button does not work, copy this link:<br/>
+      <span style="word-break:break-all; color:#0D9488;">${url}</span>
+    </p>
+  `);
+
+  const text = `${label} updated — version ${version} (effective ${eff}).\nRead: ${url}`;
+
+  return sendEmail({
+    to,
+    subject: `GatherrGo — ${label} updated (v${version})`,
+    html,
+    text,
+  });
+};
+
 module.exports = {
   sendEmail,
   sendVerificationOTPEmail,
@@ -426,5 +484,6 @@ module.exports = {
   sendTripCancelledEmail,
   sendConnectionRequestEmail,
   sendRequestAcceptedEmail,
+  sendLegalUpdateEmail,
   wrapEmail,
 };

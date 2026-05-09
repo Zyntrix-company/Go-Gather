@@ -97,6 +97,10 @@ const run = async () => {
         // eslint-disable-next-line no-console
         console.log(`\n✔  ${count} migration(s) applied.`);
       }
+
+      // Idempotent legal docs seed (privacy/terms v1.0.0 from markdown when missing)
+      const { seedLegalDocumentsIfEmpty } = require('../scripts/seed-legal-v1');
+      await seedLegalDocumentsIfEmpty(pool);
     }
   } catch (error) {
     // eslint-disable-next-line no-console

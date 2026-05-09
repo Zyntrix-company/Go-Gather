@@ -53,6 +53,12 @@ router.get('/notification-settings', authenticateJWT, controller.getNotification
 // PATCH /users/notification-settings — merge-update notification prefs (requires auth)
 router.patch('/notification-settings', authenticateJWT, controller.updateNotificationSettings);
 
+// GET /users/legal-status — published vs acknowledged legal doc versions (requires auth)
+router.get('/legal-status', authenticateJWT, controller.getLegalStatus);
+
+// POST /users/legal-ack — acknowledge current privacy/terms (requires auth)
+router.post('/legal-ack', authenticateJWT, controller.acknowledgeLegal);
+
 // ── Per-user routes ────────────────────────────────────────────────────────────
 
 // GET /users/:id/profile — Enhanced profile with friendship status + stats (requires auth)

@@ -11,6 +11,7 @@ const { sesClient, s3Client } = require('../../config/aws');
 const { uploadToS3, sanitiseFilename } = require('../../utils/s3.util');
 const config = require('../../config');
 const logger = require('../../utils/logger');
+const legalService = require('../legal/legal.service');
 
 const router = express.Router();
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
@@ -510,6 +511,33 @@ router.delete('/blogs/:id', async (req, res, next) => {
     if (!rowCount) return res.status(404).json({ error: 'Blog not found' });
     res.status(204).end();
   } catch (err) { next(err); }
+});
+
+/* ─── Legal documents (privacy / terms) ─────────────────────── */
+
+router.get('/legal/versions', async (req, res, next) => {
+  const documentType = req.query.documentType;
+  if (!['privacy', 'terms'].includes(documentType)) {
+    return res.status(400).json({ error: 'documentType must be privacy or terms' });
+  }
+  try {
+    const versions = await legalService.listVersions(documentType);
+    const suggestedNext = await legalService.getSuggestedNextVersion(documentType);
+    const current = await legalService.getCurrentPublished(documentType);
+    res.json({ versions, suggestedNext, current });
+  } catch (err) { next(err); }
+});
+
+router.post('/legal/publish', async (req, res, next) => {
+  try {
+    const doc = await legalService.publishVersion(req.body);
+    res.status(201).json(doc);
+  } catch (err) {
+    if (err.statusCode) {
+      return res.status(err.statusCode).json({ error: err.error || 'BadRequest', message: err.message });
+    }
+    next(err);
+  }
 });
 
 module.exports = router;

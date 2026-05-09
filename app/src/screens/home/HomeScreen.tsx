@@ -1516,6 +1516,7 @@ export default function HomeScreen({ navigation, route }: any) {
             firstName={firstName}
             onClose={() => setShowProfileMenu(false)}
             onNavigateToAccount={() => navigation.navigate('EditProfile')}
+            onNavigateToSettings={() => navigation.navigate('Settings')}
             onNavigateToArchived={() => navigation.navigate('Archived')}
             onLogout={logout}
           />

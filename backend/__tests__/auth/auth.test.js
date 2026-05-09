@@ -23,6 +23,10 @@ jest.mock('../../src/utils/mailer', () => ({
   sendEmail: jest.fn().mockResolvedValue(true),
 }));
 
+jest.mock('../../src/modules/legal/legal.service', () => ({
+  syncUserLegalAckFromCurrent: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('../../src/utils/sns', () => ({
   registerDeviceEndpoint: jest.fn().mockResolvedValue('arn:aws:sns:test'),
 }));

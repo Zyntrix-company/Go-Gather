@@ -13,6 +13,7 @@ import BlobBackground from '../../components/common/BlobBackground';
 import Logo from '../../components/common/Logo';
 import useNotificationSettingsStore from '../../store/notificationSettingsStore';
 import { NotificationSettings } from '../../api/notificationSettings.api';
+import colors from '../../theme/colors';
 
 const DIGEST_OPTIONS: { label: string; value: NotificationSettings['email_digest'] }[] = [
   { label: 'Daily', value: 'daily' },
@@ -45,11 +46,14 @@ export default function NotificationSettingsScreen({ navigation }: any) {
           </TouchableOpacity>
           <Text style={styles.title}>Notification Preferences</Text>
           <Text style={styles.subtitle}>Control how and when GatherrGo notifies you</Text>
+          <Text style={styles.scopeNote}>
+            All controls below save to your account. Quiet start/end times come from the server (default 22:00–08:00); editing those times in the app is not available yet.
+          </Text>
 
           {/* Loading */}
           {loading && !settings && (
             <View style={styles.center}>
-              <ActivityIndicator size="large" color="#0d9488" />
+              <ActivityIndicator size="large" color={colors.accent} />
             </View>
           )}
 
@@ -76,9 +80,9 @@ export default function NotificationSettingsScreen({ navigation }: any) {
                     <Text style={styles.rowSub}>Get reminded before each scheduled activity</Text>
                   </View>
                   <Switch
-                    value={settings.lock_screen_reminders}
+                    value={Boolean(settings.lock_screen_reminders)}
                     onValueChange={(v) => toggle('lock_screen_reminders', v)}
-                    trackColor={{ false: '#e2e8f0', true: '#0d9488' }}
+                    trackColor={{ false: colors.border, true: colors.accent }}
                     thumbColor="#fff"
                   />
                 </View>
@@ -87,13 +91,15 @@ export default function NotificationSettingsScreen({ navigation }: any) {
 
                 <View style={styles.row}>
                   <View style={styles.rowText}>
-                    <Text style={styles.rowLabel}>Quiet Hours (10pm – 8am)</Text>
-                    <Text style={styles.rowSub}>Pause non-urgent notifications at night</Text>
+                    <Text style={styles.rowLabel}>Quiet hours</Text>
+                    <Text style={styles.rowSub}>
+                      Pause non-urgent notifications overnight ({settings.quiet_start} – {settings.quiet_end})
+                    </Text>
                   </View>
                   <Switch
-                    value={settings.quiet_hours_enabled}
+                    value={Boolean(settings.quiet_hours_enabled)}
                     onValueChange={(v) => toggle('quiet_hours_enabled', v)}
-                    trackColor={{ false: '#e2e8f0', true: '#0d9488' }}
+                    trackColor={{ false: colors.border, true: colors.accent }}
                     thumbColor="#fff"
                   />
                 </View>
@@ -130,44 +136,50 @@ export default function NotificationSettingsScreen({ navigation }: any) {
   );
 }
 
+const CARD_BG = 'rgba(255,255,255,0.22)';
+
 const styles = StyleSheet.create({
   safe:       { flex: 1 },
-  scroll:     { paddingHorizontal: 20, paddingBottom: 40 },
+  scroll:     { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 },
 
-  logoBtn:    { alignSelf: 'flex-start', paddingTop: 8, marginBottom: 4 },
-  title:      { fontSize: 20, fontWeight: '400', color: '#0F172B', textAlign: 'center', marginBottom: 4 },
-  subtitle:   { fontSize: 13, color: '#45556C', textAlign: 'center', marginBottom: 24 },
+  logoBtn:    { alignSelf: 'flex-start', paddingTop: 8, marginBottom: 16 },
+  title:      { fontSize: 20, fontWeight: '400', color: colors.textPrimary, textAlign: 'center', marginBottom: 4 },
+  subtitle:   { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 10 },
+  scopeNote: {
+    fontSize: 11,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 16,
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
 
   center:     { alignItems: 'center', marginTop: 60 },
-  errorText:  { fontSize: 14, color: '#ef4444', marginBottom: 12 },
-  retryBtn:   { backgroundColor: '#0d9488', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24 },
+  errorText:  { fontSize: 14, color: colors.error, marginBottom: 12 },
+  retryBtn:   { backgroundColor: colors.accent, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24 },
   retryText:  { color: '#fff', fontWeight: '600', fontSize: 14 },
 
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: CARD_BG,
     borderRadius: 14,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    overflow: 'hidden',
   },
 
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a', marginBottom: 14 },
-  digestSub:    { fontSize: 12, color: '#64748b', marginBottom: 14 },
+  sectionTitle: { fontSize: 14, fontWeight: '600', color: colors.textPrimary, marginBottom: 14 },
+  digestSub:    { fontSize: 12, color: colors.textSecondary, marginBottom: 14 },
 
   row:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   rowText: { flex: 1, marginRight: 12 },
-  rowLabel: { fontSize: 14, color: '#0f172a', fontWeight: '500' },
-  rowSub:   { fontSize: 12, color: '#64748b', marginTop: 2 },
+  rowLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: '500' },
+  rowSub:   { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
 
-  divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 14 },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(148,163,184,0.12)', marginVertical: 14 },
 
   pillRow:         { flexDirection: 'row', gap: 10 },
-  pill:            { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 8, backgroundColor: '#f1f5f9', borderWidth: 1.5, borderColor: 'transparent' },
-  pillActive:      { backgroundColor: '#0d9488', borderColor: '#0d9488' },
-  pillText:        { fontSize: 13, color: '#64748b', fontWeight: '500' },
+  pill:            { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 8, backgroundColor: 'rgba(241,245,249,0.85)' },
+  pillActive:      { backgroundColor: colors.accent },
+  pillText:        { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
   pillTextActive:  { color: '#fff', fontWeight: '600' },
 });

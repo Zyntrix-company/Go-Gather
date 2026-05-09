@@ -26,6 +26,8 @@ const PUBLIC_ROUTES = [
   '/auth/forgot-password',
   '/auth/reset-password',
   '/auth/refresh',
+  '/legal/privacy',
+  '/legal/terms',
 ];
 
 function isPublicRoute(url: string | undefined): boolean {

@@ -6,49 +6,14 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Polygon } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
 import colors from '../../theme/colors';
+import { GATHERGO_FAQS } from '../../content/faqs';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-
-const FAQS = [
-  {
-    q: 'What is GatherGo?',
-    a: 'GatherGo is a private group platform for planning trips and events together. Everything your group needs — itineraries, expenses, chats, photos, and documents — lives in one place.',
-  },
-  {
-    q: 'How do I create a trip?',
-    a: 'Tap "Create Trip" on the home screen, fill in the details, invite friends, and you\'re ready to go. Your group members get notified instantly.',
-  },
-  {
-    q: 'How does expense splitting work?',
-    a: 'Add expenses inside any trip or event. GatherGo tracks who paid and automatically calculates who owes what — no spreadsheets needed.',
-  },
-  {
-    q: 'Can I invite people who aren\'t on GatherGo?',
-    a: 'Absolutely. You can invite friends via email, phone, or WhatsApp. They\'ll receive a link to join your trip directly.',
-  },
-  {
-    q: 'What is Swee?',
-    a: 'Swee is GatherGo\'s AI travel assistant. Ask anything about your trips, get destination suggestions, or let Swee help plan your next adventure.',
-  },
-  {
-    q: 'How do I upload documents?',
-    a: 'Inside any trip or event, tap "Upload Docs" to add boarding passes, hotel confirmations, or any travel document. You can also import directly from your email.',
-  },
-  {
-    q: 'Is my data private?',
-    a: 'Yes. Your trips and events are completely private. Only people you personally invite can see your group\'s content.',
-  },
-  {
-    q: 'Is GatherGo free?',
-    a: 'GatherGo is free to use. Premium features for power travellers are coming soon.',
-  },
-];
 
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
@@ -137,7 +102,7 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
           {/* FAQs */}
           <Text style={styles.sectionTitle}>Frequently asked questions</Text>
           <View style={styles.faqList}>
-            {FAQS.map(item => (
+            {GATHERGO_FAQS.map(item => (
               <FaqItem key={item.q} q={item.q} a={item.a} />
             ))}
           </View>
@@ -228,8 +193,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     gap: 4,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
   },
   featureEmoji: { fontSize: 22 },
   featureLabel: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, marginTop: 2 },

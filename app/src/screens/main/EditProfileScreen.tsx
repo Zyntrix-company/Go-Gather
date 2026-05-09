@@ -410,13 +410,6 @@ export default function EditProfileScreen({ navigation }: any) {
 
             {/* ── Save ── */}
             <View style={styles.bottomBlock}>
-              <TouchableOpacity
-                style={styles.notifSettingsRow}
-                onPress={() => navigation.navigate('NotificationSettings')}
-                activeOpacity={0.7}>
-                <Text style={styles.notifSettingsText}>Notification Preferences</Text>
-                <Text style={styles.notifSettingsChevron}>›</Text>
-              </TouchableOpacity>
               {apiError && <Text style={styles.apiErrorText}>{apiError}</Text>}
               <TouchableOpacity
                 style={[styles.primaryBtn, busy && { opacity: 0.7 }]}
@@ -496,14 +489,6 @@ const styles = StyleSheet.create({
 
   // ── Bottom block ────────────────────────────────────────────────────────────
   bottomBlock:    { },
-  notifSettingsRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#f8fafc', borderRadius: 8, paddingVertical: 11,
-    paddingHorizontal: 12, marginBottom: 10,
-    borderWidth: 1, borderColor: '#e2e8f0',
-  },
-  notifSettingsText:    { fontSize: 13, color: '#0f172a', fontWeight: '500' },
-  notifSettingsChevron: { fontSize: 18, color: '#94a3b8', lineHeight: 20 },
   apiErrorText:   { fontSize: 13, color: '#ef4444', textAlign: 'center', marginBottom: 8, fontWeight: '500' },
   primaryBtn:     { backgroundColor: '#0d9488', borderRadius: 8, paddingVertical: 13, alignItems: 'center', elevation: 2 },
   primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '400', letterSpacing: 0.1 },

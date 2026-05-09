@@ -58,7 +58,7 @@ function AvatarOrInitial({ photoUrl, initial }: { photoUrl?: string; initial: st
   );
 }
 
-function ProfileDropdown({ user, firstName, onClose, onNavigateToAccount, onNavigateToArchived, onLogout }: any) {
+function ProfileDropdown({ user, firstName, onClose, onNavigateToAccount, onNavigateToSettings, onNavigateToArchived, onLogout }: any) {
   const photoUrl = user?.photoUrl || user?.avatarUrl || user?.profile?.avatarUrl || '';
   return (
     <View style={styles.dropdownOverlay}>
@@ -80,7 +80,7 @@ function ProfileDropdown({ user, firstName, onClose, onNavigateToAccount, onNavi
           <Text style={styles.dropdownItemText}>Account</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.dropdownItem} onPress={onClose} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.dropdownItem} onPress={() => { onClose(); onNavigateToSettings?.(); }} activeOpacity={0.8}>
           <SettingsIcon />
           <Text style={styles.dropdownItemText}>Settings</Text>
         </TouchableOpacity>

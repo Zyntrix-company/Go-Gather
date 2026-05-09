@@ -1,9 +1,11 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { View } from 'react-native';
 import AuthStack from './AuthStack';
 import MainStack from './MainStack';
 import CreateProfileScreen from '../screens/auth/CreateProfileScreen';
 import useAuthStore from '../store/authStore';
+import LegalComplianceGate from '../components/common/LegalComplianceGate';
 
 const SetupStack = createNativeStackNavigator();
 
@@ -26,5 +28,10 @@ export default function RootNavigator() {
   // when setAuth() fires before setPendingProfileSetup(true) in the signup/social flows.
   if (pendingProfileSetup || (user && user.isProfileComplete === false)) return <ProfileSetupNavigator />;
 
-  return <MainStack />;
+  return (
+    <View style={{ flex: 1 }}>
+      <MainStack />
+      <LegalComplianceGate />
+    </View>
+  );
 }

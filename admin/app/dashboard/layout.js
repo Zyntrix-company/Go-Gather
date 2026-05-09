@@ -13,6 +13,7 @@ const NAV = [
   { href: '/dashboard/storage',      label: 'Storage & Capacity', icon: DatabaseIcon },
   { href: '/dashboard/contact',      label: 'Feedback',           icon: MailIcon },
   { href: '/dashboard/blogs',        label: 'Blogs',              icon: BookIcon },
+  { href: '/dashboard/legal',        label: 'Legal',              icon: FileTextIcon },
   { href: '/dashboard/security',     label: 'Security',           icon: ShieldIcon },
 ];
 
@@ -110,6 +111,12 @@ function MailIcon({ className }) {
     <polyline points="22,6 12,13 2,6" />
   </svg>;
 }
+function FileTextIcon({ className }) {
+  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>;
+}
+
 function BookIcon({ className }) {
   return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />

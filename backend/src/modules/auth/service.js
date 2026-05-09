@@ -14,6 +14,7 @@ const {
   sendPasswordResetOTPEmail,
 } = require('../../utils/mailer');
 const logger = require('../../utils/logger');
+const { syncUserLegalAckFromCurrent } = require('../legal/legal.service');
 
 const { getPresignedDownloadUrl } = require('../../utils/s3.util');
 
@@ -123,7 +124,9 @@ const signup = async ({ email, phone, password }) => {
   );
 
   const user = result.rows[0];
-  
+
+  await syncUserLegalAckFromCurrent(user.id);
+
   // Generate and send verification OTP
   const otp = generateOTP();
   await storeOTP(user.id, otp, 'email-verification');
@@ -237,6 +240,8 @@ const googleAuth = async ({ idToken, deviceToken, platform }) => {
        VALUES ($1, $2, $3)`,
       [user.id, name || null, picture || null],
     );
+
+    await syncUserLegalAckFromCurrent(user.id);
   }
 
   const user = result.rows[0];
@@ -263,7 +268,7 @@ const facebookAuth = async ({ accessToken, deviceToken, platform }) => {
   const axios = require('axios'); // Optional, or use https. Going to assume I'll add axios or use a helper.
   // Using a manual https request or adding axios to package.json.
   // Let's assume axios is added.
-  
+
   const response = await axios.get(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`);
   const { id: facebookId, email, name, picture } = response.data;
 
@@ -305,6 +310,8 @@ const facebookAuth = async ({ accessToken, deviceToken, platform }) => {
        VALUES ($1, $2, $3)`,
       [user.id, name || null, avatarUrl],
     );
+
+    await syncUserLegalAckFromCurrent(user.id);
   }
 
   const user = result.rows[0];
@@ -404,7 +411,7 @@ const forgotPassword = async ({ email, phone }) => {
   }
 
   const user = result.rows[0];
-  
+
   const otp = generateOTP();
   await storeOTP(user.id, otp, 'password-reset');
   await sendPasswordResetOTPEmail(user.email, otp);
@@ -478,7 +485,7 @@ const resetPassword = async ({ email, otp, password }) => {
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
   await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
-  
+
   // Delete OTP and all refresh tokens for this user (security)
   await db.query('DELETE FROM otps WHERE id = $1', [otpResult.rows[0].id]);
   await db.query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);

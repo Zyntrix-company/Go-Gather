@@ -135,6 +135,30 @@ const updateNotificationSettings = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /users/legal-status
+ */
+const getLegalStatus = async (req, res, next) => {
+  try {
+    const status = await usersService.getLegalStatus(req.user.id);
+    return res.status(200).json(status);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /users/legal-ack
+ */
+const acknowledgeLegal = async (req, res, next) => {
+  try {
+    const status = await usersService.acknowledgeLegal(req.user.id, req.body);
+    return res.status(200).json(status);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   saveProfile,
   uploadPhoto,
@@ -146,4 +170,6 @@ module.exports = {
   getUserPhotos,
   getNotificationSettings,
   updateNotificationSettings,
+  getLegalStatus,
+  acknowledgeLegal,
 };

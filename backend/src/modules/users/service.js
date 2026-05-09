@@ -3,6 +3,7 @@ const config = require('../../config');
 const logger = require('../../utils/logger');
 const { sendWelcomeEmail } = require('../../utils/mailer');
 const { createAndSendNotification } = require('../../utils/fcm.util');
+const legalService = require('../legal/legal.service');
 
 /**
  * Derive a URL-safe slug from a full name and find a DB-unique variant.
@@ -690,6 +691,97 @@ const updateNotificationSettings = async (userId, patch) => {
   return getNotificationSettings(userId);
 };
 
+/**
+ * GET /users/legal-status — compare user ack versions to current published.
+ */
+const getLegalStatus = async (userId) => {
+  const [privacyCur, termsCur, userRow] = await Promise.all([
+    legalService.getCurrentPublished('privacy'),
+    legalService.getCurrentPublished('terms'),
+    db.query(
+      'SELECT privacy_policy_ack_version, terms_ack_version FROM users WHERE id = $1',
+      [userId],
+    ),
+  ]);
+  const u = userRow.rows[0];
+  const ackP = u?.privacy_policy_ack_version ?? null;
+  const ackT = u?.terms_ack_version ?? null;
+  const curPv = privacyCur?.version ?? null;
+  const curTv = termsCur?.version ?? null;
+
+  return {
+    privacy: {
+      currentVersion: curPv,
+      acknowledgedVersion: ackP,
+      needsAck: Boolean(curPv && ackP !== curPv),
+      effectiveAt: privacyCur?.effectiveAt ?? null,
+    },
+    terms: {
+      currentVersion: curTv,
+      acknowledgedVersion: ackT,
+      needsAck: Boolean(curTv && ackT !== curTv),
+      effectiveAt: termsCur?.effectiveAt ?? null,
+    },
+  };
+};
+
+/**
+ * POST /users/legal-ack — set ack to current published when client sends matching version(s).
+ */
+const acknowledgeLegal = async (userId, { privacyVersion, termsVersion }) => {
+  const hasP = privacyVersion !== undefined && privacyVersion !== null && String(privacyVersion).trim() !== '';
+  const hasT = termsVersion !== undefined && termsVersion !== null && String(termsVersion).trim() !== '';
+  if (!hasP && !hasT) {
+    const err = new Error('Provide privacyVersion and/or termsVersion matching the current published versions');
+    err.statusCode = 400;
+    err.error = 'LegalAckEmpty';
+    throw err;
+  }
+
+  const privacyCur = await legalService.getCurrentPublished('privacy');
+  const termsCur = await legalService.getCurrentPublished('terms');
+
+  if (hasP) {
+    const v = String(privacyVersion).trim();
+    if (!privacyCur || v !== privacyCur.version) {
+      const err = new Error('privacyVersion does not match the current published Privacy Policy');
+      err.statusCode = 400;
+      err.error = 'LegalAckMismatch';
+      throw err;
+    }
+  }
+  if (hasT) {
+    const v = String(termsVersion).trim();
+    if (!termsCur || v !== termsCur.version) {
+      const err = new Error('termsVersion does not match the current published Terms');
+      err.statusCode = 400;
+      err.error = 'LegalAckMismatch';
+      throw err;
+    }
+  }
+
+  const sets = [];
+  const vals = [];
+  if (hasP) {
+    vals.push(privacyCur.version);
+    sets.push(`privacy_policy_ack_version = $${vals.length}`);
+    sets.push('privacy_policy_ack_at = NOW()');
+  }
+  if (hasT) {
+    vals.push(termsCur.version);
+    sets.push(`terms_ack_version = $${vals.length}`);
+    sets.push('terms_ack_at = NOW()');
+  }
+  vals.push(userId);
+  const idPlaceholder = vals.length;
+  await db.query(
+    `UPDATE users SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${idPlaceholder}`,
+    vals,
+  );
+
+  return getLegalStatus(userId);
+};
+
 module.exports = {
   saveProfile,
   uploadPhoto,
@@ -701,4 +793,6 @@ module.exports = {
   getUserPhotos,
   getNotificationSettings,
   updateNotificationSettings,
+  getLegalStatus,
+  acknowledgeLegal,
 };

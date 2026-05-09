@@ -1630,7 +1630,7 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingBottom: 120, paddingTop: 4 },
 
   // Trips Tab
-  tripsCTA: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 10 },
+  tripsCTA: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 16 },
   tripsPlaneCircle: {
     width: 64, height: 64, borderRadius: 32,
     backgroundColor: '#cbfbf1',
