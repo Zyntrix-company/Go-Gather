@@ -561,6 +561,31 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 | DELETE | `/trips/:id/notes/:noteId` | Member | Creator or admin only. |
 | POST | `/trips/:id/notes/:noteId/favorite` | Member | Toggle favorite for the calling user. Returns `{ isFavorited: bool }`. Per-user — does not affect other members. |
 
+### Events — Core (`/events`)
+
+Events mirror trips in structure but have **no activities submodule**. All shared features (docs, photos, expenses, splits, polls, notes, members, invites) work identically with `parent_type = 'event'`.
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| POST | `/events` | Yes | Create event. Optional `bannerImageUrl`, `friendIds`, `emails`. |
+| GET | `/events` | Yes | List events. `?status=upcoming\|ongoing\|past`. |
+| GET | `/events/:id` | Yes | Event detail with aggregated stats. Returns `bannerImageUrl`. |
+| PUT | `/events/:id` | Admin | Update metadata (`name`, `startDate`, `endDate`, `location`, `bannerImageUrl`). |
+| DELETE | `/events/:id` | Admin | Delete event + S3 cleanup. |
+
+### Events — Invites & Members
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| POST | `/events/:id/invite` | Member | Invite via `friendIds` (direct) or `emails`/`phones` (Branch link). Rate: 20/15 min. |
+| GET | `/events/:id/members` | Member | Returns members list with email. |
+| DELETE | `/events/:id/members/:userId` | Admin | Remove member (cannot remove last admin). |
+
+### Events — Docs, Photos, Expenses, Polls, Notes
+
+All routes follow the same patterns as `/trips/:id/{docs,photos,expenses,balances,settlements,polls,notes}`. Substitute `/events/:id/` as the prefix — the shared service layer handles `parent_type = 'event'` automatically.
+
+---
+
 ### Friends (`/friends`)
 | Method | Route | Auth | Description |
 |---|---|---|---|
@@ -576,6 +601,17 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 |---|---|---|---|
 | GET | `/invites/validate/:token` | No | Validate token (landing page). Returns `{ valid, type, invitedBy, installLinks }` |
 | POST | `/invites/claim/:token` | Yes | Claim token after Branch SDK fires. Atomic. Idempotent. Returns `{ type: "trip"\|"friend", tripId?, tripName? }` |
+
+### AI — Swee (`/ai`)
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| POST | `/ai/chat` | Yes | Stream a Swee AI response. Body: `{ message, context?: { tripId?, eventId? } }`. Powered by **Google Gemini 2.5 Flash** (`GEMINI_API_KEY`). Response is streamed as newline-delimited text. |
+
+### Contact (`/contact`)
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| POST | `/contact` | No | Submit a general inquiry or feedback. Body: `{ name, email, message }`. Delivered via SES. |
+| POST | `/contact/ai-issue` | Yes | Report a Swee AI issue. Body: `{ description, chatContext? }`. |
 
 ### Universal Links (`/.well-known`)
 | Method | Route | Auth | Description |

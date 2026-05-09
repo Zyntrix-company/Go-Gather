@@ -74,6 +74,9 @@ app/
 | Gestures | React Native Gesture Handler |
 | Icons | react-native-vector-icons |
 | Toast notifications | react-native-toast-message |
+| Video playback | react-native-video |
+| Fast image loading | @d11/react-native-fast-image |
+| Maps / Places | Google Places API (react-native-google-places-autocomplete) |
 
 ---
 
@@ -99,6 +102,9 @@ app/
 | `ChatDetailScreen` | Swee AI travel assistant — Google Gemini 2.5 Flash, streaming responses, trip/event context injection. |
 | `NotificationsScreen` | In-app notification feed — friend requests, trip invites, expense updates. |
 | `ArchivedTripsScreen` | List of archived trips (admin-only action). |
+| `FriendsScreen` | Friends list, incoming/outgoing requests, user search with friendship status. Bottom tab. |
+| `GalleryScreen` | Personal photo gallery aggregated across all past trips and events. Bottom tab. |
+| `UserProfileScreen` | View another user's public profile, stats, and past trip gallery. |
 
 ---
 
@@ -125,7 +131,8 @@ RootNavigator
     ├── EventDetail
     ├── ChatDetail  (Swee AI)
     ├── Notifications
-    └── ArchivedTrips
+    ├── ArchivedTrips
+    └── UserProfile
 ```
 
 ---
@@ -172,7 +179,7 @@ src/api/
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 22.11.0+
 - React Native environment set up ([official guide](https://reactnative.dev/docs/set-up-your-environment))
 - Android Studio (for Android) or Xcode 14+ (for iOS)
 - CocoaPods (iOS only)

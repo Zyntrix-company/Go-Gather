@@ -6,13 +6,46 @@ Vite + React + TypeScript public site for **GatherGo / GatherrGo** (landing, leg
 
 ---
 
+## Tech Stack
+
+| Purpose | Technology |
+|---------|-----------|
+| Build tool | Vite 6.3.5 |
+| Framework | React 19 + TypeScript |
+| Routing | react-router-dom v7 |
+| UI components | Material UI v7, Radix UI primitives |
+| Styling | Tailwind CSS 4 (Vite plugin) |
+| Forms | React Hook Form + Zod |
+| Icons | lucide-react |
+| Charts | recharts |
+| Carousel | Embla Carousel, react-slick |
+| Toasts | Sonner |
+| Date utils | date-fns |
+
+---
+
+## Pages
+
+- **Landing** — hero section, feature highlights, app download CTA
+- **About** — team and product story
+- **Contact** — inquiry form (posts to API at `VITE_API_URL/contact`)
+- **Blog** — editorial content
+- **Deals** — curated travel deals (hotel / cab cards from backend `deals/`)
+- **Privacy Policy** — legal (references Google Maps, Gemini AI, AWS)
+- **Terms of Service** — legal
+
+SEO: `sitemap.xml` and `robots.txt` included in `public/`.
+
+---
+
 ## Scripts
 
 ```bash
 cd frontend
 npm install
-npm run dev      # local dev server
+npm run dev      # local dev server (http://localhost:5173)
 npm run build    # production build → dist/
+npm run preview  # preview the production build locally
 ```
 
 Build-time env (see also GitHub Actions `frontend-deploy.yml`):

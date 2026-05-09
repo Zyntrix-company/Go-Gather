@@ -18,7 +18,8 @@ Go Gather/
 └── .github/
     └── workflows/
         ├── backend-deploy.yml   # Docker → ECR → EC2 (path: backend/**)
-        └── frontend-deploy.yml  # Vite build → S3 → CloudFront (path: frontend/**)
+        ├── frontend-deploy.yml  # Vite build → S3 → CloudFront (path: frontend/**)
+        └── admin-deploy.yml     # Next.js static export → S3 → CloudFront (path: admin/**)
 ```
 
 ### `app/` — Mobile App (React Native)
@@ -54,7 +55,7 @@ Modular Express API. Each feature is an isolated module under `src/modules/`.
 Public-facing website for GatherGo. Includes sitemap.xml for SEO. Deployed separately from the backend.
 
 ### `admin/` — Admin Web Panel (Next.js)
-Next.js app scaffold lives in `admin/` (`npm run dev` / `npm run build`). **Operational features** (users, trips/events, analytics, etc.) are planned for Milestone 7 — same scope as before: business insights, user management, trip/event oversight, health monitoring, storage analytics, and feedback management.
+Next.js 16 app scaffold lives in `admin/` (`npm run dev` / `npm run build`). Deploys as a **static export** to S3 bucket `gatherrgo-admin` + CloudFront via `.github/workflows/admin-deploy.yml`. **Operational features** (users, trips/events, analytics, etc.) are planned for Milestone 7: business insights, user management, trip/event oversight, health monitoring, storage analytics, and feedback management.
 
 ---
 
@@ -86,6 +87,16 @@ Deployments are automated with **GitHub Actions** on pushes to **`main`** (no se
 | S3 | Upload `dist/` to bucket **`gatherrgo-frontend`** with cache rules (immutable hashed assets, `no-cache` for `index.html`) |
 | CDN | CloudFront invalidation via `CLOUDFRONT_FRONTEND_DISTRIBUTION_ID` |
 
+### Admin — `.github/workflows/admin-deploy.yml`
+
+**Trigger:** push to `main` when files under `admin/**` change.
+
+| Step | What happens |
+|------|----------------|
+| Node 20 | Install deps, `npm run build` (Next.js static export) with `NEXT_PUBLIC_API_URL=https://api.gatherrgo.com` |
+| S3 | Upload `out/` to bucket **`gatherrgo-admin`** with cache rules (immutable hashed `_next/static`, `no-cache` for HTML files) |
+| CDN | CloudFront invalidation via `CLOUDFRONT_ADMIN_DISTRIBUTION_ID` |
+
 ### Mobile app (`app/`)
 
 There is **no** GitHub Actions workflow for the React Native app in this repo; releases use local builds / EAS or store pipelines (configure as needed).
@@ -93,7 +104,6 @@ There is **no** GitHub Actions workflow for the React Native app in this repo; r
 ### Possible follow-ups
 
 - Add a **`ci.yml`** (or job in existing workflows) for **ESLint + Jest** on every PR, with a PostgreSQL service container if you want CI parity with local tests.
-- **Admin** deploy workflow when the panel is production-ready.
 
 ---
 

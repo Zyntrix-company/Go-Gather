@@ -155,7 +155,11 @@
       "PowerShell(Get-ChildItem -Path \"E:\\\\Go Gather\\\\app\\\\src\\\\components\" -Recurse -File | Where-Object { $_.Name -match \"[Pp]oll\" } | Select-Object -ExpandProperty FullName)",
       "Bash(Get-ChildItem -Path \"E:\\\\Go Gather\" -Directory)",
       "Bash(git commit -m ' *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(Get-ChildItem -Path \"E:\\\\Go Gather\" -Force)",
+      "Bash(Select-Object Name, Mode)",
+      "Bash(find E:\\\\\\\\Go Gather *)",
+      "Bash(find \"E:\\\\\\\\Go Gather\\\\\\\\docs\" -type f -name \"*.md\")"
     ]
   }
 }
