@@ -5,7 +5,7 @@ const { HeadBucketCommand } = require('@aws-sdk/client-s3');
 const { GoogleAuth } = require('google-auth-library');
 const authenticateJWT = require('../../middleware/authenticate');
 const { requirePlatformAdmin, getCount30m } = require('./admin.middleware');
-const { blogImageUpload, handleMulterError } = require('../../middleware/upload.middleware');
+const { blogImageUpload, dealImageUpload, handleMulterError } = require('../../middleware/upload.middleware');
 const { query } = require('../../config/database');
 const { sesClient, s3Client } = require('../../config/aws');
 const { uploadToS3, sanitiseFilename } = require('../../utils/s3.util');
@@ -509,6 +509,85 @@ router.delete('/blogs/:id', async (req, res, next) => {
   try {
     const { rowCount } = await query('DELETE FROM blogs WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Blog not found' });
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+
+/* ─── Deals CRUD ─────────────────────────────────────────────── */
+
+function mapDeal(row) {
+  return {
+    id: row.id, title: row.title, subtitle: row.subtitle ?? null,
+    imageUrl: row.image_url, hyperlink: row.hyperlink ?? null,
+    sortOrder: row.sort_order ?? null, active: row.active,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+  };
+}
+
+router.post('/deals/upload-image',
+  dealImageUpload.single('image'),
+  handleMulterError,
+  async (req, res, next) => {
+    if (!req.file) return res.status(400).json({ error: 'No image file provided' });
+    try {
+      const safeName = sanitiseFilename(req.file.originalname);
+      const key = `deal-images/${uuidv4()}-${safeName}`;
+      await uploadToS3(req.file.buffer, key, req.file.mimetype);
+      const url = config.s3.cloudfrontDomain
+        ? `https://${config.s3.cloudfrontDomain}/${key}`
+        : `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${key}`;
+      res.json({ url });
+    } catch (err) { next(err); }
+  },
+);
+
+router.get('/deals', async (_req, res, next) => {
+  try {
+    const { rows } = await query('SELECT * FROM deals ORDER BY sort_order NULLS LAST, created_at DESC');
+    res.json(rows.map(mapDeal));
+  } catch (err) { next(err); }
+});
+
+router.post('/deals', async (req, res, next) => {
+  const { title, subtitle, imageUrl, hyperlink, sortOrder, active = true } = req.body;
+  if (!title || !imageUrl) {
+    return res.status(400).json({ error: 'title and imageUrl are required' });
+  }
+  try {
+    const { rows } = await query(
+      `INSERT INTO deals (title, subtitle, image_url, hyperlink, sort_order, active)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [title, subtitle ?? null, imageUrl, hyperlink ?? null, sortOrder ?? null, active],
+    );
+    res.status(201).json(mapDeal(rows[0]));
+  } catch (err) { next(err); }
+});
+
+router.patch('/deals/:id', async (req, res, next) => {
+  const id = parseInt(req.params.id, 10);
+  const colMap = {
+    title: 'title', subtitle: 'subtitle', imageUrl: 'image_url',
+    hyperlink: 'hyperlink', sortOrder: 'sort_order', active: 'active',
+  };
+  const sets = []; const vals = [];
+  for (const [key, col] of Object.entries(colMap)) {
+    if (key in req.body) { vals.push(req.body[key]); sets.push(`${col} = $${vals.length}`); }
+  }
+  if (!sets.length) return res.status(400).json({ error: 'No updatable fields provided' });
+  vals.push(id);
+  try {
+    const { rows } = await query(
+      `UPDATE deals SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${vals.length} RETURNING *`, vals,
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Deal not found' });
+    res.json(mapDeal(rows[0]));
+  } catch (err) { next(err); }
+});
+
+router.delete('/deals/:id', async (req, res, next) => {
+  try {
+    const { rowCount } = await query('DELETE FROM deals WHERE id = $1', [req.params.id]);
+    if (!rowCount) return res.status(404).json({ error: 'Deal not found' });
     res.status(204).end();
   } catch (err) { next(err); }
 });

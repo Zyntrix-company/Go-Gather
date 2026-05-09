@@ -69,7 +69,7 @@ type ExpenseLocal = {
   createdByUserId?: string;
   splitBreakdown?: { userId: string; amount: number; percentage: number | null }[];
 };
-type PollLocal = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null };
+type PollLocal = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null; createdBy?: string };
 type NoteLocal = { id: string; title: string; body: string; category: 'general' | 'idea' | 'important' | 'todo'; date: string; pinned?: boolean };
 type DebtLocal = { from: string; to: string; fromName: string; toName: string; amount: number };
 
@@ -529,6 +529,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
   // ── Polls modal ──
+  const [showPollForm, setShowPollForm] = useState(false);
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
   const [votingPollId, setVotingPollId] = useState<string | null>(null);
@@ -891,20 +892,30 @@ export default function EventDetailScreen({ route, navigation }: any) {
         question: res.poll.question,
         options: res.poll.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount, votedByMe: o.votedByMe })),
         myVoteOptionId: res.poll.myVoteOptionId,
+        createdBy: res.poll.createdBy,
       }]);
+      setPollQuestion(''); setPollOptions(['', '']);
+      setShowPollForm(false);
+      Toast.show({ type: 'success', text1: 'Poll created!' });
     } catch (err) { handleApiError(err); }
-    setPollQuestion(''); setPollOptions(['', '']);
   }
 
   async function handleDeletePoll(pollId: string) {
-    try {
-      await deleteEventPoll(event.id, pollId);
-      setPolls(p => p.filter(po => po.id !== pollId));
-    } catch (err) { handleApiError(err); }
+    showConfirm({
+      title: 'Delete Poll',
+      message: 'Are you sure you want to delete this poll?',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteEventPoll(event.id, pollId);
+          setPolls(p => p.filter(po => po.id !== pollId));
+        } catch (err) { handleApiError(err); }
+      },
+    });
   }
 
   async function handleVote(pollId: string, optionId: string) {
-    if (votingPollId === pollId) return; // already in-flight
+    if (votingPollId === pollId) return;
     setVotingPollId(pollId);
     try {
       const res = await voteOnEventPoll(event.id, pollId, optionId);
@@ -914,6 +925,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         options: res.poll.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount, votedByMe: o.votedByMe })),
         myVoteOptionId: res.poll.myVoteOptionId,
       } : p));
+      Toast.show({ type: 'success', text1: 'Vote recorded!' });
     } catch (err) { handleApiError(err); }
     finally { setVotingPollId(null); }
   }
@@ -1730,70 +1742,93 @@ export default function EventDetailScreen({ route, navigation }: any) {
             MODAL 5 — Polls
         ═══════════════════════════════════════════════════ */}
         <Modal visible={showPolls} transparent animationType="fade" onRequestClose={() => setShowPolls(false)}>
+          <Toast />
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
-              <DHeader title="Polls" onClose={() => setShowPolls(false)} />
+              <DHeader title="Polls" onClose={() => { setShowPolls(false); setShowPollForm(false); setPollQuestion(''); setPollOptions(['', '']); }} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.dBody}>
-                  <Text style={styles.fLabel}>Question</Text>
-                  <TextInput style={styles.fInput} placeholder="What do you want to ask?" placeholderTextColor="#94a3b8" value={pollQuestion} onChangeText={setPollQuestion} />
-                  <Text style={[styles.fLabel, { marginTop: 12 }]}>Options</Text>
-                  {pollOptions.map((opt, i) => (
-                    <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <TextInput style={[styles.fInput, { flex: 1 }]} placeholder={`Option ${i + 1}`} placeholderTextColor="#94a3b8" value={opt} onChangeText={v => setPollOptions(p => { const n = [...p]; n[i] = v; return n; })} />
-                      {pollOptions.length > 2 && (
-                        <TouchableOpacity onPress={() => setPollOptions(p => p.filter((_, j) => j !== i))} activeOpacity={0.7}>
-                          <TrashIcon color="#ef4444" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  ))}
-                  <TouchableOpacity onPress={() => setPollOptions(p => [...p, ''])} activeOpacity={0.7} style={{ marginTop: 2, marginBottom: 8 }}>
-                    <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '500' }}>+ Add Option</Text>
+
+                  {/* Create Poll button */}
+                  <TouchableOpacity
+                    style={styles.tealBtnFull}
+                    onPress={() => setShowPollForm(v => !v)}
+                    activeOpacity={0.85}>
+                    <Text style={styles.tealBtnTxt}>{showPollForm ? '✕  Cancel' : '+  Create Poll'}</Text>
                   </TouchableOpacity>
 
-                  {polls.map(poll => (
-                    <View key={poll.id} style={styles.pollCard}>
-                      <Text style={styles.pollQ}>{poll.question}</Text>
-                      {poll.options.map(opt => {
-                        const total = poll.options.reduce((s, o) => s + o.voteCount, 0);
-                        const pct = total > 0 ? Math.round((opt.voteCount / total) * 100) : 0;
-                        const isMyVote = opt.votedByMe || poll.myVoteOptionId === opt.id;
-                        const isVoting = votingPollId === poll.id;
-                        return (
-                          <TouchableOpacity
-                            key={opt.id}
-                            disabled={isVoting}
-                            onPress={() => handleVote(poll.id, opt.id)}
-                            activeOpacity={0.8}
-                            style={styles.pollOptRow}
-                          >
-                            {/* Teal fill — full width when voted, proportional to % when not */}
-                            <View style={[
-                              styles.pollBar,
-                              {
-                                width: `${isMyVote ? 100 : pct}%` as any,
-                                backgroundColor: isMyVote ? '#0d9488' : '#ccfbf1',
-                              },
-                            ]} />
-                            <Text style={[styles.pollOptTxt, isMyVote && { color: '#fff', fontWeight: '500' }]} numberOfLines={1}>
-                              {isMyVote ? '✓  ' : ''}{opt.text}
-                            </Text>
-                            <Text style={[styles.pollVotes, isMyVote && { color: '#fff' }]}>{pct}%</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                      <TouchableOpacity onPress={() => handleDeletePoll(poll.id)} activeOpacity={0.7} style={{ marginTop: 8, alignSelf: 'flex-end' }}>
-                        <Text style={{ fontSize: 11, color: '#ef4444' }}>Delete Poll</Text>
+                  {/* Inline create form */}
+                  {showPollForm && (
+                    <View style={{ marginTop: 14 }}>
+                      <Text style={styles.fLabel}>Question</Text>
+                      <TextInput style={styles.fInput} placeholder="What do you want to ask?" placeholderTextColor="#94a3b8" value={pollQuestion} onChangeText={setPollQuestion} />
+                      <Text style={[styles.fLabel, { marginTop: 12 }]}>Options</Text>
+                      {pollOptions.map((opt, i) => (
+                        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <TextInput style={[styles.fInput, { flex: 1 }]} placeholder={`Option ${i + 1}`} placeholderTextColor="#94a3b8" value={opt} onChangeText={v => setPollOptions(p => { const n = [...p]; n[i] = v; return n; })} />
+                          {pollOptions.length > 2 && (
+                            <TouchableOpacity onPress={() => setPollOptions(p => p.filter((_, j) => j !== i))} activeOpacity={0.7}>
+                              <TrashIcon color="#ef4444" />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ))}
+                      <TouchableOpacity onPress={() => setPollOptions(p => [...p, ''])} activeOpacity={0.7} style={{ marginTop: 2, marginBottom: 12 }}>
+                        <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '500' }}>+ Add Option</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.tealBtnFull} onPress={handleCreatePoll} activeOpacity={0.85}>
+                        <Text style={styles.tealBtnTxt}>Submit Poll</Text>
                       </TouchableOpacity>
                     </View>
-                  ))}
+                  )}
+
+                  {/* Poll list */}
+                  {polls.length > 0 && <View style={{ marginTop: 16 }} />}
+                  {polls.map(poll => {
+                    const totalVotes = poll.options.reduce((s, o) => s + o.voteCount, 0);
+                    const isOwner = poll.createdBy === currentUserId;
+                    const isVoting = votingPollId === poll.id;
+                    return (
+                      <View key={poll.id} style={styles.pollCard}>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.pollQ}>{poll.question}</Text>
+                            <Text style={styles.pollMeta}>{isOwner ? 'By You' : 'By a member'} • {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</Text>
+                          </View>
+                          <TouchableOpacity onPress={() => handleDeletePoll(poll.id)} activeOpacity={0.7} style={styles.pollDeleteBtn} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                            <TrashIcon color="#ef4444" size={15} />
+                          </TouchableOpacity>
+                        </View>
+                        {poll.options.map(opt => {
+                          const pct = totalVotes > 0 ? Math.round((opt.voteCount / totalVotes) * 100) : 0;
+                          const isMyVote = opt.votedByMe || poll.myVoteOptionId === opt.id;
+                          return (
+                            <TouchableOpacity
+                              key={opt.id}
+                              disabled={isVoting}
+                              onPress={() => handleVote(poll.id, opt.id)}
+                              activeOpacity={0.8}
+                              style={styles.pollOptRow}>
+                              <View style={[styles.pollBar, { width: `${pct}%` as any, backgroundColor: isMyVote ? '#0d9488' : '#ccfbf1' }]} />
+                              <Text style={[styles.pollOptTxt, isMyVote && { fontWeight: '600', color: '#0d9488' }]} numberOfLines={1}>
+                                {isMyVote ? '✓  ' : ''}{opt.text}
+                              </Text>
+                              <Text style={styles.pollVotes}>{opt.voteCount}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    );
+                  })}
+
+                  {polls.length === 0 && !showPollForm && (
+                    <View style={styles.emptyCenter}>
+                      <Text style={styles.emptyTitle}>No polls yet</Text>
+                      <Text style={styles.emptySub}>Create the first poll above</Text>
+                    </View>
+                  )}
                 </View>
               </ScrollView>
-              <View style={styles.dFooterRow}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setPollQuestion(''); setPollOptions(['', '']); }} activeOpacity={0.7}><Text style={styles.cancelTxt}>Cancel</Text></TouchableOpacity>
-                <TouchableOpacity style={[styles.tealBtnFull, { flex: 1 }]} onPress={handleCreatePoll} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>Create Poll</Text></TouchableOpacity>
-              </View>
             </View>
           </View>
         </Modal>
@@ -2140,7 +2175,9 @@ const styles = StyleSheet.create({
   balValue: { fontSize: 13, fontWeight: '500', color: '#0f172a' },
 
   pollCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  pollQ: { fontSize: 12, fontWeight: '500', color: '#0f172a', marginBottom: 10 },
+  pollQ: { fontSize: 13, fontWeight: '600', color: '#0f172a', marginBottom: 2 },
+  pollMeta: { fontSize: 11, color: '#64748b', fontWeight: '400', marginBottom: 10 },
+  pollDeleteBtn: { padding: 4 },
   pollOptRow: { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, marginBottom: 6, overflow: 'hidden' },
   pollBar: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 8 },
   pollOptTxt: { flex: 1, fontSize: 12, color: '#0f172a', fontWeight: '500', zIndex: 1 },

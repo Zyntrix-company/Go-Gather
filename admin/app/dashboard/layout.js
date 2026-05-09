@@ -13,6 +13,7 @@ const NAV = [
   { href: '/dashboard/storage',      label: 'Storage & Capacity', icon: DatabaseIcon },
   { href: '/dashboard/contact',      label: 'Feedback',           icon: MailIcon },
   { href: '/dashboard/blogs',        label: 'Blogs',              icon: BookIcon },
+  { href: '/dashboard/deals',        label: 'Amazing Deals',      icon: TagIcon },
   { href: '/dashboard/legal',        label: 'Legal',              icon: FileTextIcon },
   { href: '/dashboard/security',     label: 'Security',           icon: ShieldIcon },
 ];
@@ -120,6 +121,11 @@ function FileTextIcon({ className }) {
 function BookIcon({ className }) {
   return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+  </svg>;
+}
+function TagIcon({ className }) {
+  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M3 3h8l9.5 9.5a2 2 0 010 2.83l-5.17 5.17a2 2 0 01-2.83 0L3 11V3z" />
   </svg>;
 }
 function ShieldIcon({ className }) {

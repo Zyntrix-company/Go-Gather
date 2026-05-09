@@ -11,7 +11,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { PencilIcon } from './Icons';
+import { PenIcon } from './Icons';
 import StackedAvatars from './StackedAvatars';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -107,15 +107,15 @@ export default function DetailHeroCard({
         </View>
 
         <View style={styles.daysArea}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
             <Text style={styles.daysNumber}>{dayCount}</Text>
             {onEdit && (
               <TouchableOpacity onPress={onEdit} style={styles.pencilBtn} activeOpacity={0.7}>
-                <PencilIcon color="#009788" size={13} />
+                <PenIcon color="#009788" size={17} />
               </TouchableOpacity>
             )}
           </View>
-          <Text style={styles.daysLabel}>{dayLabel.toUpperCase()}</Text>
+          <Text style={styles.daysLabel}>{dayLabel}</Text>
         </View>
       </View>
 
@@ -201,8 +201,9 @@ const styles = StyleSheet.create({
     color: '#1B6265',
   },
   daysArea: {
-    alignItems: 'flex-end',
+    alignItems: 'stretch',
     paddingLeft: 8,
+    minWidth: 80,
   },
   daysNumber: {
     fontSize: 28,
@@ -218,14 +219,14 @@ const styles = StyleSheet.create({
   },
   pencilBtn: {
     marginLeft: 5,
-    marginBottom: 4,
+    marginTop: 2,
     width: 20,
     height: 20,
     borderRadius: 10,
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'flex-end',
+    alignSelf: 'flex-start',
   },
   statsRow: {
     flexDirection: 'row',

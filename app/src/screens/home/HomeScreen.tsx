@@ -20,6 +20,7 @@ import {
   Keyboard,
   Platform,
   AppState,
+  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
@@ -1187,6 +1188,9 @@ export default function HomeScreen({ navigation, route }: any) {
                 return (
                   <TouchableOpacity
                     activeOpacity={0.87}
+                    onPress={() => {
+                      if (item.hyperlink) Linking.openURL(item.hyperlink).catch(() => {});
+                    }}
                     style={{
                       width: CARD_DEAL_W,         // SCREEN_W * 0.317 ≈ 119px
                       borderRadius: 14,
@@ -1423,7 +1427,7 @@ export default function HomeScreen({ navigation, route }: any) {
                   </TouchableOpacity>
                 </View>
                 <Text style={{ textAlign: 'center', fontSize: 11, color: '#cbd5e1', marginTop: 20 }}>
-                  © 2025 GatherrGo · Made with ♥ for travellers
+                  © 2026 GatherrGo
                 </Text>
               </View>
             )}

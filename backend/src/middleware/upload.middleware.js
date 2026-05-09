@@ -193,12 +193,29 @@ const createBlogImageUpload = () => multer({
   },
 });
 
+// ── Deal image upload (same config as blog images) ───────────
+const createDealImageUpload = () => multer({
+  storage: memoryStorage,
+  limits: { fileSize: BLOG_IMAGE_MAX_SIZE },
+  fileFilter: (_req, file, cb) => {
+    if (BLOG_IMAGE_ALLOWED_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      const err = new Error('Deal images must be JPEG, PNG, or WebP (max 10 MB)');
+      err.statusCode = 400;
+      err.error = 'INVALID_FILE_TYPE';
+      cb(err, false);
+    }
+  },
+});
+
 const docUpload = createDocUpload();
 const photoUpload = createPhotoUpload();
 const avatarUpload = createAvatarUpload();
 const activityPhotoUpload = createActivityPhotoUpload();
 const tripFilesUpload = createTripFilesUpload();
 const blogImageUpload = createBlogImageUpload();
+const dealImageUpload = createDealImageUpload();
 
 module.exports = {
   docUpload,
@@ -207,6 +224,7 @@ module.exports = {
   activityPhotoUpload,
   tripFilesUpload,
   blogImageUpload,
+  dealImageUpload,
   handleMulterError,
   validateMimeFromBuffer,
 };
