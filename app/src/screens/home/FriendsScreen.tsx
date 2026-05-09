@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
-import Svg, { Path, Circle, Polyline, Rect } from 'react-native-svg';
+import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import BlobBackground from '../../components/common/BlobBackground';
@@ -298,16 +298,16 @@ export default function FriendsScreen() {
             <View style={styles.selectionActions}>
               <TouchableOpacity style={styles.selectionActionBtn} onPress={handleOpenCreateTrip} activeOpacity={0.8}>
                 <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
-                  <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  <Polyline points="9 22 9 12 15 12 15 22" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  <Path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" fill="#fff" />
                 </Svg>
                 <Text style={styles.selectionActionText}>Trip</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={[styles.selectionActionBtn, styles.selectionActionBtnEvent]} onPress={handleOpenCreateEvent} activeOpacity={0.8}>
                 <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
-                  <Rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  <Rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  <Path d="M16 2v4M8 2v4M3 10h18" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  <Path d="M12 16v-4M10 14h4" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
                 <Text style={[styles.selectionActionText, styles.selectionActionTextEvent]}>Event</Text>
               </TouchableOpacity>
@@ -603,9 +603,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   selectionActionBtnEvent: {
-    backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: '#0d9488',
+    backgroundColor: '#61BFCE',
   },
   selectionActionText: {
     fontSize: 13,
@@ -613,7 +611,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   selectionActionTextEvent: {
-    color: '#0d9488',
+    color: '#fff',
   },
   selectHint: {
     fontSize: 12,
@@ -672,7 +670,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter',
     fontSize: 15,
     fontWeight: '600',
-    color: '#45556C',
+    color: '#404a59',
     lineHeight: 21,
     letterSpacing: 0,
     marginTop: 9,
@@ -789,7 +787,7 @@ const styles = StyleSheet.create({
   },
   friendStats: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '400',
     color: '#94a3b8',
   },
   friendActions: {

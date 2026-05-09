@@ -142,12 +142,7 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
             ))}
           </View>
 
-          {/* Footer note */}
-          <View style={styles.footerNote}>
-            <Text style={styles.footerText}>
-              Built with ❤️ for travellers who love going together.
-            </Text>
-          </View>
+          
 
         </ScrollView>
       </BlobBackground>
@@ -205,12 +200,9 @@ const styles = StyleSheet.create({
 
   // About card
   card: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
     gap: 10,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
   },
   cardIconRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cardIcon: {
@@ -246,12 +238,9 @@ const styles = StyleSheet.create({
   // FAQ
   faqList: { gap: 8 },
   faqItem: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 13,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
   },
   faqRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   faqQ: { fontSize: 13, fontWeight: '500', color: colors.textPrimary, flex: 1, lineHeight: 19 },

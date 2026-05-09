@@ -371,7 +371,7 @@ type Tab = 'home' | 'trips' | 'events' | 'friends' | 'chat' | 'gallery';
 
 function NavIcon({ name, active, onPress }: { name: Tab; active: boolean; onPress: () => void }) {
   const color = active ? '#0d9488' : '#94a3b8';
-  const labels: Record<Tab, string> = { home: 'Home', trips: 'Trips', events: 'Events', friends: 'Friends', chat: 'Chat', gallery: 'Gallery' };
+  const labels: Record<Tab, string> = { home: 'Home', trips: 'Trips', events: 'Events', friends: 'Friends', chat: 'Swee', gallery: 'Gallery' };
 
   return (
     <TouchableOpacity style={styles.navItem} onPress={onPress}>
