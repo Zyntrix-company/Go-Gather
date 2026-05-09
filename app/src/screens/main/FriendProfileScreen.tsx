@@ -65,15 +65,23 @@ function SectionHeader({ title, count, icon }: { title: string; count: number; i
 function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
   const [imgError, setImgError] = useState(false);
   const hasImage = item.bannerImageUrl && !imgError;
+  const hasSubtitle = !!item.gallerySubtitle?.trim();
   return (
-    <TouchableOpacity style={styles.gridCard} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity
+      style={[styles.gridCard, hasSubtitle && styles.gridCardTall]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
       {hasImage ? (
         <CachedImage uri={item.bannerImageUrl} style={styles.gridCardImage} resizeMode="cover" onError={() => setImgError(true)} />
       ) : (
         <View style={styles.gridCardPlaceholder}><CameraIcon /></View>
       )}
-      <View style={styles.gridCardOverlay}>
+      <View style={[styles.gridCardOverlay, hasSubtitle && styles.gridCardOverlayTall]}>
         <Text style={styles.gridCardText} numberOfLines={1}>{item.name}</Text>
+        {hasSubtitle && (
+          <Text style={styles.gridCardSubtitle} numberOfLines={1}>{item.gallerySubtitle}</Text>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -135,9 +143,9 @@ function PreviewModal({ photo, onClose }: { photo: PhotoItem | null; onClose: ()
   );
 }
 
-function PhotosModal({ visible, title, onClose, parentId, parentType, userId }: {
+function PhotosModal({ visible, title, onClose, parentId, parentType, userId, gallerySubtitle }: {
   visible: boolean; title: string; onClose: () => void;
-  parentId: string; parentType: 'trip' | 'event'; userId?: string;
+  parentId: string; parentType: 'trip' | 'event'; userId?: string; gallerySubtitle?: string | null;
 }) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -206,6 +214,9 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId }: 
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.dialogBody}>
+                {gallerySubtitle?.trim() ? (
+                  <Text style={styles.subtitleDisplay}>{gallerySubtitle}</Text>
+                ) : null}
                 {loading && <View style={styles.modalLoadingRow}><ActivityIndicator color="#0d9488" /></View>}
 
                 {!loading && photos.length === 0 && (
@@ -280,7 +291,7 @@ export default function FriendProfileScreen() {
   const [galleryEvents, setGalleryEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [avatarError, setAvatarError] = useState(false);
-  const [photoModal, setPhotoModal] = useState<{ id: string; name: string; type: 'trip' | 'event' } | null>(null);
+  const [photoModal, setPhotoModal] = useState<{ id: string; name: string; type: 'trip' | 'event'; subtitle?: string | null } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -404,7 +415,7 @@ export default function FriendProfileScreen() {
             <View style={styles.grid}>
               {galleryTrips.length > 0
                 ? galleryTrips.map((trip: any) => (
-                    <GridCard key={trip.id} item={trip} onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip' })} />
+                    <GridCard key={trip.id} item={trip} onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null })} />
                   ))
                 : <EmptyCard label="No past trips yet" />
               }
@@ -420,7 +431,7 @@ export default function FriendProfileScreen() {
             <View style={styles.grid}>
               {galleryEvents.length > 0
                 ? galleryEvents.map((ev: any) => (
-                    <GridCard key={ev.id} item={ev} onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event' })} />
+                    <GridCard key={ev.id} item={ev} onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null })} />
                   ))
                 : <EmptyCard label="No past events yet" />
               }
@@ -437,6 +448,7 @@ export default function FriendProfileScreen() {
           parentId={photoModal.id}
           parentType={photoModal.type}
           userId={userId}
+          gallerySubtitle={photoModal.subtitle}
           onClose={() => setPhotoModal(null)}
         />
       )}
@@ -508,10 +520,13 @@ const styles = StyleSheet.create({
   // Grid
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   gridCard: { width: CARD_W, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: '#f1f5f9' },
+  gridCardTall: { height: 160 },
   gridCardImage: { width: '100%', height: '100%' },
   gridCardPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
   gridCardOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 32, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', paddingHorizontal: 8 },
+  gridCardOverlayTall: { height: 50, justifyContent: 'center', paddingVertical: 6 },
   gridCardText: { color: '#fff', fontSize: 13, fontWeight: '600', lineHeight: 16 },
+  gridCardSubtitle: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '400', lineHeight: 14, marginTop: 2 },
   emptyCard: { width: CARD_W, height: 140, borderRadius: 14, borderWidth: 2, borderColor: '#e2e8f0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#fafafa' },
   emptyCardText: { fontSize: 13, color: '#cbd5e1', fontWeight: '600' },
 
@@ -536,4 +551,6 @@ const styles = StyleSheet.create({
   previewClose: { position: 'absolute', top: 48, left: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   previewImg: { width: SCREEN_W, height: SCREEN_W * 1.2 },
   previewLoader: { position: 'absolute' },
+
+  subtitleDisplay: { fontSize: 13, color: '#64748b', fontStyle: 'italic', marginBottom: 12, paddingHorizontal: 2 },
 });

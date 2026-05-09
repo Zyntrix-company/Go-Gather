@@ -159,6 +159,24 @@ const acknowledgeLegal = async (req, res, next) => {
   }
 };
 
+/**
+ * PATCH /users/me/gallery-items/:parentType/:parentId/subtitle
+ */
+const upsertGallerySubtitle = async (req, res, next) => {
+  try {
+    const { parentType, parentId } = req.params;
+    if (!['trip', 'event'].includes(parentType)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'parentType must be trip or event' });
+    }
+    const { subtitle } = req.body;
+    const result = await usersService.upsertGallerySubtitle(req.user.id, parentType, parentId, subtitle ?? null);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
 module.exports = {
   saveProfile,
   uploadPhoto,
@@ -172,4 +190,5 @@ module.exports = {
   updateNotificationSettings,
   getLegalStatus,
   acknowledgeLegal,
+  upsertGallerySubtitle,
 };

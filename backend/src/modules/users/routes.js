@@ -59,6 +59,14 @@ router.get('/legal-status', authenticateJWT, controller.getLegalStatus);
 // POST /users/legal-ack — acknowledge current privacy/terms (requires auth)
 router.post('/legal-ack', authenticateJWT, controller.acknowledgeLegal);
 
+// PATCH /users/me/gallery-items/:parentType/:parentId/subtitle — upsert per-user gallery subtitle (requires auth)
+// Registered under /me/ so Express never mistakes "me" for a UUID :id param
+router.patch(
+  '/me/gallery-items/:parentType/:parentId/subtitle',
+  authenticateJWT,
+  controller.upsertGallerySubtitle,
+);
+
 // ── Per-user routes ────────────────────────────────────────────────────────────
 
 // GET /users/:id/profile — Enhanced profile with friendship status + stats (requires auth)

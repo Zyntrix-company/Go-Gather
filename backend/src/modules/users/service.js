@@ -509,9 +509,12 @@ const getUserGallery = async (targetId) => {
          t.location_name   AS location,
          t.end_date        AS "endDate",
          (SELECT COUNT(*)::int FROM trip_members WHERE trip_id = t.id)                        AS "memberCount",
-         (SELECT COUNT(*)::int FROM photos       WHERE parent_type = 'trip' AND parent_id = t.id) AS "photoCount"
+         (SELECT COUNT(*)::int FROM photos       WHERE parent_type = 'trip' AND parent_id = t.id) AS "photoCount",
+         m.subtitle        AS "gallerySubtitle"
        FROM trips t
        JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = $1
+       LEFT JOIN user_gallery_item_meta m
+         ON m.user_id = $1 AND m.parent_type = 'trip' AND m.parent_id = t.id
        WHERE t.archived_at IS NULL
        ORDER BY t.end_date DESC
        LIMIT 50`,
@@ -525,9 +528,12 @@ const getUserGallery = async (targetId) => {
          e.location_name                           AS location,
          e.event_date                              AS "endDate",
          (SELECT COUNT(*)::int FROM event_members  WHERE event_id = e.id)                         AS "memberCount",
-         (SELECT COUNT(*)::int FROM photos         WHERE parent_type = 'event' AND parent_id = e.id) AS "photoCount"
+         (SELECT COUNT(*)::int FROM photos         WHERE parent_type = 'event' AND parent_id = e.id) AS "photoCount",
+         m.subtitle        AS "gallerySubtitle"
        FROM events e
        JOIN event_members em ON em.event_id = e.id AND em.user_id = $1
+       LEFT JOIN user_gallery_item_meta m
+         ON m.user_id = $1 AND m.parent_type = 'event' AND m.parent_id = e.id
        WHERE e.archived_at IS NULL
        ORDER BY e.event_date DESC
        LIMIT 50`,
@@ -782,6 +788,37 @@ const acknowledgeLegal = async (userId, { privacyVersion, termsVersion }) => {
   return getLegalStatus(userId);
 };
 
+/**
+ * PATCH /users/me/gallery-items/:parentType/:parentId/subtitle
+ * Upsert a per-user gallery subtitle for a trip or event the caller is a member of.
+ * Pass subtitle = null / empty string to clear it.
+ */
+const upsertGallerySubtitle = async (userId, parentType, parentId, subtitle) => {
+  // Verify membership — same rule as appearing in getUserGallery
+  const memberCheck = parentType === 'trip'
+    ? await db.query('SELECT 1 FROM trip_members WHERE trip_id = $1 AND user_id = $2', [parentId, userId])
+    : await db.query('SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2', [parentId, userId]);
+
+  if (memberCheck.rowCount === 0) {
+    const e = new Error('Not a member of this trip/event');
+    e.statusCode = 403;
+    e.error = 'FORBIDDEN';
+    throw e;
+  }
+
+  const cleanSubtitle = subtitle && subtitle.trim() ? subtitle.trim() : null;
+
+  await db.query(
+    `INSERT INTO user_gallery_item_meta (user_id, parent_type, parent_id, subtitle, updated_at)
+     VALUES ($1, $2, $3, $4, NOW())
+     ON CONFLICT (user_id, parent_type, parent_id)
+     DO UPDATE SET subtitle = EXCLUDED.subtitle, updated_at = NOW()`,
+    [userId, parentType, parentId, cleanSubtitle],
+  );
+
+  return { subtitle: cleanSubtitle };
+};
+
 module.exports = {
   saveProfile,
   uploadPhoto,
@@ -795,4 +832,5 @@ module.exports = {
   updateNotificationSettings,
   getLegalStatus,
   acknowledgeLegal,
+  upsertGallerySubtitle,
 };

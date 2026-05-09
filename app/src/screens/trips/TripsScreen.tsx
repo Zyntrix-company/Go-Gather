@@ -677,9 +677,6 @@ export function CreateTripModal({
                   error={startDateError}
                   title="Select start date"
                 />
-                {!startDateError && (
-                  <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Up to 365 days from today</Text>
-                )}
               </View>
               <View style={{ flex: 1, gap: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -715,9 +712,6 @@ export function CreateTripModal({
                   error={endDateError}
                   title="Select end date"
                 />
-                {!endDateError && (
-                  <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Up to 365 days from today</Text>
-                )}
               </View>
             </View>
 

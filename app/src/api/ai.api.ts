@@ -96,7 +96,7 @@ export async function clearConversation(userId: string): Promise<void> {
 }
 
 /**
- * Fetch user gallery (trips + events with photo counts).
+ * Fetch user gallery (trips + events with photo counts + optional gallerySubtitle).
  */
 export async function getUserGallery(userId: string): Promise<{ trips: any[]; events: any[] }> {
   try {
@@ -105,6 +105,22 @@ export async function getUserGallery(userId: string): Promise<{ trips: any[]; ev
   } catch {
     return { trips: [], events: [] };
   }
+}
+
+/**
+ * Upsert a per-user subtitle for a trip/event gallery tile (owner only).
+ * Pass subtitle = null or '' to clear it.
+ */
+export async function upsertGallerySubtitle(
+  parentType: 'trip' | 'event',
+  parentId: string,
+  subtitle: string | null,
+): Promise<{ subtitle: string | null }> {
+  const res = await client.patch(
+    `/users/me/gallery-items/${parentType}/${parentId}/subtitle`,
+    { subtitle },
+  );
+  return res.data;
 }
 
 /**

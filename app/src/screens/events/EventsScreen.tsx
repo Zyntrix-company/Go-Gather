@@ -594,9 +594,6 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
               error={dateError}
               title="Select event date"
             />
-            {!dateError && (
-              <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Up to 365 days from today</Text>
-            )}
 
             {/* Location */}
             <Text style={modal.label}>Location</Text>

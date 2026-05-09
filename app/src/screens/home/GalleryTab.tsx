@@ -8,9 +8,10 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { Plane, CalendarDays, PencilLine } from 'lucide-react-native';
-import { getUserGallery, getUserPhotos } from '../../api/ai.api';
-import { getTripPhotos } from '../../api/trips.api';
-import { getEventPhotos } from '../../api/events.api';
+import { getUserGallery, getUserPhotos, upsertGallerySubtitle } from '../../api/ai.api';
+import { getTripPhotos, uploadTripPhotos, deleteTripPhoto } from '../../api/trips.api';
+import { getEventPhotos, uploadEventPhotos, deleteEventPhoto } from '../../api/events.api';
+import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = (SCREEN_W - 52) / 2;
@@ -74,14 +75,29 @@ function SectionHeader({ title, count, onAdd, icon }: { title: string; count: nu
   );
 }
 
-// ─── Gallery grid card (read-only, for API-driven trips/events) ──────────────
+// ─── Gallery grid card ────────────────────────────────────────────────────────
 
-function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
+function GridCard({
+  item,
+  onPress,
+  isOwner,
+  onEditPress,
+}: {
+  item: any;
+  onPress: () => void;
+  isOwner?: boolean;
+  onEditPress?: () => void;
+}) {
   const [imgError, setImgError] = useState(false);
   const hasImage = item.bannerImageUrl && !imgError;
+  const hasSubtitle = !!item.gallerySubtitle?.trim();
 
   return (
-    <TouchableOpacity style={styles.gridCard} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity
+      style={[styles.gridCard, hasSubtitle && styles.gridCardTall]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
       {hasImage ? (
         <CachedImage
           uri={item.bannerImageUrl}
@@ -94,9 +110,23 @@ function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
           <CameraIcon />
         </View>
       )}
-      <View style={styles.gridCardOverlay}>
+      <View style={[styles.gridCardOverlay, hasSubtitle && styles.gridCardOverlayTall]}>
         <Text style={styles.gridCardText} numberOfLines={1}>{item.name}</Text>
+        {hasSubtitle && (
+          <Text style={styles.gridCardSubtitle} numberOfLines={1}>
+            {item.gallerySubtitle}
+          </Text>
+        )}
       </View>
+      {isOwner && onEditPress && (
+        <TouchableOpacity
+          style={styles.gridCardEditBtn}
+          onPress={onEditPress}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+        >
+          <PencilLine size={10} color="#fff" />
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 }
@@ -202,7 +232,7 @@ function PreviewModal({ photo, onClose }: { photo: PhotoItem | null; onClose: ()
   );
 }
 
-// ─── Photos modal (for API-driven trip/event cards) ───────────────────────────
+// ─── Photos modal (trip/event cards — owner can edit, viewers read-only) ──────
 
 function PhotosModal({
   visible,
@@ -211,6 +241,10 @@ function PhotosModal({
   parentId,
   parentType,
   userId,
+  isOwner,
+  gallerySubtitle: initialSubtitle,
+  defaultEditMode,
+  onSubtitleSaved,
 }: {
   visible: boolean;
   title: string;
@@ -218,22 +252,44 @@ function PhotosModal({
   parentId: string;
   parentType: 'trip' | 'event';
   userId?: string;
+  isOwner?: boolean;
+  gallerySubtitle?: string | null;
+  defaultEditMode?: boolean;
+  onSubtitleSaved?: (subtitle: string | null) => void;
 }) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<PhotoItem | null>(null);
+  const [subtitleDraft, setSubtitleDraft] = useState('');
+  const [savingSubtitle, setSavingSubtitle] = useState(false);
 
   useEffect(() => {
-    if (!visible || !parentId) return;
+    if (visible) {
+      setEditMode(!!defaultEditMode);
+      setSubtitleDraft(initialSubtitle ?? '');
+    } else {
+      setEditMode(false);
+    }
+  // defaultEditMode intentionally not in deps — only read on open
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  // Keep subtitleDraft in sync if initialSubtitle changes between opens
+  useEffect(() => {
+    if (visible) setSubtitleDraft(initialSubtitle ?? '');
+  }, [initialSubtitle, visible]);
+
+  const loadPhotos = () => {
+    if (!parentId) return;
     let cancelled = false;
     setLoading(true);
     setPhotos([]);
 
-    let fetcher: Promise<{ photos?: any[]; trips?: any[]; events?: any[] }>;
-
+    let fetcher: Promise<{ photos?: any[] }>;
     if (userId) {
-      // Viewing another user's gallery — use the user photos endpoint which
-      // doesn't require trip/event membership. Filter to the specific parent.
       fetcher = getUserPhotos(userId).then((data) => {
         const parentList: any[] = parentType === 'trip' ? (data.trips ?? []) : (data.events ?? []);
         const match = parentList.find((p: any) => p.id === parentId);
@@ -244,9 +300,7 @@ function PhotosModal({
         return { photos: allPhotos };
       });
     } else {
-      fetcher = parentType === 'trip'
-        ? getTripPhotos(parentId)
-        : getEventPhotos(parentId);
+      fetcher = parentType === 'trip' ? getTripPhotos(parentId) : getEventPhotos(parentId);
     }
 
     fetcher
@@ -262,8 +316,86 @@ function PhotosModal({
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
+
     return () => { cancelled = true; };
+  };
+
+  useEffect(() => {
+    if (!visible || !parentId) return;
+    return loadPhotos();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, parentId, parentType, userId]);
+
+  const handleAddPhotos = () => {
+    launchImageLibrary(
+      { mediaType: 'photo', selectionLimit: 20, quality: 0.85, maxWidth: 2048, maxHeight: 2048 },
+      async (res) => {
+        if (res.didCancel || !res.assets?.length) return;
+        setUploading(true);
+        try {
+          const assets = res.assets.map((a) => ({
+            uri: a.uri ?? '',
+            type: a.type ?? 'image/jpeg',
+            name: a.fileName ?? 'photo.jpg',
+          }));
+          const result = parentType === 'trip'
+            ? await uploadTripPhotos(parentId, assets)
+            : await uploadEventPhotos(parentId, assets);
+          const newPhotos: PhotoItem[] = result.photos.map((ph: any) => ({
+            id: ph.id,
+            uri: ph.url ?? ph.fileUrl ?? '',
+            activityId: null,
+            activityTitle: null,
+          }));
+          setPhotos((prev) => [...prev, ...newPhotos]);
+        } catch (err: any) {
+          const status = err?.response?.status;
+          Toast.show({
+            type: 'error',
+            text1: status === 403 ? 'Permission denied' : 'Upload failed',
+            text2: status === 403 ? 'You do not have permission to add photos here.' : 'Please try again.',
+          });
+        } finally {
+          setUploading(false);
+        }
+      },
+    );
+  };
+
+  const handleDeletePhoto = async (photo: PhotoItem) => {
+    setDeletingId(photo.id);
+    try {
+      if (parentType === 'trip') await deleteTripPhoto(parentId, photo.id);
+      else await deleteEventPhoto(parentId, photo.id);
+      setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
+    } catch (err: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Could not delete',
+        text2: err?.response?.data?.message ?? 'Please try again.',
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDoneEdit = async () => {
+    // Save subtitle when exiting edit mode (only if changed)
+    const clean = subtitleDraft.trim();
+    const prev = initialSubtitle?.trim() ?? '';
+    if (clean !== prev) {
+      setSavingSubtitle(true);
+      try {
+        const result = await upsertGallerySubtitle(parentType, parentId, clean || null);
+        onSubtitleSaved?.(result.subtitle);
+      } catch {
+        Toast.show({ type: 'error', text1: 'Could not save subtitle', text2: 'Please try again.' });
+      } finally {
+        setSavingSubtitle(false);
+      }
+    }
+    setEditMode(false);
+  };
 
   const activityGroups: Record<string, PhotoItem[]> = {};
   const directPhotos: PhotoItem[] = [];
@@ -277,7 +409,22 @@ function PhotosModal({
   });
 
   const renderThumb = (ph: PhotoItem) => (
-    <PhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewPhoto(ph)} />
+    <View key={ph.id} style={{ position: 'relative' }}>
+      <PhotoThumb photo={ph} onPress={() => !editMode && setPreviewPhoto(ph)} />
+      {editMode && isOwner && (
+        <TouchableOpacity
+          style={styles.thumbDeleteBtn}
+          onPress={() => handleDeletePhoto(ph)}
+          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+          disabled={deletingId === ph.id}
+        >
+          {deletingId === ph.id
+            ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
+            : <XIcon size={9} />
+          }
+        </TouchableOpacity>
+      )}
+    </View>
   );
 
   return (
@@ -286,18 +433,59 @@ function PhotosModal({
         <View style={styles.overlay}>
           <View style={[styles.dialog, { maxHeight: '85%' }]}>
             <View style={styles.dialogHeader}>
-              <Text style={styles.dialogTitle}>{title}</Text>
-              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <CloseIcon />
-              </TouchableOpacity>
+              <Text style={styles.dialogTitle} numberOfLines={1}>{title}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                {isOwner && !userId && (
+                  editMode ? (
+                    <TouchableOpacity
+                      onPress={handleDoneEdit}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      disabled={savingSubtitle}
+                    >
+                      {savingSubtitle
+                        ? <ActivityIndicator size="small" color="#0d9488" />
+                        : <CheckIcon />
+                      }
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => setEditMode(true)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <PencilLine size={18} color="#0d9488" />
+                    </TouchableOpacity>
+                  )
+                )}
+                <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <CloseIcon />
+                </TouchableOpacity>
+              </View>
             </View>
+
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.dialogBody}>
+
+                {/* Subtitle row — editable in edit mode, display-only otherwise */}
+                {(editMode && isOwner && !userId) ? (
+                  <TextInput
+                    value={subtitleDraft}
+                    onChangeText={setSubtitleDraft}
+                    placeholder="Add a short subtitle (optional)"
+                    placeholderTextColor="#94a3b8"
+                    style={styles.subtitleInput}
+                    maxLength={80}
+                    returnKeyType="done"
+                  />
+                ) : (initialSubtitle?.trim() ? (
+                  <Text style={styles.subtitleDisplay}>{initialSubtitle}</Text>
+                ) : null)}
+
                 {loading && (
                   <View style={styles.modalLoadingRow}>
                     <ActivityIndicator color="#0d9488" />
                   </View>
                 )}
+
                 {!loading && photos.length === 0 && (
                   <View style={styles.emptyCenter}>
                     <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
@@ -306,9 +494,14 @@ function PhotosModal({
                       <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                     </Svg>
                     <Text style={styles.emptyTitle}>No photos yet</Text>
-                    <Text style={styles.emptySub}>No memories captured for this {parentType}.</Text>
+                    <Text style={styles.emptySub}>
+                      {editMode && isOwner
+                        ? 'Tap "Add photos" below to capture memories.'
+                        : `No memories captured for this ${parentType}.`}
+                    </Text>
                   </View>
                 )}
+
                 {!loading && photos.length > 0 && (
                   <View>
                     {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
@@ -340,6 +533,20 @@ function PhotosModal({
                       </View>
                     )}
                   </View>
+                )}
+
+                {editMode && isOwner && !userId && (
+                  <TouchableOpacity
+                    style={[styles.addPhotosBtn, uploading && { opacity: 0.6 }]}
+                    onPress={handleAddPhotos}
+                    disabled={uploading}
+                    activeOpacity={0.85}
+                  >
+                    {uploading
+                      ? <ActivityIndicator color="#0d9488" />
+                      : <Text style={styles.addPhotosBtnText}>Add photos</Text>
+                    }
+                  </TouchableOpacity>
                 )}
               </View>
             </ScrollView>
@@ -621,7 +828,13 @@ export default function GalleryTab({
   const [loading, setLoading] = useState(false);
 
   // Photo modal for API-driven trip/event cards
-  const [photoModal, setPhotoModal] = useState<{ id: string; name: string; type: 'trip' | 'event' } | null>(null);
+  const [photoModal, setPhotoModal] = useState<{
+    id: string;
+    name: string;
+    type: 'trip' | 'event';
+    subtitle: string | null;
+    startInEdit?: boolean;
+  } | null>(null);
 
   // Custom cards (local, stored in AsyncStorage)
   const [customCards, setCustomCards] = useState<CustomCard[]>([]);
@@ -685,6 +898,15 @@ export default function GalleryTab({
 
   const deleteCustomCard = (id: string) => {
     saveCustomCards(customCards.filter((c) => c.id !== id));
+  };
+
+  const handleSubtitleSaved = (parentId: string, parentType: 'trip' | 'event', subtitle: string | null) => {
+    if (parentType === 'trip') {
+      setGalleryTrips((prev) => prev.map((t) => t.id === parentId ? { ...t, gallerySubtitle: subtitle } : t));
+    } else {
+      setGalleryEvents((prev) => prev.map((e) => e.id === parentId ? { ...e, gallerySubtitle: subtitle } : e));
+    }
+    setPhotoModal((prev) => prev?.id === parentId ? { ...prev, subtitle } : prev);
   };
 
   // Fetch gallery data from server
@@ -771,7 +993,9 @@ export default function GalleryTab({
             <GridCard
               key={trip.id}
               item={trip}
-              onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip' })}
+              isOwner
+              onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null })}
+              onEditPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null, startInEdit: true })}
             />
           ))}
           {cardsLoaded && customTripCards.map((card) => (
@@ -799,7 +1023,9 @@ export default function GalleryTab({
             <GridCard
               key={ev.id}
               item={ev}
-              onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event' })}
+              isOwner
+              onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null })}
+              onEditPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null, startInEdit: true })}
             />
           ))}
           {cardsLoaded && customEventCards.map((card) => (
@@ -823,6 +1049,10 @@ export default function GalleryTab({
           title={photoModal.name}
           parentId={photoModal.id}
           parentType={photoModal.type}
+          isOwner
+          gallerySubtitle={photoModal.subtitle}
+          defaultEditMode={photoModal.startInEdit}
+          onSubtitleSaved={(subtitle) => handleSubtitleSaved(photoModal.id, photoModal.type, subtitle)}
           onClose={() => setPhotoModal(null)}
         />
       )}
@@ -882,6 +1112,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 
   gridCard: { width: CARD_W, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: '#f1f5f9' },
+  gridCardTall: { height: 160 },
   gridCardImage: { width: '100%', height: '100%' },
   gridCardPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
   gridCardOverlay: {
@@ -891,7 +1122,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
+  gridCardOverlayTall: { height: 50, justifyContent: 'center', paddingVertical: 6 },
   gridCardText: { color: '#fff', fontSize: 12, fontWeight: '400', lineHeight: 15 },
+  gridCardSubtitle: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '400', lineHeight: 14, marginTop: 2 },
+  gridCardEditBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.52)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   emptyCard: {
     width: CARD_W, height: 140, borderRadius: 14,
@@ -1003,4 +1247,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addPhotosBtnText: { fontSize: 15, fontWeight: '600', color: '#0d9488' },
+
+  subtitleInput: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 14,
+    color: '#0f172a',
+    marginBottom: 14,
+    backgroundColor: '#f8fafc',
+  },
+  subtitleDisplay: {
+    fontSize: 13,
+    color: '#64748b',
+    fontStyle: 'italic',
+    marginBottom: 12,
+    paddingHorizontal: 2,
+  },
 });

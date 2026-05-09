@@ -153,7 +153,9 @@
       "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQV3SEPODM AWS_SECRET_ACCESS_KEY=\"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\" AWS_DEFAULT_REGION=ap-south-1 aws ec2 describe-instances *)",
       "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQV3SEPODM AWS_SECRET_ACCESS_KEY=\"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\" AWS_DEFAULT_REGION=ap-south-1 aws ssm describe-instance-information *)",
       "PowerShell(Get-ChildItem -Path \"E:\\\\Go Gather\\\\app\\\\src\\\\components\" -Recurse -File | Where-Object { $_.Name -match \"[Pp]oll\" } | Select-Object -ExpandProperty FullName)",
-      "Bash(Get-ChildItem -Path \"E:\\\\Go Gather\" -Directory)"
+      "Bash(Get-ChildItem -Path \"E:\\\\Go Gather\" -Directory)",
+      "Bash(git commit -m ' *)",
+      "Bash(git add *)"
     ]
   }
 }
