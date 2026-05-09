@@ -25,6 +25,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY src/ ./src/
 COPY migrations/ ./migrations/
+COPY scripts/ ./scripts/
 
 # Own all files as appuser before switching user
 RUN chown -R appuser:appgroup /app
