@@ -65,6 +65,18 @@ jobs:
             echo "WARNING: FIREBASE_SERVICE_ACCOUNT_B64 secret not set — push notifications disabled"
           fi
 
+          # ── 2b. Ensure admin.gatherrgo.com is in ALLOWED_ORIGINS ─────────────
+          CURRENT_ORIGINS=$(grep '^ALLOWED_ORIGINS=' "$ENV_FILE" | cut -d= -f2-)
+          if echo "$CURRENT_ORIGINS" | grep -q 'admin.gatherrgo.com'; then
+            echo "admin.gatherrgo.com already in ALLOWED_ORIGINS"
+          elif [ -z "$CURRENT_ORIGINS" ]; then
+            echo 'ALLOWED_ORIGINS=https://gatherrgo.com,https://www.gatherrgo.com,https://admin.gatherrgo.com' >> "$ENV_FILE"
+            echo "ALLOWED_ORIGINS created"
+          else
+            sed -i "s|^ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=${CURRENT_ORIGINS},https://admin.gatherrgo.com|" "$ENV_FILE"
+            echo "admin.gatherrgo.com appended to ALLOWED_ORIGINS"
+          fi
+
           # ── 3. Free disk space — remove images not used by a running container ──
           docker image prune -af
           docker container prune -f

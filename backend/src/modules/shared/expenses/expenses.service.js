@@ -259,8 +259,19 @@ const updateExpense = async ({ parentType, parentId }, expId, requesterId, reque
   }
   const existing = expResult.rows[0];
 
-  if (existing.created_by !== requesterId && requesterRole !== 'admin') {
-    const e = new Error('Only the creator or an admin can edit this expense');
+  // Edit allowed for: admins, the creator, the payer, or any user with a share in the expense.
+  let canEdit = requesterRole === 'admin'
+    || existing.created_by === requesterId
+    || existing.paid_by === requesterId;
+  if (!canEdit) {
+    const splitCheck = await db(
+      'SELECT 1 FROM expense_splits WHERE expense_id = $1 AND user_id = $2 LIMIT 1',
+      [expId, requesterId],
+    );
+    canEdit = splitCheck.rowCount > 0;
+  }
+  if (!canEdit) {
+    const e = new Error('Only members involved in this expense can edit it');
     e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
   }
 

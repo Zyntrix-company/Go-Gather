@@ -207,6 +207,13 @@ function isHtmlContent(str: string): boolean {
   return /<[a-z][\s\S]*>/i.test(str);
 }
 
+function formatBlogDate(raw: string | undefined | null): string {
+  if (!raw) return '';
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return raw;
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
 /** Render blog content — HTML (from admin editor) or legacy plain text */
 function renderBlogContent(raw: string): React.ReactNode {
   if (!raw) return null;
@@ -1378,7 +1385,7 @@ export default function HomeScreen({ navigation, route }: any) {
                   )}
                   <Text style={{ fontSize: 13, color: '#64748b', flex: 1 }}>
                     {selectedBlog?.author ?? selectedBlog?.authorName ?? 'GatherrGo'}
-                    {selectedBlog?.publishedAt ? `  ·  ${selectedBlog.publishedAt}` : ''}
+                    {selectedBlog?.publishedAt ? `  ·  ${formatBlogDate(selectedBlog.publishedAt)}` : ''}
                     {selectedBlog?.readTime ? `  ·  ${selectedBlog.readTime}` : ''}
                   </Text>
                 </View>

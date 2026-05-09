@@ -1,0 +1,78 @@
+name: Deploy Admin
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'admin/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: admin/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./admin
+      run: npm install
+
+    - name: Build Next.js static export
+      working-directory: ./admin
+      env:
+        NEXT_PUBLIC_API_URL: https://api.gatherrgo.com
+      run: npm run build
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ap-south-1
+
+    - name: Deploy HTML files to S3 (no-cache)
+      run: |
+        find admin/out -name "*.html" | while read -r file; do
+          key="${file#admin/out/}"
+          aws s3 cp "${file}" "s3://gatherrgo-admin/${key}" \
+            --content-type "text/html; charset=utf-8" \
+            --cache-control "no-cache, no-store, must-revalidate" \
+            --metadata-directive REPLACE
+        done
+
+    - name: Deploy hashed assets to S3 (cache forever)
+      run: |
+        aws s3 sync admin/out/_next/static s3://gatherrgo-admin/_next/static \
+          --cache-control "public, max-age=31536000, immutable" \
+          --delete
+
+    - name: Deploy favicon and other static files
+      run: |
+        if [ -f "admin/out/favicon.ico" ]; then
+          aws s3 cp admin/out/favicon.ico s3://gatherrgo-admin/favicon.ico \
+            --content-type "image/x-icon" \
+            --cache-control "public, max-age=86400" \
+            --metadata-directive REPLACE
+        fi
+
+        aws s3 sync admin/out s3://gatherrgo-admin \
+          --exclude "*.html" \
+          --exclude "_next/static/*" \
+          --exclude "favicon.ico" \
+          --cache-control "public, max-age=86400" \
+          --delete
+
+    - name: Invalidate CloudFront cache
+      run: |
+        aws cloudfront create-invalidation \
+          --distribution-id ${{ secrets.CLOUDFRONT_ADMIN_DISTRIBUTION_ID }} \
+          --paths "/*.html" "/dashboard/*.html"

@@ -583,7 +583,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [noteCategory, setNoteCategory] = useState<'general' | 'idea' | 'important' | 'todo'>('general');
   const [showNoteCatDrop, setShowNoteCatDrop] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
+  const [viewingNote, setViewingNote] = useState<Note | null>(null);
 
   // ── Activity photos ──
   const [actPhotos, setActPhotos] = useState<string[]>([]);
@@ -1179,6 +1179,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  /** A user can edit an expense if they are an admin, the creator, or have a share in the split. */
+  function canEditExpense(exp: Expense): boolean {
+    if (role === 'admin') return true;
+    if (exp.createdByUserId === currentUserId) return true;
+    if (exp.splitAmong?.includes(currentUserId)) return true;
+    return false;
   }
 
   function startEditExpense(exp: Expense) {
@@ -2405,10 +2413,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                 <View style={{ alignItems: 'flex-end' }}>
                                   <Text style={styles.expAmt}>₹{exp.amount.toFixed(2)}</Text>
                                   <Text style={{ fontSize: 11, color: balColor, marginBottom: 6 }}>{balText}</Text>
-                                  {(role === 'admin' || exp.createdByUserId === currentUserId) && (
+                                  {(canEditExpense(exp) || role === 'admin' || exp.createdByUserId === currentUserId) && (
                                     <View style={{ flexDirection: 'row', gap: 12 }}>
-                                      <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text></TouchableOpacity>
-                                      <TouchableOpacity onPress={() => handleDeleteExpense(exp.id, exp.createdByUserId ?? '')} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
+                                      {canEditExpense(exp) && (
+                                        <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text></TouchableOpacity>
+                                      )}
+                                      {(role === 'admin' || exp.createdByUserId === currentUserId) && (
+                                        <TouchableOpacity onPress={() => handleDeleteExpense(exp.id, exp.createdByUserId ?? '')} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
+                                      )}
                                     </View>
                                   )}
                                 </View>
@@ -2600,55 +2612,37 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           <TouchableOpacity
                             key={note.id}
                             activeOpacity={0.85}
-                            onPress={() => setExpandedNoteId(expandedNoteId === note.id ? null : note.id)}
+                            onPress={() => setViewingNote(note)}
                             style={[styles.noteCard, note.pinned && { backgroundColor: '#fefce8', borderColor: '#fde68a' }]}
                           >
-                            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                               {/* Category emoji */}
                               <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#f0fdf9', alignItems: 'center', justifyContent: 'center' }}>
                                 <Text style={{ fontSize: 20 }}>{cat.emoji}</Text>
                               </View>
-                              {/* Title + body */}
+                              {/* Title + meta */}
                               <View style={{ flex: 1 }}>
-                                <Text style={styles.noteTitle}>{note.title}</Text>
-                                {!!note.body && (
-                                  expandedNoteId === note.id
-                                    ? renderTextWithLinks(note.body, styles.noteBody, styles.noteLink)
-                                    : <Text style={styles.noteBody} numberOfLines={2}>{note.body}</Text>
-                                )}
-                                <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
-                                  By You{note.date ? ` • ${note.date}` : ''}{expandedNoteId !== note.id ? '  tap to expand' : '  tap to collapse'}
+                                <Text style={[styles.noteTitle, { fontSize: 14 }]} numberOfLines={1}>{note.title}</Text>
+                                <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                                  {(() => { const cb = (note as any).createdBy; const name = cb ? (typeof cb === 'string' ? cb : cb.name ?? cb.username ?? '') : ''; return name ? `By ${name}` : 'By You'; })()}{note.date ? ` • ${note.date}` : ''}
                                 </Text>
                               </View>
-                              {/* Action icons */}
-                              <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                                <TouchableOpacity
-                                  onPress={async () => {
-                                    try {
-                                      const favRes = await favoriteNote(tripId, note.id);
-                                      const newPinned = favRes?.isFavorited ?? !note.pinned;
-                                      setNotes(p => p.map(n => n.id === note.id ? { ...n, pinned: newPinned } : n));
-                                    } catch (err) { handleApiError(err); }
-                                  }}
-                                  activeOpacity={0.7}
-                                  style={{ padding: 4 }}
-                                >
-                                  <Svg width={16} height={16} viewBox="0 0 24 24" fill={note.pinned ? '#0d9488' : 'none'}>
-                                    <Path d="M12 2l3 6.5 7 1-5 4.8 1.2 7L12 18l-6.2 3.3L7 14.3 2 9.5l7-1z" stroke={note.pinned ? '#0d9488' : '#94a3b8'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-                                  </Svg>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => startEditNote(note)} activeOpacity={0.7} style={{ padding: 4 }}>
-                                  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                                    <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="#64748b" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-                                    <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#64748b" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-                                  </Svg>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => handleDeleteNote(note.id)} activeOpacity={0.7} style={{ padding: 4 }}>
-                                  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                                    <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="#ef4444" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-                                  </Svg>
-                                </TouchableOpacity>
-                              </View>
+                              {/* Star only */}
+                              <TouchableOpacity
+                                onPress={async () => {
+                                  try {
+                                    const favRes = await favoriteNote(tripId, note.id);
+                                    const newPinned = favRes?.isFavorited ?? !note.pinned;
+                                    setNotes(p => p.map(n => n.id === note.id ? { ...n, pinned: newPinned } : n));
+                                  } catch (err) { handleApiError(err); }
+                                }}
+                                activeOpacity={0.7}
+                                style={{ padding: 6 }}
+                              >
+                                <Svg width={18} height={18} viewBox="0 0 24 24" fill={note.pinned ? '#0d9488' : 'none'}>
+                                  <Path d="M12 2l3 6.5 7 1-5 4.8 1.2 7L12 18l-6.2 3.3L7 14.3 2 9.5l7-1z" stroke={note.pinned ? '#0d9488' : '#94a3b8'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                                </Svg>
+                              </TouchableOpacity>
                             </View>
                           </TouchableOpacity>
                         );
@@ -2656,6 +2650,68 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     </View>
                   )}
                 </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ═══════════════════════════════════════════════════
+          MODAL 7b — Note Detail View
+        ═══════════════════════════════════════════════════ */}
+        <Modal visible={!!viewingNote} transparent animationType="slide" onRequestClose={() => setViewingNote(null)}>
+          <View style={styles.overlay}>
+            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                <TouchableOpacity onPress={() => setViewingNote(null)} activeOpacity={0.7} style={{ marginRight: 10 }}>
+                  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+                    <Path d="M19 12H5M12 19l-7-7 7-7" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                </TouchableOpacity>
+                <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: '#0f172a' }} numberOfLines={1}>{viewingNote?.title}</Text>
+                {/* Edit */}
+                <TouchableOpacity
+                  onPress={() => { if (viewingNote) { startEditNote(viewingNote); setViewingNote(null); } }}
+                  activeOpacity={0.7}
+                  style={{ padding: 6, marginLeft: 4 }}
+                >
+                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                    <Path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="#64748b" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                    <Path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#64748b" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                </TouchableOpacity>
+                {/* Delete */}
+                <TouchableOpacity
+                  onPress={() => { if (viewingNote) { handleDeleteNote(viewingNote.id); setViewingNote(null); } }}
+                  activeOpacity={0.7}
+                  style={{ padding: 6, marginLeft: 4 }}
+                >
+                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                    <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="#ef4444" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                </TouchableOpacity>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16 }}>
+                {/* Category + meta */}
+                {viewingNote && (() => {
+                  const cat = NOTE_CATS.find(c => c.key === viewingNote.category)!;
+                  return (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                      <View style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#f0fdf9', borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Text style={{ fontSize: 13 }}>{cat.emoji}</Text>
+                        <Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '600' }}>{cat.label}</Text>
+                      </View>
+                      <Text style={{ fontSize: 12, color: '#94a3b8' }}>
+                        {(() => { const cb = (viewingNote as any).createdBy; const name = cb ? (typeof cb === 'string' ? cb : cb.name ?? cb.username ?? '') : ''; return name ? `By ${name}` : 'By You'; })()}{viewingNote.date ? ` • ${viewingNote.date}` : ''}
+                      </Text>
+                    </View>
+                  );
+                })()}
+                {/* Body with hyperlinks */}
+                {!!viewingNote?.body
+                  ? renderTextWithLinks(viewingNote.body, { fontSize: 15, color: '#334155', lineHeight: 24 }, { color: '#0d9488', textDecorationLine: 'underline' })
+                  : <Text style={{ fontSize: 14, color: '#94a3b8', fontStyle: 'italic' }}>No content.</Text>
+                }
               </ScrollView>
             </View>
           </View>
