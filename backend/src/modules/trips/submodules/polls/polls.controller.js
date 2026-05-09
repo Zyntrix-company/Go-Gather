@@ -31,4 +31,14 @@ const getPolls = async (req, res, next) => {
   } catch (e) { next(e); }
 };
 
-module.exports = { createPoll, vote, getPolls };
+const deletePoll = async (req, res, next) => {
+  try {
+    await service.deletePoll(req.tripMember.tripId, req.params.pollId, req.user.id);
+    res.status(200).json({ success: true });
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.error, message: e.message, statusCode: e.statusCode });
+    next(e);
+  }
+};
+
+module.exports = { createPoll, vote, getPolls, deletePoll };

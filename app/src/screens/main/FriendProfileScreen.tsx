@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
   Dimensions, StyleSheet, ActivityIndicator, Modal, Image,
@@ -14,7 +14,7 @@ import useNotificationStore from '../../store/notificationStore';
 import { getUserProfile, removeFriend, handleApiError } from '../../api/trips.api';
 import { showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
-import { getUserGallery } from '../../api/ai.api';
+import { getUserGallery, getUserPhotos } from '../../api/ai.api';
 import { getTripPhotos } from '../../api/trips.api';
 import { getEventPhotos } from '../../api/events.api';
 import type { MainStackParamList } from '../../navigation/MainStack';
@@ -93,6 +93,14 @@ type PhotoItem = { id: string; uri: string; activityId?: string | null; activity
 function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void }) {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const prevUri = useRef(photo.uri);
+  useEffect(() => {
+    if (prevUri.current !== photo.uri) {
+      prevUri.current = photo.uri;
+      setFailed(false);
+      setLoading(true);
+    }
+  }, [photo.uri]);
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.thumb}>
       {!failed ? (
@@ -127,9 +135,9 @@ function PreviewModal({ photo, onClose }: { photo: PhotoItem | null; onClose: ()
   );
 }
 
-function PhotosModal({ visible, title, onClose, parentId, parentType }: {
+function PhotosModal({ visible, title, onClose, parentId, parentType, userId }: {
   visible: boolean; title: string; onClose: () => void;
-  parentId: string; parentType: 'trip' | 'event';
+  parentId: string; parentType: 'trip' | 'event'; userId?: string;
 }) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -140,7 +148,25 @@ function PhotosModal({ visible, title, onClose, parentId, parentType }: {
     let cancelled = false;
     setLoading(true);
     setPhotos([]);
-    const fetcher = parentType === 'trip' ? getTripPhotos(parentId) : getEventPhotos(parentId);
+
+    let fetcher: Promise<{ photos?: any[] }>;
+
+    if (userId) {
+      // Viewing a friend's gallery — use the user photos endpoint which doesn't
+      // require trip/event membership. Filter the response to this specific parent.
+      fetcher = getUserPhotos(userId).then((data) => {
+        const parentList: any[] = parentType === 'trip' ? (data.trips ?? []) : (data.events ?? []);
+        const match = parentList.find((p: any) => p.id === parentId);
+        const allPhotos = [
+          ...(match?.photos ?? []),
+          ...(match?.activities?.flatMap((a: any) => a.photos ?? []) ?? []),
+        ];
+        return { photos: allPhotos };
+      });
+    } else {
+      fetcher = parentType === 'trip' ? getTripPhotos(parentId) : getEventPhotos(parentId);
+    }
+
     fetcher
       .then((data) => {
         if (cancelled) return;
@@ -154,7 +180,7 @@ function PhotosModal({ visible, title, onClose, parentId, parentType }: {
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [visible, parentId, parentType]);
+  }, [visible, parentId, parentType, userId]);
 
   const activityGroups: Record<string, PhotoItem[]> = {};
   const directPhotos: PhotoItem[] = [];
@@ -410,6 +436,7 @@ export default function FriendProfileScreen() {
           title={photoModal.name}
           parentId={photoModal.id}
           parentType={photoModal.type}
+          userId={userId}
           onClose={() => setPhotoModal(null)}
         />
       )}

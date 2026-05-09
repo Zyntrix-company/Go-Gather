@@ -16,13 +16,12 @@ import {
   PanResponder,
   Switch,
   Platform,
-  PermissionsAndroid,
   ActivityIndicator,
   NativeModules,
   SafeAreaView,
   Pressable,
 } from 'react-native';
-import Geolocation from '@react-native-community/geolocation';
+import LocationAutocomplete from '../../components/common/LocationAutocomplete';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
@@ -436,7 +435,6 @@ export function CreateTripModal({
   const [inviteEmail, setInviteEmail] = useState('');
   const [invitePhone, setInvitePhone] = useState('');
   const [inviteWhatsapp, setInviteWhatsapp] = useState('');
-  const [fetchingLocation, setFetchingLocation] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [showStartDateTooltip, setShowStartDateTooltip] = useState(false);
   const [showEndDateTooltip, setShowEndDateTooltip] = useState(false);
@@ -596,58 +594,6 @@ export function CreateTripModal({
     }
   }
 
-  async function handleFetchLocation() {
-    if (Platform.OS === 'android') {
-      try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          { title: 'Location Permission', message: 'GoGather needs access to your location to fill in the trip location.', buttonPositive: 'Allow', buttonNegative: 'Deny' }
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          showAlert({ title: 'Permission Denied', message: 'Location permission was denied. Please type your location manually.' });
-          return;
-        }
-      } catch {
-        showAlert({ title: 'Permission Error', message: 'Could not request location permission. Please type your location manually.' });
-        return;
-      }
-    }
-    setFetchingLocation(true);
-    Geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords;
-        try {
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=14&addressdetails=1`,
-            { headers: { 'User-Agent': 'GatherGo/1.0' } }
-          );
-          const data = await res.json();
-          const a = data.address || {};
-          const parts = [
-            a.suburb || a.neighbourhood || a.village || a.town,
-            a.city || a.county || a.state_district,
-            a.state,
-            a.country,
-          ].filter(Boolean);
-          setLocation(parts.length > 0 ? parts.join(', ') : data.display_name || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-        } catch {
-          setLocation(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-        }
-        setFetchingLocation(false);
-      },
-      (err) => {
-        setFetchingLocation(false);
-        const msg = err.message || '';
-        if (msg.includes('provider') || msg.includes('No location') || msg.includes('disabled')) {
-          showAlert({ title: 'Location Unavailable', message: 'Please enable GPS / Location Services on your device, then try again. Or type your location manually.' });
-        } else {
-          showAlert({ title: 'Location Error', message: 'Could not get location. Please type it manually.' });
-        }
-      },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 120000 }
-    );
-  }
-
   function toggleFriend(id: string) {
     setSelectedFriendIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
   }
@@ -690,7 +636,7 @@ export function CreateTripModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.ctScrollContent}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" contentContainerStyle={styles.ctScrollContent}>
 
             {/* Trip Name */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -828,17 +774,13 @@ export function CreateTripModal({
 
             {/* Location */}
             <Text style={styles.ctLabel}>Location</Text>
-            <View style={styles.ctLocationBox}>
-              <TextInput style={{ flex: 1, fontSize: 13, color: '#0f172a', paddingVertical: 0 }} placeholder="Search or tap pin for GPS" placeholderTextColor="#94a3b8" value={location} onChangeText={setLocation} />
-              <TouchableOpacity onPress={handleFetchLocation} activeOpacity={0.7} disabled={fetchingLocation}>
-                {fetchingLocation
-                  ? <ActivityIndicator size="small" color="#0d9488" />
-                  : <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                    <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
-                  </Svg>
-                }
-              </TouchableOpacity>
+            <View style={{ zIndex: 10 }}>
+              <LocationAutocomplete
+                initialValue={location}
+                onChangeText={setLocation}
+                placeholder="Search location..."
+                variant="create"
+              />
             </View>
 
             {/* Upload Docs */}
@@ -1649,7 +1591,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   createTripBtnText: {  color: '#fff', fontSize: 14, fontWeight: '500', lineHeight: 20, textAlign: 'center' },
- tripsListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
+ tripsListHeader: { marginBottom: 16, paddingTop: 16 },
   tripsListTitle: {     fontFamily: 'Inter', fontSize: 16, fontWeight: '400', color: '#0F172B',
    lineHeight: 24, letterSpacing: 0 },
   tripsListSub: { fontSize: 15, fontWeight: '400', color: '#45556C', lineHeight: 19, letterSpacing: 0, marginTop: 2, marginBottom: 8 },

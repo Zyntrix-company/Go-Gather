@@ -553,6 +553,10 @@ export async function voteOnPoll(tripId: string, pollId: string, optionId: strin
   return res.data as { poll: Poll };
 }
 
+export async function deletePoll(tripId: string, pollId: string) {
+  await client.delete(`/trips/${tripId}/polls/${pollId}`);
+}
+
 // ─── 9. Invite Deep-Link Flow ─────────────────────────────────────────────────
 
 export async function previewTripInvite(token: string) {

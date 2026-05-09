@@ -106,3 +106,17 @@ export async function getUserGallery(userId: string): Promise<{ trips: any[]; ev
     return { trips: [], events: [] };
   }
 }
+
+/**
+ * Fetch all photos uploaded by a user, grouped by trip/event + activity.
+ * Does not require trip/event membership — any authenticated user can call this.
+ * Used to display another user's gallery photos without needing to be a trip member.
+ */
+export async function getUserPhotos(userId: string): Promise<{ trips: any[]; events: any[] }> {
+  try {
+    const res = await client.get(`/users/${userId}/photos`);
+    return res.data;
+  } catch {
+    return { trips: [], events: [] };
+  }
+}

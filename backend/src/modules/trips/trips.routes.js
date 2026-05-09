@@ -153,6 +153,7 @@ router.delete('/:id/expenses/:eid', tripMemberMW, expensesCtrl.deleteExpense);
 router.get('/:id/polls', tripMemberMW, pollsCtrl.getPolls);
 router.post('/:id/polls', tripMemberMW, pollsCtrl.createPoll);
 router.post('/:id/polls/:pollId/vote', tripMemberMW, pollsCtrl.vote);
+router.delete('/:id/polls/:pollId', tripMemberMW, pollsCtrl.deletePoll);
 
 // ─── Reminders ────────────────────────────────────────────────────────────────
 router.get('/:id/reminders', tripMemberMW, tripsController.getTripReminders);

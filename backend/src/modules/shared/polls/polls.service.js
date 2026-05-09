@@ -124,4 +124,15 @@ const formatPoll = (poll, options, myVote) => ({
   })),
 });
 
-module.exports = { createPoll, vote, getPolls };
+const deletePoll = async ({ parentType, parentId }, pollId, userId) => {
+  const result = await db(
+    'SELECT * FROM polls WHERE id = $1 AND parent_type = $2 AND parent_id = $3',
+    [pollId, parentType, parentId],
+  );
+  if (result.rowCount === 0) {
+    const e = new Error('Poll not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
+  }
+  await db('DELETE FROM polls WHERE id = $1', [pollId]);
+};
+
+module.exports = { createPoll, vote, getPolls, deletePoll };

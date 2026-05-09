@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '400',
+    fontWeight: '300',
     color: '#0f172a',
     padding: 0,
     backgroundColor: 'transparent',
@@ -781,7 +781,7 @@ const styles = StyleSheet.create({
   },
   friendHandle: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '400',
     color: '#0d9488',
     marginBottom: 2,
   },

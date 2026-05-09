@@ -14,6 +14,7 @@ import { WebView } from 'react-native-webview';
 // DocumentPicker loaded dynamically to avoid crash if native module not yet linked
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import BlobBackground from '../../components/common/BlobBackground';
+import LocationAutocomplete from '../../components/common/LocationAutocomplete';
 import CachedImage from '../../components/common/CachedImage';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
@@ -55,6 +56,7 @@ import {
   getPolls,
   createPoll,
   voteOnPoll,
+  deletePoll,
   getFriends,
   handleApiError,
 } from '../../api/trips.api';
@@ -380,6 +382,14 @@ function TripPhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => v
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const uri = photo.localUri ?? photo.uri;
+  const prevUri = useRef(uri);
+  useEffect(() => {
+    if (prevUri.current !== uri) {
+      prevUri.current = uri;
+      setFailed(false);
+      setLoading(true);
+    }
+  }, [uri]);
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
       {!failed ? (
@@ -575,7 +585,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   // ── Polls modal ──
   const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOptions, setPollOptions] = useState<string[]>(['', '', '']);
+  const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
 
   // ── Notes modal ──
   const [noteTitle, setNoteTitle] = useState('');
@@ -1284,12 +1294,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
         myVoteOptionId: p.myVoteOptionId ?? null,
         createdBy: p.createdBy,
       }]);
-      setPollQuestion(''); setPollOptions(['', '', '']);
+      setPollQuestion(''); setPollOptions(['', '']);
     } catch (err) {
       handleApiError(err);
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleDeletePoll(pollId: string) {
+    try {
+      await deletePoll(tripId, pollId);
+      setPolls(p => p.filter(po => po.id !== pollId));
+    } catch (err) { handleApiError(err); }
   }
 
   async function handleVote(pollId: string, optionId: string) {
@@ -2543,18 +2560,16 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             </TouchableOpacity>
                           );
                         })}
-                        {role === 'admin' && (
-                          <TouchableOpacity onPress={() => setPolls(p => p.filter(po => po.id !== poll.id))} activeOpacity={0.7} style={{ marginTop: 8, alignSelf: 'flex-end' }}>
-                            <Text style={{ fontSize: 11, color: '#ef4444' }}>Delete Poll</Text>
-                          </TouchableOpacity>
-                        )}
+                        <TouchableOpacity onPress={() => handleDeletePoll(poll.id)} activeOpacity={0.7} style={{ marginTop: 8, alignSelf: 'flex-end' }}>
+                          <Text style={{ fontSize: 11, color: '#ef4444' }}>Delete Poll</Text>
+                        </TouchableOpacity>
                       </View>
                     );
                   })}
                 </View>
               </ScrollView>
               <View style={styles.dFooterRow}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setPollQuestion(''); setPollOptions(['', '', '']); }} activeOpacity={0.7}><Text style={styles.cancelTxt}>Cancel</Text></TouchableOpacity>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setPollQuestion(''); setPollOptions(['', '']); }} activeOpacity={0.7}><Text style={styles.cancelTxt}>Cancel</Text></TouchableOpacity>
                 <TouchableOpacity style={[styles.tealBtnFull, { flex: 1 }]} onPress={handleCreatePoll} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>Create Poll</Text></TouchableOpacity>
               </View>
             </View>
@@ -2724,7 +2739,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
           <View style={styles.overlay}>
             <View style={styles.dialog}>
               <DHeader title="Edit Trip" onClose={() => setShowEditTrip(false)} />
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
                 <View style={styles.dBody}>
                   <Text style={styles.fLabel}>Trip Name</Text>
                   <TextInput style={styles.fInput} placeholder="e.g., Tokyo Getaway" placeholderTextColor="#94a3b8" value={editName} onChangeText={setEditName} />
@@ -2785,7 +2800,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     />
                   )}
                   <Text style={styles.fLabel}>Location</Text>
-                  <TextInput style={styles.fInput} placeholder="e.g., Paris, France" placeholderTextColor="#94a3b8" value={editLocation} onChangeText={setEditLocation} />
+                  <View style={{ zIndex: 10 }}>
+                    <LocationAutocomplete
+                      initialValue={editLocation}
+                      onChangeText={setEditLocation}
+                      placeholder="e.g., Paris, France"
+                      variant="edit"
+                    />
+                  </View>
                 </View>
               </ScrollView>
               <View style={styles.dFooterRow}>

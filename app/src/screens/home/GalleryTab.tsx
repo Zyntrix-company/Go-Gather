@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, Image,
   Dimensions, StyleSheet, ActivityIndicator, Modal, TextInput,
@@ -8,7 +8,7 @@ import { launchImageLibrary } from 'react-native-image-picker';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { Plane, CalendarDays, PencilLine } from 'lucide-react-native';
-import { getUserGallery } from '../../api/ai.api';
+import { getUserGallery, getUserPhotos } from '../../api/ai.api';
 import { getTripPhotos } from '../../api/trips.api';
 import { getEventPhotos } from '../../api/events.api';
 
@@ -138,6 +138,14 @@ function customCardsStorageKey(userId: string) {
 function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void }) {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const prevUri = useRef(photo.uri);
+  useEffect(() => {
+    if (prevUri.current !== photo.uri) {
+      prevUri.current = photo.uri;
+      setFailed(false);
+      setLoading(true);
+    }
+  }, [photo.uri]);
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.thumb}>
       {!failed ? (
@@ -202,12 +210,14 @@ function PhotosModal({
   onClose,
   parentId,
   parentType,
+  userId,
 }: {
   visible: boolean;
   title: string;
   onClose: () => void;
   parentId: string;
   parentType: 'trip' | 'event';
+  userId?: string;
 }) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -218,13 +228,31 @@ function PhotosModal({
     let cancelled = false;
     setLoading(true);
     setPhotos([]);
-    const fetcher = parentType === 'trip'
-      ? getTripPhotos(parentId)
-      : getEventPhotos(parentId);
+
+    let fetcher: Promise<{ photos?: any[]; trips?: any[]; events?: any[] }>;
+
+    if (userId) {
+      // Viewing another user's gallery — use the user photos endpoint which
+      // doesn't require trip/event membership. Filter to the specific parent.
+      fetcher = getUserPhotos(userId).then((data) => {
+        const parentList: any[] = parentType === 'trip' ? (data.trips ?? []) : (data.events ?? []);
+        const match = parentList.find((p: any) => p.id === parentId);
+        const allPhotos = [
+          ...(match?.photos ?? []),
+          ...(match?.activities?.flatMap((a: any) => a.photos ?? []) ?? []),
+        ];
+        return { photos: allPhotos };
+      });
+    } else {
+      fetcher = parentType === 'trip'
+        ? getTripPhotos(parentId)
+        : getEventPhotos(parentId);
+    }
+
     fetcher
       .then((data) => {
         if (cancelled) return;
-        const mapped: PhotoItem[] = (data.photos ?? []).map((ph: any) => ({
+        const mapped: PhotoItem[] = ((data as any).photos ?? []).map((ph: any) => ({
           id: ph.id,
           uri: ph.uri ?? ph.url ?? ph.fileUrl ?? '',
           activityId: ph.activityId ?? null,
@@ -235,7 +263,7 @@ function PhotosModal({
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [visible, parentId, parentType]);
+  }, [visible, parentId, parentType, userId]);
 
   const activityGroups: Record<string, PhotoItem[]> = {};
   const directPhotos: PhotoItem[] = [];

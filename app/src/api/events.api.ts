@@ -299,3 +299,7 @@ export async function voteOnEventPoll(eventId: string, pollId: string, optionId:
   const res = await client.post(`/events/${eventId}/polls/${pollId}/vote`, { optionId });
   return res.data as { poll: Poll };
 }
+
+export async function deleteEventPoll(eventId: string, pollId: string) {
+  await client.delete(`/events/${eventId}/polls/${pollId}`);
+}

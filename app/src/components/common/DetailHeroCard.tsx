@@ -107,11 +107,11 @@ export default function DetailHeroCard({
         </View>
 
         <View style={styles.daysArea}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Text style={styles.daysNumber}>{dayCount}</Text>
             {onEdit && (
               <TouchableOpacity onPress={onEdit} style={styles.pencilBtn} activeOpacity={0.7}>
-                <PencilIcon color="#009788" size={16} />
+                <PencilIcon color="#009788" size={13} />
               </TouchableOpacity>
             )}
           </View>
@@ -214,17 +214,18 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#1B6265',
     fontWeight: '500',
-    textAlign: 'right',
+    textAlign: 'left',
   },
   pencilBtn: {
-    marginTop: 4,
-    marginLeft: 4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    marginLeft: 5,
+    marginBottom: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'flex-end',
   },
   statsRow: {
     flexDirection: 'row',
