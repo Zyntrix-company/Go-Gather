@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS promo_video (
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
+DROP TRIGGER IF EXISTS update_promo_video_updated_at ON promo_video;
 CREATE TRIGGER update_promo_video_updated_at
   BEFORE UPDATE ON promo_video
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

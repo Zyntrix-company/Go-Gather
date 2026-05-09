@@ -531,14 +531,16 @@ router.post('/promo-video/upload',
       const safeName = sanitiseFilename(req.file.originalname);
       const key = `promo-video/${uuidv4()}-${safeName}`;
 
-      // Upload to S3 with long-lived cache so CloudFront edges serve without revalidation
+      // Upload to S3 with long-lived cache headers
       await uploadToS3(req.file.buffer, key, req.file.mimetype, {
         CacheControl: 'public, max-age=31536000',
       });
 
-      const url = config.s3.cloudfrontDomain
-        ? `https://${config.s3.cloudfrontDomain}/${key}`
-        : `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${key}`;
+      // Always use the direct S3 URL for video — CloudFront for video requires
+      // its distribution to have the correct S3 origin configured. Using direct
+      // S3 avoids any CloudFront misconfiguration issues while still benefiting
+      // from the CacheControl header set on the object.
+      const url = `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${key}`;
 
       // Fetch old key before upsert so we can delete it from S3
       const { rows: existing } = await query('SELECT s3_key FROM promo_video WHERE id = 1');
