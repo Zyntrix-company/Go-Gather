@@ -31,5 +31,7 @@ TRUNCATE TABLE
   otps,
   refresh_tokens,
   profiles,
-  users
-CASCADE;
+  users,
+  blogs,
+  deals
+RESTART IDENTITY CASCADE;

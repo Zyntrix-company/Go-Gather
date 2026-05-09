@@ -12,6 +12,11 @@
     "test:coverage": "jest --coverage --forceExit --detectOpenHandles",
     "test:ci": "jest --ci --coverage --forceExit --detectOpenHandles",
     "migrate": "node migrations/run.js",
+    "db:truncate": "node scripts/run-truncate.js",
+    "db:seed": "node seed.js",
+    "db:seed:blogs": "node scripts/seed-blogs.js",
+    "db:seed:deals": "node scripts/seed-deals.js",
+    "db:seed:full": "npm run db:truncate && npm run db:seed && npm run db:seed:blogs && npm run db:seed:deals",
     "docker:build": "docker build -t gathergo-api .",
     "docker:dev": "docker-compose up --build",
     "docker:prod": "docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d --build"

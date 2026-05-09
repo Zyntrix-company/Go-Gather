@@ -973,8 +973,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
     return text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
   }
 
-  const hasHighlights = photos.length > 0 || docs.length > 0 || polls.length > 0;
-
   return (
     <BlobBackground>
       <SafeAreaView style={styles.container}>
@@ -1132,149 +1130,44 @@ export default function EventDetailScreen({ route, navigation }: any) {
             )}
           </View>
 
-          {/* ── Highlights ── */}
+          {/* ── Photos ── */}
           <View style={styles.section}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                <Path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
+                <Circle cx={8.5} cy={8.5} r={1.5} fill="#0d9488" />
+                <Path d="M21 15l-5-5L5 21" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
               </Svg>
-              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Highlights</Text>
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Photos</Text>
             </View>
 
-            {!hasHighlights && (
+            {photos.length === 0 ? (
               <View style={styles.emptyBox}>
                 <Svg width={36} height={36} viewBox="0 0 24 24" fill="none">
                   <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
                   <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
                   <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
-                <Text style={styles.emptyTitle}>No highlights yet</Text>
-                <Text style={styles.emptySub}>Add photos, documents, or create polls to see them here!</Text>
+                <Text style={styles.emptyTitle}>No photos yet</Text>
+                <Text style={styles.emptySub}>Add photos to capture event memories</Text>
               </View>
-            )}
-
-            {/* Photos sub-section */}
-            {photos.length > 0 && (
-              <View style={{ marginBottom: 20 }}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.hlSubTitle}>Photos</Text>
-                  {photos.length > 3 && (
-                    <TouchableOpacity onPress={() => setShowPhotos(true)} activeOpacity={0.7}>
-                      <Text style={styles.seeAllLink}>See All Photos</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-                {(() => {
-                  const THUMB = (Dimensions.get('window').width - 32 - 32 - 16) / 3;
-                  return (
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      {photos.slice(0, 3).map(p => (
-                        <TouchableOpacity key={p.id} onPress={() => openPhotoPreview(p.id)} activeOpacity={0.85}>
-                          <Image
-                            source={{ uri: p.localUri ?? p.uri }}
-                            style={{ width: THUMB, height: THUMB, borderRadius: 10, backgroundColor: '#e2e8f0' }}
-                            resizeMode="cover"
-                            onError={() => { }}
-                          />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  );
-                })()}
-              </View>
-            )}
-
-            {/* Documents sub-section */}
-            {docs.length > 0 && (
-              <View style={{ marginBottom: 20 }}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.hlSubTitle}>Documents</Text>
-                  {docs.length > 3 && (
-                    <TouchableOpacity onPress={() => setShowDocs(true)} activeOpacity={0.7}>
-                      <Text style={styles.seeAllLink}>See All Docs</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <View style={{ gap: 8 }}>
-                  {docs.slice(0, 3).map(d => (
-                    <TouchableOpacity
-                      key={d.id}
-                      onPress={() => setDocPreviewUrl(d.uri)}
-                      activeOpacity={0.85}
-                      style={styles.hlDocRow}
-                    >
-                      <View style={styles.hlDocIcon}>
-                        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                          <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#6d28d9" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                          <Path d="M14 2v6h6M16 13H8M16 17H8" stroke="#6d28d9" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                        </Svg>
-                      </View>
-                      <Text style={styles.hlDocName} numberOfLines={1}>{d.name}</Text>
-                      <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                        <Path d="M9 18l6-6-6-6" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      </Svg>
+            ) : (() => {
+              const THUMB = (Dimensions.get('window').width - 32 - 32 - 16) / 3;
+              return (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {photos.map(p => (
+                    <TouchableOpacity key={p.id} onPress={() => openPhotoPreview(p.id)} activeOpacity={0.85}>
+                      <Image
+                        source={{ uri: p.localUri ?? p.uri }}
+                        style={{ width: THUMB, height: THUMB, borderRadius: 10, backgroundColor: '#e2e8f0' }}
+                        resizeMode="cover"
+                        onError={() => { }}
+                      />
                     </TouchableOpacity>
                   ))}
                 </View>
-              </View>
-            )}
-
-            {/* Polls sub-section */}
-            {polls.length > 0 && (
-              <View style={{ marginBottom: 4 }}>
-                <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.hlSubTitle}>Polls</Text>
-                  {polls.length > 1 && (
-                    <TouchableOpacity onPress={() => setShowPolls(true)} activeOpacity={0.7}>
-                      <Text style={styles.seeAllLink}>See All Polls</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-                {(() => {
-                  const poll = polls[0];
-                  const totalVotes = poll.options.reduce((s, o) => s + o.voteCount, 0);
-                  return (
-                    <View style={styles.hlPollCard}>
-                      {/* Poll icon + question */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                        <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#e0e7ff', alignItems: 'center', justifyContent: 'center' }}>
-                          <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                            <Path d="M18 20V10M12 20V4M6 20v-6" stroke="#4338ca" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                          </Svg>
-                        </View>
-                        <Text style={styles.hlPollQuestion} numberOfLines={2}>{poll.question}</Text>
-                      </View>
-                      {/* Options */}
-                      {poll.options.map(opt => {
-                        const pct = totalVotes > 0 ? Math.round((opt.voteCount / totalVotes) * 100) : 0;
-                        const isVoting = votingPollId === poll.id;
-                        return (
-                          <TouchableOpacity
-                            key={opt.id}
-                            onPress={() => handleVote(poll.id, opt.id)}
-                            activeOpacity={0.8}
-                            disabled={isVoting}
-                            style={styles.hlPollOption}
-                          >
-                            <View style={[styles.hlPollBar, {
-                              width: `${opt.votedByMe ? 100 : pct}%` as any,
-                              backgroundColor: opt.votedByMe ? '#0d9488' : '#ccfbf1',
-                            }]} />
-                            <View style={[styles.hlPollOptionInner, { zIndex: 1 }]}>
-                              <Text style={[styles.hlPollOptText, opt.votedByMe && { color: '#fff', fontWeight: '500' }]} numberOfLines={1}>
-                                {opt.votedByMe ? '✓  ' : ''}{opt.text}
-                              </Text>
-                              <Text style={[styles.hlPollPct, opt.votedByMe && { color: '#fff' }]}>{pct}%</Text>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
-                      <Text style={styles.hlPollTotal}>{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</Text>
-                    </View>
-                  );
-                })()}
-              </View>
-            )}
+              );
+            })()}
           </View>
 
         </ScrollView>

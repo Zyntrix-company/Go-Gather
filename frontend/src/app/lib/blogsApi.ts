@@ -41,7 +41,23 @@ export async function fetchBlogByIdOrSlug(idOrSlug: string): Promise<BlogDetail>
   return res.json();
 }
 
-export function formatBlogDate(isoDate: string): string {
-  const d = new Date(`${isoDate}T12:00:00Z`);
+/**
+ * Formats blog publish dates from the API. Values may be:
+ * - Plain calendar dates: `YYYY-MM-DD` (Postgres DATE as string)
+ * - Full ISO datetimes: `2025-05-10T00:00:00.000Z` (DATE serialized to JSON via node-pg)
+ * Appending `T12:00:00Z` to an ISO string produces an invalid Date ("Invalid Date" in the UI).
+ */
+export function formatBlogDate(isoDate: string | null | undefined): string {
+  if (isoDate == null) return '';
+  const s = String(isoDate).trim();
+  if (!s) return '';
+
+  const hasTime =
+    /[Tt]\d/.test(s) || // ISO time part
+    /^\d{4}-\d{2}-\d{2}\s+\d/.test(s); // "YYYY-MM-DD HH:mm..." (Postgres text style)
+
+  const d = hasTime ? new Date(s) : new Date(`${s}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return '';
+
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }

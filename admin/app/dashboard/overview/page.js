@@ -107,6 +107,20 @@ function BucketTable({ summary }) {
   );
 }
 
+/** Normalize API dates (Postgres date vs ISO string) to YYYY-MM-DD for keys and sorting. */
+function growthDateKey(raw) {
+  if (raw == null) return '';
+  const s = String(raw);
+  return s.slice(0, 10);
+}
+
+function formatGrowthAxisLabel(ymd) {
+  if (!ymd || ymd.length < 10) return ymd;
+  const d = new Date(`${ymd}T12:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return ymd;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 /* ── SVG growth chart ─────────────────────────────────────────── */
 function GrowthChart({ growth, days }) {
   const series = [
@@ -116,16 +130,22 @@ function GrowthChart({ growth, days }) {
   ];
 
   const dateSet = new Set();
-  series.forEach(({ key }) => growth[key].forEach((d) => dateSet.add(d.date)));
-  const dates = Array.from(dateSet).sort();
+  series.forEach(({ key }) => {
+    (growth[key] ?? []).forEach((d) => dateSet.add(growthDateKey(d.date)));
+  });
+  const dates = Array.from(dateSet).filter(Boolean).sort();
 
   const dataByKey = {};
   series.forEach(({ key }) => {
     dataByKey[key] = {};
-    growth[key].forEach((d) => { dataByKey[key][d.date] = d.count; });
+    (growth[key] ?? []).forEach((d) => {
+      const k = growthDateKey(d.date);
+      const n = Number(d.count);
+      dataByKey[key][k] = (dataByKey[key][k] ?? 0) + (Number.isFinite(n) ? n : 0);
+    });
   });
 
-  const allCounts = series.flatMap(({ key }) => growth[key].map((d) => d.count));
+  const allCounts = series.flatMap(({ key }) => (growth[key] ?? []).map((d) => d.count));
   const maxVal = Math.max(...allCounts, 1);
 
   const W = 520; const H = 180;
@@ -134,7 +154,7 @@ function GrowthChart({ growth, days }) {
   const xp = (i) => PAD.l + (i / Math.max(dates.length - 1, 1)) * iW;
   const yp = (v) => PAD.t + iH - (v / maxVal) * iH;
 
-  const gridVals = [0, Math.round(maxVal * 0.25), Math.round(maxVal * 0.5), Math.round(maxVal * 0.75), maxVal];
+  const gridVals = [...new Set([0, Math.round(maxVal * 0.25), Math.round(maxVal * 0.5), Math.round(maxVal * 0.75), maxVal])].sort((a, b) => a - b);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 lg:col-span-2">
@@ -167,16 +187,27 @@ function GrowthChart({ growth, days }) {
           {dates.filter((_, i) => dates.length <= 7 || i % Math.ceil(dates.length / 5) === 0 || i === dates.length - 1).map((d) => {
             const i = dates.indexOf(d);
             return (
-              <text key={d} x={xp(i)} y={H - 6} textAnchor="middle" fontSize="9" fill="#94a3b8">{d.slice(5)}</text>
+              <text key={d} x={xp(i)} y={H - 6} textAnchor="middle" fontSize="9" fill="#94a3b8">{formatGrowthAxisLabel(d)}</text>
             );
           })}
           {series.map(({ key, color }) => {
-            const path = dates.map((d, i) => {
+            const pts = dates.map((d, i) => {
               const v = dataByKey[key][d] ?? 0;
-              return `${i === 0 ? 'M' : 'L'}${xp(i).toFixed(1)},${yp(v).toFixed(1)}`;
-            }).join(' ');
-            return <path key={key} d={path} fill="none" stroke={color} strokeWidth="2"
-              strokeLinejoin="round" strokeLinecap="round" />;
+              return { x: xp(i), y: yp(v), v };
+            });
+            // Single-point paths have zero stroke length in SVG; duplicate X so the line renders.
+            const pathD =
+              pts.length === 1
+                ? `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)} L ${(pts[0].x + 0.01).toFixed(1)},${pts[0].y.toFixed(1)}`
+                : pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+            return (
+              <g key={key}>
+                <path d={pathD} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+                {pts.filter((p) => p.v > 0).map((p, i) => (
+                  <circle key={`${key}-${i}`} cx={p.x} cy={p.y} r={3.5} fill="#fff" stroke={color} strokeWidth="2" />
+                ))}
+              </g>
+            );
           })}
         </svg>
       )}
