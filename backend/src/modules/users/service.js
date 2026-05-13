@@ -177,18 +177,22 @@ const uploadPhoto = async (userId, file) => {
 
   logger.info('Profile photo uploaded', { userId, cdnUrl, s3Key });
 
-  // Generate a presigned URL so the client can display the photo immediately
-  // without any CloudFront cache/access restrictions.
-  let presignedUrl = null;
-  try {
-    presignedUrl = await getPresignedDownloadUrl(s3Key, 3600);
-  } catch {
-    // Non-fatal — client will fall back to the CDN URL
+  // When CloudFront is configured the bucket uses OAC (direct S3 access is blocked),
+  // so presigned S3 URLs return 403. Return the CF URL directly — it's available
+  // immediately because the upload forces SSE-S3 (no KMS decrypt needed by OAC).
+  // Without CF (dev), fall back to a 1-hour presigned URL for private-bucket access.
+  let avatarUrl = cdnUrl;
+  if (!config.s3.cloudfrontDomain) {
+    try {
+      avatarUrl = await getPresignedDownloadUrl(s3Key, 3600);
+    } catch {
+      // Non-fatal — already have the S3 URL as fallback
+    }
   }
 
   return {
-    avatarUrl: presignedUrl || cdnUrl,  // presigned preferred; CDN as fallback
-    cdnUrl,                              // permanent URL stored in DB
+    avatarUrl,
+    cdnUrl,
   };
 };
 
@@ -561,13 +565,33 @@ const getUserGallery = async (targetId) => {
 };
 
 /**
- * GET /users/:id/photos — All photos uploaded by a user, grouped by trip/event + activity.
- * Returns structure: { trips: [{id, name, activities: [{id, title, photos:[]}], photos:[]}, ...], events: [{id, name, photos:[]}, ...] }
+ * GET /users/:id/photos — Photos for a user's gallery, grouped by trip/event + activity.
+ * When parentType + parentId are supplied: returns ALL photos for that specific trip/event,
+ *   verifying the target user is a member (used by friend-gallery modal).
+ * Without those params: returns only photos uploaded by the user across all trips/events.
  */
-const getUserPhotos = async (targetId) => {
+const getUserPhotos = async (targetId, parentType = null, parentId = null) => {
   const { getPresignedDownloadUrl } = require('../../utils/s3.util');
 
-  // Fetch all photos uploaded by this user, with parent + activity info
+  let whereClause;
+  let queryParams;
+
+  if (parentType && parentId) {
+    // Return every photo for this specific trip/event, confirming the target is a member.
+    if (parentType === 'trip') {
+      whereClause = `ph.parent_type = 'trip' AND ph.parent_id = $1
+                     AND EXISTS (SELECT 1 FROM trip_members WHERE trip_id = $1 AND user_id = $2)`;
+    } else {
+      whereClause = `ph.parent_type = 'event' AND ph.parent_id = $1
+                     AND EXISTS (SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2)`;
+    }
+    queryParams = [parentId, targetId];
+  } else {
+    // Default: photos uploaded by this user across all their trips/events.
+    whereClause = 'ph.uploaded_by = $1';
+    queryParams = [targetId];
+  }
+
   const photosResult = await db.query(
     `SELECT
        ph.id,
@@ -592,10 +616,10 @@ const getUserPhotos = async (targetId) => {
      LEFT JOIN trip_activities ta ON ta.id = ph.activity_id
      LEFT JOIN trips  t ON t.id = ph.parent_id AND ph.parent_type = 'trip'
      LEFT JOIN events e ON e.id = ph.parent_id AND ph.parent_type = 'event'
-     WHERE ph.uploaded_by = $1
+     WHERE ${whereClause}
      ORDER BY ph.created_at DESC
      LIMIT 500`,
-    [targetId],
+    queryParams,
   );
 
   // Generate presigned URLs and group by parent

@@ -21,6 +21,7 @@ type BannerCropFraction = {
 };
 import AppDatePicker from '../../components/common/AppDatePicker';
 import { launchImageLibrary } from 'react-native-image-picker';
+import CachedImage from '../../components/common/CachedImage';
 import LocationAutocomplete from '../../components/common/LocationAutocomplete';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
@@ -271,7 +272,7 @@ function BannerImage({
       </View>
     );
   }
-  if (uri) return <Image source={{ uri }} style={style} resizeMode={resizeMode} />;
+  if (uri) return <CachedImage uri={uri} style={style} resizeMode={resizeMode} />;
   return <Image source={fallback} style={style} resizeMode={resizeMode} />;
 }
 
@@ -820,10 +821,10 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
                           >
                             <View style={modal.friendAvatar}>
                               {friend.uri ? (
-                                <Image
-                                  source={{ uri: friend.uri }}
+                                <CachedImage
+                                  uri={friend.uri}
                                   style={{ width: 38, height: 38, borderRadius: 19 }}
-                                  onError={() => {}}
+                                  resizeMode="cover"
                                 />
                               ) : (
                                 <Text style={modal.friendAvatarText}>{friend.name[0]}</Text>

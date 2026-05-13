@@ -40,6 +40,10 @@ const uploadToS3 = async (buffer, key, mimeType, extras = {}) => {
     // new objects (OAC lacks kms:Decrypt) while old SSE-S3 objects continue to load
     // from FastImage's immutable cache — exactly the "old photos fine, new ones broken" symptom.
     ServerSideEncryption: 'AES256',
+    // CloudFront forwards Cache-Control from S3 origin to the client. cacheControl.web in
+    // FastImage (iOS: NSURLSession, Android: OkHttp) respects this header and caches
+    // immutably in the OS HTTP cache after the first successful load.
+    CacheControl: 'public, max-age=31536000, immutable',
     ...extras,
   });
 

@@ -711,8 +711,8 @@ function CreateCardModal({
             {/* Banner image picker */}
             <TouchableOpacity onPress={pickBanner} style={styles.bannerPicker} activeOpacity={0.8}>
               {bannerUri && !bannerImgError ? (
-                <Image
-                  source={{ uri: bannerUri }}
+                <CachedImage
+                  uri={bannerUri}
                   style={styles.bannerPreview}
                   resizeMode="cover"
                   onError={() => setBannerImgError(true)}
@@ -1033,9 +1033,11 @@ export default function GalleryTab({
           <View style={styles.profileRow}>
             <View style={styles.avatarWrap}>
               {user?.photoUrl && !avatarError ? (
-                <Image
-                  source={{ uri: user.photoUrl }}
+                <CachedImage
+                  uri={user.photoUrl}
                   style={styles.avatar}
+                  resizeMode="cover"
+                  priority="high"
                   onError={() => setAvatarError(true)}
                 />
               ) : (

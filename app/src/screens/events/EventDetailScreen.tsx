@@ -1271,9 +1271,11 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   {members.map(m => (
                     <View key={m.userId} style={styles.memberRow}>
                       {m.avatarUrl && !failedAvatarIds.has(m.userId)
-                        ? <Image
-                            source={{ uri: m.avatarUrl }}
+                        ? <CachedImage
+                            uri={m.avatarUrl}
                             style={styles.memberAvatar as any}
+                            resizeMode="cover"
+                            priority="normal"
                             onError={() => setFailedAvatarIds(prev => { const s = new Set(prev); s.add(m.userId); return s; })}
                           />
                         : <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>}

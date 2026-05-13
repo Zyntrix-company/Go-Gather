@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
-  Dimensions, StyleSheet, ActivityIndicator, Modal, Image, Animated, FlatList,
+  Dimensions, StyleSheet, ActivityIndicator, Modal, Animated, FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -246,7 +246,9 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
     let fetcher: Promise<{ photos?: any[] }>;
 
     if (userId) {
-      fetcher = getUserPhotos(userId).then((data) => {
+      // Pass parentType + parentId so the backend returns ALL photos for this trip/event,
+      // not just photos uploaded by the friend.
+      fetcher = getUserPhotos(userId, { parentType, parentId }).then((data) => {
         const parentList: any[] = parentType === 'trip' ? (data.trips ?? []) : (data.events ?? []);
         const match = parentList.find((p: any) => p.id === parentId);
         const allPhotos = [
@@ -445,10 +447,11 @@ export default function FriendProfileScreen() {
               <View style={styles.profileRow}>
                 <View style={styles.avatarWrap}>
                   {profile?.avatarUrl && !avatarError ? (
-                    <Image
-                      source={{ uri: profile.avatarUrl }}
+                    <CachedImage
+                      uri={profile.avatarUrl}
                       style={styles.avatar}
                       resizeMode="cover"
+                      priority="high"
                       onError={() => {
                         console.warn('[FriendProfileScreen] avatar load failed, url:', profile.avatarUrl);
                         setAvatarError(true);

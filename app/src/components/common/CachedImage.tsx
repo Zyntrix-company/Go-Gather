@@ -38,7 +38,10 @@ export default function CachedImage({
   const source: FastImageProps['source'] = {
     uri,
     priority: PRIORITY_MAP[priority],
-    cache: FastImage.cacheControl.immutable,
+    // web = OS HTTP cache (NSURLSession/OkHttp). No in-session failedURLs blacklist unlike
+    // immutable mode, so a URL that previously 403'd will be retried on next render.
+    // CloudFront sets Cache-Control on responses; S3 objects carry it from upload time.
+    cache: FastImage.cacheControl.web,
   };
 
   const rm = typeof resizeMode === 'string' && resizeMode in RESIZE_MAP

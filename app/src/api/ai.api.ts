@@ -124,13 +124,22 @@ export async function upsertGallerySubtitle(
 }
 
 /**
- * Fetch all photos uploaded by a user, grouped by trip/event + activity.
- * Does not require trip/event membership — any authenticated user can call this.
- * Used to display another user's gallery photos without needing to be a trip member.
+ * Fetch photos for a user's gallery, grouped by trip/event + activity.
+ * When parentType + parentId are supplied the backend returns ALL photos for that specific
+ * trip/event (verifying the user is a member) — used by the friend-gallery modal.
+ * Without those params it falls back to photos uploaded by that user across all parents.
  */
-export async function getUserPhotos(userId: string): Promise<{ trips: any[]; events: any[] }> {
+export async function getUserPhotos(
+  userId: string,
+  opts?: { parentType?: 'trip' | 'event'; parentId?: string },
+): Promise<{ trips: any[]; events: any[] }> {
   try {
-    const res = await client.get(`/users/${userId}/photos`);
+    const params: Record<string, string> = {};
+    if (opts?.parentType) params.parentType = opts.parentType;
+    if (opts?.parentId)   params.parentId   = opts.parentId;
+    const res = await client.get(`/users/${userId}/photos`, {
+      params: Object.keys(params).length ? params : undefined,
+    });
     return res.data;
   } catch {
     return { trips: [], events: [] };

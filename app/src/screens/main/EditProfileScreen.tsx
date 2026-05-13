@@ -7,11 +7,11 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  Image,
   Modal,
   FlatList,
   ActivityIndicator,
 } from 'react-native';
+import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Logo from '../../components/common/Logo';
@@ -279,13 +279,13 @@ export default function EditProfileScreen({ navigation }: any) {
                   <View style={styles.avatarOuter}>
                     <View style={styles.avatarInner}>
                       {displayAvatarUri ? (
-                        <Image
+                        <CachedImage
                           key={displayAvatarUri}
-                          source={{ uri: displayAvatarUri }}
+                          uri={displayAvatarUri}
                           style={styles.avatarImage}
                           resizeMode="cover"
+                          priority="high"
                           onError={() => {
-                            // Stale/expired URL — clear local preview so store URL is retried
                             if (localPreviewUri) setLocalPreviewUri('');
                           }}
                         />

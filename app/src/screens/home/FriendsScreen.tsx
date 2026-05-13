@@ -5,12 +5,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
   SafeAreaView,
   TextInput,
   ActivityIndicator,
   Modal,
 } from 'react-native';
+import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -72,7 +72,7 @@ function FriendRow({
   const displayUri = imgFailed ? fallbackAvatar : primaryUri;
   const firstLetter = friend.user.name?.[0]?.toUpperCase() || '?';
   const subtitle = friend.user.tag ? `@${friend.user.tag}` : '';
-  const avatarSource = { uri: displayUri };
+
   const colorPair = AVATAR_COLORS[index % 6];
 
   useEffect(() => {
@@ -121,11 +121,12 @@ function FriendRow({
 
         {/* Avatar */}
         <View style={[styles.avatar, { backgroundColor: colorPair.bg }]}>
-          {avatarSource ? (
-            <Image
-              source={avatarSource}
+          {displayUri ? (
+            <CachedImage
+              uri={displayUri}
               style={styles.avatarImage}
               resizeMode="cover"
+              priority="normal"
               onError={handleImageError}
             />
           ) : (

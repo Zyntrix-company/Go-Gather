@@ -100,11 +100,18 @@ const getUserGallery = async (req, res, next) => {
 };
 
 /**
- * GET /users/:id/photos — All photos uploaded by a user, grouped by trip/event + activity
+ * GET /users/:id/photos — Photos for a user's gallery, grouped by trip/event + activity.
+ * Accepts optional ?parentType=trip|event&parentId=<uuid> to fetch all photos for a specific
+ * trip/event (confirming the user is a member), used by the friend-gallery modal.
  */
 const getUserPhotos = async (req, res, next) => {
   try {
-    const photos = await usersService.getUserPhotos(req.params.id);
+    const { parentType, parentId } = req.query;
+    const photos = await usersService.getUserPhotos(
+      req.params.id,
+      parentType || null,
+      parentId  || null,
+    );
     return res.status(200).json(photos);
   } catch (error) {
     next(error);

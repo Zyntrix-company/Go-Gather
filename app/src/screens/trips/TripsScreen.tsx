@@ -327,7 +327,7 @@ function BannerImage({
       </View>
     );
   }
-  if (uri) return <Image source={{ uri }} style={style} resizeMode={resizeMode} />;
+  if (uri) return <CachedImage uri={uri} style={style} resizeMode={resizeMode} />;
   return <Image source={fallback} style={style} resizeMode={resizeMode} />;
 }
 

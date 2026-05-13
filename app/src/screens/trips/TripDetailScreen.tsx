@@ -1835,7 +1835,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                       {actPhotos.map((uri, i) => (
                         <View key={i} style={{ position: 'relative' }}>
-                          <Image source={{ uri }} style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#e2e8f0' }} />
+                          <CachedImage uri={uri} style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#e2e8f0' }} resizeMode="cover" />
                           <TouchableOpacity
                             onPress={() => setActPhotos(p => p.filter((_, j) => j !== i))}
                             style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center' }}
@@ -2056,9 +2056,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   {members.map(m => (
                     <View key={m.userId} style={styles.memberRow}>
                       {m.avatarUrl && !failedAvatarIds.has(m.userId)
-                        ? <Image
-                            source={{ uri: m.avatarUrl }}
+                        ? <CachedImage
+                            uri={m.avatarUrl}
                             style={styles.memberAvatar as any}
+                            resizeMode="cover"
+                            priority="normal"
                             onError={() => setFailedAvatarIds(prev => { const s = new Set(prev); s.add(m.userId); return s; })}
                           />
                         : <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>}

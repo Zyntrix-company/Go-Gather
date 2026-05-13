@@ -1,6 +1,7 @@
 import React from 'react';
-import { Image, View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import CachedImage from './CachedImage';
 
 type Props = {
   uri?: string | null;
@@ -32,10 +33,11 @@ export default function Avatar({ uri, size = 96, onPress }: Props) {
         },
       ]}>
       {uri ? (
-        <Image
-          source={{ uri }}
+        <CachedImage
+          uri={uri}
           style={{ width: size, height: size, borderRadius }}
           resizeMode="cover"
+          priority="high"
         />
       ) : (
         <PersonPlaceholder size={size} />
