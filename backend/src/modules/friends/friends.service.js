@@ -40,14 +40,14 @@ const normalizeAvatarUrl = async (rawAvatarUrl) => {
   if (!rawAvatarUrl || rawAvatarUrl.includes('https://undefined')) return null;
 
   try {
-    let s3Key = null;
     const cfDomain = config.s3.cloudfrontDomain;
+    // CloudFront URL — return as-is; presigning to a direct S3 URL fails when the bucket uses OAC.
     if (cfDomain && rawAvatarUrl.startsWith(`https://${cfDomain}/`)) {
-      s3Key = rawAvatarUrl.slice(`https://${cfDomain}/`.length).split('?')[0];
-    } else {
-      const parsed = new URL(rawAvatarUrl);
-      s3Key = parsed.pathname.replace(/^\//, '').split('?')[0];
+      return rawAvatarUrl;
     }
+
+    const parsed = new URL(rawAvatarUrl);
+    const s3Key = parsed.pathname.replace(/^\//, '').split('?')[0];
 
     if (s3Key && s3Key.startsWith('avatars/')) {
       return await getPresignedDownloadUrl(s3Key, 3600);

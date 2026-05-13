@@ -440,17 +440,17 @@ const getUserProfile = async (viewerId, targetId) => {
     try {
       const { getPresignedDownloadUrl } = require('../../utils/s3.util');
       const cfDomain = config.s3.cloudfrontDomain;
-      let s3Key = null;
+      // CloudFront URL — return as-is; presigning to a direct S3 URL fails when the bucket uses OAC.
       if (cfDomain && rawAvatar.startsWith(`https://${cfDomain}/`)) {
-        s3Key = rawAvatar.slice(`https://${cfDomain}/`.length).split('?')[0];
+        avatarUrl = rawAvatar;
       } else {
         const parsed = new URL(rawAvatar);
-        s3Key = parsed.pathname.replace(/^\//, '').split('?')[0];
-      }
-      if (s3Key && s3Key.startsWith('avatars/')) {
-        avatarUrl = await getPresignedDownloadUrl(s3Key, 3600);
-      } else {
-        avatarUrl = rawAvatar;
+        const s3Key = parsed.pathname.replace(/^\//, '').split('?')[0];
+        if (s3Key && s3Key.startsWith('avatars/')) {
+          avatarUrl = await getPresignedDownloadUrl(s3Key, 3600);
+        } else {
+          avatarUrl = rawAvatar;
+        }
       }
     } catch {
       avatarUrl = rawAvatar;
@@ -586,7 +586,7 @@ const getUserPhotos = async (targetId) => {
        END AS parent_name,
        CASE ph.parent_type
          WHEN 'trip'  THEN t.cover_photo_url
-         WHEN 'event' THEN e.cover_photo_url
+         WHEN 'event' THEN e.banner_image_url
        END AS parent_cover
      FROM photos ph
      LEFT JOIN trip_activities ta ON ta.id = ph.activity_id

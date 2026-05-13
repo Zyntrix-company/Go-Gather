@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem \"E:\\\\Go Gather\\\\backend\" | Where-Object { $_.Name -ne 'node_modules' } | Select-Object Name)"
+    ]
+  }
+}
