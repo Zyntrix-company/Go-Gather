@@ -288,14 +288,14 @@ const PencilIcon = () => (
     <Path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
-const ChevDown = () => (
+const ChevDown = ({ color = '#64748b' }: { color?: string }) => (
   <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-    <Path d="M6 9l6 6 6-6" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M6 9l6 6 6-6" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
-const ChevUp = () => (
+const ChevUp = ({ color = '#64748b' }: { color?: string }) => (
   <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-    <Path d="M18 15l-6-6-6 6" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M18 15l-6-6-6 6" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 const CloseX = ({ color = '#64748b' }) => (
@@ -1615,7 +1615,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 <View>
                   {Array.from(groups.entries()).map(([dateKey, acts]) => {
                     const isCollapsed = collapsedDates.has(dateKey);
-                    const hasMultiple = acts.length > 1;
                     const toggleCollapse = () => {
                       setCollapsedDates(prev => {
                         const next = new Set(prev);
@@ -1624,16 +1623,16 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       });
                     };
                     return (
-                      <View key={dateKey} style={{ marginBottom: 8 }}>
+                      <View key={dateKey} style={{ marginBottom: 4 }}>
                         <TouchableOpacity
                           style={styles.actDateRow}
-                          onPress={hasMultiple ? toggleCollapse : undefined}
-                          activeOpacity={hasMultiple ? 0.7 : 1}
+                          onPress={toggleCollapse}
+                          activeOpacity={0.7}
                         >
                           <Text style={styles.actDateLabel}>
                             {fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}
                           </Text>
-                          {hasMultiple && (isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />)}
+                          {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
                         </TouchableOpacity>
                         {!isCollapsed && (
                           <View style={styles.actItemsWrap}>
@@ -1669,7 +1668,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
             </TouchableOpacity>
             {showCompleted && (
               completed.length === 0
-                ? <View style={styles.emptyBox}><Text style={styles.emptyTitle}>No completed activities yet</Text></View>
+                ? (
+                  <View style={styles.emptyCompletedActivities}>
+                    <Text style={styles.emptyTitle}>No completed activities yet</Text>
+                  </View>
+                )
                 : (() => {
                   const cGroups = new Map<string, Activity[]>();
                   completed.forEach(a => {
@@ -1687,21 +1690,22 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       {Array.from(cGroups.entries()).map(([dateKey, acts]) => {
                         const collapsedKey = `completed:${dateKey}`;
                         const isCollapsed = collapsedDates.has(collapsedKey);
+                        const toggleCompletedDate = () => {
+                          setCollapsedDates(prev => {
+                            const next = new Set(prev);
+                            next.has(collapsedKey) ? next.delete(collapsedKey) : next.add(collapsedKey);
+                            return next;
+                          });
+                        };
                         return (
-                          <View key={dateKey} style={{ marginBottom: 8 }}>
+                          <View key={dateKey} style={{ marginBottom: 4 }}>
                             <TouchableOpacity
                               style={styles.actDateRow}
-                              onPress={acts.length > 1 ? () => {
-                                setCollapsedDates(prev => {
-                                  const next = new Set(prev);
-                                  next.has(collapsedKey) ? next.delete(collapsedKey) : next.add(collapsedKey);
-                                  return next;
-                                });
-                              } : undefined}
-                              activeOpacity={acts.length > 1 ? 0.7 : 1}
+                              onPress={toggleCompletedDate}
+                              activeOpacity={0.7}
                             >
                               <Text style={styles.actDateLabel}>{fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}</Text>
-                              {acts.length > 1 && (isCollapsed ? <ChevDown /> : <ChevUp />)}
+                              {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
                             </TouchableOpacity>
                             {!isCollapsed && (
                               <View style={styles.actItemsWrap}>
@@ -2906,6 +2910,7 @@ const styles = StyleSheet.create({
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
 
   emptyBox: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#e2e8f0', paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center' },
+  emptyCompletedActivities: { backgroundColor: 'transparent', borderWidth: 0, paddingVertical: 16, paddingHorizontal: 12, alignItems: 'center' },
   emptyCenter: { alignItems: 'center', paddingVertical: 28 },
   emptyTitle: { fontSize: 13, color: '#64748b', fontWeight: '400', marginTop: 10 },
   emptySub: { fontSize: 12, color: '#94a3b8', marginTop: 4, textAlign: 'center' },
@@ -2913,12 +2918,12 @@ const styles = StyleSheet.create({
   actRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f1f5f9' },
   actTitle: { fontSize: 12, fontWeight: '400', color: '#0f172a', marginBottom: 2 },
   actMeta: { fontSize: 11, color: '#94a3b8' },
-  actDateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 4, marginBottom: 2 },
+  actDateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 2, paddingHorizontal: 4, marginBottom: 0 },
   actDateLabel: { fontSize: 13, fontWeight: '500', color: '#334155' },
-  actItemsWrap: { marginLeft: 0, marginTop: 2 },
-  actItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingHorizontal: 4, borderWidth: 1, borderColor: 'transparent', borderRadius: 10, backgroundColor: 'transparent', gap: 10, marginBottom: 6 },
-  actTimeLabel: { fontSize: 12, color: '#64748b', minWidth: 44, fontWeight: '500' },
-  actItemTitle: { flex: 1, fontSize: 11, fontWeight: '500', color: '#0f172a' },
+  actItemsWrap: { marginLeft: 0, marginTop: 0 },
+  actItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, paddingHorizontal: 4, borderWidth: 1, borderColor: 'transparent', borderRadius: 10, backgroundColor: 'transparent', gap: 8, marginBottom: 2 },
+  actTimeLabel: { fontSize: 12, color: '#0f172a', minWidth: 44, fontWeight: '500' },
+  actItemTitle: { flex: 1, fontSize: 12, fontWeight: '500', color: '#0f172a' },
   doneBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#f0fdfa', marginLeft: 8 },
   doneTxt: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
   trashBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },

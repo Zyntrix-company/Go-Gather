@@ -256,10 +256,8 @@ const authApi = {
         }
 
         if (xhr.status >= 200 && xhr.status < 300) {
-          // Backend returns { avatarUrl: presignedUrl|cdnUrl, cdnUrl }
-          // cdnUrl is the permanent CloudFront URL (safe to cache indefinitely).
-          // avatarUrl may be a presigned S3 URL (expires in 1 hour) used for
-          // immediate display — do NOT store it long-term.
+          // Backend returns { avatarUrl: cdnUrl, cdnUrl }
+          // Both are permanent CloudFront URLs — bucket is public, no presigning needed.
           const cdnUrl: string = data.cdnUrl ?? '';
           const photoUrl: string =
             data.photoUrl ??

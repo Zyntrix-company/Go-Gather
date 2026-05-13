@@ -459,12 +459,12 @@ const styles = StyleSheet.create({
   fieldLabel:  { fontSize: 12, fontWeight: '400', color: '#0F172B', marginBottom: 5 },
   required:    { color: '#ef4444', fontWeight: '400' },
   optional:    { fontSize: 11, fontWeight: '400', color: '#45556C' },
-  dobReadOnly: { width: '100%', backgroundColor: '#ffffff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  dobReadOnly: { width: '100%', backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   dobReadOnlyText: { fontSize: 13, color: '#5b5e63' , },
   dobReadOnlyPlaceholder: { fontSize: 13, color: '#cbd5e1' },
 
   input: {
-    width: '100%', backgroundColor: '#fff',
+    width: '100%', backgroundColor: 'transparent',
     borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 8,
     fontSize: 13, color: '#0f172a',
@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
 
   dropdownBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0',
+    backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#e2e8f0',
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
   },
   dropdownText:        { fontSize: 14, color: '#0f172a', flex: 1, marginRight: 4 },

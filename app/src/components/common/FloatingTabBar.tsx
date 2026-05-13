@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
+import SweeIcon from './SweeIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type TabType = 'trips' | 'events' | 'friends' | 'chat' | 'gallery';
@@ -13,7 +14,7 @@ interface FloatingTabBarProps {
 // ─── Navigation Icon Component (copied from HomeScreen) ────────────────────────
 function NavIcon({ name, active, onPress }: { name: TabType; active: boolean; onPress: () => void }) {
   const color = active ? '#0d9488' : '#94a3b8';
-  const labels: Record<TabType, string> = { trips: 'Trips', events: 'Events', friends: 'Friends', chat: 'Chat', gallery: 'Gallery' };
+  const labels: Record<TabType, string> = { trips: 'Trips', events: 'Events', friends: 'Friends', chat: 'Swee', gallery: 'Gallery' };
 
   return (
     <TouchableOpacity style={styles.navItem} onPress={onPress}>
@@ -37,11 +38,7 @@ function NavIcon({ name, active, onPress }: { name: TabType; active: boolean; on
           <Path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         </Svg>
       )}
-      {name === 'chat' && (
-        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-          <Path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        </Svg>
-      )}
+      {name === 'chat' && <SweeIcon size={20} color={color} />}
       {name === 'gallery' && (
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
           <Rect x={3} y={3} width={18} height={18} rx={2} ry={2} stroke={color} strokeWidth={2} />

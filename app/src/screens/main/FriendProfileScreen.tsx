@@ -382,6 +382,8 @@ export default function FriendProfileScreen() {
   const [avatarError, setAvatarError] = useState(false);
   const [photoModal, setPhotoModal] = useState<{ id: string; name: string; type: 'trip' | 'event'; subtitle?: string | null } | null>(null);
 
+  useEffect(() => { setAvatarError(false); }, [profile?.avatarUrl]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -484,7 +486,7 @@ export default function FriendProfileScreen() {
                   {handle ? <Text style={styles.handle}>{handle}</Text> : null}
                   {profile?.country ? (
                     <View style={styles.locationRow}>
-                      <PinIcon color="#0d9488" size={13} />
+                      <PinIcon color="#0d9488" size={12} />
                       <Text style={styles.locationText}>{profile.country}</Text>
                     </View>
                   ) : null}
@@ -556,11 +558,11 @@ const styles = StyleSheet.create({
 
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 4 },
 
-  // Profile card — matches GalleryTab layout exactly
+  // Profile card — typography and spacing aligned with GalleryTab (friend-only chrome kept)
   profileCard: { marginTop: 14, marginBottom: 28, alignItems: 'center' },
-  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32, alignSelf: 'stretch' },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32 },
   avatarWrap: { position: 'relative' },
-  profileInfo: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 8 },
+  profileInfo: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 4 },
   /** Name + remove chip: chip sits top-right, slightly lifted like a small popup */
   nameHeaderWrap: {
     position: 'relative',
@@ -589,20 +591,20 @@ const styles = StyleSheet.create({
   },
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 3, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 38, fontWeight: '600', color: '#0d9488' },
-  name: { fontSize: 21, fontWeight: '600', color: '#0f172a', lineHeight: 26 },
-  handle: { fontSize: 16, color: '#0d9488', fontWeight: '600' },
+  avatarInitial: { fontSize: 38, fontWeight: '700', color: '#0d9488' },
+  name: { fontSize: 18, fontWeight: '400', color: '#0F172B', lineHeight: 22 },
+  handle: { fontSize: 14, color: '#0d9488', fontWeight: '500' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  locationText: { fontSize: 16, fontWeight: '600', color: '#64748b' },
-  bio: { fontSize: 15, fontWeight: '500', color: '#334155', textAlign: 'center', marginTop: 16, lineHeight: 24 },
+  locationText: { fontSize: 14, color: '#45556C' },
+  bio: { fontSize: 14, color: '#45556C', textAlign: 'center', marginTop: 12, lineHeight: 20 },
 
-  // Sections
+  // Sections — match GalleryTab
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionIcon: { alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontSize: 17, fontWeight: '600', color: '#1e293b' },
+  sectionTitle: { fontSize: 17, fontWeight: '400', color: '#0F172B' },
   countBadge: { backgroundColor: '#f0fdfa', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: '#ccfbf1' },
-  countBadgeText: { fontSize: 13, fontWeight: '600', color: '#0d9488' },
+  countBadgeText: { fontSize: 12, fontWeight: '700', color: '#0d9488' },
   sectionSpacer: { height: 24 },
 
   // Grid
@@ -613,10 +615,10 @@ const styles = StyleSheet.create({
   gridCardPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
   gridCardOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 32, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', paddingHorizontal: 8 },
   gridCardOverlayTall: { height: 50, justifyContent: 'center', paddingVertical: 6 },
-  gridCardText: { color: '#fff', fontSize: 13, fontWeight: '600', lineHeight: 16 },
+  gridCardText: { color: '#fff', fontSize: 12, fontWeight: '400', lineHeight: 15 },
   gridCardSubtitle: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '400', lineHeight: 14, marginTop: 2 },
   emptyCard: { width: CARD_W, height: 140, borderRadius: 14, borderWidth: 2, borderColor: '#e2e8f0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#fafafa' },
-  emptyCardText: { fontSize: 13, color: '#cbd5e1', fontWeight: '600' },
+  emptyCardText: { fontSize: 12, color: '#cbd5e1', fontWeight: '500' },
 
   // Modal
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 },
