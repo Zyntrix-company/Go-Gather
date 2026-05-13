@@ -436,30 +436,9 @@ const getUserProfile = async (viewerId, targetId) => {
     friendshipStatus = row.fcRequesterId === viewerId ? 'pending_sent' : 'pending_received';
   }
 
-  // Presign avatar URL — same logic as normalizeAvatarUrl in friends.service.js
   logger.info('[getUserProfile] raw avatarUrl from DB', { targetId, rawAvatar: row.avatarUrl });
-  let avatarUrl = null;
   const rawAvatar = row.avatarUrl;
-  if (rawAvatar && !rawAvatar.includes('https://undefined')) {
-    try {
-      const { getPresignedDownloadUrl } = require('../../utils/s3.util');
-      const cfDomain = config.s3.cloudfrontDomain;
-      // CloudFront URL — return as-is; presigning to a direct S3 URL fails when the bucket uses OAC.
-      if (cfDomain && rawAvatar.startsWith(`https://${cfDomain}/`)) {
-        avatarUrl = rawAvatar;
-      } else {
-        const parsed = new URL(rawAvatar);
-        const s3Key = parsed.pathname.replace(/^\//, '').split('?')[0];
-        if (s3Key && s3Key.startsWith('avatars/')) {
-          avatarUrl = await getPresignedDownloadUrl(s3Key, 3600);
-        } else {
-          avatarUrl = rawAvatar;
-        }
-      }
-    } catch {
-      avatarUrl = rawAvatar;
-    }
-  }
+  const avatarUrl = (rawAvatar && !rawAvatar.includes('https://undefined')) ? rawAvatar : null;
 
   return {
     id: row.id,

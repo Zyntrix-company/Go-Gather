@@ -545,32 +545,9 @@ const getMe = async (userId) => {
   const rawAvatar = row.avatar_url;
   const storedAvatarUrl = (rawAvatar && !rawAvatar.includes('https://undefined')) ? rawAvatar : null;
 
-  // Derive the S3 key from the stored URL so we can generate a presigned URL.
-  // Presigned URLs are signed with IAM credentials and bypass CloudFront entirely,
-  // which avoids any distribution-level access issues for the avatars/ prefix.
-  // We try to generate one; if it fails (e.g. GetObject not granted) we fall back
-  // to the stored CloudFront / S3 URL so the response is never broken.
-  let avatarUrl = storedAvatarUrl;
-  if (storedAvatarUrl) {
-    try {
-      let s3Key = null;
-      const cfDomain = config.s3.cloudfrontDomain;
-      if (cfDomain && storedAvatarUrl.startsWith(`https://${cfDomain}/`)) {
-        // CloudFront URL → extract key after the domain
-        s3Key = storedAvatarUrl.slice(`https://${cfDomain}/`.length).split('?')[0];
-      } else {
-        // Direct S3 URL → extract key from path
-        const parsed = new URL(storedAvatarUrl);
-        s3Key = parsed.pathname.replace(/^\//, '').split('?')[0];
-      }
-      if (s3Key && s3Key.startsWith('avatars/')) {
-        avatarUrl = await getPresignedDownloadUrl(s3Key, 3600);
-      }
-    } catch {
-      // Fall back to the stored URL — presigned generation is best-effort
-      avatarUrl = storedAvatarUrl;
-    }
-  }
+  // Bucket is public; CloudFront is the correct access path (CachingOptimized policy fixed).
+  // CF URL is permanent — no presigning needed.
+  const avatarUrl = storedAvatarUrl;
 
   return {
     id: row.id,

@@ -36,26 +36,8 @@ const getUserFcmToken = async (userId) => {
   );
   return result.rows[0]?.fcm_token || null;
 };
-const normalizeAvatarUrl = async (rawAvatarUrl) => {
+const normalizeAvatarUrl = (rawAvatarUrl) => {
   if (!rawAvatarUrl || rawAvatarUrl.includes('https://undefined')) return null;
-
-  try {
-    const cfDomain = config.s3.cloudfrontDomain;
-    // CloudFront URL — return as-is; presigning to a direct S3 URL fails when the bucket uses OAC.
-    if (cfDomain && rawAvatarUrl.startsWith(`https://${cfDomain}/`)) {
-      return rawAvatarUrl;
-    }
-
-    const parsed = new URL(rawAvatarUrl);
-    const s3Key = parsed.pathname.replace(/^\//, '').split('?')[0];
-
-    if (s3Key && s3Key.startsWith('avatars/')) {
-      return await getPresignedDownloadUrl(s3Key, 3600);
-    }
-  } catch (err) {
-    logger.warn('Failed to normalize avatar URL', { rawAvatarUrl, err: err.message });
-  }
-
   return rawAvatarUrl;
 };
 // ─── Send Friend Request ───────────────────────────────────────────────────────
@@ -321,7 +303,7 @@ const getFriends = async (userId, search) => {
     user: {
       id: row.userId,
       name: row.name,
-      avatarUrl: await normalizeAvatarUrl(row.avatarUrl),
+      avatarUrl: normalizeAvatarUrl(row.avatarUrl),
       country: row.country,
       bio: row.bio,
       tag: row.tag,
