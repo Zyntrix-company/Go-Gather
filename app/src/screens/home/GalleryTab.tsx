@@ -186,17 +186,32 @@ function customCardsStorageKey(userId: string) {
 function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void }) {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  // Prefer local file URI — always available, no network needed.
-  // Falls back to server URL (CDN or presigned).
-  const displayUri = photo.localUri ?? photo.uri;
-  const prevUri = useRef(displayUri);
+  // If localUri fails (e.g. OS cleaned the picker temp file), fall back to the
+  // server URL (CloudFront CDN or presigned S3) rather than showing a placeholder.
+  const [localUriFailed, setLocalUriFailed] = useState(false);
+  const displayUri = (photo.localUri && !localUriFailed) ? photo.localUri : photo.uri;
+
+  const prevId = useRef(photo.id);
   useEffect(() => {
-    if (prevUri.current !== displayUri) {
-      prevUri.current = displayUri;
+    if (prevId.current !== photo.id) {
+      prevId.current = photo.id;
+      setLocalUriFailed(false);
       setFailed(false);
       setLoading(true);
     }
-  }, [displayUri]);
+  }, [photo.id]);
+
+  const handleError = () => {
+    if (photo.localUri && !localUriFailed) {
+      // localUri failed — retry with the server URL
+      setLocalUriFailed(true);
+      setLoading(true);
+    } else {
+      setLoading(false);
+      setFailed(true);
+    }
+  };
+
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.thumb}>
       {!failed ? (
@@ -206,7 +221,7 @@ function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void 
             style={styles.thumbImg}
             resizeMode="cover"
             onLoad={() => setLoading(false)}
-            onError={() => { setLoading(false); setFailed(true); }}
+            onError={handleError}
           />
           {loading && (
             <View style={styles.thumbLoader}>

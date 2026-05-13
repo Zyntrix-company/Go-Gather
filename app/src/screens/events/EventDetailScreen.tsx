@@ -249,15 +249,30 @@ const TabBar = DetailTabBar;
 function EventPhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void }) {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const uri = photo.localUri ?? photo.uri;
-  const prevUri = useRef(uri);
+  // Fall back from localUri to server URL if the local temp file is gone
+  const [localUriFailed, setLocalUriFailed] = useState(false);
+  const uri = (photo.localUri && !localUriFailed) ? photo.localUri : photo.uri;
+
+  const prevId = useRef(photo.id);
   useEffect(() => {
-    if (prevUri.current !== uri) {
-      prevUri.current = uri;
+    if (prevId.current !== photo.id) {
+      prevId.current = photo.id;
+      setLocalUriFailed(false);
       setFailed(false);
       setLoading(true);
     }
-  }, [uri]);
+  }, [photo.id]);
+
+  const handleError = () => {
+    if (photo.localUri && !localUriFailed) {
+      setLocalUriFailed(true);
+      setLoading(true);
+    } else {
+      setLoading(false);
+      setFailed(true);
+    }
+  };
+
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
       {!failed ? (
@@ -267,7 +282,7 @@ function EventPhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => 
             style={{ width: 80, height: 80 }}
             resizeMode="cover"
             onLoad={() => setLoading(false)}
-            onError={() => { setLoading(false); setFailed(true); }}
+            onError={handleError}
           />
           {loading && (
             <View style={{ ...StyleSheet.absoluteFillObject as any, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' }}>
@@ -280,6 +295,21 @@ function EventPhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => 
           <Text style={{ fontSize: 22 }}>🖼️</Text>
         </View>
       )}
+    </TouchableOpacity>
+  );
+}
+
+function EventMainPhotoItem({ photo, size, onPress }: { photo: PhotoItem; size: number; onPress: () => void }) {
+  const [localUriFailed, setLocalUriFailed] = useState(false);
+  const uri = (photo.localUri && !localUriFailed) ? photo.localUri : photo.uri;
+  return (
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+      <CachedImage
+        uri={uri}
+        style={{ width: size, height: size, borderRadius: 10, backgroundColor: '#e2e8f0' }}
+        resizeMode="cover"
+        onError={() => { if (photo.localUri && !localUriFailed) setLocalUriFailed(true); }}
+      />
     </TouchableOpacity>
   );
 }
@@ -1156,14 +1186,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
               return (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {photos.map(p => (
-                    <TouchableOpacity key={p.id} onPress={() => openPhotoPreview(p.id)} activeOpacity={0.85}>
-                      <Image
-                        source={{ uri: p.localUri ?? p.uri }}
-                        style={{ width: THUMB, height: THUMB, borderRadius: 10, backgroundColor: '#e2e8f0' }}
-                        resizeMode="cover"
-                        onError={() => { }}
-                      />
-                    </TouchableOpacity>
+                    <EventMainPhotoItem key={p.id} photo={p} size={THUMB} onPress={() => openPhotoPreview(p.id)} />
                   ))}
                 </View>
               );

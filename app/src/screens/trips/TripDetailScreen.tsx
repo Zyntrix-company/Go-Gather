@@ -382,15 +382,30 @@ function TabBar({ tabs, active, onSelect }: { tabs: string[]; active: string; on
 function TripPhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void }) {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
-  const uri = photo.localUri ?? photo.uri;
-  const prevUri = useRef(uri);
+  // Fall back from localUri to server URL if the local temp file is gone
+  const [localUriFailed, setLocalUriFailed] = useState(false);
+  const uri = (photo.localUri && !localUriFailed) ? photo.localUri : photo.uri;
+
+  const prevId = useRef(photo.id);
   useEffect(() => {
-    if (prevUri.current !== uri) {
-      prevUri.current = uri;
+    if (prevId.current !== photo.id) {
+      prevId.current = photo.id;
+      setLocalUriFailed(false);
       setFailed(false);
       setLoading(true);
     }
-  }, [uri]);
+  }, [photo.id]);
+
+  const handleError = () => {
+    if (photo.localUri && !localUriFailed) {
+      setLocalUriFailed(true);
+      setLoading(true);
+    } else {
+      setLoading(false);
+      setFailed(true);
+    }
+  };
+
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={{ width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' }}>
       {!failed ? (
@@ -400,7 +415,7 @@ function TripPhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => v
             style={{ width: 80, height: 80, borderRadius: 8 }}
             resizeMode="cover"
             onLoad={() => setLoading(false)}
-            onError={() => { setLoading(false); setFailed(true); }}
+            onError={handleError}
           />
           {loading && (
             <View style={{ ...StyleSheet.absoluteFillObject as any, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' }}>

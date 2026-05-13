@@ -159,7 +159,10 @@
       "Bash(Get-ChildItem -Path \"E:\\\\Go Gather\" -Force)",
       "Bash(Select-Object Name, Mode)",
       "Bash(find E:\\\\\\\\Go Gather *)",
-      "Bash(find \"E:\\\\\\\\Go Gather\\\\\\\\docs\" -type f -name \"*.md\")"
+      "Bash(find \"E:\\\\\\\\Go Gather\\\\\\\\docs\" -type f -name \"*.md\")",
+      "Bash(Get-ChildItem -Path \"E:\\\\Go Gather\" -Recurse -Directory -Name)",
+      "Bash(Select-Object -First 20)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\Go Gather\" -Recurse -Directory | Select-Object -First 30 | ForEach-Object { $_.FullName })"
     ]
   }
 }

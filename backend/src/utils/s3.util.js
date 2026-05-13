@@ -35,6 +35,11 @@ const uploadToS3 = async (buffer, key, mimeType, extras = {}) => {
     Key: key,
     Body: buffer,
     ContentType: mimeType,
+    // SSE-S3 keeps CloudFront OAC working regardless of bucket-level KMS defaults.
+    // Without this, a bucket default of SSE-KMS causes CloudFront to return 403 for
+    // new objects (OAC lacks kms:Decrypt) while old SSE-S3 objects continue to load
+    // from FastImage's immutable cache — exactly the "old photos fine, new ones broken" symptom.
+    ServerSideEncryption: 'AES256',
     ...extras,
   });
 

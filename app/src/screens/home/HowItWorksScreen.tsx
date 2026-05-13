@@ -39,6 +39,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 export default function HowItWorksScreen({ navigation }: { navigation: any }) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoPlaying, setVideoPlaying] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE}/promo-video`)
@@ -74,13 +75,14 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
                 resizeMode="cover"
                 muted
                 repeat
-                paused={false}
+                paused={!videoPlaying}
                 controls={false}
                 ignoreSilentSwitch="ignore"
                 playInBackground={false}
                 playWhenInactive={false}
+                onReadyForDisplay={() => setVideoPlaying(true)}
                 bufferConfig={{
-                  minBufferMs: 15000,
+                  minBufferMs: 2500,
                   maxBufferMs: 50000,
                   bufferForPlaybackMs: 2500,
                   bufferForPlaybackAfterRebufferMs: 5000,
