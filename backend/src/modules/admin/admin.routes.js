@@ -518,7 +518,12 @@ router.delete('/blogs/:id', async (req, res, next) => {
 router.get('/promo-video', async (_req, res, next) => {
   try {
     const { rows } = await query('SELECT id, video_url, s3_key, created_at, updated_at FROM promo_video WHERE id = 1');
-    res.json(rows.length ? rows[0] : null);
+    if (!rows.length) return res.json(null);
+    const row = rows[0];
+    if (config.s3.cloudfrontDomain && row.video_url.includes('.amazonaws.com/') && row.s3_key) {
+      row.video_url = `https://${config.s3.cloudfrontDomain}/${row.s3_key}`;
+    }
+    res.json(row);
   } catch (err) { next(err); }
 });
 

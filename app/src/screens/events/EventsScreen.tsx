@@ -376,7 +376,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
         uri: f.user.avatarUrl ?? `https://i.pravatar.cc/150?u=${f.user.id}`,
       }));
       setApiFriends(mapped);
-    }).catch(() => { });
+    }).catch((err) => { handleApiError(err); });
   }, [showInviteModal]);
 
   useEffect(() => {
@@ -392,7 +392,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
 
   function reset() {
     setName(''); setType('Other'); setShowTypeDrop(false);
-    setDateObj(undefined);
+    setDateObj(undefined); setDateError(null);
     setLocation(''); setFetchingLocation(false);
     setUploadedDocs([]); setSelectedFriendIds([]);
     setShowInviteModal(false); setShowEmailModal(false);
@@ -480,7 +480,10 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
             if (permanentUrl) {
               await apiUpdateEvent(newEvent.id, { bannerImageUrl: permanentUrl, ...(capturedCrop && { bannerCropFraction: capturedCrop }) });
             }
-          } catch (e) { console.warn('Banner upload failed:', e); }
+          } catch (e: any) {
+            console.warn('Banner upload failed:', e);
+            showAlert({ title: 'Banner Upload Failed', message: 'Your event was created but the cover image could not be saved. You can add it again from the event page.' });
+          }
         })();
       }
     } catch (err) {

@@ -36,7 +36,7 @@ export default function FaqScreen({ navigation }: { navigation: any }) {
             <Logo size="small" />
           </TouchableOpacity>
           <Text style={styles.title}>FAQ</Text>
-          <Text style={styles.subtitle}>Common questions about GatherGo</Text>
+          <Text style={styles.subtitle}>Common questions about GatherrGo</Text>
 
           <View style={styles.list}>
             {GATHERGO_FAQS.map((item) => (

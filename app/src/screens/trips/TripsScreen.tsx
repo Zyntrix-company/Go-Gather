@@ -540,6 +540,7 @@ export function CreateTripModal({
   function reset() {
     setName(''); setLocation('');
     setStartDateObj(undefined); setEndDateObj(undefined);
+    setStartDateError(null); setEndDateError(null);
     setReminders(false); setUploadedDocs([]); setSelectedFriendIds([]);
     setFriendSearch(''); setInviteEmail(''); setInvitePhone(''); setInviteWhatsapp('');
     // Banner state lives in the parent — do NOT reset it here so it
@@ -569,6 +570,8 @@ export function CreateTripModal({
       });
       reset();
       onClose();
+    } catch (err) {
+      handleApiError(err);
     } finally {
       setIsSubmitting(false);
     }
@@ -610,7 +613,7 @@ export function CreateTripModal({
         uri: f.user.avatarUrl ?? `https://i.pravatar.cc/150?u=${f.user.id}`,
       }));
       setApiFriends(mapped);
-    }).catch(() => { });
+    }).catch((err) => { handleApiError(err); });
   }, [showInviteModal]);
 
   const filteredFriends = apiFriends.filter(f =>
@@ -1474,7 +1477,10 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
                 newTrip = updated.trip;
                 setTrips(p => p.map(t => t.id === newTrip.id ? { ...t, bannerImageUrl: newTrip.bannerImageUrl ?? displayUrl } : t));
               }
-            } catch (e) { console.warn('Banner upload failed:', e); }
+            } catch (e: any) {
+              console.warn('Banner upload failed:', e);
+              showAlert({ title: 'Banner Upload Failed', message: 'Your trip was created but the cover image could not be saved. You can add it again from the trip page.' });
+            }
           } else {
             setTrips(p => [mapApiTrip(newTrip), ...p]);
           }

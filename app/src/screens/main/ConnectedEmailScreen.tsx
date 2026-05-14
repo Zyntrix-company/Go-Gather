@@ -112,7 +112,7 @@ export default function ConnectedEmailScreen({ navigation }: { navigation: any }
           </TouchableOpacity>
           <Text style={styles.title}>Connected mail</Text>
           <Text style={styles.subtitle}>
-            Link Gmail or Outlook so GatherGo can find travel attachments when you import from email.
+            Link Gmail or Outlook so GatherrGo can find travel attachments when you import from email.
           </Text>
 
           {loading && (

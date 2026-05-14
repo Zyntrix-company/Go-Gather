@@ -112,7 +112,7 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
               <Text style={styles.cardTitle}>All your group travel, in one place</Text>
             </View>
             <Text style={styles.cardBody}>
-              GatherGo is built for groups. Whether you're planning a weekend road trip, a destination wedding, or a birthday getaway — GatherGo keeps everyone on the same page with shared itineraries, group chats, expense tracking, photo albums, and travel documents — all in one private space.
+              GatherrGo is built for groups. Whether you're planning a weekend road trip, a destination wedding, or a birthday getaway — GatherrGo keeps everyone on the same page with shared itineraries, group chats, expense tracking, photo albums, and travel documents — all in one private space.
             </Text>
           </View>
 

@@ -347,7 +347,7 @@ export default function FriendsScreen() {
                   </Svg>
                 </View>
                 <Text style={styles.emptyTitle}>No friends yet</Text>
-                <Text style={styles.emptyText}>Invite your friends to join GatherGo</Text>
+                <Text style={styles.emptyText}>Invite your friends to join GatherrGo</Text>
                 <TouchableOpacity style={[styles.inviteBtn, { marginTop: 20 }]} onPress={handleInviteFriends} activeOpacity={0.85}>
                   <Text style={styles.inviteBtnText}>Invite Friends</Text>
                 </TouchableOpacity>
@@ -421,7 +421,7 @@ export default function FriendsScreen() {
             <View style={modalStyles.dHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={modalStyles.dTitle}>Invite Friends</Text>
-                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Invite people to join GatherGo</Text>
+                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Invite people to join GatherrGo</Text>
               </View>
               <TouchableOpacity onPress={() => setShowInviteModal(false)} style={modalStyles.closeBtn} activeOpacity={0.7}>
                 <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">

@@ -824,6 +824,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   // ── Derived ──
   const days = trip?.startDateISO ? daysUntilISO(trip.startDateISO) : 0;
+  const isPastTrip = trip?.endDateISO
+    ? new Date(trip.endDateISO).setHours(23, 59, 59, 999) < Date.now()
+    : days < 0;
   const _today = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
   const upcomingActs = activities.filter((a: any) => {
     if (a.completed) return false;
@@ -1512,8 +1515,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
             name={trip?.name ?? 'Trip'}
             dateLine={`${trip?.startDateISO ? (days > 0 ? fmtDateNoYear(trip.startDateISO) : fmtFullDate(trip.startDateISO)) : (trip?.startDate ?? '')}${trip?.endDateISO ? ` — ${days > 0 ? fmtDateNoYear(trip.endDateISO) : fmtFullDate(trip.endDateISO)}` : (trip?.endDate ? ` - ${trip.endDate}` : '')}`}
             location={typeof trip?.location === 'string' ? trip.location : trip?.location?.name ?? ''}
-            dayCount={Math.abs(days)}
-            dayLabel={days > 0 ? 'Days to go' : days === 0 ? 'Today!' : 'Days ago'}
+            dayCount={days < 0 && Math.abs(days) >= 365 ? Math.round(Math.abs(days) / 365) : Math.abs(days)}
+            dayLabel={days > 0 ? 'Days to go' : days === 0 ? 'Today!' : Math.abs(days) >= 365 ? (Math.round(Math.abs(days) / 365) === 1 ? 'Year ago' : 'Years ago') : 'Days ago'}
             memberCount={memberCount}
             memberAvatars={members
               .map(m => ({ id: m.userId, uri: m.avatarUrl ?? '' }))
@@ -1585,8 +1588,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
             </View>
           </View>
 
-          {/* ── Upcoming Activities ── */}
-          <View style={styles.section}>
+          {/* ── Upcoming Activities — hidden for past trips ── */}
+          {!isPastTrip && <View style={styles.section}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
               <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
                 <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
@@ -1652,81 +1655,141 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 </View>
               );
             })()}
-          </View>
+          </View>}
 
-          {/* ── Completed Activities ── */}
-          <View style={styles.section}>
-            <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => setShowCompleted(p => !p)} activeOpacity={0.7}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {/* ── Activities (past trip: flat list) / Completed Activities (active trip: collapsible) ── */}
+          {isPastTrip ? (
+            <View style={styles.section}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
                 <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
                   <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
                   <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
-                <Text style={styles.sectionTitleDark}>Completed Activities</Text>
+                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Activities</Text>
               </View>
-              {showCompleted ? <ChevUp /> : <ChevDown />}
-            </TouchableOpacity>
-            {showCompleted && (
-              completed.length === 0
-                ? (
-                  <View style={styles.emptyCompletedActivities}>
-                    <Text style={styles.emptyTitle}>No completed activities yet</Text>
+              {activities.length === 0 ? (
+                <View style={styles.emptyBox}>
+                  <Text style={styles.emptyTitle}>No activities</Text>
+                  <Text style={styles.emptySub}>No activities were recorded for this trip</Text>
+                </View>
+              ) : (() => {
+                const allGroups = new Map<string, Activity[]>();
+                activities.forEach((a: any) => {
+                  const key = a.date || '__nodate__';
+                  if (!allGroups.has(key)) allGroups.set(key, []);
+                  allGroups.get(key)!.push(a);
+                });
+                const fmtActDate = (iso: string) => {
+                  if (!iso) return 'No Date';
+                  const d = new Date(iso);
+                  return d.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short' });
+                };
+                return (
+                  <View>
+                    {Array.from(allGroups.entries()).map(([dateKey, acts]) => {
+                      const isCollapsed = collapsedDates.has(dateKey);
+                      const toggleCollapse = () => {
+                        setCollapsedDates(prev => {
+                          const next = new Set(prev);
+                          next.has(dateKey) ? next.delete(dateKey) : next.add(dateKey);
+                          return next;
+                        });
+                      };
+                      return (
+                        <View key={dateKey} style={{ marginBottom: 4 }}>
+                          <TouchableOpacity style={styles.actDateRow} onPress={toggleCollapse} activeOpacity={0.7}>
+                            <Text style={styles.actDateLabel}>{fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}</Text>
+                            {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
+                          </TouchableOpacity>
+                          {!isCollapsed && (
+                            <View style={styles.actItemsWrap}>
+                              {acts.map((act, idx) => (
+                                <TouchableOpacity key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]} activeOpacity={0.7} onPress={() => startEditActivity(act)}>
+                                  <Text style={styles.actTimeLabel}>
+                                    {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
+                                  </Text>
+                                  <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
                   </View>
-                )
-                : (() => {
-                  const cGroups = new Map<string, Activity[]>();
-                  completed.forEach(a => {
-                    const key = a.date || '__nodate__';
-                    if (!cGroups.has(key)) cGroups.set(key, []);
-                    cGroups.get(key)!.push(a);
-                  });
-                  const fmtActDate = (iso: string) => {
-                    if (!iso) return 'No Date';
-                    const d = new Date(iso);
-                    return d.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short' });
-                  };
-                  return (
-                    <View>
-                      {Array.from(cGroups.entries()).map(([dateKey, acts]) => {
-                        const collapsedKey = `completed:${dateKey}`;
-                        const isCollapsed = collapsedDates.has(collapsedKey);
-                        const toggleCompletedDate = () => {
-                          setCollapsedDates(prev => {
-                            const next = new Set(prev);
-                            next.has(collapsedKey) ? next.delete(collapsedKey) : next.add(collapsedKey);
-                            return next;
-                          });
-                        };
-                        return (
-                          <View key={dateKey} style={{ marginBottom: 4 }}>
-                            <TouchableOpacity
-                              style={styles.actDateRow}
-                              onPress={toggleCompletedDate}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={styles.actDateLabel}>{fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}</Text>
-                              {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
-                            </TouchableOpacity>
-                            {!isCollapsed && (
-                              <View style={styles.actItemsWrap}>
-                                {acts.map((act, idx) => (
-                                  <TouchableOpacity key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]} activeOpacity={0.7} onPress={() => startEditActivity(act)}>
-                                    <Text style={styles.actTimeLabel}>
-                                      {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
-                                    </Text>
-                                    <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
-                                  </TouchableOpacity>
-                                ))}
-                              </View>
-                            )}
-                          </View>
-                        );
-                      })}
+                );
+              })()}
+            </View>
+          ) : (
+            <View style={styles.section}>
+              <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => setShowCompleted(p => !p)} activeOpacity={0.7}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                    <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
+                    <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                  <Text style={styles.sectionTitleDark}>Completed Activities</Text>
+                </View>
+                {showCompleted ? <ChevUp /> : <ChevDown />}
+              </TouchableOpacity>
+              {showCompleted && (
+                completed.length === 0
+                  ? (
+                    <View style={styles.emptyCompletedActivities}>
+                      <Text style={styles.emptyTitle}>No completed activities yet</Text>
                     </View>
-                  );
-                })()
-            )}
-          </View>
+                  )
+                  : (() => {
+                    const cGroups = new Map<string, Activity[]>();
+                    completed.forEach(a => {
+                      const key = a.date || '__nodate__';
+                      if (!cGroups.has(key)) cGroups.set(key, []);
+                      cGroups.get(key)!.push(a);
+                    });
+                    const fmtActDate = (iso: string) => {
+                      if (!iso) return 'No Date';
+                      const d = new Date(iso);
+                      return d.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short' });
+                    };
+                    return (
+                      <View>
+                        {Array.from(cGroups.entries()).map(([dateKey, acts]) => {
+                          const collapsedKey = `completed:${dateKey}`;
+                          const isCollapsed = collapsedDates.has(collapsedKey);
+                          const toggleCompletedDate = () => {
+                            setCollapsedDates(prev => {
+                              const next = new Set(prev);
+                              next.has(collapsedKey) ? next.delete(collapsedKey) : next.add(collapsedKey);
+                              return next;
+                            });
+                          };
+                          return (
+                            <View key={dateKey} style={{ marginBottom: 4 }}>
+                              <TouchableOpacity style={styles.actDateRow} onPress={toggleCompletedDate} activeOpacity={0.7}>
+                                <Text style={styles.actDateLabel}>{fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}</Text>
+                                {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
+                              </TouchableOpacity>
+                              {!isCollapsed && (
+                                <View style={styles.actItemsWrap}>
+                                  {acts.map((act, idx) => (
+                                    <TouchableOpacity key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]} activeOpacity={0.7} onPress={() => startEditActivity(act)}>
+                                      <Text style={styles.actTimeLabel}>
+                                        {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
+                                      </Text>
+                                      <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })}
+                      </View>
+                    );
+                  })()
+              )}
+            </View>
+          )}
 
         </ScrollView>
 
@@ -1753,7 +1816,25 @@ export default function TripDetailScreen({ route, navigation }: any) {
         <Modal visible={showAddAct} transparent animationType="fade" onRequestClose={() => { resetActForm(); setShowAddAct(false); }}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '92%' }]}>
-              <DHeader title={editingActivityId ? 'View Activity' : 'Add Activity'} onClose={() => { resetActForm(); setShowAddAct(false); }} />
+              {editingActivityId ? (
+                <View style={styles.dHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.dTitle}>View Activity</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => { resetActForm(); setShowAddAct(false); handleDeleteActivity(editingActivityId); }}
+                    style={[styles.dCloseBtn, { marginRight: 4 }]}
+                    activeOpacity={0.7}
+                  >
+                    <TrashIcon color="#ef4444" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { resetActForm(); setShowAddAct(false); }} style={styles.dCloseBtn} activeOpacity={0.7}>
+                    <CloseX />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <DHeader title="Add Activity" onClose={() => { resetActForm(); setShowAddAct(false); }} />
+              )}
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.dBody}>
 
@@ -1940,18 +2021,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
               </ScrollView>
               <View style={styles.dFooterSingle}>
                 {editingActivityId ? (
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <TouchableOpacity
-                      style={[styles.cancelBtn, { borderWidth: 1, borderColor: '#fecaca' }]}
-                      onPress={() => { resetActForm(); setShowAddAct(false); handleDeleteActivity(editingActivityId); }}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={{ fontSize: 13, color: '#ef4444', fontWeight: '500' }}>Delete Activity</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.tealBtnFull, { flex: 1 }]} onPress={handleAddActivity} activeOpacity={0.85}>
-                      <Text style={styles.tealBtnTxt}>Update Activity</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity style={styles.tealBtnFull} onPress={handleAddActivity} activeOpacity={0.85}>
+                    <Text style={styles.tealBtnTxt}>Update</Text>
+                  </TouchableOpacity>
                 ) : (
                   <TouchableOpacity style={styles.tealBtnFull} onPress={handleAddActivity} activeOpacity={0.85}>
                     <Text style={styles.tealBtnTxt}>Add Activity</Text>

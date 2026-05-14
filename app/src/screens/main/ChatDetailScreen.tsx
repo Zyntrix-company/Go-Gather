@@ -538,7 +538,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
               </View>
             </View>
             <Text style={styles.aboutText}>
-              Swee is your AI-powered travel assistant, built into GatherGo to help you plan
+              Swee is your AI-powered travel assistant, built into GatherrGo to help you plan
               better group trips. She can suggest itineraries, recommend restaurants, answer
               visa questions, help with packing lists, and much more.{'\n\n'}
               Swee is powered by Google Gemini 2.5 Flash and gets smarter when you attach a trip or event

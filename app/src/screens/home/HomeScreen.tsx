@@ -1217,9 +1217,14 @@ export default function HomeScreen({ navigation, route }: any) {
         {/* ── 6. Upcoming Trips ── */}
         {upcoming.length > 0 && (
           <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginRight: H_PAD, marginTop: 24, marginBottom: 10 }}>
               <LucideMapPin size={19} color="#000000" strokeWidth={1.8} />
-              <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Upcoming Trips</Text>
+              <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B', flex: 1 }}>Upcoming Trips</Text>
+              {upcoming.length > 3 && (
+                <TouchableOpacity activeOpacity={0.8} onPress={() => setActiveTab('trips')}>
+                  <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>View all ({upcoming.length})</Text>
+                </TouchableOpacity>
+              )}
             </View>
             {upcoming.slice(0, 3).map(trip => {
             const days = trip.startDateISO
@@ -1248,26 +1253,20 @@ export default function HomeScreen({ navigation, route }: any) {
             );
             })
             }
-            {upcoming.length > 3 && (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => setActiveTab('trips')}
-                style={{ alignSelf: 'center', marginTop: 2, marginBottom: 4, paddingVertical: 4, paddingHorizontal: 8 }}
-              >
-                <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>
-                  View all trips ({upcoming.length})
-                </Text>
-              </TouchableOpacity>
-            )}
           </>
         )}
 
         {/* ── 7. Upcoming Events ── */}
         {homeEvents.length > 0 && (
           <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginRight: H_PAD, marginTop: 24, marginBottom: 10 }}>
               <PartyPopper size={19} color="#000000" strokeWidth={1.8} />
-              <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Upcoming Events</Text>
+              <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B', flex: 1 }}>Upcoming Events</Text>
+              {homeEvents.length > 3 && (
+                <TouchableOpacity activeOpacity={0.8} onPress={() => setActiveTab('events')}>
+                  <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>View all ({homeEvents.length})</Text>
+                </TouchableOpacity>
+              )}
             </View>
             {homeEvents.slice(0, 3).map((ev: any) => {
             const locName = typeof ev.location === 'string' ? ev.location : (ev.location?.name ?? '');
@@ -1315,17 +1314,6 @@ export default function HomeScreen({ navigation, route }: any) {
             );
             })
             }
-            {homeEvents.length > 3 && (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => setActiveTab('events')}
-                style={{ alignSelf: 'center', marginTop: 2, marginBottom: 4, paddingVertical: 4, paddingHorizontal: 8 }}
-              >
-                <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>
-                  View all events ({homeEvents.length})
-                </Text>
-              </TouchableOpacity>
-            )}
           </>
         )}
       </ScrollView>

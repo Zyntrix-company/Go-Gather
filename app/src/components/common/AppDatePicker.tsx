@@ -110,7 +110,11 @@ function resolveRange(
 
   switch (mode) {
     case 'trip':
-    case 'event':
+    case 'event': {
+      max = new Date(today.getTime());
+      max.setDate(max.getDate() + 365);
+      break;
+    }
     case 'future': {
       min = today;
       max = new Date(today.getTime());
@@ -424,40 +428,45 @@ function CalendarModal({
             ))}
           </View>
 
-          {/* Day grid */}
-          <View style={styles.grid}>
-            {daysGrid.map((d, idx) => {
-              if (d === null) return <View key={`e-${idx}`} style={styles.dayCell} />;
-              const date = new Date(viewYear, viewMonth, d);
-              const inRange = isDayInRange(viewYear, viewMonth, d);
-              const isToday = isSameDay(date, today);
-              const isSelected = selected ? isSameDay(date, selected) : false;
-              return (
-                <TouchableOpacity
-                  key={`d-${d}`}
-                  style={styles.dayCell}
-                  onPress={() => inRange && pickDay(d)}
-                  activeOpacity={inRange ? 0.6 : 1}
-                  disabled={!inRange}>
-                  <View
-                    style={[
-                      styles.dayPill,
-                      isToday && !isSelected && styles.dayPillToday,
-                      isSelected && styles.dayPillSelected,
-                    ]}>
-                    <Text
-                      style={[
-                        styles.dayText,
-                        !inRange && styles.dayTextDisabled,
-                        isToday && !isSelected && styles.dayTextToday,
-                        isSelected && styles.dayTextSelected,
-                      ]}>
-                      {d}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+          {/* Day grid — row-based to avoid % rounding dropping Saturday */}
+          <View>
+            {Array.from({ length: daysGrid.length / 7 }, (_, wi) => (
+              <View key={wi} style={styles.gridRow}>
+                {daysGrid.slice(wi * 7, wi * 7 + 7).map((d, di) => {
+                  const idx = wi * 7 + di;
+                  if (d === null) return <View key={`e-${idx}`} style={styles.dayCell} />;
+                  const date = new Date(viewYear, viewMonth, d);
+                  const inRange = isDayInRange(viewYear, viewMonth, d);
+                  const isToday = isSameDay(date, today);
+                  const isSelected = selected ? isSameDay(date, selected) : false;
+                  return (
+                    <TouchableOpacity
+                      key={`d-${d}`}
+                      style={styles.dayCell}
+                      onPress={() => inRange && pickDay(d)}
+                      activeOpacity={inRange ? 0.6 : 1}
+                      disabled={!inRange}>
+                      <View
+                        style={[
+                          styles.dayPill,
+                          isToday && !isSelected && styles.dayPillToday,
+                          isSelected && styles.dayPillSelected,
+                        ]}>
+                        <Text
+                          style={[
+                            styles.dayText,
+                            !inRange && styles.dayTextDisabled,
+                            isToday && !isSelected && styles.dayTextToday,
+                            isSelected && styles.dayTextSelected,
+                          ]}>
+                          {d}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
           </View>
 
           {/* Footer */}
@@ -679,12 +688,11 @@ const styles = StyleSheet.create({
   },
 
   // Day grid
-  grid: {
+  gridRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
   },
   dayCell: {
-    width: `${100 / 7}%`,
+    flex: 1,
     height: CELL_SIZE + 8,
     alignItems: 'center',
     justifyContent: 'center',
