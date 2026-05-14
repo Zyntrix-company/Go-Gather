@@ -255,11 +255,10 @@ function BannerImage({
   resizeMode?: 'cover' | 'stretch' | 'contain';
 }) {
   if (uri && crop) {
-    // Render inside an overflow:hidden container with precise positioning
     return (
       <View style={[style, { overflow: 'hidden' }]}>
-        <Image
-          source={{ uri }}
+        <CachedImage
+          uri={uri}
           style={{
             position: 'absolute',
             width: `${crop.imgFracW * 100}%`,

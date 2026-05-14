@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, Image, StyleSheet,
 } from 'react-native';
@@ -121,13 +121,16 @@ export function UnifiedCard({
   extraMenuItems,
   mb = 12,
 }: UnifiedCardProps) {
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => { setImgFailed(false); }, [imageUri]);
+
   return (
     <View style={[s.wrapper, { marginBottom: mb, zIndex: showMenu ? 100 : 1 }]}>
       <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.85}>
 
         {/* Left — square image */}
-        {imageUri
-          ? <CachedImage uri={imageUri} style={s.img} resizeMode="cover" />
+        {imageUri && !imgFailed
+          ? <CachedImage uri={imageUri} style={s.img} resizeMode="cover" onError={() => setImgFailed(true)} />
           : imageFallback
             ? <Image source={imageFallback} style={s.img} resizeMode="cover" />
             : <View style={[s.img, s.imgPlaceholder]}>

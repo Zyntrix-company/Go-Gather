@@ -492,24 +492,13 @@ export default function CreateProfileScreen({ navigation }: any) {
                   <View style={styles.avatarInner}>
                     {avatar ? (
                       <Image
-                        key={avatar.uri} // Force re-render if URI changes
+                        key={avatar.uri}
                         source={{ uri: avatar.uri }}
                         style={styles.avatarImage}
                         resizeMode="cover"
-                        onLoadStart={() => console.log('[AvatarImage] Loading started:', avatar.uri)}
-                        onLoad={() => console.log('[AvatarImage] Loaded successfully:', avatar.uri)}
-                        onError={(e) => {
-                          console.error('[AvatarImage] ── LOAD FAILED ──────────────────────────');
-                          console.error('[AvatarImage] URI:', avatar.uri);
-                          console.error('[AvatarImage] Native error:', e.nativeEvent.error);
-                          console.error('[AvatarImage] ► Backend fix needed: ensure the S3 object');
-                          console.error('[AvatarImage]   is publicly readable OR CloudFront is');
-                          console.error('[AvatarImage]   configured with OAC and the bucket policy');
-                          console.error('[AvatarImage]   allows cloudfront.amazonaws.com access.');
-                          console.error('[AvatarImage] ─────────────────────────────────────────');
-                          // Fall back to the local preview if the user just picked an image
+                        onError={() => {
+                          // Fall back to the local preview if the CDN URL fails transiently
                           if (localPreviewUriRef.current && avatar.uri !== localPreviewUriRef.current) {
-                            console.log('[AvatarImage] Falling back to local preview:', localPreviewUriRef.current);
                             setAvatar({ uri: localPreviewUriRef.current, fileName: 'avatar.jpg', type: 'image/jpeg' });
                           }
                         }}
