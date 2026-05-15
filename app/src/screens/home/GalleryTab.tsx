@@ -9,8 +9,8 @@ import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { Plane, CalendarDays, PencilLine, Pen } from 'lucide-react-native';
 import { getUserGallery, getUserPhotos, upsertGallerySubtitle } from '../../api/ai.api';
-import { getTripPhotos, uploadTripPhotos, deleteTripPhoto } from '../../api/trips.api';
-import { getEventPhotos, uploadEventPhotos, deleteEventPhoto } from '../../api/events.api';
+import { getTripPhotos, uploadTripPhotos, deleteTripPhoto, updateTrip } from '../../api/trips.api';
+import { getEventPhotos, uploadEventPhotos, deleteEventPhoto, updateEvent } from '../../api/events.api';
 import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -77,7 +77,14 @@ function SectionHeader({ title, count, onAdd, icon }: { title: string; count: nu
 
 // ─── Gallery grid card ────────────────────────────────────────────────────────
 
-function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
+const CHIP_CONFIG = {
+  'custom-trip':  { label: 'Custom', bg: '#0d9488' },
+  'custom-event': { label: 'Custom', bg: '#f59e0b' },
+} as const;
+
+type ChipType = keyof typeof CHIP_CONFIG;
+
+function GridCard({ item, onPress, chip }: { item: any; onPress: () => void; chip?: ChipType }) {
   const [imgError, setImgError] = useState(false);
   const hasImage = item.bannerImageUrl && !imgError;
 
@@ -93,6 +100,11 @@ function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
       ) : (
         <View style={styles.gridCardPlaceholder}>
           <CameraIcon />
+        </View>
+      )}
+      {chip && (
+        <View style={[styles.cardChip, { backgroundColor: CHIP_CONFIG[chip].bg }]}>
+          <Text style={styles.cardChipText}>{CHIP_CONFIG[chip].label}</Text>
         </View>
       )}
       <View style={styles.gridCardOverlay}>
@@ -304,7 +316,10 @@ function PhotosModal({
   userId,
   isOwner,
   gallerySubtitle: initialSubtitle,
+  bannerImageUrl,
   onSubtitleSaved,
+  onNameSaved,
+  onBannerSaved,
 }: {
   visible: boolean;
   title: string;
@@ -314,7 +329,10 @@ function PhotosModal({
   userId?: string;
   isOwner?: boolean;
   gallerySubtitle?: string | null;
+  bannerImageUrl?: string | null;
   onSubtitleSaved?: (subtitle: string | null) => void;
+  onNameSaved?: (name: string) => void;
+  onBannerSaved?: (uri: string) => void;
 }) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -322,19 +340,19 @@ function PhotosModal({
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [nameDraft, setNameDraft] = useState(title);
   const [subtitleDraft, setSubtitleDraft] = useState('');
-  const [savingSubtitle, setSavingSubtitle] = useState(false);
-  // Persists localUri map so it survives setPhotos([]) calls during refetch.
+  const [saving, setSaving] = useState(false);
   const localUriCache = useRef<Record<string, string>>({});
 
   useEffect(() => {
     if (visible) {
       setEditMode(false);
+      setNameDraft(title);
       setSubtitleDraft(initialSubtitle ?? '');
     }
   }, [visible]);
 
-  // Keep subtitleDraft in sync if initialSubtitle changes between opens
   useEffect(() => {
     if (visible) setSubtitleDraft(initialSubtitle ?? '');
   }, [initialSubtitle, visible]);
@@ -468,21 +486,37 @@ function PhotosModal({
   };
 
   const handleDoneEdit = async () => {
-    // Save subtitle when exiting edit mode (only if changed)
-    const clean = subtitleDraft.trim();
-    const prev = initialSubtitle?.trim() ?? '';
-    if (clean !== prev) {
-      setSavingSubtitle(true);
-      try {
+    setSaving(true);
+    try {
+      const newName = nameDraft.trim();
+      if (newName && newName !== title) {
+        if (parentType === 'trip') await updateTrip(parentId, { name: newName });
+        else await updateEvent(parentId, { name: newName });
+        onNameSaved?.(newName);
+      }
+
+      const clean = subtitleDraft.trim();
+      const prev = initialSubtitle?.trim() ?? '';
+      if (clean !== prev) {
         const result = await upsertGallerySubtitle(parentType, parentId, clean || null);
         onSubtitleSaved?.(result.subtitle);
-      } catch {
-        Toast.show({ type: 'error', text1: 'Could not save subtitle', text2: 'Please try again.' });
-      } finally {
-        setSavingSubtitle(false);
       }
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not save changes', text2: 'Please try again.' });
+    } finally {
+      setSaving(false);
     }
     setEditMode(false);
+  };
+
+  const handleSetAsCover = async (uri: string) => {
+    try {
+      if (parentType === 'trip') await updateTrip(parentId, { bannerImageUrl: uri });
+      else await updateEvent(parentId, { bannerImageUrl: uri });
+      onBannerSaved?.(uri);
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not set cover', text2: 'Please try again.' });
+    }
   };
 
   const activityGroups: Record<string, PhotoItem[]> = {};
@@ -496,24 +530,44 @@ function PhotosModal({
     }
   });
 
-  const renderThumb = (ph: PhotoItem) => (
-    <View key={ph.id} style={{ position: 'relative' }}>
-      <PhotoThumb photo={ph} onPress={() => !editMode && setPreviewIndex(photos.findIndex(p => p.id === ph.id))} />
-      {editMode && isOwner && (
-        <TouchableOpacity
-          style={styles.thumbDeleteBtn}
-          onPress={() => handleDeletePhoto(ph)}
-          hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-          disabled={deletingId === ph.id}
-        >
-          {deletingId === ph.id
-            ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
-            : <XIcon size={9} />
-          }
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+  const renderThumb = (ph: PhotoItem) => {
+    const isCover = !!bannerImageUrl && bannerImageUrl === ph.uri;
+    return (
+      <View key={ph.id} style={{ position: 'relative' }}>
+        <PhotoThumb photo={ph} onPress={() => !editMode && setPreviewIndex(photos.findIndex(p => p.id === ph.id))} />
+        {editMode && isOwner && (
+          <TouchableOpacity
+            style={styles.thumbDeleteBtn}
+            onPress={() => handleDeletePhoto(ph)}
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+            disabled={deletingId === ph.id}
+          >
+            {deletingId === ph.id
+              ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
+              : <XIcon size={9} />
+            }
+          </TouchableOpacity>
+        )}
+        {editMode && isOwner && (
+          <TouchableOpacity
+            onPress={() => handleSetAsCover(ph.uri)}
+            style={[styles.thumbCoverBtn, isCover && styles.thumbCoverBtnActive]}
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+          >
+            <Svg width={9} height={9} viewBox="0 0 24 24" fill="none">
+              <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke={isCover ? '#0d9488' : '#fff'} strokeWidth={2} />
+              <Circle cx={12} cy={13} r={4} stroke={isCover ? '#0d9488' : '#fff'} strokeWidth={2} />
+            </Svg>
+          </TouchableOpacity>
+        )}
+        {isCover && !editMode && (
+          <View style={styles.coverBadge}>
+            <Text style={styles.coverBadgeText}>Cover</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <>
@@ -523,8 +577,18 @@ function PhotosModal({
             <View style={styles.dialogHeader}>
               {/* Left side: title + subtitle */}
               <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-                <Text style={styles.dialogTitle} numberOfLines={1}>{title}</Text>
-                {/* Subtitle shown right under the name — editable for owner, display-only for viewers */}
+                {(editMode && isOwner && !userId) ? (
+                  <TextInput
+                    value={nameDraft}
+                    onChangeText={setNameDraft}
+                    style={styles.titleEditInput}
+                    placeholderTextColor="#94a3b8"
+                    placeholder="Album title"
+                    returnKeyType="next"
+                  />
+                ) : (
+                  <Text style={styles.dialogTitle} numberOfLines={1}>{title}</Text>
+                )}
                 {(editMode && isOwner && !userId) ? (
                   <TextInput
                     value={subtitleDraft}
@@ -534,6 +598,7 @@ function PhotosModal({
                     style={styles.modalSubtitleInput}
                     maxLength={80}
                     returnKeyType="done"
+                    onSubmitEditing={handleDoneEdit}
                   />
                 ) : (initialSubtitle?.trim() ? (
                   <Text style={styles.modalSubtitleText}>{initialSubtitle}</Text>
@@ -547,9 +612,9 @@ function PhotosModal({
                     <TouchableOpacity
                       onPress={handleDoneEdit}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      disabled={savingSubtitle}
+                      disabled={saving}
                     >
-                      {savingSubtitle
+                      {saving
                         ? <ActivityIndicator size="small" color="#0d9488" />
                         : <CheckIcon />
                       }
@@ -600,7 +665,7 @@ function PhotosModal({
                       <View key={actTitle} style={{ marginBottom: 16 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
                           <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a' }}>{actTitle}</Text>
+                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>{actTitle}</Text>
                           <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
                         </View>
                         <View style={styles.thumbRow}>
@@ -613,7 +678,7 @@ function PhotosModal({
                         {Object.keys(activityGroups).length > 0 && (
                           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
                             <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
-                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a' }}>
+                            <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>
                               {parentType === 'trip' ? 'Trip Photos' : 'Event Photos'}
                             </Text>
                             <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
@@ -708,7 +773,8 @@ function CreateCardModal({
             </TouchableOpacity>
           </View>
           <View style={styles.dialogBody}>
-            {/* Banner image picker */}
+            {/* Cover photo */}
+            <Text style={styles.fieldLabel}>Cover photo</Text>
             <TouchableOpacity onPress={pickBanner} style={styles.bannerPicker} activeOpacity={0.8}>
               {bannerUri && !bannerImgError ? (
                 <CachedImage
@@ -723,7 +789,7 @@ function CreateCardModal({
                     <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                     <Circle cx={12} cy={13} r={4} stroke="#cbd5e1" strokeWidth={1.5} />
                   </Svg>
-                  <Text style={styles.bannerPickerLabel}>Add cover photo</Text>
+                  <Text style={styles.bannerPickerLabel}>Tap to add a cover photo</Text>
                 </View>
               )}
               {bannerUri && !bannerImgError && (
@@ -733,10 +799,12 @@ function CreateCardModal({
               )}
             </TouchableOpacity>
 
+            {/* Album title */}
+            <Text style={styles.fieldLabel}>Album title</Text>
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder={type === 'trip' ? 'Trip name' : 'Event name'}
+              placeholder={type === 'trip' ? 'e.g. Bali 2025' : 'e.g. Summer BBQ'}
               placeholderTextColor="#94a3b8"
               style={styles.createAlbumInput}
               returnKeyType="done"
@@ -748,7 +816,7 @@ function CreateCardModal({
               disabled={!name.trim()}
               activeOpacity={0.85}
             >
-              <Text style={styles.createAlbumBtnText}>Create</Text>
+              <Text style={styles.createAlbumBtnText}>Create album</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -771,24 +839,30 @@ function CustomCardPhotosModal({
   onUpdateCard: (next: CustomCard) => void;
 }) {
   const [editMode, setEditMode] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
-  // Reset to view mode whenever the modal opens/closes or card changes
   useEffect(() => {
-    if (!visible) setEditMode(false);
-  }, [visible]);
+    if (!visible) {
+      setEditMode(false);
+    } else if (card) {
+      setNameDraft(card.name);
+    }
+  }, [visible, card]);
+
+  const saveAndExitEdit = () => {
+    if (!card) return;
+    const trimmed = nameDraft.trim();
+    if (trimmed && trimmed !== card.name) {
+      onUpdateCard({ ...card, name: trimmed });
+    }
+    setEditMode(false);
+  };
 
   const addPhotos = () => {
     if (!card) return;
     launchImageLibrary(
-      {
-        mediaType: 'photo',
-        selectionLimit: 20,
-        includeBase64: false,
-        quality: 0.85,
-        maxWidth: 2048,
-        maxHeight: 2048,
-      },
+      { mediaType: 'photo', selectionLimit: 20, includeBase64: false, quality: 0.85, maxWidth: 2048, maxHeight: 2048 },
       (res) => {
         if (res.didCancel || !res.assets?.length) return;
         const ts = Date.now();
@@ -803,7 +877,34 @@ function CustomCardPhotosModal({
 
   const deletePhoto = (photoId: string) => {
     if (!card) return;
-    onUpdateCard({ ...card, photos: card.photos.filter((p) => p.id !== photoId) });
+    const next = card.photos.filter((p) => p.id !== photoId);
+    // If the deleted photo was the cover, clear the cover
+    const deletedUri = card.photos.find((p) => p.id === photoId)?.uri;
+    const nextBanner = deletedUri && card.bannerImageUrl === deletedUri ? undefined : card.bannerImageUrl;
+    onUpdateCard({ ...card, photos: next, bannerImageUrl: nextBanner });
+  };
+
+  const setPhotoAsCover = (uri: string) => {
+    if (!card) return;
+    onUpdateCard({ ...card, bannerImageUrl: uri });
+  };
+
+  const changeCoverFromLibrary = () => {
+    if (!card) return;
+    launchImageLibrary(
+      { mediaType: 'photo', selectionLimit: 1, quality: 0.9, maxWidth: 1200, maxHeight: 800 },
+      (res) => {
+        if (res.didCancel || !res.assets?.length) return;
+        const uri = res.assets[0].uri;
+        if (!uri) return;
+        // Add to photos if not already present, and set as cover
+        const alreadyIn = card.photos.some((p) => p.uri === uri);
+        const photos = alreadyIn
+          ? card.photos
+          : [...card.photos, { id: `local_${Date.now()}_cover`, uri, localUri: uri }];
+        onUpdateCard({ ...card, bannerImageUrl: uri, photos });
+      },
+    );
   };
 
   if (!card) return null;
@@ -814,23 +915,31 @@ function CustomCardPhotosModal({
       <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
         <View style={styles.overlay}>
           <View style={[styles.dialog, { maxHeight: '85%' }]}>
-            {/* Header: title + pencil (view) or Done (edit) + close */}
+
+            {/* Header */}
             <View style={styles.dialogHeader}>
-              <Text style={styles.dialogTitle} numberOfLines={1}>{card.name}</Text>
+              {editMode ? (
+                <TextInput
+                  value={nameDraft}
+                  onChangeText={setNameDraft}
+                  style={styles.albumNameInput}
+                  placeholderTextColor="#94a3b8"
+                  placeholder="Album title"
+                  returnKeyType="done"
+                  onSubmitEditing={saveAndExitEdit}
+                  autoFocus
+                />
+              ) : (
+                <Text style={styles.dialogTitle} numberOfLines={1}>{card.name}</Text>
+              )}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 {editMode ? (
-                  <TouchableOpacity
-                    onPress={() => setEditMode(false)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
+                  <TouchableOpacity onPress={saveAndExitEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <CheckIcon />
                   </TouchableOpacity>
                 ) : (
-                  <TouchableOpacity
-                    onPress={() => setEditMode(true)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <PencilLine size={18} color="#0d9488" />
+                  <TouchableOpacity onPress={() => setEditMode(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Pen size={18} color="#0d9488" />
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -841,6 +950,18 @@ function CustomCardPhotosModal({
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.dialogBody}>
+
+                {/* Change cover row — only in edit mode */}
+                {editMode && (
+                  <TouchableOpacity style={styles.changeCoverRow} onPress={changeCoverFromLibrary} activeOpacity={0.75}>
+                    <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
+                      <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      <Circle cx={12} cy={13} r={4} stroke="#0d9488" strokeWidth={2} />
+                    </Svg>
+                    <Text style={styles.changeCoverText}>Change cover photo</Text>
+                  </TouchableOpacity>
+                )}
+
                 {photos.length === 0 && (
                   <View style={styles.emptyCenter}>
                     <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
@@ -857,28 +978,49 @@ function CustomCardPhotosModal({
 
                 {photos.length > 0 && (
                   <View style={styles.thumbRow}>
-                    {photos.map((ph) => (
-                      <View key={ph.id} style={{ position: 'relative' }}>
-                        <PhotoThumb
-                          photo={ph}
-                          onPress={() => !editMode && setPreviewIndex(photos.findIndex(p => p.id === ph.id))}
-                        />
-                        {/* Delete button only visible in edit mode */}
-                        {editMode && (
-                          <TouchableOpacity
-                            onPress={() => deletePhoto(ph.id)}
-                            style={styles.thumbDeleteBtn}
-                            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                          >
-                            <XIcon size={9} />
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    ))}
+                    {photos.map((ph) => {
+                      const isCover = !!card.bannerImageUrl && card.bannerImageUrl === (ph.localUri ?? ph.uri);
+                      return (
+                        <View key={ph.id} style={{ position: 'relative' }}>
+                          <PhotoThumb
+                            photo={ph}
+                            onPress={() => !editMode && setPreviewIndex(photos.findIndex(p => p.id === ph.id))}
+                          />
+                          {/* Delete button — top-right */}
+                          {editMode && (
+                            <TouchableOpacity
+                              onPress={() => deletePhoto(ph.id)}
+                              style={styles.thumbDeleteBtn}
+                              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                            >
+                              <XIcon size={9} />
+                            </TouchableOpacity>
+                          )}
+                          {/* Set as cover button — bottom-left, only in edit mode */}
+                          {editMode && (
+                            <TouchableOpacity
+                              onPress={() => setPhotoAsCover(ph.localUri ?? ph.uri)}
+                              style={[styles.thumbCoverBtn, isCover && styles.thumbCoverBtnActive]}
+                              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                            >
+                              <Svg width={9} height={9} viewBox="0 0 24 24" fill={isCover ? '#0d9488' : '#fff'}>
+                                <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke={isCover ? '#0d9488' : '#fff'} strokeWidth={2} />
+                                <Circle cx={12} cy={13} r={4} stroke={isCover ? '#0d9488' : '#fff'} strokeWidth={2} />
+                              </Svg>
+                            </TouchableOpacity>
+                          )}
+                          {/* Cover indicator badge — visible in both modes */}
+                          {isCover && !editMode && (
+                            <View style={styles.coverBadge}>
+                              <Text style={styles.coverBadgeText}>Cover</Text>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
                   </View>
                 )}
 
-                {/* Add photos button only in edit mode */}
                 {editMode && (
                   <TouchableOpacity style={styles.addPhotosBtn} onPress={addPhotos} activeOpacity={0.85}>
                     <Text style={styles.addPhotosBtnText}>Add photos</Text>
@@ -890,7 +1032,6 @@ function CustomCardPhotosModal({
         </View>
       </Modal>
 
-      {/* Full-screen preview only in view mode */}
       <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
         <PreviewModal photos={photos} initialIndex={previewIndex ?? 0} onClose={() => setPreviewIndex(null)} />
       </Modal>
@@ -925,6 +1066,7 @@ export default function GalleryTab({
     name: string;
     type: 'trip' | 'event';
     subtitle: string | null;
+    bannerImageUrl?: string | null;
   } | null>(null);
 
   // Custom cards (local, stored in AsyncStorage)
@@ -971,12 +1113,15 @@ export default function GalleryTab({
   };
 
   const createCustomCard = (name: string, bannerUri?: string) => {
+    const photos: PhotoItem[] = bannerUri
+      ? [{ id: `local_${Date.now()}_0`, uri: bannerUri, localUri: bannerUri }]
+      : [];
     const card: CustomCard = {
       id: `cc_${Date.now()}`,
       name,
       bannerImageUrl: bannerUri,
       type: showCreateCard ?? 'trip',
-      photos: [],
+      photos,
     };
     saveCustomCards([...customCards, card]);
   };
@@ -998,6 +1143,24 @@ export default function GalleryTab({
       setGalleryEvents((prev) => prev.map((e) => e.id === parentId ? { ...e, gallerySubtitle: subtitle } : e));
     }
     setPhotoModal((prev) => prev?.id === parentId ? { ...prev, subtitle } : prev);
+  };
+
+  const handleNameSaved = (parentId: string, parentType: 'trip' | 'event', name: string) => {
+    if (parentType === 'trip') {
+      setGalleryTrips((prev) => prev.map((t) => t.id === parentId ? { ...t, name } : t));
+    } else {
+      setGalleryEvents((prev) => prev.map((e) => e.id === parentId ? { ...e, name } : e));
+    }
+    setPhotoModal((prev) => prev?.id === parentId ? { ...prev, name } : prev);
+  };
+
+  const handleBannerSaved = (parentId: string, parentType: 'trip' | 'event', uri: string) => {
+    if (parentType === 'trip') {
+      setGalleryTrips((prev) => prev.map((t) => t.id === parentId ? { ...t, bannerImageUrl: uri } : t));
+    } else {
+      setGalleryEvents((prev) => prev.map((e) => e.id === parentId ? { ...e, bannerImageUrl: uri } : e));
+    }
+    setPhotoModal((prev) => prev?.id === parentId ? { ...prev, bannerImageUrl: uri } : prev);
   };
 
   // Fetch gallery data from server
@@ -1084,13 +1247,14 @@ export default function GalleryTab({
                 <GridCard
                   key={trip.id}
                   item={trip}
-                  onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null })}
+                  onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null, bannerImageUrl: trip.bannerImageUrl ?? null })}
                 />
               ))}
               {cardsLoaded && customTripCards.map((card) => (
                 <GridCard
                   key={card.id}
                   item={{ id: card.id, name: card.name, bannerImageUrl: card.bannerImageUrl }}
+                  chip="custom-trip"
                   onPress={() => setOpenCard(card)}
                 />
               ))}
@@ -1112,13 +1276,14 @@ export default function GalleryTab({
                 <GridCard
                   key={ev.id}
                   item={ev}
-                  onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null })}
+                  onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null, bannerImageUrl: ev.bannerImageUrl ?? null })}
                 />
               ))}
               {cardsLoaded && customEventCards.map((card) => (
                 <GridCard
                   key={card.id}
                   item={{ id: card.id, name: card.name, bannerImageUrl: card.bannerImageUrl }}
+                  chip="custom-event"
                   onPress={() => setOpenCard(card)}
                 />
               ))}
@@ -1140,7 +1305,10 @@ export default function GalleryTab({
           parentType={photoModal.type}
           isOwner
           gallerySubtitle={photoModal.subtitle}
+          bannerImageUrl={photoModal.bannerImageUrl}
           onSubtitleSaved={(subtitle) => handleSubtitleSaved(photoModal.id, photoModal.type, subtitle)}
+          onNameSaved={(name) => handleNameSaved(photoModal.id, photoModal.type, name)}
+          onBannerSaved={(uri) => handleBannerSaved(photoModal.id, photoModal.type, uri)}
           onClose={() => setPhotoModal(null)}
         />
       )}
@@ -1211,6 +1379,12 @@ const styles = StyleSheet.create({
   gridCardOverlayTall: { height: 50, justifyContent: 'center', paddingVertical: 6 },
   gridCardText: { color: '#fff', fontSize: 12, fontWeight: '400', lineHeight: 15 },
   gridCardSubtitle: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '400', lineHeight: 14, marginTop: 2 },
+  cardChip: {
+    position: 'absolute', top: 8, left: 8,
+    paddingHorizontal: 7, paddingVertical: 3,
+    borderRadius: 6, zIndex: 10,
+  },
+  cardChipText: { fontSize: 10, fontWeight: '600', color: '#fff', letterSpacing: 0.4 },
   gridCardEditBtn: {
     position: 'absolute',
     top: 8,
@@ -1239,13 +1413,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 16,
     borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
   },
-  dialogTitle: { fontSize: 17, fontWeight: '700', color: '#0f172a' },
+  dialogTitle: { fontSize: 17, fontWeight: '500', color: '#0f172a' },
   dialogBody: { padding: 16 },
 
   modalLoadingRow: { alignItems: 'center', paddingVertical: 32 },
 
   emptyCenter: { alignItems: 'center', paddingVertical: 32, gap: 8 },
-  emptyTitle: { fontSize: 15, fontWeight: '600', color: '#334155' },
+  emptyTitle: { fontSize: 15, fontWeight: '400', color: '#334155' },
   emptySub: { fontSize: 13, color: '#94a3b8', textAlign: 'center' },
 
   thumbRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -1281,7 +1455,7 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 36, alignSelf: 'center',
     backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12,
   },
-  previewCounterText: { color: '#fff', fontSize: 13, fontWeight: '500' },
+  previewCounterText: { color: '#fff', fontSize: 13, fontWeight: '300' },
 
   // Create card modal
   bannerPicker: {
@@ -1337,22 +1511,88 @@ const styles = StyleSheet.create({
     borderColor: '#0d9488',
     alignItems: 'center',
   },
-  addPhotosBtnText: { fontSize: 15, fontWeight: '600', color: '#0d9488' },
+  addPhotosBtnText: { fontSize: 15, fontWeight: '400', color: '#0d9488' },
+
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#64748b',
+    marginBottom: 6,
+    letterSpacing: 0.2,
+  },
+
+  albumNameInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#0f172a',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 12,
+  },
+  titleEditInput: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#0f172a',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 6,
+  },
+
+  changeCoverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingVertical: 10,
+    paddingHorizontal: 2,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  changeCoverText: { fontSize: 13, color: '#0d9488', fontWeight: '400' },
+
+  thumbCoverBtn: {
+    position: 'absolute',
+    bottom: 3,
+    left: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbCoverBtnActive: { backgroundColor: '#fff' },
+
+  coverBadge: {
+    position: 'absolute',
+    bottom: 3,
+    left: 3,
+    backgroundColor: 'rgba(13,148,136,0.85)',
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  coverBadgeText: { fontSize: 9, color: '#fff', fontWeight: '600' },
 
   modalSubtitleText: {
     fontSize: 13,
     color: '#0d9488',
-    fontWeight: '500',
+    fontWeight: '300',
     fontStyle: 'italic',
     marginTop: 3,
   },
   modalSubtitleInput: {
     fontSize: 13,
     color: '#0d9488',
-    borderBottomWidth: 1,
-    borderBottomColor: '#0d9488',
-    paddingVertical: 3,
-    marginTop: 5,
-    paddingHorizontal: 0,
+    backgroundColor: '#f0fdfa',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginTop: 6,
   },
 });

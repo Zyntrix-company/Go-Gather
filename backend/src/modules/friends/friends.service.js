@@ -38,6 +38,14 @@ const getUserFcmToken = async (userId) => {
 };
 const normalizeAvatarUrl = (rawAvatarUrl) => {
   if (!rawAvatarUrl || rawAvatarUrl.includes('https://undefined')) return null;
+  // Rewrite legacy direct S3 URLs (including expired presigned URLs) to CloudFront.
+  const cf = config.s3?.cloudfrontDomain;
+  if (cf && rawAvatarUrl.includes('.amazonaws.com/')) {
+    try {
+      const key = new URL(rawAvatarUrl).pathname.replace(/^\//, '');
+      if (key) return `https://${cf}/${key}`;
+    } catch { /* fall through */ }
+  }
   return rawAvatarUrl;
 };
 // ─── Send Friend Request ───────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Polygon } from 'react-native-svg';
@@ -40,12 +41,25 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 export default function HowItWorksScreen({ navigation }: { navigation: any }) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState(false);
+  const [videoLoading, setVideoLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_BASE}/promo-video`)
-      .then(r => r.json())
-      .then(data => { if (data?.videoUrl) setVideoUrl(data.videoUrl); })
-      .catch(() => {});
+    let cancelled = false;
+    const load = () => {
+      fetch(`${API_BASE}/promo-video`)
+        .then(r => r.json())
+        .then(data => {
+          if (!cancelled && data?.videoUrl) {
+            setVideoUrl(data.videoUrl);
+            setVideoError(false);
+          }
+        })
+        .catch(err => {
+          console.warn('[HowItWorks] Failed to fetch promo video URL:', err?.message ?? err);
+        });
+    };
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   return (
@@ -69,25 +83,31 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
           {/* Promotional / demo video */}
           <View style={styles.videoWrap}>
             {videoUrl && !videoError ? (
-              <Video
-                source={{ uri: videoUrl }}
-                style={styles.videoPlayer}
-                resizeMode="cover"
-                muted
-                repeat
-                paused={false}
-                controls={false}
-                ignoreSilentSwitch="ignore"
-                playInBackground={false}
-                playWhenInactive={false}
-                onError={() => setVideoError(true)}
-                bufferConfig={{
-                  minBufferMs: 2500,
-                  maxBufferMs: 50000,
-                  bufferForPlaybackMs: 2500,
-                  bufferForPlaybackAfterRebufferMs: 5000,
-                }}
-              />
+              <>
+                <Video
+                  key={videoUrl}
+                  source={{ uri: videoUrl }}
+                  style={styles.videoPlayer}
+                  resizeMode="cover"
+                  muted
+                  repeat
+                  paused={false}
+                  controls={false}
+                  ignoreSilentSwitch="ignore"
+                  playInBackground={false}
+                  playWhenInactive={false}
+                  onLoad={() => setVideoLoading(false)}
+                  onError={(err: any) => {
+                    console.warn('[HowItWorks] Video load error:', JSON.stringify(err?.error ?? err));
+                    setVideoError(true);
+                  }}
+                />
+                {videoLoading && (
+                  <View style={[StyleSheet.absoluteFill, styles.videoLoadingOverlay]}>
+                    <ActivityIndicator size="large" color="#fff" />
+                  </View>
+                )}
+              </>
             ) : (
               <View style={styles.videoPlaceholder}>
                 <View style={styles.playBtn}>
@@ -95,7 +115,9 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
                     <Polygon points="10,8 10,16 16,12" fill="#fff" />
                   </Svg>
                 </View>
-                <Text style={styles.videoLabel}>Demo video coming soon</Text>
+                <Text style={styles.videoLabel}>
+                  {videoError ? 'Video unavailable — check your connection' : 'Demo video coming soon'}
+                </Text>
               </View>
             )}
           </View>
@@ -186,6 +208,12 @@ const styles = StyleSheet.create({
     height: SCREEN_W * 0.56,
     backgroundColor: '#000',
     borderRadius: 16,
+  },
+  videoLoadingOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   videoPlaceholder: {
     width: '100%',

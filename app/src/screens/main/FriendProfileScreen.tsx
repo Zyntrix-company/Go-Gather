@@ -326,7 +326,7 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
                       <View key={actTitle} style={{ marginBottom: 16 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
                           <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a' }}>{actTitle}</Text>
+                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>{actTitle}</Text>
                           <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
                         </View>
                         <View style={styles.thumbRow}>
@@ -339,7 +339,7 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
                         {Object.keys(activityGroups).length > 0 && (
                           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
                             <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
-                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a' }}>
+                            <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>
                               {parentType === 'trip' ? 'Trip Photos' : 'Event Photos'}
                             </Text>
                             <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
@@ -468,11 +468,11 @@ export default function FriendProfileScreen() {
 
                 <View style={styles.profileInfo}>
                   {displayName ? (
-                    <View style={styles.nameHeaderWrap}>
+                    <View style={styles.nameRow}>
                       <Text style={styles.name} numberOfLines={2}>{displayName}</Text>
                       {profile?.friendshipStatus === 'accepted' && (
                         <TouchableOpacity
-                          style={styles.removeFriendIconBtn}
+                          style={styles.removeFriendBtn}
                           onPress={handleRemoveFriend}
                           activeOpacity={0.8}
                           accessibilityLabel="Remove friend"
@@ -562,33 +562,9 @@ const styles = StyleSheet.create({
   profileCard: { marginTop: 14, marginBottom: 28, alignItems: 'center' },
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32 },
   avatarWrap: { position: 'relative' },
-  profileInfo: { flex: 1, minWidth: 0, justifyContent: 'center', gap: 4 },
-  /** Name + remove chip: chip sits top-right, slightly lifted like a small popup */
-  nameHeaderWrap: {
-    position: 'relative',
-    alignSelf: 'stretch',
-    paddingRight: 40,
-    paddingTop: 2,
-    minHeight: 30,
-  },
-  removeFriendIconBtn: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 4,
-  },
+  profileInfo: { justifyContent: 'center', gap: 4 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  removeFriendBtn: { alignItems: 'center', justifyContent: 'center' },
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 3, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
   avatarInitial: { fontSize: 38, fontWeight: '700', color: '#0d9488' },
@@ -617,6 +593,12 @@ const styles = StyleSheet.create({
   gridCardOverlayTall: { height: 50, justifyContent: 'center', paddingVertical: 6 },
   gridCardText: { color: '#fff', fontSize: 12, fontWeight: '400', lineHeight: 15 },
   gridCardSubtitle: { color: 'rgba(255,255,255,0.75)', fontSize: 11, fontWeight: '400', lineHeight: 14, marginTop: 2 },
+  cardChip: {
+    position: 'absolute', top: 8, left: 8,
+    paddingHorizontal: 7, paddingVertical: 3,
+    borderRadius: 6, zIndex: 10,
+  },
+  cardChipText: { fontSize: 10, fontWeight: '600', color: '#fff', letterSpacing: 0.4 },
   emptyCard: { width: CARD_W, height: 140, borderRadius: 14, borderWidth: 2, borderColor: '#e2e8f0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#fafafa' },
   emptyCardText: { fontSize: 12, color: '#cbd5e1', fontWeight: '500' },
 
@@ -624,11 +606,11 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   dialog: { width: '100%', backgroundColor: '#fff', borderRadius: 20, overflow: 'hidden' },
   dialogHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  dialogTitle: { fontSize: 17, fontWeight: '700', color: '#0f172a' },
+  dialogTitle: { fontSize: 17, fontWeight: '500', color: '#0f172a' },
   dialogBody: { padding: 16 },
   modalLoadingRow: { alignItems: 'center', paddingVertical: 32 },
   emptyCenter: { alignItems: 'center', paddingVertical: 32, gap: 8 },
-  emptyTitle: { fontSize: 15, fontWeight: '600', color: '#334155' },
+  emptyTitle: { fontSize: 15, fontWeight: '400', color: '#334155' },
   emptySub: { fontSize: 13, color: '#94a3b8', textAlign: 'center' },
 
   thumbRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -642,7 +624,7 @@ const styles = StyleSheet.create({
   previewImg: { width: SCREEN_W, height: SCREEN_W * 1.2 },
   previewLoader: { position: 'absolute' },
   previewCounter: { position: 'absolute', bottom: 36, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
-  previewCounterText: { color: '#fff', fontSize: 13, fontWeight: '500' },
+  previewCounterText: { color: '#fff', fontSize: 13, fontWeight: '300' },
 
-  modalSubtitleText: { fontSize: 13, color: '#0d9488', fontWeight: '500', fontStyle: 'italic', marginTop: 3 },
+  modalSubtitleText: { fontSize: 13, color: '#0d9488', fontWeight: '300', fontStyle: 'italic', marginTop: 3 },
 });

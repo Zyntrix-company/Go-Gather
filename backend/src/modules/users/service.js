@@ -438,7 +438,14 @@ const getUserProfile = async (viewerId, targetId) => {
 
   logger.info('[getUserProfile] raw avatarUrl from DB', { targetId, rawAvatar: row.avatarUrl });
   const rawAvatar = row.avatarUrl;
-  const avatarUrl = (rawAvatar && !rawAvatar.includes('https://undefined')) ? rawAvatar : null;
+  let avatarUrl = (rawAvatar && !rawAvatar.includes('https://undefined')) ? rawAvatar : null;
+  // Rewrite legacy direct S3 avatar URLs to CloudFront so OAC-protected bucket serves them.
+  if (avatarUrl && config.s3?.cloudfrontDomain && avatarUrl.includes('.amazonaws.com/')) {
+    try {
+      const key = new URL(avatarUrl).pathname.replace(/^\//, '');
+      if (key) avatarUrl = `https://${config.s3.cloudfrontDomain}/${key}`;
+    } catch { /* keep original */ }
+  }
 
   return {
     id: row.id,

@@ -1222,7 +1222,7 @@ export default function HomeScreen({ navigation, route }: any) {
               <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B', flex: 1 }}>Upcoming Trips</Text>
               {upcoming.length > 3 && (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setActiveTab('trips')}>
-                  <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>View all ({upcoming.length})</Text>
+                  <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>View all</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -1264,7 +1264,7 @@ export default function HomeScreen({ navigation, route }: any) {
               <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B', flex: 1 }}>Upcoming Events</Text>
               {homeEvents.length > 3 && (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setActiveTab('events')}>
-                  <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>View all ({homeEvents.length})</Text>
+                  <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>View all</Text>
                 </TouchableOpacity>
               )}
             </View>
