@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -185,6 +186,14 @@ export default function NotificationsScreen({ navigation }: any) {
     fetchNotifications(true);
   }, []);
 
+  // Refresh list whenever the screen comes into focus so new notifications
+  // delivered while the user was elsewhere are visible immediately.
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications(true);
+    }, [fetchNotifications]),
+  );
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchNotifications(true);
@@ -219,17 +228,27 @@ export default function NotificationsScreen({ navigation }: any) {
   const handleCardPress = (item: any) => {
     markRead(item.id);
     const { type, data } = item;
+
+    // Trip-scoped notifications
     if (data?.tripId && (
       type === 'TRIP_REMINDER' || type === 'TRIP_MEMBER_ADDED' || type === 'TRIP_INVITE_ACCEPTED' ||
-      type === 'TRIP_CANCELLED' || type === 'ITINERARY_UPDATED' || type === 'DOCUMENT_UPLOADED' ||
-      type === 'EXPENSE_ADDED' || type === 'NEW_MEMBER_JOINED' || type === 'TRIP_MILESTONE'
+      type === 'TRIP_CANCELLED' || type === 'ITINERARY_UPDATED' || type === 'EXPENSE_ADDED' ||
+      type === 'NEW_MEMBER_JOINED' || type === 'TRIP_MILESTONE' ||
+      (type === 'DOCUMENT_UPLOADED' && data.tripId)
     )) {
       navigation.navigate('TripDetail', { trip: { id: data.tripId } });
-    } else if (data?.eventId && (
-      type === 'EVENT_REMINDER' || type === 'EVENT_MEMBER_ADDED' || type === 'EVENT_INVITE_ACCEPTED'
+      return;
+    }
+
+    // Event-scoped notifications (including event document uploads)
+    if (data?.eventId && (
+      type === 'EVENT_REMINDER' || type === 'EVENT_MEMBER_ADDED' || type === 'EVENT_INVITE_ACCEPTED' ||
+      (type === 'DOCUMENT_UPLOADED' && data.eventId)
     )) {
       navigation.navigate('EventDetail', { event: { id: data.eventId } });
+      return;
     }
+
     // FRIEND_REQUEST / FRIEND_ACCEPTED — Accept button handles navigation; card tap = read only
   };
 
@@ -339,7 +358,7 @@ export default function NotificationsScreen({ navigation }: any) {
             <TouchableOpacity
               style={[styles.notifCard, !item.read && styles.notifCardUnread]}
               onPress={() => handleCardPress(item)}
-              activeOpacity={0.85}>
+              activeOpacity={0.7}>
 
               {!item.read && <View style={styles.unreadAccent} />}
 
@@ -355,9 +374,16 @@ export default function NotificationsScreen({ navigation }: any) {
                   {!item.read && <View style={styles.unreadDot} />}
                 </View>
                 <Text style={styles.notifMessage} numberOfLines={2}>{item.message ?? item.body}</Text>
-                <Text style={styles.notifTime}>
-                  {getRelativeTime(item.receivedAt ?? item.created_at ?? Date.now())}
-                </Text>
+                <View style={styles.notifMeta}>
+                  <Text style={styles.notifTime}>
+                    {getRelativeTime(item.receivedAt ?? item.created_at ?? Date.now())}
+                  </Text>
+                  {(item.data?.tripName || item.data?.eventName) && (
+                    <Text style={styles.contextLabel} numberOfLines={1}>
+                      {item.data?.tripName ?? item.data?.eventName}
+                    </Text>
+                  )}
+                </View>
 
                 {/* Accept / Decline — FRIEND_REQUEST only */}
                 {item.type === 'FRIEND_REQUEST' && (
@@ -482,7 +508,6 @@ const styles = StyleSheet.create({
 
   // List
   listContent: {
-    paddingHorizontal: 16,
     paddingBottom: 32,
     paddingTop: 4,
   },
@@ -499,20 +524,15 @@ const styles = StyleSheet.create({
   notifCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingVertical: 13,
-    paddingHorizontal: 12,
-    marginBottom: 6,
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 14,
+    backgroundColor: 'transparent',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
   notifCardUnread: {
-    backgroundColor: '#f0fdfa',
+    backgroundColor: 'transparent',
   },
   unreadAccent: {
     position: 'absolute',
@@ -560,12 +580,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6e7d91',
     lineHeight: 19,
-    marginBottom: 5,
+  },
+  notifMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 3,
   },
   notifTime: {
     fontSize: 11,
     color: '#94a3b8',
+    fontWeight: '400',
+  },
+  contextLabel: {
+    fontSize: 11,
+    color: '#0d9488',
     fontWeight: '500',
+    flexShrink: 1,
+    marginLeft: 8,
+    textAlign: 'right',
   },
 
   // Accept / Decline action row (FRIEND_REQUEST)

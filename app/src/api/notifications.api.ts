@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import client from './client';
 import { AppNotification } from '../store/notificationStore';
 
@@ -26,6 +27,13 @@ const notificationsApi = {
 
   markAllRead: async (): Promise<void> => {
     await client.patch('/notifications/read-all');
+  },
+
+  registerDevice: async (deviceToken: string): Promise<void> => {
+    await client.patch('/users/device', {
+      deviceToken,
+      platform: Platform.OS === 'ios' ? 'ios' : 'android',
+    });
   },
 };
 

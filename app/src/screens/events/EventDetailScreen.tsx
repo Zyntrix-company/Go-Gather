@@ -372,7 +372,7 @@ function EventPhotoPreview({ photo }: { photo: PhotoItem }) {
 
 export default function EventDetailScreen({ route, navigation }: any) {
   const rawEvent = route?.params?.event;
-  const unreadCount = useNotificationStore(s => s.notifications.filter(n => !n.read).length);
+  const unreadCount = useNotificationStore(s => s.unreadCount);
 
   // Derive display fields from whatever shape the event param has
   const [event, setEvent] = useState({

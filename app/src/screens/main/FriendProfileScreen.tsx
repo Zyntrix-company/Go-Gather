@@ -373,7 +373,7 @@ export default function FriendProfileScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<{ FriendProfile: RouteParams }, 'FriendProfile'>>();
   const { userId, friendName } = route.params;
-  const unreadCount = useNotificationStore(s => s.notifications.filter(n => !n.read).length);
+  const unreadCount = useNotificationStore(s => s.unreadCount);
 
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof getUserProfile>> | null>(null);
   const [galleryTrips, setGalleryTrips] = useState<any[]>([]);

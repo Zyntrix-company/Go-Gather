@@ -53,6 +53,10 @@ router.get('/notification-settings', authenticateJWT, controller.getNotification
 // PATCH /users/notification-settings — merge-update notification prefs (requires auth)
 router.patch('/notification-settings', authenticateJWT, controller.updateNotificationSettings);
 
+// PATCH /users/device — register or refresh FCM device token (requires auth)
+// Must be before /:id to avoid Express treating "device" as a UUID param
+router.patch('/device', authenticateJWT, controller.updateDeviceToken);
+
 // GET /users/legal-status — published vs acknowledged legal doc versions (requires auth)
 router.get('/legal-status', authenticateJWT, controller.getLegalStatus);
 

@@ -1,6 +1,6 @@
 const cron = require('node-cron');
 const { query: db } = require('../config/database');
-const { createAndSendNotifications, sendFCMNotification } = require('./fcm.util');
+const { createAndSendNotifications, sendFCMNotification, isInQuietHours } = require('./fcm.util');
 const logger = require('./logger');
 
 // ── Reminder message maps ─────────────────────────────────────────────────────
@@ -171,7 +171,8 @@ const scheduleActivityReminders = async (activityId, tripId, activityDate, activ
 const processActivityReminders = async () => {
   const result = await db(
     `SELECT ar.id, ar.user_id, ar.trip_id, ar.activity_id, ar.reminder_minutes,
-            a.title AS activity_name, t.name AS trip_name, u.fcm_token
+            a.title AS activity_name, t.name AS trip_name,
+            u.fcm_token, u.notification_settings, u.timezone
      FROM activity_reminders ar
      JOIN trip_activities a ON a.id = ar.activity_id
      JOIN trips t ON t.id = ar.trip_id
@@ -184,16 +185,20 @@ const processActivityReminders = async () => {
   for (const row of result.rows) {
     try {
       if (row.fcm_token) {
-        // Push only — do NOT insert into notifications table
-        await sendFCMNotification(
-          row.fcm_token,
-          {
-            title: '⏰ Activity Reminder',
-            body: `"${row.activity_name}" starts in ${row.reminder_minutes} min — ${row.trip_name}`,
-          },
-          { tripId: row.trip_id, activityId: row.activity_id, type: 'ACTIVITY_REMINDER' },
-          'default',
-        );
+        if (isInQuietHours(row.notification_settings, row.timezone)) {
+          logger.info('Activity reminder suppressed due to quiet hours', { userId: row.user_id });
+        } else {
+          // Push only — do NOT insert into notifications table
+          await sendFCMNotification(
+            row.fcm_token,
+            {
+              title: '⏰ Activity Reminder',
+              body: `"${row.activity_name}" starts in ${row.reminder_minutes} min — ${row.trip_name}`,
+            },
+            { tripId: row.trip_id, activityId: row.activity_id, type: 'ACTIVITY_REMINDER' },
+            'default',
+          );
+        }
       }
       await db('UPDATE activity_reminders SET sent_at = NOW() WHERE id = $1', [row.id]);
     } catch (err) {

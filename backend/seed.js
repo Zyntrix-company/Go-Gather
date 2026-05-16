@@ -5,7 +5,7 @@
  *   alice  test@gathergo.com   +919876543210  @alice_gg  (Primary 1)
  *   bob    bob@gathergo.com    +919876543211  @bob_gg    (Primary 2)
  *
- * Alpha testers (same password): vansh, ankan, pooja @ gatherrgo.com — mutual friends + linked to alice
+ * Alpha testers (password GatherrGo123!): vansh, ankan, pooja — mutual friends + linked to alice
  *
  * Supporting cast: charlie, diana, eve, frank, grace, henry
  *
@@ -26,7 +26,8 @@
  *   UPCOMING  — "Pune Tech Meet May"  bob admin, alice + frank + henry
  *
  * Each trip/event: 4–5 photos, 3–5 activities, 2–3 expenses, 2 polls, 2–3 notes
- * All passwords: TestPass123!
+ * Alice/bob/supporting passwords: TestPass123!
+ * Alpha trio passwords: GatherrGo123!
  */
 
 const bcrypt = require('bcryptjs');
@@ -303,18 +304,21 @@ const IDS = {
 };
 
 const PASSWORD = 'TestPass123!';
+const ALPHA_PASSWORD = 'GatherrGo123!';
 
-/** Alpha tester profile avatars — South Asian portrait stock (headshot-friendly, Unsplash License). */
+const ALPHA_USER_IDS = new Set([IDS.vansh, IDS.ankan, IDS.pooja]);
+
+/** Alpha tester avatars — age/gender-matched South Asian headshots (Unsplash License). */
 const ALPHA_AVATAR = {
-  /** ~23, Indian male — young man in kurta (outdoor portrait). */
+  /** ~24, Indian male — casual smile, outdoor. */
   vansh:
-    'https://images.unsplash.com/photo-1774527929750-f2f32fbb3b93?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=800&h=800&q=80',
   /** ~32, Indian male — professional headshot. */
   ankan:
-    'https://images.unsplash.com/photo-1560250093-0fd85637ac61?auto=format&fit=crop&w=800&q=80',
-  /** ~23, Indian female — portrait. */
+    'https://images.unsplash.com/photo-1560250093-0fd85637ac61?auto=format&fit=crop&w=800&h=800&q=80',
+  /** ~21, Indian female — warm portrait. */
   pooja:
-    'https://images.unsplash.com/photo-1617297873650-aef8f4e00b9b?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1655249493799-9fae13cbf526?auto=format&fit=crop&w=800&h=800&q=80',
 };
 
 /** Trip/event titles on UnifiedCard (~360dp + 2 avatars + menu): keep ≤ this length to avoid … on most phones. */
@@ -389,9 +393,10 @@ async function seed() {
     await client.query('BEGIN');
     console.log('\n🌱 GatherGo seed v2 starting…\n');
 
-    // ── 1. Hash password ──────────────────────────────────────────────────────
-    console.log('  Hashing password…');
+    // ── 1. Hash passwords ─────────────────────────────────────────────────────
+    console.log('  Hashing passwords…');
     const hash = await bcrypt.hash(PASSWORD, 12);
+    const alphaHash = await bcrypt.hash(ALPHA_PASSWORD, 12);
 
     // ── 2. Users ──────────────────────────────────────────────────────────────
     console.log('  Seeding users…');
@@ -404,18 +409,19 @@ async function seed() {
       [IDS.frank,   'frank@gathergo.com',   '+919876543215', 'frank_gg'],
       [IDS.grace,   'grace@gathergo.com',   '+919876543216', 'grace_gg'],
       [IDS.henry,   'henry@gathergo.com',   '+919876543217', 'henry_gg'],
-      [IDS.vansh,   'vansh@gatherrgo.com',  '+919876543218', 'vansh_gg'],
-      [IDS.ankan,   'ankan@gatherrgo.com',  '+919876543219', 'ankan_gg'],
-      [IDS.pooja,   'pooja@gatherrgo.com',  '+919876543220', 'pooja_gg'],
+      [IDS.vansh,   'vanshahuja318@gmail.com',  '+919876543218', 'vansh_gg'],
+      [IDS.ankan,   'Hello@GatherrGo.com',       '+919876543219', 'ankan_gg'],
+      [IDS.pooja,   'poojadevrari07@gmail.com',  '+919876543220', 'pooja_gg'],
     ];
     for (const [id, email, phone, username] of users) {
+      const passwordHash = ALPHA_USER_IDS.has(id) ? alphaHash : hash;
       await client.query(
         `INSERT INTO users (id, email, phone, password_hash, is_verified, is_profile_complete, username)
          VALUES ($1, $2, $3, $4, true, true, $5)
          ON CONFLICT (id) DO UPDATE SET
            email = EXCLUDED.email, phone = EXCLUDED.phone,
            password_hash = EXCLUDED.password_hash, username = EXCLUDED.username`,
-        [id, email, phone, hash, username],
+        [id, email, phone, passwordHash, username],
       );
     }
 
@@ -430,9 +436,9 @@ async function seed() {
       [IDS.frank,   'Frank Joshi',    '1995-09-30', 'male',   'India', 'History walks and chai | Heritage lover | Jaipur local', null],
       [IDS.grace,   'Grace Thomas',   '2001-01-08', 'female', 'India', 'Photography and road trips | Golden hour chaser', null],
       [IDS.henry,   'Henry Banerjee', '1997-12-01', 'male',   'India', 'Cyclist and techie | Pune meetup organiser | Coffee snob', null],
-      [IDS.vansh,   'Vansh Ahuja',    '2003-04-20', 'male',   'India', 'Alpha tester | Bikes, rooftops, and messy group chats', ALPHA_AVATAR.vansh],
+      [IDS.vansh,   'Vansh Ahuja',    '2002-04-20', 'male',   'India', 'Alpha tester | Bikes, rooftops, and messy group chats', ALPHA_AVATAR.vansh],
       [IDS.ankan,   'Ankan Nandi',    '1994-02-10', 'male',   'India', 'Alpha tester | River sports, bikes & weekend hikes', ALPHA_AVATAR.ankan],
-      [IDS.pooja,   'Pooja Devrari',  '2003-01-18', 'female', 'India', 'Alpha tester | Food trails, board games, city nights', ALPHA_AVATAR.pooja],
+      [IDS.pooja,   'Pooja Devrari',  '2005-01-18', 'female', 'India', 'Alpha tester | Food trails, board games, city nights', ALPHA_AVATAR.pooja],
     ];
     for (const [uid, name, dob, gender, country, bio, avatarUrl] of profiles) {
       await client.query(
@@ -1314,10 +1320,10 @@ async function seed() {
     console.log(`  frank    frank@gathergo.com    ${IDS.frank}`);
     console.log(`  grace    grace@gathergo.com    ${IDS.grace}`);
     console.log(`  henry    henry@gathergo.com    ${IDS.henry}`);
-    console.log('  Alpha (gatherrgo.com, same password):');
-    console.log(`  vansh    vansh@gatherrgo.com   ${IDS.vansh}`);
-    console.log(`  ankan    ankan@gatherrgo.com   ${IDS.ankan}`);
-    console.log(`  pooja    pooja@gatherrgo.com   ${IDS.pooja}`);
+    console.log('  Alpha (password GatherrGo123!):');
+    console.log(`  vansh    vanshahuja318@gmail.com   age 24   ${IDS.vansh}`);
+    console.log(`  ankan    Hello@GatherrGo.com        age 32   ${IDS.ankan}`);
+    console.log(`  pooja    poojadevrari07@gmail.com   age 21   ${IDS.pooja}`);
     console.log('══════════════════════════════════════════════════════════════════');
     console.log('  TRIPS');
     console.log('══════════════════════════════════════════════════════════════════');

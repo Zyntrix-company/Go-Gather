@@ -26,6 +26,8 @@ export type SignupPayload = {
 export type VerifyOtpPayload = {
   email: string;
   otp: string;
+  deviceToken?: string;
+  platform?: 'ios' | 'android';
 };
 
 export type ResendOtpPayload = {

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Modal, TextInput, Platform, ActivityIndicator, Image,
+  Modal, TextInput, Platform, ActivityIndicator, Image, FlatList,
   RefreshControl, NativeModules, Animated, PanResponder, Dimensions, SafeAreaView, Pressable, Switch,
 } from 'react-native';
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
@@ -27,7 +27,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
-import { getFriends } from '../../api/trips.api';
+import { getFriends, getEmailStatus, listEmailAttachments, importEmailAttachments, type EmailAttachment } from '../../api/trips.api';
 import {
   getEvents,
   createEvent as apiCreateEvent,
@@ -290,7 +290,13 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
   const [apiFriends, setApiFriends] = useState<typeof CT_FRIENDS>([]);
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showEmailPicker, setShowEmailPicker] = useState(false);
+  const [emailPickerProvider, setEmailPickerProvider] = useState<'gmail' | 'outlook'>('gmail');
+  const [emailAttachments, setEmailAttachments] = useState<EmailAttachment[]>([]);
+  const [selectedAttachIds, setSelectedAttachIds] = useState<Set<string>>(new Set());
+  const [emailPickerLoading, setEmailPickerLoading] = useState(false);
+  const [emailStatus, setEmailStatus] = useState({ gmail: { connected: false }, outlook: { connected: false } });
+  const [emailSelectedDocs, setEmailSelectedDocs] = useState<{ attachmentId: string; messageId: string; fileName: string; provider: 'gmail' | 'outlook' }[]>([]);
   const [memberTab, setMemberTab] = useState<'friends' | 'new'>('friends');
   const [friendSearch, setFriendSearch] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -395,11 +401,56 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
     setDateObj(undefined); setDateError(null);
     setLocation(''); setFetchingLocation(false);
     setUploadedDocs([]); setSelectedFriendIds([]);
-    setShowInviteModal(false); setShowEmailModal(false);
+    setEmailSelectedDocs([]);
+    setShowInviteModal(false); setShowEmailPicker(false);
     setMemberTab('friends'); setFriendSearch(''); setInviteEmail(''); setInvitePhone(''); setInviteWhatsapp('');
     setReminders(true);
     setBannerImageUri(undefined); setBannerCropFraction(null);
     setCropPreviewUri(undefined);
+  }
+
+  const navigation = useNavigation<any>();
+
+  useEffect(() => {
+    if (!visible) return;
+    getEmailStatus().then((d: any) => {
+      setEmailStatus({
+        gmail:   { connected: Boolean(d?.gmail?.connected) },
+        outlook: { connected: Boolean(d?.outlook?.connected) },
+      });
+    }).catch(() => {});
+  }, [visible]);
+
+  async function openEmailPicker(provider: 'gmail' | 'outlook') {
+    if (!emailStatus[provider].connected) {
+      onClose();
+      navigation.navigate('ConnectedEmail');
+      return;
+    }
+    setEmailPickerProvider(provider);
+    setEmailPickerLoading(true);
+    setSelectedAttachIds(new Set());
+    setEmailAttachments([]);
+    setShowEmailPicker(true);
+    try {
+      const res = await listEmailAttachments(provider);
+      setEmailAttachments(res.attachments);
+    } catch (err) {
+      handleApiError(err);
+      setShowEmailPicker(false);
+    } finally {
+      setEmailPickerLoading(false);
+    }
+  }
+
+  function confirmEmailSelection() {
+    const selected = emailAttachments.filter(a => selectedAttachIds.has(a.attachmentId));
+    const newDocs = selected.map(a => ({ attachmentId: a.attachmentId, messageId: a.messageId, fileName: a.fileName, provider: emailPickerProvider }));
+    setEmailSelectedDocs(prev => {
+      const existing = new Set(prev.map(d => d.attachmentId));
+      return [...prev, ...newDocs.filter(d => !existing.has(d.attachmentId))];
+    });
+    setShowEmailPicker(false);
   }
 
   async function handleSave() {
@@ -439,6 +490,20 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
         bannerImageUrl: isLocalUri ? localBannerUri : null,
         bannerCropFraction: capturedCrop,
       };
+      // Import email attachments selected during creation
+      if (emailSelectedDocs.length > 0) {
+        const byProvider = emailSelectedDocs.reduce<Record<string, typeof emailSelectedDocs>>((acc, d) => {
+          (acc[d.provider] = acc[d.provider] || []).push(d);
+          return acc;
+        }, {});
+        for (const [provider, pdocs] of Object.entries(byProvider)) {
+          try {
+            await importEmailAttachments('event', newEvent.id, provider as 'gmail' | 'outlook', pdocs);
+          } catch {
+            showAlert({ title: 'Email Import Failed', message: `Could not import ${pdocs.length} file(s) from ${provider}.` });
+          }
+        }
+      }
       // Upload docs — images → photos module, everything else → docs module
       const extMime: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', txt: 'text/plain', csv: 'text/csv' };
       const docs = [...uploadedDocs];
@@ -646,17 +711,41 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
             ))}
 
             {/* Extract Docs from Email */}
-            <TouchableOpacity style={modal.ctRow} onPress={() => setShowEmailModal(true)} activeOpacity={0.8}>
-              <View style={modal.ctRowLeft}>
-                <View style={modal.ctRowIcon}>
-                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 2 }}>
+              <TouchableOpacity style={[modal.ctRow, { flex: 1, backgroundColor: '#EA4335' }]} onPress={() => openEmailPicker('gmail')} activeOpacity={0.8}>
+                <View style={modal.ctRowLeft}>
+                  <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
                     <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                     <Path d="M22 6l-10 7L2 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
+                  <Text style={[modal.ctRowText, { color: '#fff' }]} numberOfLines={1}>{emailStatus.gmail.connected ? 'Gmail' : 'Connect Gmail'}</Text>
                 </View>
-                <Text style={modal.ctRowText}>Upload Docs from Email</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[modal.ctRow, { flex: 1, backgroundColor: '#0078D4' }]} onPress={() => openEmailPicker('outlook')} activeOpacity={0.8}>
+                <View style={modal.ctRowLeft}>
+                  <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
+                    <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    <Path d="M22 6l-10 7L2 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                  <Text style={[modal.ctRowText, { color: '#fff' }]} numberOfLines={1}>{emailStatus.outlook.connected ? 'Outlook' : 'Connect Outlook'}</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+            {emailSelectedDocs.map((doc, i) => (
+              <View key={doc.attachmentId} style={modal.ctDocChip}>
+                <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
+                  <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke={doc.provider === 'gmail' ? '#EA4335' : '#0078D4'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={modal.ctDocChipText} numberOfLines={1}>{doc.fileName}</Text>
+                <TouchableOpacity onPress={() => setEmailSelectedDocs(p => p.filter((_, j) => j !== i))}>
+                  <View style={modal.ctDocRemove}>
+                    <Svg width={9} height={9} viewBox="0 0 24 24" fill="none">
+                      <Path d="M18 6L6 18M6 6l12 12" stroke="#ef4444" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                  </View>
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
+            ))}
 
             {/* Add Reminders */}
             <View style={modal.ctRow}>
@@ -906,51 +995,69 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
         </Modal>
       )}
 
-      {/* ── Extract from Email Sub-Modal ── */}
-      {showEmailModal && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setShowEmailModal(false)}>
-          <View style={modal.overlay}>
-            <View style={modal.dialog}>
-              <View style={modal.header}>
-                <Text style={modal.title}>Extract from Email</Text>
-                <TouchableOpacity onPress={() => setShowEmailModal(false)} style={modal.closeBtn} activeOpacity={0.7}>
-                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-                    <Path d="M18 6L6 18M6 6l12 12" stroke="#64748b" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                </TouchableOpacity>
+      {/* ── Email Attachment Picker ── */}
+      <Modal visible={showEmailPicker} transparent animationType="slide" onRequestClose={() => setShowEmailPicker(false)}>
+        <View style={modal.overlay}>
+          <View style={[modal.dialog, { maxHeight: '85%' }]}>
+            <View style={modal.header}>
+              <Text style={modal.title}>Import from {emailPickerProvider === 'gmail' ? 'Gmail' : 'Outlook'}</Text>
+              <TouchableOpacity onPress={() => setShowEmailPicker(false)} style={modal.closeBtn} activeOpacity={0.7}>
+                <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                  <Path d="M18 6L6 18M6 6l12 12" stroke="#64748b" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+              </TouchableOpacity>
+            </View>
+            {emailPickerLoading ? (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#0d9488" />
+                <Text style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>Loading attachments…</Text>
               </View>
-              <View style={{ padding: 20, alignItems: 'center', gap: 12 }}>
-                <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#fff7ed', alignItems: 'center', justifyContent: 'center' }}>
-                  <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
-                    <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#f97316" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    <Path d="M22 6l-10 7L2 6" stroke="#f97316" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                </View>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: '#0f172a' }}>Connect Your Email</Text>
-                <Text style={{ fontSize: 13, color: '#64748b', textAlign: 'center', lineHeight: 19 }}>
-                  We'll extract event invitations, venue bookings, and other documents automatically.
-                </Text>
-                <View style={{ backgroundColor: '#fff7ed', borderRadius: 12, borderWidth: 1.5, borderColor: '#fed7aa', padding: 12, width: '100%' }}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#92400e' }}>📧 Demo Mode</Text>
-                  <Text style={{ fontSize: 11, color: '#b45309', marginTop: 3 }}>In production, this connects to Gmail/Outlook to extract attachments.</Text>
-                </View>
+            ) : emailAttachments.length === 0 ? (
+              <View style={{ padding: 32, alignItems: 'center' }}>
+                <Text style={{ color: '#64748b', fontSize: 14, textAlign: 'center' }}>No attachments found in the last 30 days.</Text>
               </View>
+            ) : (
+              <FlatList
+                data={emailAttachments}
+                keyExtractor={a => a.attachmentId}
+                style={{ maxHeight: 360 }}
+                renderItem={({ item }) => {
+                  const sel = selectedAttachIds.has(item.attachmentId);
+                  return (
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderColor: '#e2e8f0' }}
+                      onPress={() => setSelectedAttachIds(prev => { const n = new Set(prev); sel ? n.delete(item.attachmentId) : n.add(item.attachmentId); return n; })}
+                      activeOpacity={0.7}>
+                      <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: sel ? '#0d9488' : '#cbd5e1', backgroundColor: sel ? '#0d9488' : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                        {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>✓</Text>}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }} numberOfLines={1}>{item.fileName}</Text>
+                        {item.emailSubject ? <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2 }} numberOfLines={1}>{item.emailSubject}</Text> : null}
+                        <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{Math.round(item.fileSizeBytes / 1024)} KB</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+            {!emailPickerLoading && emailAttachments.length > 0 && (
               <View style={[modal.footer, { gap: 10 }]}>
-                <TouchableOpacity style={[modal.createBtn, { flex: 1, backgroundColor: '#f1f5f9' }]} onPress={() => setShowEmailModal(false)} activeOpacity={0.85}>
+                <TouchableOpacity style={[modal.createBtn, { flex: 1, backgroundColor: '#f1f5f9' }]} onPress={() => setShowEmailPicker(false)} activeOpacity={0.85}>
                   <Text style={[modal.createBtnTxt, { color: '#0f172a' }]}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[modal.createBtn, { flex: 1, backgroundColor: '#ea580c' }]}
-                  onPress={() => { setShowEmailModal(false); showAlert({ title: 'Success', message: 'Extracted 2 documents from email!' }); }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={modal.createBtnTxt}>Extract Docs</Text>
+                  style={[modal.createBtn, { flex: 1, opacity: selectedAttachIds.size === 0 ? 0.5 : 1 }]}
+                  onPress={confirmEmailSelection}
+                  disabled={selectedAttachIds.size === 0}
+                  activeOpacity={0.85}>
+                  <Text style={modal.createBtnTxt}>Add {selectedAttachIds.size > 0 ? `${selectedAttachIds.size} file${selectedAttachIds.size > 1 ? 's' : ''}` : 'Selected'}</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            )}
           </View>
-        </Modal>
-      )}
+        </View>
+      </Modal>
 
       {/* ── Banner crop/preview modal ── */}
       <Modal

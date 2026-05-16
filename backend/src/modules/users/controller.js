@@ -184,6 +184,19 @@ const upsertGallerySubtitle = async (req, res, next) => {
   }
 };
 
+/**
+ * PATCH /users/device
+ */
+const updateDeviceToken = async (req, res, next) => {
+  try {
+    const { deviceToken, platform } = req.body;
+    await usersService.updateDeviceToken(req.user.id, { deviceToken, platform });
+    return res.status(200).json({ message: 'Device token updated' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   saveProfile,
   uploadPhoto,
@@ -198,4 +211,5 @@ module.exports = {
   getLegalStatus,
   acknowledgeLegal,
   upsertGallerySubtitle,
+  updateDeviceToken,
 };

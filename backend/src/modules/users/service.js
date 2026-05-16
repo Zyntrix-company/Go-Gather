@@ -2,7 +2,7 @@ const db = require('../../config/database');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 const { sendWelcomeEmail } = require('../../utils/mailer');
-const { createAndSendNotification } = require('../../utils/fcm.util');
+const { createAndSendNotification, registerDeviceToken } = require('../../utils/fcm.util');
 const legalService = require('../legal/legal.service');
 
 /**
@@ -837,6 +837,19 @@ const upsertGallerySubtitle = async (userId, parentType, parentId, subtitle) => 
   return { subtitle: cleanSubtitle };
 };
 
+/**
+ * PATCH /users/device — Register or refresh the FCM device token for the authenticated user.
+ */
+const updateDeviceToken = async (userId, { deviceToken, platform }) => {
+  if (!deviceToken) {
+    const err = new Error('deviceToken is required');
+    err.statusCode = 400;
+    throw err;
+  }
+  await registerDeviceToken(userId, deviceToken, platform);
+  return { ok: true };
+};
+
 module.exports = {
   saveProfile,
   uploadPhoto,
@@ -851,4 +864,5 @@ module.exports = {
   getLegalStatus,
   acknowledgeLegal,
   upsertGallerySubtitle,
+  updateDeviceToken,
 };

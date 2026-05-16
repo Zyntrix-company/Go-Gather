@@ -153,8 +153,8 @@ const getMe = async (req, res, next) => {
  */
 const verifyEmail = async (req, res, next) => {
   try {
-    const { email, otp } = req.body;
-    const result = await authService.verifyEmail({ email, otp });
+    const { email, otp, deviceToken, platform } = req.body;
+    const result = await authService.verifyEmail({ email, otp, deviceToken, platform });
 
     return res.status(200).json(result);
   } catch (error) {

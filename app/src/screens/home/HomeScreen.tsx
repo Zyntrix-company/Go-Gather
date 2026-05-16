@@ -21,6 +21,7 @@ import {
   Platform,
   AppState,
   Linking,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
@@ -777,6 +778,16 @@ export default function HomeScreen({ navigation, route }: any) {
   loadTripsRef.current = () => loadTrips(1, true);
   loadHomeDataRef.current = () => loadHomeEvents();
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([
+      loadTrips(1, true),
+      loadHomeEvents(),
+    ]);
+    setRefreshing(false);
+  }, []);
+
   useEffect(() => {
     if (avatarUpdatedAt === 0) return;
     loadTripsRef.current();
@@ -975,6 +986,14 @@ export default function HomeScreen({ navigation, route }: any) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 74 + insets.bottom }}
         onScrollBeginDrag={() => { setShowTripMenu(null); setShowEventMenu(null); }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#0d9488"
+            colors={['#0d9488']}
+          />
+        }
       >
         {/* Tap-outside backdrop — inside ScrollView so it shares stacking context with menus */}
         {(showTripMenu !== null || showEventMenu !== null) && (

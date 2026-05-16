@@ -508,7 +508,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const rawUser = useAuthStore(s => s.user) as any;
   const currentUserId: string = rawUser?.id ?? rawUser?.sub ?? '';
   const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
-  const unreadCount = useNotificationStore(s => s.notifications.filter(n => !n.read).length);
+  const unreadCount = useNotificationStore(s => s.unreadCount);
 
   // ── API-driven state ──
   const [role, setRole] = useState<'admin' | 'member'>('member');

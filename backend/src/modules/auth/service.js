@@ -9,6 +9,7 @@ const {
   verifyRefreshToken,
   hashToken,
 } = require('../../utils/token');
+const { registerDeviceToken } = require('../../utils/fcm.util');
 const {
   sendVerificationOTPEmail,
   sendPasswordResetOTPEmail,
@@ -49,29 +50,6 @@ const issueTokenPair = async (user) => {
   return { accessToken, refreshToken };
 };
 
-/**
- * Save the raw FCM device token on login.
- * platform is stored for future iOS-specific handling (APNS channel, badge resets, etc.)
- */
-const handleDeviceRegistration = async (userId, deviceToken, platform) => {
-  if (!deviceToken) return;
-
-  try {
-    // Remove this token from any other user who currently holds it — prevents
-    // cross-user notification delivery when the same device is re-used.
-    await db.query(
-      'UPDATE users SET fcm_token = NULL, platform = NULL WHERE fcm_token = $1 AND id != $2',
-      [deviceToken, userId],
-    );
-    await db.query(
-      'UPDATE users SET fcm_token = $1, platform = $2, updated_at = NOW() WHERE id = $3',
-      [deviceToken, platform || null, userId],
-    );
-    logger.info('FCM token saved', { userId, platform });
-  } catch (error) {
-    logger.error('FCM token save failed', { userId, error: error.message });
-  }
-};
 
 /**
  * Generate a 6-digit numeric OTP.
@@ -184,8 +162,7 @@ const login = async ({ email, password, deviceToken, platform }) => {
 
   const tokens = await issueTokenPair(user);
 
-  // Register SNS device endpoint on every login
-  await handleDeviceRegistration(user.id, deviceToken, platform);
+  await registerDeviceToken(user.id, deviceToken, platform);
 
   return {
     user: {
@@ -247,8 +224,7 @@ const googleAuth = async ({ idToken, deviceToken, platform }) => {
   const user = result.rows[0];
   const tokens = await issueTokenPair(user);
 
-  // Register SNS device endpoint on every login
-  await handleDeviceRegistration(user.id, deviceToken, platform);
+  await registerDeviceToken(user.id, deviceToken, platform);
 
   return {
     user: {
@@ -317,8 +293,7 @@ const facebookAuth = async ({ accessToken, deviceToken, platform }) => {
   const user = result.rows[0];
   const tokens = await issueTokenPair(user);
 
-  // Register SNS device endpoint on every login
-  await handleDeviceRegistration(user.id, deviceToken, platform);
+  await registerDeviceToken(user.id, deviceToken, platform);
 
   return {
     user: {
@@ -422,7 +397,7 @@ const forgotPassword = async ({ email, phone }) => {
 /**
  * POST /auth/verify-email — Verify OTP for signup.
  */
-const verifyEmail = async ({ email, otp }) => {
+const verifyEmail = async ({ email, otp, deviceToken, platform }) => {
   const result = await db.query('SELECT id FROM users WHERE email = $1', [email]);
   if (result.rows.length === 0) {
     const err = new Error('User not found');
@@ -443,12 +418,12 @@ const verifyEmail = async ({ email, otp }) => {
     throw err;
   }
 
-  // Mark verified
   await db.query('UPDATE users SET is_verified = true WHERE id = $1', [userId]);
-  // Delete OTP
   await db.query('DELETE FROM otps WHERE id = $1', [otpResult.rows[0].id]);
 
-  // Issue tokens now that verified
+  // Register device token now that the user is verified (optional field)
+  await registerDeviceToken(userId, deviceToken, platform);
+
   const user = { id: userId, email };
   const tokens = await issueTokenPair(user);
 

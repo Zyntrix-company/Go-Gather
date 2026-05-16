@@ -5,9 +5,10 @@ import { Platform, PermissionsAndroid } from 'react-native';
 import useAuthStore from '../store/authStore';
 import useNotificationStore from '../store/notificationStore';
 import authApi from '../api/auth.api';
+import notificationsApi from '../api/notifications.api';
 import storage from '../utils/storage';
 
-async function getFcmTokenForLogin(): Promise<string | undefined> {
+async function getFcmToken(): Promise<string | undefined> {
   try {
     if (Platform.OS === 'android') {
       await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
@@ -15,6 +16,15 @@ async function getFcmTokenForLogin(): Promise<string | undefined> {
     return await messaging().getToken();
   } catch {
     return undefined;
+  }
+}
+
+async function registerDeviceIfPossible() {
+  try {
+    const token = await messaging().getToken();
+    if (token) await notificationsApi.registerDevice(token);
+  } catch {
+    // best-effort
   }
 }
 
@@ -43,7 +53,9 @@ export default function useAuth() {
   async function verifyOtp(email: string, otp: string) {
     setLoading(true);
     try {
-      const res = await authApi.verifyOtp({ email, otp });
+      const deviceToken = await getFcmToken();
+      const platform = Platform.OS === 'ios' ? 'ios' : 'android';
+      const res = await authApi.verifyOtp({ email, otp, deviceToken, platform });
       await storage.setToken(res.accessToken);
       await storage.setRefreshToken(res.refreshToken);
       useNotificationStore.getState().clearNotifications();
@@ -64,7 +76,7 @@ export default function useAuth() {
   async function login(email: string, password: string) {
     setLoading(true);
     try {
-      const deviceToken = await getFcmTokenForLogin();
+      const deviceToken = await getFcmToken();
       const platform = Platform.OS === 'ios' ? 'ios' : 'android';
       const res = await authApi.login({ email, password, deviceToken, platform });
       await storage.setToken(res.accessToken);
@@ -85,7 +97,7 @@ export default function useAuth() {
   async function googleLogin(idToken: string) {
     setLoading(true);
     try {
-      const deviceToken = await getFcmTokenForLogin();
+      const deviceToken = await getFcmToken();
       const res = await authApi.googleLogin(idToken, deviceToken);
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
@@ -105,7 +117,7 @@ export default function useAuth() {
   async function facebookLogin(accessToken: string) {
     setLoading(true);
     try {
-      const deviceToken = await getFcmTokenForLogin();
+      const deviceToken = await getFcmToken();
       const res = await authApi.facebookLogin(accessToken, deviceToken);
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
@@ -171,6 +183,8 @@ export default function useAuth() {
       const user = await authApi.getMe();
       const refreshToken = (await storage.getRefreshToken()) || useAuthStore.getState().refreshToken;
       setAuth(user, token, refreshToken);
+      // Re-register device token in case FCM rotated it while the app was inactive
+      registerDeviceIfPossible();
       return user;
     } catch (err: any) {
       // Only wipe tokens when the server explicitly rejects credentials (401/403)

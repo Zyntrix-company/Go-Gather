@@ -37,15 +37,17 @@ const processBatchedPushes = async () => {
         if (isInQuietHours(row.notification_settings, row.timezone)) {
           logger.info('Batch push suppressed due to quiet hours', { userId: row.user_id, type: row.type });
         } else {
-          // Suppress if trip is muted
+          // Suppress if the parent trip is muted (event batches have no mute table yet)
           let muted = false;
-          try {
-            const muteCheck = await db(
-              'SELECT 1 FROM trip_notification_mutes WHERE user_id = $1 AND trip_id = $2',
-              [row.user_id, row.parent_id],
-            );
-            muted = muteCheck.rowCount > 0;
-          } catch (_) { /* non-fatal */ }
+          if (row.parent_kind === 'trip') {
+            try {
+              const muteCheck = await db(
+                'SELECT 1 FROM trip_notification_mutes WHERE user_id = $1 AND trip_id = $2',
+                [row.user_id, row.parent_id],
+              );
+              muted = muteCheck.rowCount > 0;
+            } catch (_) { /* non-fatal */ }
+          }
 
           if (!muted) {
             const { title, body } = builder(row.event_count, row.parent_name);

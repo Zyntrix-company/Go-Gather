@@ -79,15 +79,15 @@ const isInQuietHours = (notificationSettings, timezone) => {
 };
 
 // Queue a batched FCM push — increments event_count if an open window already exists
-const queueBatchedPush = async (userId, type, parentId, parentName) => {
+const queueBatchedPush = async (userId, type, parentId, parentName, parentKind = 'trip') => {
   if (!userId || !parentId) return;
   try {
     await db(
-      `INSERT INTO notification_batch_queue (user_id, type, parent_id, parent_name, window_closes_at)
-       VALUES ($1, $2, $3, $4, NOW() + interval '2 hours')
+      `INSERT INTO notification_batch_queue (user_id, type, parent_id, parent_name, parent_kind, window_closes_at)
+       VALUES ($1, $2, $3, $4, $5, NOW() + interval '2 hours')
        ON CONFLICT (user_id, type, parent_id) WHERE flushed_at IS NULL
        DO UPDATE SET event_count = notification_batch_queue.event_count + 1`,
-      [userId, type, parentId, parentName || ''],
+      [userId, type, parentId, parentName || '', parentKind],
     );
   } catch (err) {
     logger.error('Failed to queue batched push', { userId, type, error: err.message });
@@ -95,7 +95,42 @@ const queueBatchedPush = async (userId, type, parentId, parentName) => {
 };
 
 /**
+ * Clear the FCM token for a specific device token value across all users.
+ * Called when FCM returns UNREGISTERED or INVALID_ARGUMENT for a token.
+ */
+const clearInvalidToken = async (token) => {
+  try {
+    await db('UPDATE users SET fcm_token = NULL WHERE fcm_token = $1', [token]);
+    logger.info('Cleared invalid FCM token', { tokenSuffix: token.slice(-8) });
+  } catch (err) {
+    logger.error('Failed to clear invalid FCM token', { error: err.message });
+  }
+};
+
+/**
+ * Register (or transfer) an FCM device token for a user.
+ * Removes the token from any other user first to prevent cross-user delivery.
+ */
+const registerDeviceToken = async (userId, deviceToken, platform) => {
+  if (!deviceToken) return;
+  try {
+    await db(
+      'UPDATE users SET fcm_token = NULL, platform = NULL WHERE fcm_token = $1 AND id != $2',
+      [deviceToken, userId],
+    );
+    await db(
+      'UPDATE users SET fcm_token = $1, platform = $2, updated_at = NOW() WHERE id = $3',
+      [deviceToken, platform || null, userId],
+    );
+    logger.info('FCM token saved', { userId, platform });
+  } catch (err) {
+    logger.error('FCM token save failed', { userId, error: err.message });
+  }
+};
+
+/**
  * Send a push notification via FCM v1 HTTP API.
+ * Retries once on transient 5xx errors. Clears the token on UNREGISTERED / INVALID_ARGUMENT.
  *
  * @param {string} token
  * @param {{title: string, body: string}} notification
@@ -105,61 +140,87 @@ const queueBatchedPush = async (userId, type, parentId, parentName) => {
 const sendFCMNotification = async (token, notification, data = {}, priority = 'default') => {
   if (!token) return;
 
-  try {
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      logger.warn('GOOGLE_APPLICATION_CREDENTIALS not set — skipping push notification');
-      return;
-    }
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    logger.warn('GOOGLE_APPLICATION_CREDENTIALS not set — skipping push notification');
+    return;
+  }
 
-    // FCM v1 requires all data values to be strings
-    const stringData = Object.fromEntries(
-      Object.entries(data).map(([k, v]) => [k, String(v)])
-    );
+  const stringData = Object.fromEntries(
+    Object.entries(data).map(([k, v]) => [k, String(v)])
+  );
 
-    const isCritical = priority === 'critical';
+  const isCritical = priority === 'critical';
 
-    const message = {
-      message: {
-        token,
+  const message = {
+    message: {
+      token,
+      notification: { title: notification.title, body: notification.body },
+      data: stringData,
+      android: {
+        priority: 'high',
         notification: {
-          title: notification.title,
-          body: notification.body,
+          sound: 'default',
+          channel_id: isCritical ? 'critical' : 'default',
+          notification_priority: isCritical ? 'PRIORITY_HIGH' : 'PRIORITY_DEFAULT',
         },
-        data: stringData,
-        android: {
-          priority: 'high', // keep high so FCM delivers promptly; visual tier set by channel
-          notification: {
+      },
+      // iOS — ready when APNs cert is added in Firebase console
+      apns: {
+        headers: { 'apns-priority': isCritical ? '10' : '5' },
+        payload: {
+          aps: {
             sound: 'default',
-            channel_id: isCritical ? 'critical' : 'default',
-            notification_priority: isCritical ? 'PRIORITY_HIGH' : 'PRIORITY_DEFAULT',
-          },
-        },
-        // iOS — ready when APNs cert is added in Firebase console
-        apns: {
-          headers: { 'apns-priority': isCritical ? '10' : '5' },
-          payload: {
-            aps: {
-              sound: 'default',
-              badge: 1,
-              'interruption-level': isCritical ? 'time-sensitive' : 'active',
-            },
+            badge: 1,
+            'interruption-level': isCritical ? 'time-sensitive' : 'active',
           },
         },
       },
-    };
+    },
+  };
 
-    await axios.post(FCM_URL, message, {
+  const doSend = () =>
+    axios.post(FCM_URL, message, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       timeout: 5000,
     });
+
+  try {
+    await doSend();
     logger.info('FCM notification sent', { tokenSuffix: token.slice(-8), priority });
   } catch (error) {
-    const detail = error.response?.data ?? error.message;
-    logger.error('FCM notification failed', { detail, token: token?.slice(-8) });
+    const status = error.response?.status;
+    const fcmStatus = error.response?.data?.error?.status;
+
+    // Clear stale device tokens immediately — no retry needed
+    if (fcmStatus === 'UNREGISTERED' || fcmStatus === 'INVALID_ARGUMENT') {
+      logger.warn('FCM token invalid/unregistered — clearing', { tokenSuffix: token.slice(-8), fcmStatus });
+      await clearInvalidToken(token);
+      return;
+    }
+
+    // Retry once on transient server errors (5xx)
+    if (status >= 500) {
+      try {
+        await doSend();
+        logger.info('FCM notification sent (retry)', { tokenSuffix: token.slice(-8), priority });
+        return;
+      } catch (retryErr) {
+        logger.error('FCM notification failed after retry', {
+          detail: retryErr.response?.data ?? retryErr.message,
+          tokenSuffix: token?.slice(-8),
+        });
+        return;
+      }
+    }
+
+    logger.error('FCM notification failed', {
+      detail: error.response?.data ?? error.message,
+      tokenSuffix: token?.slice(-8),
+    });
   }
 };
 
@@ -201,7 +262,8 @@ const createAndSendNotification = async (userId, notification, type, data = {}, 
   }
 
   if (options.batched) {
-    await queueBatchedPush(userId, type, data.tripId || data.eventId, data.tripName || data.parentName);
+    const parentKind = data.tripId ? 'trip' : 'event';
+    await queueBatchedPush(userId, type, data.tripId || data.eventId, data.tripName || data.parentName, parentKind);
     return;
   }
 
@@ -244,7 +306,8 @@ const createAndSendNotification = async (userId, notification, type, data = {}, 
 
 /**
  * Persist notification rows for multiple users then push via FCM.
- * users must have at least { id } — fcm_token is fetched from DB as a single bulk query.
+ * users must have at least { id } — fcm_token / notification_settings / timezone
+ * are fetched from DB in a single bulk query so quiet-hours is applied per recipient.
  *
  * @param {Array<{id: string}>} users
  * @param {{title: string, body: string}} notification
@@ -277,35 +340,56 @@ const createAndSendNotifications = async (users, notification, type, data = {}, 
   if (options.batched) {
     const parentId = data.tripId || data.eventId;
     const parentName = data.tripName || data.parentName;
+    const parentKind = data.tripId ? 'trip' : 'event';
     await Promise.allSettled(
-      users.map((u) => queueBatchedPush(u.id, type, parentId, parentName)),
+      users.map((u) => queueBatchedPush(u.id, type, parentId, parentName, parentKind)),
     );
     return;
   }
 
-  // Filter out users who have muted this trip (non-critical only)
   const isCritical = CRITICAL_TYPES.has(type);
-  let recipients = users;
+  const userIds = users.map((u) => u.id);
+
+  // Bulk-fetch token + notification prefs — callers only need to supply { id }
+  let recipientMap = {};
+  try {
+    const settingsResult = await db(
+      'SELECT id, fcm_token, notification_settings, timezone FROM users WHERE id = ANY($1::uuid[])',
+      [userIds],
+    );
+    for (const row of settingsResult.rows) recipientMap[row.id] = row;
+  } catch (err) {
+    logger.error('Failed to fetch recipient settings for bulk push', { type, error: err.message });
+    return;
+  }
+
+  // Filter muted trip recipients (non-critical only)
+  let recipientIds = userIds;
   if (!isCritical && data.tripId) {
     try {
       const muteResult = await db(
         'SELECT user_id FROM trip_notification_mutes WHERE trip_id = $1 AND user_id = ANY($2::uuid[])',
-        [data.tripId, users.map((u) => u.id)],
+        [data.tripId, userIds],
       );
       const mutedIds = new Set(muteResult.rows.map((r) => r.user_id));
-      if (mutedIds.size > 0) recipients = users.filter((u) => !mutedIds.has(u.id));
+      if (mutedIds.size > 0) recipientIds = userIds.filter((id) => !mutedIds.has(id));
     } catch (err) {
       logger.error('Failed to check trip mutes', { type, error: err.message });
     }
   }
 
-  // Push to each recipient's FCM token
-  const tokens = recipients.map((u) => u.fcm_token).filter(Boolean);
-  if (tokens.length === 0) return;
   const priority = isCritical ? 'critical' : 'default';
   await Promise.allSettled(
-    tokens.map((token) => sendFCMNotification(token, notification, { ...data, type }, priority))
+    recipientIds.map((id) => {
+      const row = recipientMap[id];
+      if (!row?.fcm_token) return Promise.resolve();
+      if (!isCritical && isInQuietHours(row.notification_settings, row.timezone)) {
+        logger.info('Bulk push suppressed due to quiet hours', { userId: id, type });
+        return Promise.resolve();
+      }
+      return sendFCMNotification(row.fcm_token, notification, { ...data, type }, priority);
+    }),
   );
 };
 
-module.exports = { sendFCMNotification, notifyUsers, createAndSendNotification, createAndSendNotifications, isInQuietHours };
+module.exports = { sendFCMNotification, notifyUsers, createAndSendNotification, createAndSendNotifications, isInQuietHours, registerDeviceToken };
