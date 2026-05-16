@@ -89,7 +89,7 @@ async function getAttachments(accessToken) {
   const attachments = [];
   for (const msg of messages) {
     const msgRes = await axios.get(`${GMAIL_BASE}/messages/${msg.id}`, {
-      params:  { format: 'metadata', metadataHeaders: 'Subject,From,Date' },
+      params:  { format: 'full' },
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const msgData = msgRes.data;
