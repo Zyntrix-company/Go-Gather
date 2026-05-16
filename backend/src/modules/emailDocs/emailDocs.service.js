@@ -189,15 +189,16 @@ async function listAttachments(userId, provider) {
   return { attachments: filtered, total: filtered.length };
 }
 
-async function importAttachments(userId, tripId, attachments) {
+async function importAttachments(userId, parentType, parentId, attachments) {
   // Check doc cap
   const countRes = await db(
     'SELECT COUNT(*) FROM docs WHERE parent_type = $1 AND parent_id = $2',
-    ['trip', tripId],
+    [parentType, parentId],
   );
   const currentCount = parseInt(countRes.rows[0].count, 10);
   if (currentCount + attachments.length > MAX_DOCS) {
-    const e = new Error(`This trip already has ${currentCount} documents. Adding ${attachments.length} more would exceed the ${MAX_DOCS} document limit.`);
+    const label = parentType === 'event' ? 'event' : 'trip';
+    const e = new Error(`This ${label} already has ${currentCount} documents. Adding ${attachments.length} more would exceed the ${MAX_DOCS} document limit.`);
     e.statusCode = 422; e.error = 'LIMIT_EXCEEDED'; throw e;
   }
 
@@ -226,7 +227,7 @@ async function importAttachments(userId, tripId, attachments) {
       }
 
       // Upload to S3
-      const s3Key = `trips/${tripId}/docs/${uuidv4()}-${sanitiseFilename(fileName)}`;
+      const s3Key = `${parentType}s/${parentId}/docs/${uuidv4()}-${sanitiseFilename(fileName)}`;
       await uploadToS3(buffer, s3Key, mimeType);
 
       // Insert into docs table
@@ -234,7 +235,7 @@ async function importAttachments(userId, tripId, attachments) {
         `INSERT INTO docs (parent_type, parent_id, uploaded_by, file_name, file_url, s3_key, file_size_bytes, mime_type)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id`,
-        ['trip', tripId, userId, fileName, s3Key, s3Key, buffer.length, mimeType],
+        [parentType, parentId, userId, fileName, s3Key, s3Key, buffer.length, mimeType],
       );
 
       imported.push({ docId: docRes.rows[0].id, fileName, fileUrl: s3Key });

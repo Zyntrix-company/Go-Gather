@@ -95,7 +95,8 @@ const importAttachments = async (req, res, next) => {
     if (!Array.isArray(attachments) || attachments.length === 0) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'attachments must be a non-empty array', statusCode: 400 });
     }
-    const result = await service.importAttachments(req.user.id, req.tripMember.tripId, attachments);
+    const { parentType, parentId } = req.parent;
+    const result = await service.importAttachments(req.user.id, parentType, parentId, attachments);
     res.json(result);
   } catch (err) {
     handleError(err, res, next);

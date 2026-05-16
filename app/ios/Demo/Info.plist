@@ -29,6 +29,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>gathergo</string>
 				<string>fb1761986381428717</string>
 				<string>com.googleusercontent.apps.444293164368-62ticnka5jbe7phea60phv6otd69nkbe</string>
 			</array>

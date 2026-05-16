@@ -461,13 +461,14 @@ export async function listEmailAttachments(provider: EmailProvider, tripId?: str
 }
 
 export async function importEmailAttachments(
-  tripId: string,
+  parentType: 'trip' | 'event',
+  parentId: string,
   provider: EmailProvider,
   attachments: Pick<EmailAttachment, 'attachmentId' | 'messageId' | 'fileName'>[],
 ) {
   const res = await client.post('/email-docs/import', {
-    tripId,
-    provider,
+    parentType,
+    parentId,
     attachments: attachments.map(a => ({ ...a, provider })),
   });
   return res.data as {

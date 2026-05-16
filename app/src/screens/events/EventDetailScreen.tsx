@@ -52,7 +52,7 @@ import {
   deleteEventPoll,
   handleApiError,
 } from '../../api/events.api';
-import { getFriends } from '../../api/trips.api';
+import { getFriends, getEmailStatus, listEmailAttachments, importEmailAttachments, type EmailAttachment } from '../../api/trips.api';
 import useAuthStore from '../../store/authStore';
 import { authUserId } from '../../utils/avatarUri';
 import { showAlert, showConfirm } from '../../store/alertStore';
@@ -393,6 +393,13 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   // ── Modal visibility (declared before hooks that reference them) ──
   const [showDocs, setShowDocs] = useState(false);
+  const [showEmailPicker, setShowEmailPicker] = useState(false);
+  const [emailPickerProvider, setEmailPickerProvider] = useState<'gmail' | 'outlook'>('gmail');
+  const [emailAttachments, setEmailAttachments] = useState<EmailAttachment[]>([]);
+  const [selectedAttachIds, setSelectedAttachIds] = useState<Set<string>>(new Set());
+  const [emailPickerLoading, setEmailPickerLoading] = useState(false);
+  const [emailImporting, setEmailImporting] = useState(false);
+  const [emailStatus, setEmailStatus] = useState({ gmail: { connected: false }, outlook: { connected: false } });
   const [showMembers, setShowMembers] = useState(false);
   const [showPhotos, setShowPhotos] = useState(false);
   const [showExpenses, setShowExpenses] = useState(false);
@@ -517,6 +524,16 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   // Load friends when Members modal opens
   useEffect(() => {
+    if (!showDocs) return;
+    getEmailStatus().then((d: any) => {
+      setEmailStatus({
+        gmail:   { connected: Boolean(d?.gmail?.connected) },
+        outlook: { connected: Boolean(d?.outlook?.connected) },
+      });
+    }).catch(() => {});
+  }, [showDocs]);
+
+  useEffect(() => {
     if (!showMembers) return;
     getFriends().then(data => {
       setApiFriends(data.friends.map(f => ({
@@ -631,6 +648,48 @@ export default function EventDetailScreen({ route, navigation }: any) {
     } catch (err: any) {
       if (err?.code === 'CANCELLED' || err?.message === 'User cancelled') return;
       handleApiError(err);
+    }
+  }
+
+  async function openEmailPicker(provider: 'gmail' | 'outlook') {
+    if (!emailStatus[provider].connected) {
+      setShowDocs(false);
+      (navigation as any).navigate('ConnectedEmail');
+      return;
+    }
+    setEmailPickerProvider(provider);
+    setEmailPickerLoading(true);
+    setSelectedAttachIds(new Set());
+    setEmailAttachments([]);
+    setShowEmailPicker(true);
+    try {
+      const res = await listEmailAttachments(provider);
+      setEmailAttachments(res.attachments);
+    } catch (err) {
+      handleApiError(err);
+      setShowEmailPicker(false);
+    } finally {
+      setEmailPickerLoading(false);
+    }
+  }
+
+  async function confirmEmailImport() {
+    if (selectedAttachIds.size === 0 || emailImporting) return;
+    setEmailImporting(true);
+    try {
+      const selected = emailAttachments.filter(a => selectedAttachIds.has(a.attachmentId));
+      const res = await importEmailAttachments('event', event.id, emailPickerProvider, selected);
+      setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl }))]);
+      setShowEmailPicker(false);
+      if (res.failed?.length) {
+        Toast.show({ type: 'error', text1: `${res.failed.length} file(s) failed to import` });
+      } else {
+        Toast.show({ type: 'success', text1: `${res.imported.length} file(s) imported` });
+      }
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setEmailImporting(false);
     }
   }
 
@@ -1224,8 +1283,16 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" style={{ marginRight: 8 }}>
                       <Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                     </Svg>
-                    <Text style={styles.tealBtnTxt}>Upload Documents</Text>
+                    <Text style={styles.tealBtnTxt}>Upload from Phone</Text>
                   </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                    <TouchableOpacity style={[styles.tealBtnFull, { flex: 1, backgroundColor: '#EA4335' }]} onPress={() => openEmailPicker('gmail')} activeOpacity={0.85}>
+                      <Text style={styles.tealBtnTxt} numberOfLines={1}>{emailStatus.gmail.connected ? 'Gmail' : 'Connect Gmail'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.tealBtnFull, { flex: 1, backgroundColor: '#0078D4' }]} onPress={() => openEmailPicker('outlook')} activeOpacity={0.85}>
+                      <Text style={styles.tealBtnTxt} numberOfLines={1}>{emailStatus.outlook.connected ? 'Outlook' : 'Connect Outlook'}</Text>
+                    </TouchableOpacity>
+                  </View>
                   {docs.length === 0 ? (
                     <View style={styles.emptyCenter}>
                       <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
@@ -1253,6 +1320,64 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   ))}
                 </View>
               </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ═══════════════════════════════════════════════════
+            MODAL 1b — Email Attachment Picker
+        ═══════════════════════════════════════════════════ */}
+        <Modal visible={showEmailPicker} transparent animationType="slide" onRequestClose={() => setShowEmailPicker(false)}>
+          <View style={styles.overlay}>
+            <View style={[styles.dialog, { maxHeight: '85%' }]}>
+              <DHeader title={`Import from ${emailPickerProvider === 'gmail' ? 'Gmail' : 'Outlook'}`} onClose={() => setShowEmailPicker(false)} />
+              {emailPickerLoading ? (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#0d9488" />
+                  <Text style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>Loading attachments…</Text>
+                </View>
+              ) : emailAttachments.length === 0 ? (
+                <View style={{ padding: 32, alignItems: 'center' }}>
+                  <Text style={{ color: '#64748b', fontSize: 14, textAlign: 'center' }}>No attachments found in the last 30 days.</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={emailAttachments}
+                  keyExtractor={a => a.attachmentId}
+                  style={{ maxHeight: 380 }}
+                  renderItem={({ item }) => {
+                    const sel = selectedAttachIds.has(item.attachmentId);
+                    return (
+                      <TouchableOpacity
+                        style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderColor: '#e2e8f0' }}
+                        onPress={() => setSelectedAttachIds(prev => { const n = new Set(prev); sel ? n.delete(item.attachmentId) : n.add(item.attachmentId); return n; })}
+                        activeOpacity={0.7}>
+                        <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: sel ? '#0d9488' : '#cbd5e1', backgroundColor: sel ? '#0d9488' : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                          {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>✓</Text>}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }} numberOfLines={1}>{item.fileName}</Text>
+                          {item.emailSubject ? <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2 }} numberOfLines={1}>{item.emailSubject}</Text> : null}
+                          <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{Math.round(item.fileSizeBytes / 1024)} KB</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              )}
+              {!emailPickerLoading && emailAttachments.length > 0 && (
+                <View style={{ padding: 16, borderTopWidth: 0.5, borderColor: '#e2e8f0' }}>
+                  <TouchableOpacity
+                    style={[styles.tealBtnFull, { opacity: selectedAttachIds.size === 0 ? 0.5 : 1 }]}
+                    onPress={confirmEmailImport}
+                    disabled={selectedAttachIds.size === 0 || emailImporting}
+                    activeOpacity={0.85}>
+                    {emailImporting
+                      ? <ActivityIndicator color="#fff" />
+                      : <Text style={styles.tealBtnTxt}>Import {selectedAttachIds.size > 0 ? `${selectedAttachIds.size} file${selectedAttachIds.size > 1 ? 's' : ''}` : 'Selected'}</Text>}
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </View>
         </Modal>

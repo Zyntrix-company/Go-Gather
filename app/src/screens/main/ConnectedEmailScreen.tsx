@@ -1,10 +1,11 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  RefreshControl,
   ActivityIndicator,
   Linking,
   Alert,
@@ -63,6 +64,14 @@ export default function ConnectedEmailScreen({ navigation }: { navigation: any }
     }, [load]),
   );
 
+  // Auto-refresh when OAuth deep link fires (handles case where screen is already focused)
+  useEffect(() => {
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      if (url.startsWith('gathergo://email-connected')) load();
+    });
+    return () => sub.remove();
+  }, [load]);
+
   async function onConnect(provider: EmailProvider) {
     setConnecting(provider);
     setError(null);
@@ -106,7 +115,11 @@ export default function ConnectedEmailScreen({ navigation }: { navigation: any }
   return (
     <BlobBackground>
       <SafeAreaView style={styles.safe}>
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
+        >
           <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8} style={styles.logoBtn}>
             <Logo size="small" />
           </TouchableOpacity>

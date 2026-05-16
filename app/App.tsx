@@ -5,10 +5,10 @@
  * @format
  */
 
-import React, { useEffect } from 'react';
-import { StatusBar } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { StatusBar, Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import RootNavigator from './src/navigation/RootNavigator';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import Geolocation from '@react-native-community/geolocation';
@@ -21,6 +21,23 @@ Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLeve
 
 function App() {
   usePushNotifications();
+  const navigationRef = useRef<NavigationContainerRef<any>>(null);
+
+  useEffect(() => {
+    const handleDeepLink = ({ url }: { url: string }) => {
+      if (url.startsWith('gathergo://email-connected')) {
+        navigationRef.current?.navigate('ConnectedEmail' as never);
+      }
+    };
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+    // Handle cold-start case (app was not running when deep link fired)
+    Linking.getInitialURL().then((url) => {
+      if (url && url.startsWith('gathergo://email-connected')) {
+        navigationRef.current?.navigate('ConnectedEmail' as never);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     // TODO: replace with actual webClientId from Google Cloud console
@@ -38,7 +55,7 @@ function App() {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer theme={{ dark: false, colors: { primary: '#0d9488', background: 'transparent', card: 'transparent', text: '#0f172a', border: 'transparent', notification: '#0d9488' }, fonts: { regular: { fontFamily: 'System', fontWeight: '400' }, medium: { fontFamily: 'System', fontWeight: '500' }, bold: { fontFamily: 'System', fontWeight: '700' }, heavy: { fontFamily: 'System', fontWeight: '900' } } }}>
+      <NavigationContainer ref={navigationRef} theme={{ dark: false, colors: { primary: '#0d9488', background: 'transparent', card: 'transparent', text: '#0f172a', border: 'transparent', notification: '#0d9488' }, fonts: { regular: { fontFamily: 'System', fontWeight: '400' }, medium: { fontFamily: 'System', fontWeight: '500' }, bold: { fontFamily: 'System', fontWeight: '700' }, heavy: { fontFamily: 'System', fontWeight: '900' } } }}>
         <StatusBar barStyle="dark-content" />
         <RootNavigator />
         <ThemedAlert />

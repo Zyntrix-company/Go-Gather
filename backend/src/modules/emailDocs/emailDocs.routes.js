@@ -1,7 +1,7 @@
 const { Router } = require('express');
-const authenticateJWT = require('../../middleware/authenticate');
-const tripMemberMW    = require('../../middleware/tripMember.middleware');
-const controller      = require('./emailDocs.controller');
+const authenticateJWT    = require('../../middleware/authenticate');
+const verifyParentAccess = require('../../middleware/parentAccess.middleware');
+const controller         = require('./emailDocs.controller');
 
 // ── OAuth routes — mounted at /auth in app.js ──────────────────────────────
 const authRouter = Router();
@@ -18,15 +18,15 @@ authRouter.delete('/email/:provider/disconnect', authenticateJWT, controller.dis
 // ── Email docs routes — mounted at /email-docs in app.js ──────────────────
 const emailDocsRouter = Router();
 
-// Shim: tripMemberMW reads req.params.id || req.params.tripId.
-// For these routes tripId arrives in body or query, so copy it into params first.
-const injectTripId = (req, _res, next) => {
-  req.params.tripId = req.body.tripId || req.query.tripId;
+// Shim: parentAccess reads parentType/parentId from req.params — copy from body first.
+const injectParent = (req, _res, next) => {
+  req.params.parentType = req.body.parentType || 'trip';
+  req.params.parentId   = req.body.parentId || req.body.tripId || req.query.tripId;
   next();
 };
 
 emailDocsRouter.get('/status',      authenticateJWT, controller.getStatus);
 emailDocsRouter.get('/attachments', authenticateJWT, controller.listAttachments);
-emailDocsRouter.post('/import',     authenticateJWT, injectTripId, tripMemberMW, controller.importAttachments);
+emailDocsRouter.post('/import',     authenticateJWT, injectParent, verifyParentAccess(), controller.importAttachments);
 
 module.exports = { authRouter, emailDocsRouter };
