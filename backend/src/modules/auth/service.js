@@ -515,14 +515,16 @@ const getMe = async (userId) => {
 
   const row = result.rows[0];
 
-  // Sanitise avatar_url: strip any malformed URLs (e.g. "https://undefined/...")
-  // that were stored before the CloudFront domain guard was added.
+  // Normalise avatar_url: strip malformed URLs and rewrite legacy S3 URLs to CloudFront.
   const rawAvatar = row.avatar_url;
-  const storedAvatarUrl = (rawAvatar && !rawAvatar.includes('https://undefined')) ? rawAvatar : null;
-
-  // Bucket is public; CloudFront is the correct access path (CachingOptimized policy fixed).
-  // CF URL is permanent — no presigning needed.
-  const avatarUrl = storedAvatarUrl;
+  let avatarUrl = (rawAvatar && !rawAvatar.includes('https://undefined')) ? rawAvatar : null;
+  const cf = config.s3?.cloudfrontDomain;
+  if (avatarUrl && cf && avatarUrl.includes('.amazonaws.com/')) {
+    try {
+      const key = new URL(avatarUrl).pathname.replace(/^\//, '');
+      if (key) avatarUrl = `https://${cf}/${key}`;
+    } catch { /* keep original */ }
+  }
 
   return {
     id: row.id,

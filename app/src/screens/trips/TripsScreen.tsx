@@ -430,6 +430,7 @@ export function CreateTripModal({
   const [uploadedDocs, setUploadedDocs] = useState<{ uri: string; name: string; type: string }[]>([]);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showProviderPicker, setShowProviderPicker] = useState(false);
   const [showEmailPicker, setShowEmailPicker] = useState(false);
   const [emailPickerProvider, setEmailPickerProvider] = useState<'gmail' | 'outlook'>('gmail');
   const [emailAttachments, setEmailAttachments] = useState<EmailAttachment[]>([]);
@@ -821,26 +822,22 @@ export function CreateTripModal({
             ))}
 
             {/* Extract Docs from Email */}
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 2 }}>
-              <TouchableOpacity style={[styles.ctRow, { flex: 1, backgroundColor: '#EA4335' }]} onPress={() => openEmailPicker('gmail')} activeOpacity={0.8}>
-                <View style={styles.ctRowLeft}>
-                  <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
+            <TouchableOpacity style={styles.ctRow} onPress={() => setShowProviderPicker(true)} activeOpacity={0.8}>
+              <View style={styles.ctRowLeft}>
+                <View style={styles.ctRowIcon}>
+                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
                     <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                     <Path d="M22 6l-10 7L2 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
-                  <Text style={[styles.ctRowText, { color: '#fff' }]} numberOfLines={1}>{emailStatus.gmail.connected ? 'Gmail' : 'Connect Gmail'}</Text>
                 </View>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.ctRow, { flex: 1, backgroundColor: '#0078D4' }]} onPress={() => openEmailPicker('outlook')} activeOpacity={0.8}>
-                <View style={styles.ctRowLeft}>
-                  <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                    <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    <Path d="M22 6l-10 7L2 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                  <Text style={[styles.ctRowText, { color: '#fff' }]} numberOfLines={1}>{emailStatus.outlook.connected ? 'Outlook' : 'Connect Outlook'}</Text>
+                <Text style={styles.ctRowText}>Upload Docs from Email</Text>
+              </View>
+              {emailSelectedDocs.length > 0 && (
+                <View style={styles.ctCountBadge}>
+                  <Text style={styles.ctCountBadgeText}>{emailSelectedDocs.length} file{emailSelectedDocs.length > 1 ? 's' : ''}</Text>
                 </View>
-              </TouchableOpacity>
-            </View>
+              )}
+            </TouchableOpacity>
             {emailSelectedDocs.map((doc, i) => (
               <View key={doc.attachmentId} style={styles.ctDocChip}>
                 <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
@@ -1065,6 +1062,62 @@ export function CreateTripModal({
           </Modal>
         )}
 
+        {/* Provider Picker */}
+        <Modal visible={showProviderPicker} transparent animationType="fade" onRequestClose={() => setShowProviderPicker(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalDialog, { paddingBottom: 8 }]}>
+              <View style={styles.ctHeader}>
+                <Text style={styles.ctTitle}>Import from Email</Text>
+                <TouchableOpacity onPress={() => setShowProviderPicker(false)} style={styles.ctCloseBtn} activeOpacity={0.7}>
+                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                    <Path d="M18 6L6 18M6 6l12 12" stroke="#64748b" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                </TouchableOpacity>
+              </View>
+              <View style={{ padding: 16, gap: 10 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fef2f2', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#fecaca' }}
+                  onPress={() => { setShowProviderPicker(false); openEmailPicker('gmail'); }}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#EA4335', alignItems: 'center', justifyContent: 'center' }}>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                      <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      <Path d="M22 6l-10 7L2 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#EA4335' }}>Import from Gmail</Text>
+                    <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{emailStatus.gmail.connected ? 'Connected' : 'Tap to connect'}</Text>
+                  </View>
+                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                    <Path d="M9 18l6-6-6-6" stroke="#EA4335" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#eff6ff', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#bfdbfe' }}
+                  onPress={() => { setShowProviderPicker(false); openEmailPicker('outlook'); }}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#0078D4', alignItems: 'center', justifyContent: 'center' }}>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                      <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      <Path d="M22 6l-10 7L2 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: '#0078D4' }}>Import from Outlook</Text>
+                    <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{emailStatus.outlook.connected ? 'Connected' : 'Tap to connect'}</Text>
+                  </View>
+                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                    <Path d="M9 18l6-6-6-6" stroke="#0078D4" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         {/* Email Attachment Picker */}
         <Modal visible={showEmailPicker} transparent animationType="slide" onRequestClose={() => setShowEmailPicker(false)}>
           <View style={styles.modalOverlay}>
@@ -1099,7 +1152,7 @@ export function CreateTripModal({
                         onPress={() => setSelectedAttachIds(prev => { const n = new Set(prev); sel ? n.delete(item.attachmentId) : n.add(item.attachmentId); return n; })}
                         activeOpacity={0.7}>
                         <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: sel ? '#0d9488' : '#cbd5e1', backgroundColor: sel ? '#0d9488' : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                          {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>✓</Text>}
+                          {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>✓</Text>}
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }} numberOfLines={1}>{item.fileName}</Text>
@@ -1321,7 +1374,7 @@ function FriendSelectAvatar({ uri, name, style }: { uri: string; name: string; s
   if (!uri || failed) {
     return (
       <View style={[style, { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: '#94a3b8' }}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
+        <Text style={{ fontSize: 16, fontWeight: '600', color: '#94a3b8' }}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
       </View>
     );
   }
@@ -1674,7 +1727,7 @@ const styles = StyleSheet.create({
   cardMedia: { height: 144, position: 'relative' },
   cardImage: { width: '100%', height: '100%', resizeMode: 'cover' },
   ongoingBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: '#10b981', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  ongoingBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  ongoingBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
   cardMoreBtn: {
     position: 'absolute', top: 8, right: 8, width: 32, height: 32, borderRadius: 16,
     backgroundColor: 'rgba(0,0,0,0.2)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
@@ -1685,14 +1738,14 @@ const styles = StyleSheet.create({
   },
   miniAvatar: { width: 26, height: 26, borderRadius: 13, borderWidth: 1.5, borderColor: '#fff' },
   moreCounter: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#0d9488', borderWidth: 1.5, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', marginLeft: -8 },
-  moreCounterText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+  moreCounterText: { color: '#fff', fontSize: 9, fontWeight: '600' },
   cardBody: { padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardMain: { flex: 1, paddingRight: 8 },
   cardTitle: { fontSize: 16, fontWeight: '400', color: '#009788', marginBottom: 4, lineHeight: 22 },
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   infoText: { fontSize: 12, color: '#475569', fontWeight: '400' },
   daysBadge: { alignItems: 'flex-end', justifyContent: 'center', minWidth: 44 },
-  daysNumber: { fontSize: 28, fontWeight: '700', color: '#0d9488', lineHeight: 32 },
+  daysNumber: { fontSize: 28, fontWeight: '600', color: '#0d9488', lineHeight: 32 },
   daysLabel: { fontSize: 8, color: '#94a3b8', fontWeight: '600', textAlign: 'right', letterSpacing: 0.5 },
 
   // Trip Menu Dropdown
@@ -1728,7 +1781,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   pastExtraText: {
-    fontSize: 8, fontWeight: '700' as const, color: '#0d9488',
+    fontSize: 8, fontWeight: '600' as const, color: '#0d9488',
   },
 
   // Empty State

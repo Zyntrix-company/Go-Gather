@@ -92,7 +92,7 @@ function parseInlineHtml(raw: string, baseStyle: InlineStyle = {}): React.ReactN
     const closing = match[1] === '/';
     const tag = match[0].replace(/<\/?/g, '').replace(/>.*/, '').toLowerCase();
     if (!closing) {
-      if (tag === 'strong' || tag === 'b') style = { ...style, fontWeight: '700' };
+      if (tag === 'strong' || tag === 'b') style = { ...style, fontWeight: '600' };
       if (tag === 'em' || tag === 'i')     style = { ...style, fontStyle: 'italic' };
       if (tag === 'u')                     style = { ...style, textDecorationLine: 'underline' };
     } else {
@@ -142,13 +142,13 @@ function renderHtmlContent(html: string): React.ReactNode[] {
 
     if (tag === 'h2') {
       nodes.push(
-        <Text key={key++} style={{ fontSize: 18, fontWeight: '700', color: '#0f172a', marginTop: 20, marginBottom: 6, lineHeight: 26 }}>
+        <Text key={key++} style={{ fontSize: 18, fontWeight: '600', color: '#0f172a', marginTop: 20, marginBottom: 6, lineHeight: 26 }}>
           {stripTags(inner)}
         </Text>,
       );
     } else if (tag === 'h3') {
       nodes.push(
-        <Text key={key++} style={{ fontSize: 16, fontWeight: '700', color: '#0f172a', marginTop: 16, marginBottom: 4, lineHeight: 24 }}>
+        <Text key={key++} style={{ fontSize: 16, fontWeight: '600', color: '#0f172a', marginTop: 16, marginBottom: 4, lineHeight: 24 }}>
           {stripTags(inner)}
         </Text>,
       );
@@ -229,7 +229,7 @@ function renderBlogContent(raw: string): React.ReactNode {
       const [heading, ...rest] = para.split('\n');
       return (
         <View key={i} style={{ marginBottom: 16 }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: '#0f172a', lineHeight: 24, marginBottom: rest.length ? 6 : 0 }}>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: '#0f172a', lineHeight: 24, marginBottom: rest.length ? 6 : 0 }}>
             {heading}
           </Text>
           {rest.length > 0 && (
@@ -1157,7 +1157,7 @@ export default function HomeScreen({ navigation, route }: any) {
                       justifyContent: 'center',
                       paddingHorizontal: 8,
                     }}>
-                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600', lineHeight: 14 }} numberOfLines={1}>
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '500', lineHeight: 14 }} numberOfLines={1}>
                         {item.title}
                       </Text>
                     </View>
@@ -1217,7 +1217,7 @@ export default function HomeScreen({ navigation, route }: any) {
                       marginRight: 10,
                     }}>
                     <DealImage uri={imgUri} height={IMG_H} />
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#1a1a2e', textAlign: 'center', marginTop: 8 }} numberOfLines={1}>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: '#1a1a2e', textAlign: 'center', marginTop: 8 }} numberOfLines={1}>
                       {item.title}
                     </Text>
                     {item.subtitle ? (
@@ -1241,7 +1241,7 @@ export default function HomeScreen({ navigation, route }: any) {
               <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B', flex: 1 }}>Upcoming Trips</Text>
               {upcoming.length > 3 && (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setActiveTab('trips')}>
-                  <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>View all</Text>
+                  <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '500' }}>View all</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -1283,7 +1283,7 @@ export default function HomeScreen({ navigation, route }: any) {
               <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B', flex: 1 }}>Upcoming Events</Text>
               {homeEvents.length > 3 && (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setActiveTab('events')}>
-                  <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>View all</Text>
+                  <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '500' }}>View all</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -1351,7 +1351,7 @@ export default function HomeScreen({ navigation, route }: any) {
               style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
               <ChevronLeft size={20} color="#1a1a2e" />
             </TouchableOpacity>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: '#1a1a2e', flex: 1 }} numberOfLines={1}>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: '#1a1a2e', flex: 1 }} numberOfLines={1}>
               {selectedBlog?.title ?? 'Article'}
             </Text>
           </View>
@@ -1371,12 +1371,12 @@ export default function HomeScreen({ navigation, route }: any) {
               {/* Category badge */}
               {selectedBlog?.category && (
                 <View style={{ backgroundColor: '#e0f7f4', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: 12 }}>
-                  <Text style={{ color: '#0d9488', fontSize: 12, fontWeight: '600' }}>{selectedBlog.category}</Text>
+                  <Text style={{ color: '#0d9488', fontSize: 12, fontWeight: '500' }}>{selectedBlog.category}</Text>
                 </View>
               )}
 
               {/* Title */}
-              <Text style={{ fontSize: SCREEN_W < 360 ? 19 : 22, fontWeight: '800', color: '#0f172a', lineHeight: 32, marginBottom: 12 }}>
+              <Text style={{ fontSize: SCREEN_W < 360 ? 19 : 22, fontWeight: '700', color: '#0f172a', lineHeight: 32, marginBottom: 12 }}>
                 {selectedBlog?.title}
               </Text>
 
@@ -1387,7 +1387,7 @@ export default function HomeScreen({ navigation, route }: any) {
                     <Image source={{ uri: selectedBlog.authorAvatar }} style={{ width: 26, height: 26, borderRadius: 13 }} />
                   ) : (
                     <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#e0f7f4', alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#0d9488' }}>G</Text>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#0d9488' }}>G</Text>
                     </View>
                   )}
                   <Text style={{ fontSize: 13, color: '#64748b', flex: 1 }}>
@@ -1416,7 +1416,7 @@ export default function HomeScreen({ navigation, route }: any) {
                   <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
                     <Compass size={22} color="#fff" />
                   </View>
-                  <Text style={{ fontSize: 17, fontWeight: '800', color: '#0f172a', textAlign: 'center', marginBottom: 6 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: '#0f172a', textAlign: 'center', marginBottom: 6 }}>
                     Ready to plan this trip?
                   </Text>
                   <Text style={{ fontSize: 13, color: '#64748b', textAlign: 'center', lineHeight: 20, marginBottom: 16 }}>
@@ -1426,7 +1426,7 @@ export default function HomeScreen({ navigation, route }: any) {
                     onPress={() => { setBlogDetailVisible(false); setSelectedBlog(null); }}
                     style={{ backgroundColor: '#0d9488', borderRadius: 999, paddingHorizontal: 32, paddingVertical: 12 }}
                     activeOpacity={0.85}>
-                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Start Planning  →</Text>
+                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Start Planning  →</Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={{ textAlign: 'center', fontSize: 11, color: '#cbd5e1', marginTop: 20 }}>
@@ -1613,7 +1613,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   // Figma: font-semibold (600)
-  createTripBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  createTripBtnText: { color: '#fff', fontSize: 15, fontWeight: '500' },
 
   // Figma: bg-gradient from-teal-500/10 to-cyan-500/10 rounded-xl p-3 border border-teal-100
   sweeBox: {
@@ -1646,7 +1646,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   // Figma: text-sm font-bold text-teal-700
-  askSweeBtnText: { fontSize: 14, color: '#0f766e', fontWeight: '700' },
+  askSweeBtnText: { fontSize: 14, color: '#0f766e', fontWeight: '600' },
 
   // Insights carousel — show peek of next card on sides
   insightCarousel: { marginBottom: 20, position: 'relative', marginHorizontal: -20, overflow: 'visible' },
@@ -1703,15 +1703,15 @@ const styles = StyleSheet.create({
   insightReadTimeText: {
     fontSize: 11,
     color: '#e2e8f0',
-    fontWeight: '600',
+    fontWeight: '500',
   },
-  insightTitle: { fontSize: 14, fontWeight: '600', color: '#ffffff', lineHeight: 20 },
+  insightTitle: { fontSize: 14, fontWeight: '500', color: '#ffffff', lineHeight: 20 },
 
   // Section headers
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 8 },
   // Figma: text-lg font-normal text-slate-900 — reduced from 18 to 16
   sectionTitle: { fontSize: SCREEN_W < 375 ? 14 : 16, fontWeight: '400', color: '#0f172a', marginBottom: 10 },
-  seeAll: { fontSize: 13, color: '#0d9488', fontWeight: '600' },
+  seeAll: { fontSize: 13, color: '#0d9488', fontWeight: '500' },
 
   // ── Trips Tab ──
   tripsCTA: { alignItems: 'center', paddingVertical: 1, marginBottom: 8 },
@@ -1737,7 +1737,7 @@ const styles = StyleSheet.create({
   // Figma: text-sm font-semibold text-slate-500 uppercase tracking-wide
   sectionLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#64748b',
     letterSpacing: 0.6,
     marginBottom: 10,
@@ -1762,9 +1762,9 @@ const styles = StyleSheet.create({
   cardMedia: { height: 144, position: 'relative' },
   cardImage: { width: '100%', height: '100%', resizeMode: 'cover' },
   ongoingBadge: { position: 'absolute', top: 8, left: 8, backgroundColor: '#10b981', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  ongoingBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  ongoingBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
   eventTypePill: { position: 'absolute', top: 8, left: 8, backgroundColor: 'rgba(13,148,136,0.85)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  eventTypePillText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  eventTypePillText: { color: '#fff', fontSize: 11, fontWeight: '600' },
   cardMoreBtn: {
     position: 'absolute',
     top: 8,
@@ -1799,7 +1799,7 @@ const styles = StyleSheet.create({
   },
   miniAvatar: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#fff' },
   moreCounter: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
-  moreCounterText: { fontSize: 9, color: '#0d9488', fontWeight: 'bold' },
+  moreCounterText: { fontSize: 9, color: '#0d9488', fontWeight: '600' },
   // Figma: p-2.5 (10px)
   cardBody: { padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardMain: { flex: 1, paddingRight: 8 },
@@ -1809,8 +1809,8 @@ const styles = StyleSheet.create({
   // Figma: text-xs text-slate-600
   infoText: { fontSize: 12, color: '#475569', fontWeight: '400' },
   daysBadge: { alignItems: 'flex-end', justifyContent: 'center', minWidth: 44 },
-  daysNumber: { fontSize: 28, fontWeight: '700', color: '#0d9488', lineHeight: 32 },
-  daysLabel: { fontSize: 8, color: '#94a3b8', fontWeight: '600', textAlign: 'right', letterSpacing: 0.5 },
+  daysNumber: { fontSize: 28, fontWeight: '600', color: '#0d9488', lineHeight: 32 },
+  daysLabel: { fontSize: 8, color: '#94a3b8', fontWeight: '500', textAlign: 'right', letterSpacing: 0.5 },
 
   // ── Trip Menu Dropdown ──
   tripMenuDropdown: {
@@ -1902,7 +1902,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  fabInlineText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  fabInlineText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 
   // ── Swee FAB — teal circle with white ring border ──
   sweeFab: {
@@ -1946,7 +1946,7 @@ const styles = StyleSheet.create({
   },
   navItem: { alignItems: 'center', justifyContent: 'center', flex: 1, paddingTop: 4 },
   navText: { fontSize: 9, color: '#94a3b8', marginTop: 2, fontWeight: '500' },
-  navTextActive: { color: '#0d9488', fontWeight: '600' },
+  navTextActive: { color: '#0d9488', fontWeight: '500' },
 
   // ── Modals (shared overlay + dialog shell) ──
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
@@ -1955,12 +1955,12 @@ const styles = StyleSheet.create({
   // ── Create Trip Modal — Figma-exact styles ──
   // Header (sticky)
   ctHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  ctTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  ctTitle: { fontSize: 16, fontWeight: '600', color: '#0f172a' },
   ctCloseBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
   // Scroll area
   ctScrollContent: { paddingHorizontal: 16, paddingBottom: 8, gap: 12 },
   // Field label (Figma: text-sm font-semibold text-slate-900)
-  ctLabel: { fontSize: 13, fontWeight: '600', color: '#0f172a', marginTop: 4 },
+  ctLabel: { fontSize: 13, fontWeight: '500', color: '#0f172a', marginTop: 4 },
   // Text input (Figma: border-2 border-slate-200 rounded-xl)
   ctInput: { borderWidth: 2, borderColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#0f172a', backgroundColor: '#fff' },
   // Date row
@@ -1974,34 +1974,34 @@ const styles = StyleSheet.create({
   ctRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   // Teal-400 icon circle (Figma: w-7 h-7 rounded-full bg-teal-400)
   ctRowIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#2dd4bf', alignItems: 'center', justifyContent: 'center' },
-  ctRowText: { fontSize: 13, fontWeight: '600', color: '#0f172a' },
+  ctRowText: { fontSize: 13, fontWeight: '500', color: '#0f172a' },
   ctRowSub: { fontSize: 11, color: '#94a3b8' },
   // Count badge (Figma: bg-teal-100 text-teal-700 rounded-full px-2)
   ctCountBadge: { backgroundColor: '#ccfbf1', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 },
-  ctCountBadgeText: { fontSize: 11, color: '#0f766e', fontWeight: '600' },
+  ctCountBadgeText: { fontSize: 11, color: '#0f766e', fontWeight: '500' },
   // Uploaded doc chip
   ctDocChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: '#a7f3d0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
   ctDocChipText: { flex: 1, fontSize: 12, color: '#334155' },
   ctDocRemove: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' },
   // Footer (sticky bottom, Figma: border-t, Cancel text + rounded-full button)
   ctFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
-  ctCancelText: { fontSize: 13, fontWeight: '600', color: '#0f172a', textDecorationLine: 'underline' },
+  ctCancelText: { fontSize: 13, fontWeight: '500', color: '#0f172a', textDecorationLine: 'underline' },
   // Figma: bg-teal-600 rounded-full px-10 py-3.5 font-semibold
   ctCreateBtn: { backgroundColor: '#0d9488', borderRadius: 999, paddingHorizontal: 28, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  ctCreateBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  ctCreateBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 
   // ── Invite modal tabs ──
   inviteTabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
   inviteTab: { flex: 1, paddingVertical: 10, alignItems: 'center' },
   inviteTabActive: { borderBottomWidth: 2, borderBottomColor: '#0d9488', backgroundColor: '#f0fdfa' },
-  inviteTabText: { fontSize: 13, fontWeight: '600', color: '#64748b' },
+  inviteTabText: { fontSize: 13, fontWeight: '500', color: '#64748b' },
   inviteTabTextActive: { color: '#0d9488' },
   friendSelectRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 10, marginBottom: 4 },
   friendSelectAvatar: { width: 44, height: 44, borderRadius: 22 },
   checkCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
 
   // Legacy field styles (kept for any remaining usage)
-  fieldLabel: { fontSize: 12, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12 },
+  fieldLabel: { fontSize: 12, fontWeight: '500', color: '#374151', marginBottom: 6, marginTop: 12 },
   fieldInput: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, color: '#0f172a', marginBottom: 4 },
   dateRow: { flexDirection: 'row', gap: 10 },
   dateField: { flex: 1 },
@@ -2010,12 +2010,12 @@ const styles = StyleSheet.create({
   inviteChip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f0fdfa', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8, borderWidth: 1, borderColor: '#ccfbf1' },
   inviteChipText: { fontSize: 13, color: '#0d9488', fontWeight: '500' },
   modalSaveBtn: { backgroundColor: '#0d9488', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
-  modalSaveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  modalSaveBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 
   // Keep these for old compatibility (modals/dropdown)
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
+  modalTitle: { fontSize: 18, fontWeight: '600', color: '#0f172a' },
 });
 
 // ─── Home-tab styles ──────────────────────────────────────────────────────────
@@ -2055,7 +2055,7 @@ const hStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  askSweeBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  askSweeBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
 
   // Action buttons row
   actionBtnsRow:    { marginTop: 14 },
@@ -2069,10 +2069,10 @@ const hStyles = StyleSheet.create({
     borderRadius: 999,
     height: 38,
   },
-  actionBtnText: { fontSize: 13, fontWeight: '600' },
+  actionBtnText: { fontSize: 13, fontWeight: '500' },
 
   // Section headers
-  sectionHeader: { fontSize: 16, fontWeight: '700', color: '#1a1a1a', marginLeft: 16, marginTop: 24, marginBottom: 12 },
+  sectionHeader: { fontSize: 16, fontWeight: '600', color: '#1a1a1a', marginLeft: 16, marginTop: 24, marginBottom: 12 },
 
   // Skeleton placeholders
   skeletonRow: { flexDirection: 'row', gap: 10, paddingLeft: 16, marginBottom: 8 },
@@ -2095,7 +2095,7 @@ const hStyles = StyleSheet.create({
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
   },
-  blogTitle: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  blogTitle: { fontSize: 13, fontWeight: '600', color: '#fff' },
 
   // Deal carousel card
   dealCard: {
@@ -2105,7 +2105,7 @@ const hStyles = StyleSheet.create({
     paddingBottom: 12,
     overflow: 'hidden',
   },
-  dealTitle:    { fontSize: 14, fontWeight: '700', color: '#1a1a1a', paddingHorizontal: 10, marginTop: 8, textAlign: 'center' },
+  dealTitle:    { fontSize: 14, fontWeight: '600', color: '#1a1a1a', paddingHorizontal: 10, marginTop: 8, textAlign: 'center' },
   dealSubtitle: { fontSize: 12, color: '#666', paddingHorizontal: 10, textAlign: 'center' },
 
   // Pagination dots
@@ -2130,7 +2130,7 @@ const hStyles = StyleSheet.create({
   },
   teCardImg:  { width: 72, height: 72, borderRadius: 12 },
   teCardBody: { flex: 1 },
-  teCardName: { fontSize: 15, fontWeight: '700', color: '#0d9488', marginBottom: 4 },
+  teCardName: { fontSize: 15, fontWeight: '600', color: '#0d9488', marginBottom: 4 },
   teCardRow:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   teCardMeta: { fontSize: 13, color: '#64748b', flex: 1 },
   teCardRight: { alignItems: 'center', justifyContent: 'center' },
@@ -2141,7 +2141,7 @@ const hStyles = StyleSheet.create({
     backgroundColor: '#e0f7f4', borderWidth: 2, borderColor: '#fff',
     alignItems: 'center', justifyContent: 'center',
   },
-  teExtraText: { fontSize: 9, color: '#0d9488', fontWeight: '700' },
+  teExtraText: { fontSize: 9, color: '#0d9488', fontWeight: '600' },
 
   emptyLabel: { fontSize: 13, color: '#94a3b8', marginLeft: 16, marginBottom: 8 },
 });

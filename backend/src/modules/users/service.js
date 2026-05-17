@@ -11,6 +11,18 @@ const legalService = require('../legal/legal.service');
  * @param {string} fullName
  * @param {object} dbClient  — pg client or pool (must support .query())
  */
+const normalizeAvatarUrl = (rawUrl) => {
+  if (!rawUrl || rawUrl.includes('https://undefined')) return null;
+  const cf = config.s3?.cloudfrontDomain;
+  if (cf && rawUrl.includes('.amazonaws.com/')) {
+    try {
+      const key = new URL(rawUrl).pathname.replace(/^\//, '');
+      if (key) return `https://${cf}/${key}`;
+    } catch { /* keep original */ }
+  }
+  return rawUrl;
+};
+
 const generateUniqueUsername = async (fullName, dbClient) => {
   // Use only the first name + _gg suffix (e.g. "Alice Smith" → "alice_gg")
   const firstName = fullName.trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -122,7 +134,7 @@ const saveProfile = async (userId, profileData) => {
         gender: row.gender,
         country: row.country,
         bio: row.bio,
-        avatarUrl: row.avatar_url,
+        avatarUrl: normalizeAvatarUrl(row.avatar_url),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       },
@@ -227,7 +239,7 @@ const getPublicProfile = async (userId) => {
       gender: row.gender,
       country: row.country,
       bio: row.bio,
-      avatarUrl: row.avatar_url,
+      avatarUrl: normalizeAvatarUrl(row.avatar_url),
     },
   };
 };
@@ -311,7 +323,7 @@ const updateProfile = async (userId, updates) => {
       gender: row.gender,
       bio: row.bio,
       country: row.country,
-      avatarUrl: row.avatar_url,
+      avatarUrl: normalizeAvatarUrl(row.avatar_url),
       updatedAt: row.updated_at,
     },
   };
@@ -372,7 +384,7 @@ const searchUsers = async (searcherId, q) => {
       id: row.id,
       name: row.name,
       username: row.username,
-      avatarUrl: row.avatarUrl,
+      avatarUrl: normalizeAvatarUrl(row.avatarUrl),
       country: row.country,
       friendshipStatus,
       connectionId: row.connectionId || null,
@@ -437,15 +449,7 @@ const getUserProfile = async (viewerId, targetId) => {
   }
 
   logger.info('[getUserProfile] raw avatarUrl from DB', { targetId, rawAvatar: row.avatarUrl });
-  const rawAvatar = row.avatarUrl;
-  let avatarUrl = (rawAvatar && !rawAvatar.includes('https://undefined')) ? rawAvatar : null;
-  // Rewrite legacy direct S3 avatar URLs to CloudFront so OAC-protected bucket serves them.
-  if (avatarUrl && config.s3?.cloudfrontDomain && avatarUrl.includes('.amazonaws.com/')) {
-    try {
-      const key = new URL(avatarUrl).pathname.replace(/^\//, '');
-      if (key) avatarUrl = `https://${config.s3.cloudfrontDomain}/${key}`;
-    } catch { /* keep original */ }
-  }
+  const avatarUrl = normalizeAvatarUrl(row.avatarUrl);
 
   return {
     id: row.id,

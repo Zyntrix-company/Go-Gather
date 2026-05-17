@@ -1898,7 +1898,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
               ) : (
                 <DHeader title="Add Activity" onClose={() => { resetActForm(); setShowAddAct(false); }} />
               )}
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
                 <View style={styles.dBody}>
 
                   <Text style={styles.fLabel}>Title</Text>
@@ -1962,7 +1962,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </View>
 
                   <Text style={styles.fLabel}>Location (Optional)</Text>
-                  <TextInput style={styles.fInput} placeholder="e.g., Champ de Mars, Paris" placeholderTextColor="#94a3b8" value={actLocation} onChangeText={setActLocation} />
+                  <View style={{ zIndex: 10 }}>
+                    <LocationAutocomplete
+                      initialValue={actLocation}
+                      onChangeText={setActLocation}
+                      placeholder="e.g., Champ de Mars, Paris"
+                      variant="edit"
+                    />
+                  </View>
 
                   <Text style={styles.fLabel}>Description (Optional)</Text>
                   <TextInput style={[styles.fInput, { height: 76, textAlignVertical: 'top', paddingTop: 10 }]} placeholder="Add any additional details..." placeholderTextColor="#94a3b8" value={actDesc} onChangeText={setActDesc} multiline />
@@ -1988,7 +1995,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             onPress={() => setActPhotos(p => p.filter((_, j) => j !== i))}
                             style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center' }}
                             activeOpacity={0.7}>
-                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: 'bold' }}>×</Text>
+                            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>×</Text>
                           </TouchableOpacity>
                         </View>
                       ))}
@@ -2217,7 +2224,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         onPress={() => setSelectedAttachIds(prev => { const n = new Set(prev); sel ? n.delete(item.attachmentId) : n.add(item.attachmentId); return n; })}
                         activeOpacity={0.7}>
                         <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: sel ? '#0d9488' : '#cbd5e1', backgroundColor: sel ? '#0d9488' : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                          {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>✓</Text>}
+                          {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>✓</Text>}
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }} numberOfLines={1}>{item.fileName}</Text>
@@ -2282,8 +2289,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 </View>
 
                 {memberTab === 'From Friends' && (
-                  <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 }}>
-                    <Text style={styles.memberSectionLabel}>Add from Friends</Text>
+                  <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}>
+                    <Text style={styles.memberSectionLabelTitle}>Add From Friends</Text>
                     <View style={styles.searchBox}>
                       <Svg width={14} height={14} viewBox="0 0 24 24" fill="none"><Circle cx={11} cy={11} r={8} stroke="#94a3b8" strokeWidth={2} /><Path d="M21 21l-4.35-4.35" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
                       <TextInput style={styles.searchInput} placeholder="Search by name or email..." placeholderTextColor="#94a3b8" value={memberSearch} onChangeText={setMemberSearch} />
@@ -2962,7 +2969,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <Path d="M19 12H5M12 19l-7-7 7-7" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
                 </TouchableOpacity>
-                <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: '#0f172a' }} numberOfLines={1}>{viewingNote?.title}</Text>
+                <Text style={{ flex: 1, fontSize: 16, fontWeight: '600', color: '#0f172a' }} numberOfLines={1}>{viewingNote?.title}</Text>
                 {/* Edit */}
                 <TouchableOpacity
                   onPress={() => { if (viewingNote) { startEditNote(viewingNote); setViewingNote(null); } }}
@@ -3102,7 +3109,7 @@ const styles = StyleSheet.create({
   actionCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   actionLabel: { fontSize: 13, fontWeight: '500', color: '#0f172a', textAlign: 'center', lineHeight: 16 },
   cardBadge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#ffffff', paddingHorizontal: 3, zIndex: 10 },
-  cardBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '700', lineHeight: 13 },
+  cardBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '600', lineHeight: 13 },
 
   // Sections
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
@@ -3174,6 +3181,7 @@ const styles = StyleSheet.create({
 
   // Members
   memberSectionLabel: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  memberSectionLabelTitle: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 6 },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   memberAvatar: { width: 40, height: 40, borderRadius: 20 },
@@ -3181,8 +3189,8 @@ const styles = StyleSheet.create({
   memberEmail: { fontSize: 11, color: '#64748b', marginTop: 1 },
   ownerBadge: { backgroundColor: '#f0fdfa', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#99f6e4' },
   ownerTxt: { fontSize: 11, color: '#0d9488', fontWeight: '500' },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, marginBottom: 12, gap: 8 },
-  searchInput: { flex: 1, fontSize: 12, color: '#0f172a' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10, gap: 8 },
+  searchInput: { flex: 1, fontSize: 14, color: '#0f172a' },
   checkCircle: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtnActive: { borderColor: '#0d9488', backgroundColor: '#0d9488' },

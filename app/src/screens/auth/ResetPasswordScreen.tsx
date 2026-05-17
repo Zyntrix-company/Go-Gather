@@ -10,7 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Circle } from 'react-native-svg';
 import Logo from '../../components/common/Logo';
 import BlobBackground from '../../components/common/BlobBackground';
 import authApi from '../../api/auth.api';
@@ -41,7 +41,7 @@ function EyeOffIcon() {
 
 function CheckCircleIcon() {
   return (
-    <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
+    <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
       <Path stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
         d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
       <Path stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
@@ -50,36 +50,52 @@ function CheckCircleIcon() {
   );
 }
 
+function LockIcon() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M19 11H5a2 2 0 00-2 2v7a2 2 0 002 2h14a2 2 0 002-2v-7a2 2 0 00-2-2z"
+        stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+      />
+      <Path
+        d="M7 11V7a5 5 0 0110 0v4"
+        stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+      />
+      <Circle cx={12} cy={16} r={1} fill="#0d9488" />
+    </Svg>
+  );
+}
+
 // ─── Password strength indicator ─────────────────────────────────────────────
 function PasswordStrength({ password }: { password: string }) {
   const checks = [
     { label: 'At least 8 characters', ok: password.length >= 8 },
-    { label: 'Uppercase letter (A-Z)', ok: /[A-Z]/.test(password) },
-    { label: 'Lowercase letter (a-z)', ok: /[a-z]/.test(password) },
-    { label: 'Number (0-9)', ok: /[0-9]/.test(password) },
+    { label: 'Uppercase letter (A–Z)', ok: /[A-Z]/.test(password) },
+    { label: 'Lowercase letter (a–z)', ok: /[a-z]/.test(password) },
+    { label: 'Number (0–9)', ok: /[0-9]/.test(password) },
     { label: 'Special character (!@#$%)', ok: /[^A-Za-z0-9]/.test(password) },
   ];
   if (!password) return null;
   return (
-    <View style={pwStrengthStyles.container}>
+    <View style={pwStyles.container}>
       {checks.map((c, i) => (
-        <View key={i} style={pwStrengthStyles.row}>
-          <Text style={[pwStrengthStyles.bullet, c.ok && pwStrengthStyles.bulletOk]}>
+        <View key={i} style={pwStyles.row}>
+          <Text style={[pwStyles.bullet, c.ok && pwStyles.bulletOk]}>
             {c.ok ? '✓' : '○'}
           </Text>
-          <Text style={[pwStrengthStyles.label, c.ok && pwStrengthStyles.labelOk]}>{c.label}</Text>
+          <Text style={[pwStyles.label, c.ok && pwStyles.labelOk]}>{c.label}</Text>
         </View>
       ))}
     </View>
   );
 }
 
-const pwStrengthStyles = StyleSheet.create({
-  container: { marginTop: 8, marginBottom: 4, paddingHorizontal: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 3 },
-  bullet: { fontSize: 13, color: '#94a3b8', width: 18 },
+const pwStyles = StyleSheet.create({
+  container: { marginTop: 8, marginBottom: 4, paddingHorizontal: 2 },
+  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  bullet: { fontSize: 13, color: '#94a3b8', width: 20 },
   bulletOk: { color: '#0d9488' },
-  label: { fontSize: 12, color: '#94a3b8' },
+  label: { fontSize: 12, color: '#94a3b8', lineHeight: 18 },
   labelOk: { color: '#0d9488' },
 });
 
@@ -89,6 +105,7 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const inputs = useRef<Array<TextInput | null>>([]);
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const [timer, setTimer] = useState(60);
 
   const [password, setPassword] = useState('');
@@ -145,10 +162,10 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
     if (!password) {
       newErrors.password = 'New password is required';
     } else {
-      if (password.length < 8) newErrors.password = 'Password must be at least 8 characters';
-      else if (!/[A-Z]/.test(password)) newErrors.password = 'Must contain an uppercase letter';
-      else if (!/[a-z]/.test(password)) newErrors.password = 'Must contain a lowercase letter';
-      else if (!/[0-9]/.test(password)) newErrors.password = 'Must contain a number';
+      if (password.length < 8)           newErrors.password = 'Password must be at least 8 characters';
+      else if (!/[A-Z]/.test(password))  newErrors.password = 'Must contain an uppercase letter';
+      else if (!/[a-z]/.test(password))  newErrors.password = 'Must contain a lowercase letter';
+      else if (!/[0-9]/.test(password))  newErrors.password = 'Must contain a number';
       else if (!/[^A-Za-z0-9]/.test(password)) newErrors.password = 'Must contain a special character';
     }
     if (!confirmPassword) {
@@ -170,8 +187,6 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
       await authApi.resetPassword(email, otpValue, password);
       setIsDone(true);
     } catch {
-      // toast handled globally
-      // Reset OTP so user can retry
       setOtp(['', '', '', '', '', '']);
       inputs.current[0]?.focus();
     } finally {
@@ -193,7 +208,7 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
             You can now log in with your new password.
           </Text>
           <TouchableOpacity
-            style={styles.primaryBtn1}
+            style={styles.primaryBtn}
             onPress={() => navigation.navigate('Login')}
             activeOpacity={0.85}>
             <Text style={styles.primaryBtnText}>Back to Login</Text>
@@ -221,11 +236,19 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
           </View>
 
           <View style={styles.form}>
+
+            {/* Icon badge */}
+            <View style={styles.iconBadge}>
+              <LockIcon />
+            </View>
+
             <Text style={styles.title}>Reset Password</Text>
             <Text style={styles.subtitle}>
-              Enter the 6-digit code sent to{'\n'}
-              <Text style={styles.emailHighlight}>{email}</Text>
+              Enter the 6-digit code sent to
             </Text>
+            <View style={styles.emailChip}>
+              <Text style={styles.emailChipText}>{email}</Text>
+            </View>
 
             {/* ── OTP Row ── */}
             <View style={styles.otpContainer}>
@@ -235,15 +258,22 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
                   ref={(ref) => { inputs.current[index] = ref; }}
                   style={[
                     styles.otpInput,
+                    focusedIndex === index && styles.otpInputFocused,
                     digit !== '' && styles.otpInputFilled,
                     errors.otp && styles.otpInputError,
                   ]}
                   value={digit}
                   onChangeText={(t) => { handleOtpChange(t, index); setErrors((e) => ({ ...e, otp: '' })); }}
                   onKeyPress={(e) => handleOtpKeyPress(e, index)}
+                  onFocus={() => setFocusedIndex(index)}
+                  onBlur={() => setFocusedIndex(null)}
                   keyboardType="numeric"
                   maxLength={1}
                   textAlign="center"
+                  // Android: prevents digit from being clipped at the top
+                  textAlignVertical="center"
+                  // Android: removes invisible extra top padding added by font metrics
+                  includeFontPadding={false}
                   selectionColor="#0d9488"
                   editable={!isLoading}
                 />
@@ -253,9 +283,11 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
 
             {/* ── Resend ── */}
             <View style={styles.resendRow}>
-              <Text style={styles.resendLabel}>Didn't receive code? </Text>
+              <Text style={styles.resendLabel}>Didn't receive the code? </Text>
               {timer > 0 ? (
-                <Text style={styles.timerText}>Resend in {timer}s</Text>
+                <View style={styles.timerChip}>
+                  <Text style={styles.timerText}>Resend in {timer}s</Text>
+                </View>
               ) : (
                 <TouchableOpacity onPress={handleResend} activeOpacity={0.7}>
                   <Text style={styles.resendLink}>Resend OTP</Text>
@@ -264,7 +296,11 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
             </View>
 
             {/* ── Divider ── */}
-            <View style={styles.divider} />
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>New Password</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
             {/* ── New Password ── */}
             <Text style={styles.fieldLabel}>New Password</Text>
@@ -297,7 +333,7 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
             <PasswordStrength password={password} />
 
             {/* ── Confirm Password ── */}
-            <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Confirm Password</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Confirm Password</Text>
             <View style={[
               styles.passwordWrap,
               focusedField === 'confirm' && styles.inputFocused,
@@ -344,6 +380,7 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
               activeOpacity={0.7}>
               <Text style={styles.backBtnText}>← Back to Login</Text>
             </TouchableOpacity>
+
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -358,26 +395,51 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 40,
+    paddingBottom: 48,
   },
-  logoRow: { marginBottom: 52 },
+  logoRow: { marginBottom: 40 },
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
 
+  // ── Header ──
+  iconBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#f0fdfa',
+    borderWidth: 1.5,
+    borderColor: '#99f6e4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
   title: {
-    fontSize: 25,
-    fontWeight: '400',
+    fontSize: 24,
+    fontWeight: '600',
     color: '#0f172a',
     textAlign: 'center',
-    marginBottom: 10,
+    letterSpacing: -0.3,
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 15,
-    color: '#566170',
+    fontSize: 14,
+    color: '#64748b',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  emailChip: {
+    alignSelf: 'center',
+    backgroundColor: '#f0fdfa',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: '#99f6e4',
     marginBottom: 28,
   },
-  emailHighlight: {
+  emailChipText: {
+    fontSize: 13,
     color: '#0d9488',
     fontWeight: '500',
   },
@@ -386,60 +448,91 @@ const styles = StyleSheet.create({
   otpContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 8,
-    marginBottom: 6,
+    gap: 10,
+    marginBottom: 8,
   },
   otpInput: {
     flex: 1,
-    height: 43,
+    // Explicit height gives Android enough room — prevents top-clipping
+    height: 56,
     backgroundColor: '#ffffff',
     borderWidth: 2,
     borderColor: '#e2e8f0',
-    borderRadius: 12,
+    borderRadius: 14,
     fontSize: 22,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#0f172a',
-    maxWidth: 48,
+    // Android: vertically center text inside the box
+    textAlignVertical: 'center',
+    // Android: remove the invisible extra top spacing added by font metrics
+    includeFontPadding: false,
   },
-  otpInputFilled: { borderColor: '#0d9488' },
-  otpInputError: { borderColor: '#ef4444' },
+  otpInputFocused: {
+    borderColor: '#0d9488',
+    backgroundColor: '#f0fdfa',
+  },
+  otpInputFilled: {
+    borderColor: '#0d9488',
+    backgroundColor: '#f0fdfa',
+  },
+  otpInputError: {
+    borderColor: '#ef4444',
+    backgroundColor: '#fff5f5',
+  },
 
   resendRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 6,
+    marginTop: 12,
+    marginBottom: 4,
   },
-  resendLabel: { fontSize: 12, color: '#64748b' },
+  resendLabel: { fontSize: 13, color: '#64748b' },
+  timerChip: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
   timerText: { fontSize: 12, color: '#94a3b8', fontWeight: '500' },
-  resendLink: { fontSize: 12, color: '#0d9488', fontWeight: '500', textDecorationLine: 'underline' },
+  resendLink: { fontSize: 13, color: '#0d9488', fontWeight: '600' },
 
-  divider: { height: 1, backgroundColor: '#e2e8f0', marginVertical: 20 },
+  // ── Divider with label ──
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 22,
+    gap: 10,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#e2e8f0' },
+  dividerText: { fontSize: 12, color: '#94a3b8', fontWeight: '500', letterSpacing: 0.3 },
 
+  // ── Field labels ──
   fieldLabel: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
     color: '#374151',
-    marginBottom: 6,
+    marginBottom: 7,
+    letterSpacing: 0.1,
   },
 
   // ── Password inputs ──
   passwordWrap: {
-    position: 'relative',
     borderWidth: 2,
     borderColor: '#e2e8f0',
-    borderRadius: 9,
+    borderRadius: 12,
     backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  inputFocused: { borderColor: '#0d9488' },
-  inputError: { borderColor: '#ef4444' },
+  inputFocused: { borderColor: '#0d9488', backgroundColor: '#fafffe' },
+  inputError: { borderColor: '#ef4444', backgroundColor: '#fff5f5' },
   passwordField: {
-    width: '100%',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     paddingRight: 44,
-    fontSize: 14,
+    fontSize: 15,
     color: '#0f172a',
   },
   eyeBtn: {
@@ -448,47 +541,44 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     justifyContent: 'center',
+    paddingHorizontal: 2,
   },
 
   errorText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#ef4444',
-    marginTop: 4,
+    marginTop: 5,
     marginBottom: 2,
     marginLeft: 2,
   },
-  primaryBtn1: {
-    backgroundColor: '#0d9488',
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginTop: 22,
-    elevation: 2,
-  },
 
+  // ── Buttons ──
   primaryBtn: {
     backgroundColor: '#0d9488',
-    borderRadius: 10,
-    paddingVertical: 10,
+    borderRadius: 12,
+    paddingVertical: 15,
     alignItems: 'center',
     marginTop: 24,
-    elevation: 2,
+    shadowColor: '#0d9488',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   primaryBtnText: {
     color: '#ffffff',
     fontSize: 15,
-    fontWeight: '500',
-    letterSpacing: 0.1,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   backBtn: {
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 18,
     paddingVertical: 4,
   },
   backBtnText: {
     fontSize: 14,
-    color: '#0d9488',
+    color: '#64748b',
     fontWeight: '400',
   },
 
@@ -500,26 +590,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   successCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#ccfbf1',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#f0fdfa',
+    borderWidth: 2,
+    borderColor: '#99f6e4',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 28,
+    shadowColor: '#0d9488',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
   },
   successTitle: {
     fontSize: 26,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#0f172a',
     marginBottom: 12,
     textAlign: 'center',
+    letterSpacing: -0.2,
   },
   successSubtitle: {
     fontSize: 15,
     color: '#64748b',
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
+    lineHeight: 23,
+    marginBottom: 36,
   },
 });

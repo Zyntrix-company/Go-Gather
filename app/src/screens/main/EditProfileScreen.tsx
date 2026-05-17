@@ -10,6 +10,7 @@ import {
   Modal,
   FlatList,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path } from 'react-native-svg';
@@ -254,16 +255,15 @@ export default function EditProfileScreen({ navigation }: any) {
       <SafeAreaView style={styles.safe}>
         <KeyboardAvoidingView
           style={styles.kav}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}>
 
-          {/*
-           * Main container: flex:1 + space-between
-           * — top block sticks to top
-           * — each field is a direct child → gaps auto-expand to fill viewport
-           * — save button sticks to bottom
-           * No ScrollView → no empty space, no scroll needed
-           */}
-          <View style={styles.container}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.container}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
+
 
             {/* ── Top block: logo + title + avatar ── */}
             <View style={styles.topBlock}>
@@ -420,7 +420,7 @@ export default function EditProfileScreen({ navigation }: any) {
               </TouchableOpacity>
             </View>
 
-          </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </BlobBackground>
@@ -430,14 +430,14 @@ export default function EditProfileScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   kav:  { flex: 1 },
+  scroll: { flex: 1 },
 
-  // Main container — flex:1 + space-between fills viewport with no empty space
   container: {
-    flex: 1,
-    justifyContent: 'space-between',
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 8,
-    paddingBottom: 16,
+    paddingBottom: 24,
+    gap: 14,
   },
 
   // ── Top block ──────────────────────────────────────────────────────────────

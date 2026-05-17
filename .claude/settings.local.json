@@ -162,7 +162,26 @@
       "Bash(find \"E:\\\\\\\\Go Gather\\\\\\\\docs\" -type f -name \"*.md\")",
       "Bash(Get-ChildItem -Path \"E:\\\\Go Gather\" -Recurse -Directory -Name)",
       "Bash(Select-Object -First 20)",
-      "PowerShell(Get-ChildItem -Path \"E:\\\\Go Gather\" -Recurse -Directory | Select-Object -First 30 | ForEach-Object { $_.FullName })"
+      "PowerShell(Get-ChildItem -Path \"E:\\\\Go Gather\" -Recurse -Directory | Select-Object -First 30 | ForEach-Object { $_.FullName })",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=4096\" ./gradlew assembleRelease)",
+      "Bash(aws *)",
+      "Bash(export AWS_ACCESS_KEY_ID=\"AKIARK547TXQVFKHWKSJ\")",
+      "Bash(export AWS_SECRET_ACCESS_KEY=\"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\")",
+      "Bash(export AWS_DEFAULT_REGION=\"ap-south-1\")",
+      "PowerShell(aws --version 2>&1)",
+      "PowerShell(aws --version)",
+      "Bash(AWS_ACCESS_KEY_ID=\"AKIARK547TXQVFKHWKSJ\" AWS_SECRET_ACCESS_KEY=\"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\" AWS_DEFAULT_REGION=\"ap-south-1\" /c/Program Files/Amazon/AWSCLIV2/aws sts *)",
+      "PowerShell($env:AWS_ACCESS_KEY_ID=\"AKIARK547TXQVFKHWKSJ\"; $env:AWS_SECRET_ACCESS_KEY=\"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\"; $env:AWS_DEFAULT_REGION=\"ap-south-1\"; & \"C:\\\\Program Files\\\\Amazon\\\\AWSCLIV2\\\\aws.exe\" sts get-caller-identity 2>&1)",
+      "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQVFKHWKSJ AWS_SECRET_ACCESS_KEY=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 AWS_DEFAULT_REGION=ap-south-1 '/c/Program Files/Amazon/AWSCLIV2/aws' sts get-caller-identity)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(AWS_ACCESS_KEY_ID=\"AKIARK547TXQVFKHWKSJ\" AWS_SECRET_ACCESS_KEY=\"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\" AWS_DEFAULT_REGION=\"ap-south-1\" aws sts get-caller-identity *)",
+      "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQVFKHWKSJ AWS_SECRET_ACCESS_KEY=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 AWS_DEFAULT_REGION=ap-south-1 aws sts get-caller-identity)",
+      "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQVFKHWKSJ AWS_SECRET_ACCESS_KEY=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 aws s3 ls s3://gogather --region ap-south-1)",
+      "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQVFKHWKSJ AWS_SECRET_ACCESS_KEY=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 AWS_DEFAULT_REGION=ap-south-1 aws sts get-caller-identity --output json --no-cli-pager --cli-connect-timeout 10 --cli-read-timeout 15)",
+      "Bash(echo \"DONE:$?\")",
+      "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQVFKHWKSJ AWS_SECRET_ACCESS_KEY=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 AWS_DEFAULT_REGION=ap-south-1 /c/Program Files/Amazon/AWSCLIV2/aws ec2 *)",
+      "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQVFKHWKSJ AWS_SECRET_ACCESS_KEY=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 AWS_DEFAULT_REGION=ap-south-1 /c/Program Files/Amazon/AWSCLIV2/aws ec2-instance-connect *)",
+      "Bash(ssh-keygen -t rsa -b 2048 -f /tmp/ec2_temp_key2 -N \"\" -q)"
     ]
   }
 }
