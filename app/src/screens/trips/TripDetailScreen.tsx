@@ -20,6 +20,8 @@ import CachedImage from '../../components/common/CachedImage';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
 import AppHeader from '../../components/common/AppHeader';
+import DocumentsUploadSection from '../../components/common/DocumentsUploadSection';
+import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
 import useAuthStore from '../../store/authStore';
 import useNotificationStore from '../../store/notificationStore';
 import { showAlert, showConfirm } from '../../store/alertStore';
@@ -353,11 +355,18 @@ function SweeFab({ onPress, fabStyle }: { onPress: () => void; fabStyle?: object
 
 // ─── Dialog Header ────────────────────────────────────────────────────────────
 
-function DHeader({ title, subtitle, onClose }: { title: string; subtitle?: string; onClose: () => void }) {
+function DHeader({ title, subtitle, leading, onClose }: { title: string; subtitle?: string; leading?: React.ReactNode; onClose: () => void }) {
   return (
     <View style={styles.dHeader}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.dTitle}>{title}</Text>
+        {leading ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {leading}
+            <Text style={styles.dTitle}>{title}</Text>
+          </View>
+        ) : (
+          <Text style={styles.dTitle}>{title}</Text>
+        )}
         {!!subtitle && <Text style={styles.dSubtitle}>{subtitle}</Text>}
       </View>
       <TouchableOpacity onPress={onClose} style={styles.dCloseBtn} activeOpacity={0.7}>
@@ -1579,7 +1588,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
             dateLine={`${trip?.startDateISO ? (days > 0 ? fmtDateNoYear(trip.startDateISO) : fmtFullDate(trip.startDateISO)) : (trip?.startDate ?? '')}${trip?.endDateISO ? ` — ${days > 0 ? fmtDateNoYear(trip.endDateISO) : fmtFullDate(trip.endDateISO)}` : (trip?.endDate ? ` - ${trip.endDate}` : '')}`}
             location={typeof trip?.location === 'string' ? trip.location : trip?.location?.name ?? ''}
             dayCount={days < 0 && Math.abs(days) >= 365 ? Math.round(Math.abs(days) / 365) : Math.abs(days)}
-            dayLabel={days > 0 ? 'Days to go' : days === 0 ? 'Today!' : Math.abs(days) >= 365 ? (Math.round(Math.abs(days) / 365) === 1 ? 'Year ago' : 'Years ago') : 'Days ago'}
+            dayLabel={days > 0 ? 'Days to go' : days <= 0 ? 'Ongoing' : Math.abs(days) >= 365 ? (Math.round(Math.abs(days) / 365) === 1 ? 'Year ago' : 'Years ago') : 'Days ago'}
+            statusOnly={days <= 0}
             memberCount={memberCount}
             memberAvatars={members
               .map(m => ({ id: m.userId, uri: m.avatarUrl ?? '' }))
@@ -1661,10 +1671,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Upcoming Activities</Text>
             </View>
             {upcomingActs.length === 0 ? (
-              <View style={styles.emptyBox}>
-                <Text style={styles.emptyTitle}>No upcoming activities</Text>
-                <Text style={styles.emptySub}>Tap "Add Activity" to create your first activity</Text>
-              </View>
+              <Text style={styles.emptySub}>No upcoming activities yet</Text>
             ) : (() => {
               const groups = new Map<string, Activity[]>();
               upcomingActs.forEach(a => {
@@ -1798,9 +1805,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
               {showCompleted && (
                 completed.length === 0
                   ? (
-                    <View style={styles.emptyCompletedActivities}>
-                      <Text style={styles.emptyTitle}>No completed activities yet</Text>
-                    </View>
+                    <Text style={styles.emptySub}>No completed activities yet</Text>
                   )
                   : (() => {
                     const cGroups = new Map<string, Activity[]>();
@@ -2151,20 +2156,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
               <DHeader title="Documents" onClose={() => setShowDocs(false)} />
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.dBody}>
-                  <TouchableOpacity style={styles.tealBtnFull} onPress={handleUploadDoc} activeOpacity={0.85}>
-                    <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" style={{ marginRight: 8 }}>
-                      <Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                    <Text style={styles.tealBtnTxt}>Upload from Phone</Text>
-                  </TouchableOpacity>
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                    <TouchableOpacity style={[styles.tealBtnFull, { flex: 1, backgroundColor: '#EA4335' }]} onPress={() => openEmailPicker('gmail')} activeOpacity={0.85}>
-                      <Text style={styles.tealBtnTxt} numberOfLines={1}>{emailStatus.gmail.connected ? 'Gmail' : 'Connect Gmail'}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.tealBtnFull, { flex: 1, backgroundColor: '#0078D4' }]} onPress={() => openEmailPicker('outlook')} activeOpacity={0.85}>
-                      <Text style={styles.tealBtnTxt} numberOfLines={1}>{emailStatus.outlook.connected ? 'Outlook' : 'Connect Outlook'}</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <DocumentsUploadSection
+                    onUploadPhone={handleUploadDoc}
+                    emailStatus={emailStatus}
+                    onGmail={() => openEmailPicker('gmail')}
+                    onOutlook={() => openEmailPicker('outlook')}
+                  />
                   {docs.length === 0 ? (
                     <View style={styles.emptyCenter}>
                       <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
@@ -2201,7 +2198,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
         <Modal visible={showEmailPicker} transparent animationType="slide" onRequestClose={() => setShowEmailPicker(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '85%' }]}>
-              <DHeader title={`Import from ${emailPickerProvider === 'gmail' ? 'Gmail' : 'Outlook'}`} onClose={() => setShowEmailPicker(false)} />
+              <DHeader
+                title={`Import from ${emailProviderLabel(emailPickerProvider)}`}
+                leading={<EmailProviderIcon provider={emailPickerProvider} size={22} />}
+                onClose={() => setShowEmailPicker(false)}
+              />
               {emailPickerLoading ? (
                 <View style={{ padding: 40, alignItems: 'center' }}>
                   <ActivityIndicator size="large" color="#0d9488" />
@@ -2787,16 +2788,18 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 <View style={styles.dBody}>
 
                   {/* Create Poll button */}
-                  <TouchableOpacity
-                    style={styles.tealBtnFull}
-                    onPress={() => setShowPollForm(v => !v)}
-                    activeOpacity={0.85}>
-                    <Text style={styles.tealBtnTxt}>{showPollForm ? '✕  Cancel' : '+  Create Poll'}</Text>
-                  </TouchableOpacity>
+                  {!showPollForm && (
+                    <TouchableOpacity
+                      style={styles.tealBtnFull}
+                      onPress={() => setShowPollForm(true)}
+                      activeOpacity={0.85}>
+                      <Text style={styles.tealBtnTxt}>+  Create Poll</Text>
+                    </TouchableOpacity>
+                  )}
 
                   {/* Inline create form */}
                   {showPollForm && (
-                    <View style={{ marginTop: 14 }}>
+                    <View>
                       <Text style={styles.fLabel}>Question</Text>
                       <TextInput style={styles.fInput} placeholder="What do you want to ask?" placeholderTextColor="#94a3b8" value={pollQuestion} onChangeText={setPollQuestion} />
                       <Text style={[styles.fLabel, { marginTop: 12 }]}>Options</Text>

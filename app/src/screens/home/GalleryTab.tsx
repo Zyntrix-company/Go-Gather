@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, ScrollView, Image,
   Dimensions, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, FlatList,
 } from 'react-native';
+import { showConfirm } from '../../store/alertStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
 import CachedImage from '../../components/common/CachedImage';
@@ -84,12 +85,19 @@ const CHIP_CONFIG = {
 
 type ChipType = keyof typeof CHIP_CONFIG;
 
-function GridCard({ item, onPress, chip }: { item: any; onPress: () => void; chip?: ChipType }) {
+function GridCard({ item, onPress, onLongPress, chip }: { item: any; onPress: () => void; onLongPress?: () => void; chip?: ChipType }) {
   const [imgError, setImgError] = useState(false);
   const hasImage = item.bannerImageUrl && !imgError;
+  const borderColor = chip ? CHIP_CONFIG[chip].bg : undefined;
 
   return (
-    <TouchableOpacity style={styles.gridCard} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity
+      style={[styles.gridCard, borderColor && { borderWidth: 3, borderColor }]}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={400}
+      activeOpacity={0.85}
+    >
       {hasImage ? (
         <CachedImage
           uri={item.bannerImageUrl}
@@ -100,11 +108,6 @@ function GridCard({ item, onPress, chip }: { item: any; onPress: () => void; chi
       ) : (
         <View style={styles.gridCardPlaceholder}>
           <CameraIcon />
-        </View>
-      )}
-      {chip && (
-        <View style={[styles.cardChip, { backgroundColor: CHIP_CONFIG[chip].bg }]}>
-          <Text style={styles.cardChipText}>{CHIP_CONFIG[chip].label}</Text>
         </View>
       )}
       <View style={styles.gridCardOverlay}>
@@ -661,20 +664,8 @@ function PhotosModal({
 
                 {!loading && photos.length > 0 && (
                   <View>
-                    {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
-                      <View key={actTitle} style={{ marginBottom: 16 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                          <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>{actTitle}</Text>
-                          <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
-                        </View>
-                        <View style={styles.thumbRow}>
-                          {actPhotos.map(renderThumb)}
-                        </View>
-                      </View>
-                    ))}
                     {directPhotos.length > 0 && (
-                      <View style={{ marginBottom: 8 }}>
+                      <View style={{ marginBottom: Object.keys(activityGroups).length > 0 ? 16 : 8 }}>
                         {Object.keys(activityGroups).length > 0 && (
                           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
                             <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
@@ -689,6 +680,18 @@ function PhotosModal({
                         </View>
                       </View>
                     )}
+                    {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
+                      <View key={actTitle} style={{ marginBottom: 16 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                          <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
+                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>{actTitle}</Text>
+                          <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
+                        </View>
+                        <View style={styles.thumbRow}>
+                          {actPhotos.map(renderThumb)}
+                        </View>
+                      </View>
+                    ))}
                   </View>
                 )}
 
@@ -765,46 +768,54 @@ function CreateCardModal({
       <View style={styles.overlay}>
         <View style={styles.dialog}>
           <View style={styles.dialogHeader}>
-            <Text style={styles.dialogTitle}>
-              New {type === 'trip' ? 'trip' : 'event'} album
-            </Text>
+            <View>
+              <Text style={styles.dialogTitle}>
+                New {type === 'trip' ? 'trip' : 'event'} album
+              </Text>
+              <Text style={styles.dialogSubheading}>
+                {type === 'trip' ? 'Save your travel memories' : 'Capture the moment'}
+              </Text>
+            </View>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <CloseIcon />
             </TouchableOpacity>
           </View>
           <View style={styles.dialogBody}>
-            {/* Cover photo */}
-            <Text style={styles.fieldLabel}>Cover photo</Text>
-            <TouchableOpacity onPress={pickBanner} style={styles.bannerPicker} activeOpacity={0.8}>
+            {/* Cover photo — compact row */}
+            <TouchableOpacity onPress={pickBanner} style={styles.coverPhotoRow} activeOpacity={0.8}>
               {bannerUri && !bannerImgError ? (
-                <CachedImage
-                  uri={bannerUri}
-                  style={styles.bannerPreview}
-                  resizeMode="cover"
-                  onError={() => setBannerImgError(true)}
-                />
+                <View style={{ position: 'relative' }}>
+                  <CachedImage
+                    uri={bannerUri}
+                    style={styles.coverThumb}
+                    resizeMode="cover"
+                    onError={() => setBannerImgError(true)}
+                  />
+                  <View style={styles.coverThumbEditBadge}>
+                    <PencilLine size={11} color="#fff" />
+                  </View>
+                </View>
               ) : (
-                <View style={styles.bannerPlaceholder}>
-                  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-                    <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                    <Circle cx={12} cy={13} r={4} stroke="#cbd5e1" strokeWidth={1.5} />
+                <View style={styles.coverThumbEmpty}>
+                  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                    <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#94a3b8" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    <Circle cx={12} cy={13} r={4} stroke="#94a3b8" strokeWidth={1.5} />
                   </Svg>
-                  <Text style={styles.bannerPickerLabel}>Tap to add a cover photo</Text>
                 </View>
               )}
-              {bannerUri && !bannerImgError && (
-                <View style={styles.bannerEditBadge}>
-                  <PencilLine size={13} color="#fff" />
-                </View>
-              )}
+              <Text style={styles.coverPhotoRowLabel}>
+                {bannerUri && !bannerImgError ? 'Change cover photo' : 'Add cover photo'}
+              </Text>
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" style={{ marginLeft: 'auto' }}>
+                <Path d="M9 18l6-6-6-6" stroke="#cbd5e1" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
             </TouchableOpacity>
 
             {/* Album title */}
-            <Text style={styles.fieldLabel}>Album title</Text>
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder={type === 'trip' ? 'e.g. Bali 2025' : 'e.g. Summer BBQ'}
+              placeholder={type === 'trip' ? 'Album title, e.g. Bali 2025' : 'Album title, e.g. Summer BBQ'}
               placeholderTextColor="#94a3b8"
               style={styles.createAlbumInput}
               returnKeyType="done"
@@ -1256,6 +1267,13 @@ export default function GalleryTab({
                   item={{ id: card.id, name: card.name, bannerImageUrl: card.bannerImageUrl }}
                   chip="custom-trip"
                   onPress={() => setOpenCard(card)}
+                  onLongPress={() => showConfirm({
+                    title: 'Delete album?',
+                    message: `Are you sure you want to delete "${card.name}"? This cannot be undone.`,
+                    confirmText: 'Delete',
+                    destructive: true,
+                    onConfirm: () => deleteCustomCard(card.id),
+                  })}
                 />
               ))}
               {displayTrips.length === 0 && customTripCards.length === 0 && (
@@ -1285,6 +1303,13 @@ export default function GalleryTab({
                   item={{ id: card.id, name: card.name, bannerImageUrl: card.bannerImageUrl }}
                   chip="custom-event"
                   onPress={() => setOpenCard(card)}
+                  onLongPress={() => showConfirm({
+                    title: 'Delete album?',
+                    message: `Are you sure you want to delete "${card.name}"? This cannot be undone.`,
+                    confirmText: 'Delete',
+                    destructive: true,
+                    onConfirm: () => deleteCustomCard(card.id),
+                  })}
                 />
               ))}
               {galleryEvents.length === 0 && customEventCards.length === 0 && (
@@ -1457,32 +1482,42 @@ const styles = StyleSheet.create({
   },
   previewCounterText: { color: '#fff', fontSize: 13, fontWeight: '300' },
 
-  // Create card modal
-  bannerPicker: {
-    width: '100%',
-    height: 140,
-    borderRadius: 12,
-    overflow: 'hidden',
+  dialogSubheading: { fontSize: 12, color: '#94a3b8', fontWeight: '400', marginTop: 2 },
+
+  // Create card modal — compact cover photo row
+  coverPhotoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
     marginBottom: 14,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    borderStyle: 'dashed',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
-  bannerPreview: { width: '100%', height: '100%' },
-  bannerPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  bannerPickerLabel: { fontSize: 13, color: '#94a3b8', fontWeight: '500' },
-  bannerEditBadge: {
+  coverThumb: { width: 44, height: 44, borderRadius: 8 },
+  coverThumbEmpty: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  coverThumbEditBadge: {
     position: 'absolute',
-    bottom: 8,
-    right: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    bottom: -3,
+    right: -3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(0,0,0,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  coverPhotoRowLabel: { fontSize: 14, color: '#334155', fontWeight: '400' },
 
   createAlbumInput: {
     borderWidth: 1,
@@ -1570,8 +1605,8 @@ const styles = StyleSheet.create({
 
   coverBadge: {
     position: 'absolute',
-    bottom: 3,
-    left: 3,
+    top: 4,
+    left: 4,
     backgroundColor: 'rgba(13,148,136,0.85)',
     borderRadius: 4,
     paddingHorizontal: 5,

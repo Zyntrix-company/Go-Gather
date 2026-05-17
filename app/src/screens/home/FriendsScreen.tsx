@@ -19,6 +19,7 @@ import { getFriends, createFriendInvite, createTrip, uploadTripPhotos, updateTri
 import { showAlert } from '../../store/alertStore';
 import { CreateTripModal, BannerCropFraction } from '../trips/TripsScreen';
 import { CreateEventModal } from '../events/EventsScreen';
+import { requireTripFromResponse, runSafePostCreate } from '../../utils/createEntityFlow';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -214,7 +215,7 @@ export default function FriendsScreen() {
   );
 
   function handleViewFriend(friend: Friend) {
-    navigation.navigate('FriendProfile', { userId: friend.user.id, friendName: friend.user.name ?? 'Friend' });
+    navigation.navigate('FriendProfile', { userId: friend.user.id, friendName: friend.user.name ?? 'Friend', avatarUrl: friend.user.avatarUrl ?? null });
   }
 
   function handleLongPress(friend: Friend) {
@@ -513,11 +514,11 @@ export default function FriendsScreen() {
             reminders: data.reminders as boolean | undefined,
             ...(cropFraction && { bannerCropFraction: cropFraction }),
           });
-          let newTrip = res.trip;
+          const newTrip = requireTripFromResponse(res);
           const localUri = data.bannerImageUrl as string | undefined;
           const isLocalUri = localUri && (localUri.startsWith('file://') || localUri.startsWith('content://') || localUri.startsWith('file:'));
           if (isLocalUri) {
-            try {
+            await runSafePostCreate('Banner upload', async () => {
               const photoRes = await uploadTripPhotos(newTrip.id, [{
                 uri: localUri,
                 type: (data.bannerImageType as string) ?? 'image/jpeg',
@@ -528,7 +529,7 @@ export default function FriendsScreen() {
               if (permanentUrl) {
                 await apiUpdateTrip(newTrip.id, { bannerImageUrl: permanentUrl, ...(cropFraction && { bannerCropFraction: cropFraction }) });
               }
-            } catch (e) { console.warn('Banner upload failed:', e); }
+            });
           }
           Toast.show({ type: 'success', text1: 'Trip created!', text2: `${selectedIds.size} friend${selectedIds.size !== 1 ? 's' : ''} added` });
           setBannerImageUri(undefined);

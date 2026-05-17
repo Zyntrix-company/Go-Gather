@@ -72,17 +72,22 @@ function App() {
   }, []);
 
   useEffect(() => {
+    function navigateEmailConnected(url: string) {
+      const qs = url.includes('?') ? url.split('?')[1] : '';
+      const params = new URLSearchParams(qs);
+      navigationRef.current?.navigate('ConnectedEmail' as never, {
+        oauthProvider: params.get('provider') ?? undefined,
+        oauthSuccess: params.get('success') === 'true',
+        oauthError: params.get('error') ?? undefined,
+      } as never);
+    }
     const handleDeepLink = ({ url }: { url: string }) => {
-      if (url.startsWith('gathergo://email-connected')) {
-        navigationRef.current?.navigate('ConnectedEmail' as never);
-      }
+      if (url.startsWith('gathergo://email-connected')) navigateEmailConnected(url);
     };
     const subscription = Linking.addEventListener('url', handleDeepLink);
     // Handle cold-start case (app was not running when deep link fired)
     Linking.getInitialURL().then((url) => {
-      if (url && url.startsWith('gathergo://email-connected')) {
-        navigationRef.current?.navigate('ConnectedEmail' as never);
-      }
+      if (url && url.startsWith('gathergo://email-connected')) navigateEmailConnected(url);
     });
     return () => subscription.remove();
   }, []);

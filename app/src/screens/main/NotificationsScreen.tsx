@@ -362,7 +362,7 @@ export default function NotificationsScreen({ navigation }: any) {
 
               {!item.read && <View style={styles.unreadAccent} />}
 
-              <View style={[styles.notifIconWrap, { backgroundColor: getIconBg(item.type) }]}>
+              <View style={styles.notifIconWrap}>
                 {getNotificationIcon(item.type, item.data)}
               </View>
 
@@ -546,7 +546,6 @@ const styles = StyleSheet.create({
   notifIconWrap: {
     width: 42,
     height: 42,
-    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,

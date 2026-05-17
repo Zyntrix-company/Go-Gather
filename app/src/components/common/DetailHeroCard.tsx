@@ -24,6 +24,8 @@ export interface DetailHeroCardProps {
   dayCount: number;
   /** e.g. "Days to go" | "Today!" | "Days ago" */
   dayLabel: string;
+  /** When true, hides the number and shows dayLabel as a pill (e.g. "Ongoing", "Today") */
+  statusOnly?: boolean;
   memberCount: number;
   memberAvatars?: { id: string; uri: string }[];
   docCount: number;
@@ -74,6 +76,7 @@ export default function DetailHeroCard({
   location,
   dayCount,
   dayLabel,
+  statusOnly = false,
   memberCount,
   memberAvatars = [],
   docCount,
@@ -107,15 +110,30 @@ export default function DetailHeroCard({
         </View>
 
         <View style={styles.daysArea}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
-            <Text style={styles.daysNumber}>{dayCount}</Text>
-            {onEdit && (
-              <TouchableOpacity onPress={onEdit} style={styles.pencilBtn} activeOpacity={0.7}>
-                <PenIcon color="#009788" size={17} />
-              </TouchableOpacity>
-            )}
-          </View>
-          <Text style={styles.daysLabel}>{dayLabel}</Text>
+          {statusOnly ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+              <View style={styles.statusPill}>
+                <Text style={styles.statusPillText}>{dayLabel}</Text>
+              </View>
+              {onEdit && (
+                <TouchableOpacity onPress={onEdit} style={styles.pencilBtn} activeOpacity={0.7}>
+                  <PenIcon color="#009788" size={17} />
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
+                <Text style={styles.daysNumber}>{dayCount}</Text>
+                {onEdit && (
+                  <TouchableOpacity onPress={onEdit} style={styles.pencilBtn} activeOpacity={0.7}>
+                    <PenIcon color="#009788" size={17} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              <Text style={styles.daysLabel}>{dayLabel}</Text>
+            </>
+          )}
         </View>
       </View>
 
@@ -227,6 +245,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'flex-start',
+  },
+  statusPill: {},
+  statusPillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#009788',
+    letterSpacing: 0.2,
   },
   statsRow: {
     flexDirection: 'row',

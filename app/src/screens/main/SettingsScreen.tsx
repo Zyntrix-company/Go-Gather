@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,28 @@ import {
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
-import Logo from '../../components/common/Logo';
 import LegalModal from '../../components/common/LegalModal';
+import CachedImage from '../../components/common/CachedImage';
 import colors from '../../theme/colors';
 import useAuthStore from '../../store/authStore';
+import useAuth from '../../hooks/useAuth';
+
+function BackArrow() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M19 12H5M12 19l-7-7 7-7"
+        stroke={colors.textPrimary}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
 
 function Chevron() {
   return (
@@ -64,10 +80,15 @@ function openAppSettings() {
 
 export default function SettingsScreen({ navigation }: { navigation: any }) {
   const user = useAuthStore((s) => s.user);
+  const avatarUpdatedAt = useAuthStore((s) => s.avatarUpdatedAt);
+  const { refreshProfile } = useAuth();
   const [legal, setLegal] = useState<'terms' | 'privacy' | null>(null);
+
+  useFocusEffect(useCallback(() => { refreshProfile(); }, [])); // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayName = user?.fullName || 'User';
   const displayEmail = user?.email || '';
+  const avatarUrl = user?.photoUrl || user?.avatarUrl || (user?.profile as any)?.avatarUrl || null;
 
   return (
     <BlobBackground>
@@ -76,16 +97,31 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}>
 
-          <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8} style={styles.logoBtn}>
-            <Logo size="small" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Settings</Text>
-          <Text style={styles.subtitle}>Account, notifications, and help</Text>
+          {/* Header */}
+          <View style={styles.headerRow}>
+            <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8} style={styles.backBtn}>
+              <BackArrow />
+            </TouchableOpacity>
+            <View>
+              <Text style={styles.headerTitle}>Settings</Text>
+              <Text style={styles.headerSubtitle}>Account, notifications, help</Text>
+            </View>
+          </View>
 
           <View style={styles.profileCard}>
             <View style={styles.avatarRing}>
               <View style={styles.avatarInner}>
-                <Text style={styles.avatarInitial}>{displayName.trim().charAt(0) || '?'}</Text>
+                {avatarUrl ? (
+                  <CachedImage
+                    key={`${avatarUrl}${avatarUpdatedAt}`}
+                    uri={avatarUrl}
+                    style={styles.avatarImage}
+                    resizeMode="cover"
+                    priority="high"
+                  />
+                ) : (
+                  <Text style={styles.avatarInitial}>{displayName.trim().charAt(0) || '?'}</Text>
+                )}
               </View>
             </View>
             <View style={styles.profileText}>
@@ -116,7 +152,7 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
             />
             <View style={styles.divider} />
             <SettingsRow
-              label="Connected mail"
+              label="Connect to your mail"
               sub="Gmail or Outlook for importing travel docs"
               onPress={() => navigation.navigate('ConnectedEmail')}
             />
@@ -161,29 +197,43 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { paddingHorizontal: 20, paddingBottom: 40 },
-  logoBtn: { alignSelf: 'flex-start', paddingTop: 8, marginBottom: 4 },
-  title: {
-    fontSize: 22,
-    fontWeight: '500',
-    color: colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    textAlign: 'center',
+
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 8,
     marginBottom: 20,
+    gap: 12,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 1,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: colors.textSecondary,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
 
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderRadius: 16,
+    
+    
     padding: 16,
-    marginBottom: 22,
+    marginBottom: 10,
     overflow: 'hidden',
   },
   avatarRing: {
@@ -198,27 +248,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.gradientMid,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   avatarInitial: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '500',
     color: colors.accentHover,
   },
   profileText: { flex: 1, minWidth: 0 },
-  profileName: { fontSize: 16, fontWeight: '600', color: colors.textPrimary },
+  profileName: { fontSize: 16, fontWeight: '500', color: colors.textPrimary },
   profileEmail: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
 
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.accent,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#0f172a',
     marginBottom: 8,
     marginLeft: 2,
   },
   card: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+   
     borderRadius: 14,
     paddingVertical: 4,
     marginBottom: 20,
@@ -233,7 +287,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowTextWrap: { flex: 1, minWidth: 0 },
-  rowLabel: { fontSize: 15, fontWeight: '500', color: colors.textPrimary },
+  rowLabel: { fontSize: 15, fontWeight: '400', color: colors.textPrimary },
   rowSub: { fontSize: 12, color: colors.textSecondary, marginTop: 3, lineHeight: 16 },
   chevron: { fontSize: 20, color: colors.textMuted, lineHeight: 22 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(148,163,184,0.12)', marginLeft: 14 },

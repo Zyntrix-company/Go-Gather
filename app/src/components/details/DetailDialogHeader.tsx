@@ -9,6 +9,7 @@ import Svg, { Path } from 'react-native-svg';
 interface DetailDialogHeaderProps {
   title: string;
   subtitle?: string;
+  leading?: React.ReactNode;
   onClose: () => void;
 }
 
@@ -29,12 +30,20 @@ function CloseX() {
 export default function DetailDialogHeader({
   title,
   subtitle,
+  leading,
   onClose,
 }: DetailDialogHeaderProps) {
   return (
     <View style={styles.header}>
       <View style={{ flex: 1 }}>
-        <Text style={styles.title}>{title}</Text>
+        {leading ? (
+          <View style={styles.titleRow}>
+            {leading}
+            <Text style={styles.title}>{title}</Text>
+          </View>
+        ) : (
+          <Text style={styles.title}>{title}</Text>
+        )}
         {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       </View>
       <TouchableOpacity
@@ -57,6 +66,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   title: {
     fontSize: 16,

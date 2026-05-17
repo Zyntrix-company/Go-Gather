@@ -26,6 +26,11 @@ import LocationAutocomplete from '../../components/common/LocationAutocomplete';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
 import { showAlert, showConfirm } from '../../store/alertStore';
+import {
+  requireEventFromResponse,
+  runSafePostCreate,
+  showCreateFailure,
+} from '../../utils/createEntityFlow';
 import Toast from 'react-native-toast-message';
 import { getFriends, getEmailStatus, listEmailAttachments, importEmailAttachments, type EmailAttachment } from '../../api/trips.api';
 import {
@@ -185,10 +190,11 @@ const TrashIcon = () => (
 
 // ─── Event Card Full ──────────────────────────────────────────────────────────
 
-function EventCardFullLocal({ event, onPress, showMenu, onToggleMenu, onArchive, onDelete }: {
+function EventCardFullLocal({ event, onPress, showMenu, onToggleMenu, onArchive, onDelete, isActiveToday = false }: {
   event: EventItem; onPress: () => void;
   showMenu: boolean; onToggleMenu: () => void;
   onArchive: () => void; onDelete: () => void;
+  isActiveToday?: boolean;
 }) {
   const days = daysUntil(event.dateISO);
   return (
@@ -202,7 +208,8 @@ function EventCardFullLocal({ event, onPress, showMenu, onToggleMenu, onArchive,
       extraMembers={event.memberAvatars.length === 0
         ? (event.memberCount ?? 0)
         : Math.max(0, (event.memberCount ?? 0) - Math.min(event.memberAvatars.length, 2))}
-      daysToGo={days > 0 ? days : undefined}
+      isActiveToday={isActiveToday}
+      daysToGo={!isActiveToday && days > 0 ? days : undefined}
       onPress={onPress}
       onToggleMenu={onToggleMenu}
       showMenu={showMenu}
@@ -304,6 +311,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
   const [invitePhone, setInvitePhone] = useState('');
   const [inviteWhatsapp, setInviteWhatsapp] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [reminders, setReminders] = useState(true);
   const [bannerImageUri, setBannerImageUri] = useState<string | undefined>(undefined);
@@ -400,7 +408,8 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
   function reset() {
     setName(''); setType('Other'); setShowTypeDrop(false);
     setDateObj(undefined); setDateError(null);
-    setLocation(''); setFetchingLocation(false);
+    setLocation('');
+    setSubmitError(null);
     setUploadedDocs([]); setSelectedFriendIds([]);
     setEmailSelectedDocs([]);
     setShowInviteModal(false); setShowProviderPicker(false); setShowEmailPicker(false);
@@ -458,9 +467,10 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
     if (!name.trim()) { showAlert({ title: 'Error', message: 'Please enter an event name' }); return; }
     if (!dateObj) { showAlert({ title: 'Error', message: 'Please select an event date' }); return; }
     if (!location.trim()) { showAlert({ title: 'Error', message: 'Please enter a location' }); return; }
+    setSubmitError(null);
     setIsSubmitting(true);
     try {
-      const result = await apiCreateEvent({
+      const result = requireEventFromResponse(await apiCreateEvent({
         name: name.trim(),
         eventDate: fmtDateISO(dateObj),
         eventType: type,
@@ -468,92 +478,78 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
         friendIds: selectedFriendIds.length > 0 ? selectedFriendIds : undefined,
         reminders,
         ...(bannerCropFraction && { bannerCropFraction }),
-      });
-      // Capture locals before async work / modal reset
+      }));
+
       const localBannerUri = bannerImageUri;
       const isLocalUri = !!(localBannerUri && (localBannerUri.startsWith('file://') || localBannerUri.startsWith('content://')));
       const capturedCrop = bannerCropFraction;
+      const eventDateIso = result.event.eventDate ?? fmtDateISO(dateObj);
 
       const newEvent: EventItem = {
         id: result.event.id,
-        name: result.event.name,
+        name: result.event.name ?? name.trim(),
         type: result.event.eventType ?? type,
         typeColor: TYPE_COLORS[result.event.eventType ?? type] ?? '#f8fafc',
         location: result.event.location?.name ?? location.trim(),
-        dateISO: result.event.eventDate,
+        dateISO: eventDateIso,
         dateDisplay: fmtDateDisplay(dateObj),
         dateDisplayNoYear: fmtDateNoYear(dateObj),
         memberCount: result.memberCount ?? 1 + selectedFriendIds.length,
         memberAvatars: [],
         description: result.event.description ?? '',
-        // Show local URI immediately so the card renders the image right away;
-        // the CDN URL will be patched in via onBannerUpdate once the upload finishes.
         bannerImageUrl: isLocalUri ? localBannerUri : null,
         bannerCropFraction: capturedCrop,
       };
-      // Import email attachments selected during creation
+
       if (emailSelectedDocs.length > 0) {
         const byProvider = emailSelectedDocs.reduce<Record<string, typeof emailSelectedDocs>>((acc, d) => {
           (acc[d.provider] = acc[d.provider] || []).push(d);
           return acc;
         }, {});
         for (const [provider, pdocs] of Object.entries(byProvider)) {
-          try {
+          await runSafePostCreate(`Email import (${provider})`, async () => {
             await importEmailAttachments('event', newEvent.id, provider as 'gmail' | 'outlook', pdocs);
-          } catch {
-            showAlert({ title: 'Email Import Failed', message: `Could not import ${pdocs.length} file(s) from ${provider}.` });
-          }
+          });
         }
       }
-      // Upload docs — images → photos module, everything else → docs module
+
       const extMime: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', txt: 'text/plain', csv: 'text/csv' };
-      const docs = [...uploadedDocs];
-      for (const file of docs) {
+      for (const file of uploadedDocs) {
         const ext = (file.name.split('.').pop() ?? file.uri.split('.').pop() ?? '').toLowerCase();
         const resolvedType = file.type && file.type !== 'application/octet-stream' ? file.type : (extMime[ext] ?? 'application/octet-stream');
         const isImage = /^image\//i.test(resolvedType);
-        try {
+        await runSafePostCreate(`Upload "${file.name}"`, async () => {
           if (isImage) {
             await uploadEventPhotos(newEvent.id, [{ uri: file.uri, type: resolvedType, name: file.name }]);
           } else {
             await uploadEventDoc(newEvent.id, { uri: file.uri, type: resolvedType, name: file.name });
           }
-        } catch (e: any) {
-          console.warn('Doc upload failed:', e);
-          showAlert({ title: 'Upload Failed', message: `Could not upload "${file.name}": ${e?.message ?? 'Unknown error'}` });
-        }
+        });
       }
-      // Add event to list and close modal immediately — user sees the local image
-      onSave(newEvent);
+
+      try {
+        onSave(newEvent);
+      } catch (err) {
+        console.warn('[create] onSave callback failed:', err);
+      }
       reset();
       onClose();
 
-      // Upload banner in the background so the CDN URL is persisted to the DB.
-      // We intentionally do NOT update local state here — the local URI already
-      // shows the image correctly. Switching to the CDN URL immediately would
-      // cause a white flash because S3 needs a moment to serve the newly-uploaded
-      // file. The next loadEvents() (on re-focus or pull-to-refresh) will replace
-      // the local URI with the CDN URL from the API response.
       if (isLocalUri && localBannerUri) {
-        (async () => {
-          try {
-            const ext = localBannerUri.split('.').pop()?.toLowerCase() ?? 'jpg';
-            const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', heic: 'image/heic', webp: 'image/webp' };
-            const mime = mimeMap[ext] ?? 'image/jpeg';
-            const photoRes = await uploadEventPhotos(newEvent.id, [{ uri: localBannerUri, type: mime, name: `banner.${ext}` }]);
-            const photo = photoRes.photos?.[0];
-            const permanentUrl = (photo as any)?.fileUrl as string ?? photo?.url;
-            if (permanentUrl) {
-              await apiUpdateEvent(newEvent.id, { bannerImageUrl: permanentUrl, ...(capturedCrop && { bannerCropFraction: capturedCrop }) });
-            }
-          } catch (e: any) {
-            console.warn('Banner upload failed:', e);
-            showAlert({ title: 'Banner Upload Failed', message: 'Your event was created but the cover image could not be saved. You can add it again from the event page.' });
+        void runSafePostCreate('Banner upload', async () => {
+          const ext = localBannerUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+          const mimeMap: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', heic: 'image/heic', webp: 'image/webp' };
+          const mime = mimeMap[ext] ?? 'image/jpeg';
+          const photoRes = await uploadEventPhotos(newEvent.id, [{ uri: localBannerUri, type: mime, name: `banner.${ext}` }]);
+          const photo = photoRes.photos?.[0];
+          const permanentUrl = (photo as { fileUrl?: string; url?: string })?.fileUrl ?? photo?.url;
+          if (permanentUrl) {
+            await apiUpdateEvent(newEvent.id, { bannerImageUrl: permanentUrl, ...(capturedCrop && { bannerCropFraction: capturedCrop }) });
           }
-        })();
+        });
       }
     } catch (err) {
-      handleApiError(err);
+      setSubmitError(showCreateFailure(err, 'event'));
     } finally {
       setIsSubmitting(false);
     }
@@ -850,17 +846,22 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
 
           {/* Footer */}
           <View style={modal.footer}>
-            <TouchableOpacity onPress={() => { reset(); onClose(); }} activeOpacity={0.7}>
-              <Text style={modal.cancelTxt}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[modal.createBtn, isSubmitting && { opacity: 0.7 }]}
-              onPress={handleSave}
-              activeOpacity={0.85}
-              disabled={isSubmitting}
-            >
-              <Text style={modal.createBtnTxt}>{isSubmitting ? 'Creating...' : 'Create Event'}</Text>
-            </TouchableOpacity>
+            {submitError ? (
+              <Text style={modal.submitError}>{submitError}</Text>
+            ) : null}
+            <View style={modal.footerRow}>
+              <TouchableOpacity onPress={() => { reset(); onClose(); }} activeOpacity={0.7}>
+                <Text style={modal.cancelTxt}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[modal.createBtn, isSubmitting && { opacity: 0.7 }]}
+                onPress={handleSave}
+                activeOpacity={0.85}
+                disabled={isSubmitting}
+              >
+                <Text style={modal.createBtnTxt}>{isSubmitting ? 'Creating...' : 'Create Event'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
@@ -1221,6 +1222,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
 
 export default function EventsScreen({ openCreateOnMount = false, onCreateMountHandled }: { openCreateOnMount?: boolean; onCreateMountHandled?: () => void } = {}) {
   const navigation = useNavigation<any>();
+  const [ongoingEvents, setOngoingEvents] = useState<EventItem[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<EventItem[]>([]);
   const [pastEvents, setPastEvents] = useState<EventItem[]>([]);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -1239,10 +1241,12 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
   async function loadEvents(silent = false) {
     if (!silent) setLoading(true);
     try {
-      const [upcomingRes, pastRes] = await Promise.all([
+      const [ongoingRes, upcomingRes, pastRes] = await Promise.all([
+        getEvents({ status: 'ongoing' }),
         getEvents({ status: 'upcoming' }),
         getEvents({ status: 'past' }),
       ]);
+      setOngoingEvents(ongoingRes.events.map(mapApiEvent));
       setUpcomingEvents(upcomingRes.events.map(mapApiEvent));
       setPastEvents(pastRes.events.map(mapApiEvent));
     } catch (err) {
@@ -1262,15 +1266,22 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
   }, [avatarUpdatedAt]);
 
   function handleCreateEvent(ev: EventItem) {
-    const days = daysUntil(ev.dateISO);
-    if (days >= 0) setUpcomingEvents(p => [ev, ...p]);
-    else setPastEvents(p => [ev, ...p]);
-    // Refresh from server so memberAvatars are populated
-    loadEvents(true);
+    try {
+      if (!ev?.id) return;
+      const days = daysUntil(ev.dateISO || '');
+      if (days === 0) setOngoingEvents(p => [ev, ...p.filter(e => e.id !== ev.id)]);
+      else if (days > 0) setUpcomingEvents(p => [ev, ...p.filter(e => e.id !== ev.id)]);
+      else setPastEvents(p => [ev, ...p.filter(e => e.id !== ev.id)]);
+      loadEvents(true);
+    } catch (err) {
+      console.warn('[create] handleCreateEvent failed:', err);
+    }
   }
 
-  function archiveEvent(id: string, from: 'upcoming' | 'past') {
-    const list = from === 'upcoming' ? upcomingEvents : pastEvents;
+  type EventListSection = 'ongoing' | 'upcoming' | 'past';
+
+  function archiveEvent(id: string, from: EventListSection) {
+    const list = from === 'ongoing' ? ongoingEvents : from === 'upcoming' ? upcomingEvents : pastEvents;
     const ev = list.find(e => e.id === id);
     if (!ev) return;
     showConfirm({
@@ -1280,7 +1291,8 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
       onConfirm: async () => {
         try {
           await apiArchiveEvent(id);
-          if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
+          if (from === 'ongoing') setOngoingEvents(p => p.filter(e => e.id !== id));
+          else if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
           else setPastEvents(p => p.filter(e => e.id !== id));
           setOpenMenuId(null);
           Toast.show({ type: 'success', text1: 'Archived', text2: ev.name ? `"${ev.name}" moved to archive.` : 'Event moved to archive.' });
@@ -1291,7 +1303,7 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
     });
   }
 
-  function deleteEvent(id: string, from: 'upcoming' | 'past') {
+  function deleteEvent(id: string, from: EventListSection) {
     showConfirm({
       title: 'Delete Event?',
       message: 'This action cannot be undone.',
@@ -1299,7 +1311,8 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
       onConfirm: async () => {
         try {
           await apiDeleteEvent(id);
-          if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
+          if (from === 'ongoing') setOngoingEvents(p => p.filter(e => e.id !== id));
+          else if (from === 'upcoming') setUpcomingEvents(p => p.filter(e => e.id !== id));
           else setPastEvents(p => p.filter(e => e.id !== id));
           setOpenMenuId(null);
           Toast.show({ type: 'success', text1: 'Deleted', text2: 'Event removed.' });
@@ -1324,7 +1337,7 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
     });
   }
 
-  const isEmpty = upcomingEvents.length === 0 && pastEvents.length === 0;
+  const isEmpty = ongoingEvents.length === 0 && upcomingEvents.length === 0 && pastEvents.length === 0;
 
   return (
     <View style={{ flex: 1 }}>
@@ -1381,6 +1394,25 @@ export default function EventsScreen({ openCreateOnMount = false, onCreateMountH
           <ActivityIndicator size="large" color={colors.accent} style={{ marginTop: 40 }} />
         ) : (
           <>
+            {/* Active Events (happening today) */}
+            {ongoingEvents.length > 0 && (
+              <>
+                <Text style={styles.sectionLabel}>ACTIVE</Text>
+                {ongoingEvents.map(ev => (
+                  <EventCardFullLocal
+                    key={ev.id}
+                    event={ev}
+                    isActiveToday
+                    onPress={() => navigateToDetail(ev)}
+                    showMenu={openMenuId === ev.id}
+                    onToggleMenu={() => toggleMenu(ev.id)}
+                    onArchive={() => archiveEvent(ev.id, 'ongoing')}
+                    onDelete={() => deleteEvent(ev.id, 'ongoing')}
+                  />
+                ))}
+              </>
+            )}
+
             {/* Upcoming Events */}
             {upcomingEvents.length > 0 && (
               <>
@@ -1619,10 +1651,14 @@ const modal = StyleSheet.create({
   },
 
   footer: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12,
     borderTopWidth: 1, borderTopColor: '#e2e8f0',
+    gap: 8,
   },
+  footerRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  submitError: { fontSize: 12, color: '#ef4444', lineHeight: 17, textAlign: 'center' },
   cancelTxt: { fontSize: 13, fontWeight: '500', color: '#0f172a', textDecorationLine: 'underline' },
   createBtn: {
     backgroundColor: colors.accent, borderRadius: 999,

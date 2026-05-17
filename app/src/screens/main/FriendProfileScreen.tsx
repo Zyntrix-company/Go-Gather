@@ -322,20 +322,8 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
 
                 {!loading && photos.length > 0 && (
                   <View>
-                    {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
-                      <View key={actTitle} style={{ marginBottom: 16 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                          <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>{actTitle}</Text>
-                          <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
-                        </View>
-                        <View style={styles.thumbRow}>
-                          {actPhotos.map(ph => <PhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewIndex(photos.findIndex(p => p.id === ph.id))} />)}
-                        </View>
-                      </View>
-                    ))}
                     {directPhotos.length > 0 && (
-                      <View style={{ marginBottom: 8 }}>
+                      <View style={{ marginBottom: Object.keys(activityGroups).length > 0 ? 16 : 8 }}>
                         {Object.keys(activityGroups).length > 0 && (
                           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
                             <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
@@ -350,6 +338,18 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
                         </View>
                       </View>
                     )}
+                    {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
+                      <View key={actTitle} style={{ marginBottom: 16 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
+                          <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
+                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>{actTitle}</Text>
+                          <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
+                        </View>
+                        <View style={styles.thumbRow}>
+                          {actPhotos.map(ph => <PhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewIndex(photos.findIndex(p => p.id === ph.id))} />)}
+                        </View>
+                      </View>
+                    ))}
                   </View>
                 )}
               </View>
@@ -367,12 +367,12 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-type RouteParams = { userId: string; friendName: string };
+type RouteParams = { userId: string; friendName: string; avatarUrl?: string | null };
 
 export default function FriendProfileScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<{ FriendProfile: RouteParams }, 'FriendProfile'>>();
-  const { userId, friendName } = route.params;
+  const { userId, friendName, avatarUrl: paramAvatarUrl } = route.params;
   const unreadCount = useNotificationStore(s => s.unreadCount);
 
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof getUserProfile>> | null>(null);
@@ -382,7 +382,7 @@ export default function FriendProfileScreen() {
   const [avatarError, setAvatarError] = useState(false);
   const [photoModal, setPhotoModal] = useState<{ id: string; name: string; type: 'trip' | 'event'; subtitle?: string | null } | null>(null);
 
-  useEffect(() => { setAvatarError(false); }, [profile?.avatarUrl]);
+  useEffect(() => { setAvatarError(false); }, [profile?.avatarUrl, paramAvatarUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -406,6 +406,7 @@ export default function FriendProfileScreen() {
   const displayName = profile?.name ?? friendName;
   const handle = profile?.username ? `@${profile.username}` : '';
   const initial = displayName?.[0]?.toUpperCase() ?? '?';
+  const resolvedAvatarUrl = profile?.avatarUrl || paramAvatarUrl || null;
 
   function handleRemoveFriend() {
     showConfirm({
@@ -448,16 +449,13 @@ export default function FriendProfileScreen() {
               {/* Top row: avatar left, info right */}
               <View style={styles.profileRow}>
                 <View style={styles.avatarWrap}>
-                  {profile?.avatarUrl && !avatarError ? (
+                  {resolvedAvatarUrl && !avatarError ? (
                     <CachedImage
-                      uri={profile.avatarUrl}
+                      uri={resolvedAvatarUrl}
                       style={styles.avatar}
                       resizeMode="cover"
                       priority="high"
-                      onError={() => {
-                        console.warn('[FriendProfileScreen] avatar load failed, url:', profile.avatarUrl);
-                        setAvatarError(true);
-                      }}
+                      onError={() => setAvatarError(true)}
                     />
                   ) : (
                     <View style={[styles.avatar, styles.avatarPlaceholder]}>

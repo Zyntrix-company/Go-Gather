@@ -12,15 +12,34 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import Svg, { Path } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
-import Logo from '../../components/common/Logo';
 import colors from '../../theme/colors';
+import {
+  EmailProviderGlassCard,
+  EmailProviderOutlineButton,
+  emailProviderStyles,
+} from '../../components/common/EmailProviderUI';
 import {
   getEmailStatus,
   getEmailConnectUrl,
   disconnectEmailProvider,
   type EmailProvider,
 } from '../../api/trips.api';
+
+function BackArrow() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M19 12H5M12 19l-7-7 7-7"
+        stroke={colors.textPrimary}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
 
 function normalizeStatus(data: unknown) {
   const d = data as Record<string, { connected?: boolean; email?: string | null }> | null | undefined;
@@ -36,7 +55,15 @@ function normalizeStatus(data: unknown) {
   };
 }
 
-export default function ConnectedEmailScreen({ navigation }: { navigation: any }) {
+const OAUTH_ERROR_LABELS: Record<string, string> = {
+  PROVIDER_ERROR: 'Sign-in with the provider failed. Check your Azure redirect URI and credentials.',
+  INVALID_STATE:  'Session expired — please try again.',
+  STATE_EXPIRED:  'Session expired — please try again.',
+  access_denied:  'Permission was denied. Please try again and accept all requested permissions.',
+  NO_CODE:        'No authorisation code received. Verify the redirect URI in Azure matches exactly.',
+};
+
+export default function ConnectedEmailScreen({ navigation, route }: { navigation: any; route: any }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<EmailProvider | null>(null);
@@ -44,7 +71,6 @@ export default function ConnectedEmailScreen({ navigation }: { navigation: any }
   const [outlook, setOutlook] = useState({ connected: false, email: null as string | null });
 
   const load = useCallback(async () => {
-    setError(null);
     setLoading(true);
     try {
       const data = await getEmailStatus();
@@ -58,13 +84,27 @@ export default function ConnectedEmailScreen({ navigation }: { navigation: any }
     }
   }, []);
 
+  useEffect(() => {
+    const { oauthSuccess, oauthError, oauthProvider } = (route?.params ?? {}) as {
+      oauthSuccess?: boolean;
+      oauthError?: string;
+      oauthProvider?: string;
+    };
+    if (oauthSuccess === false && oauthError) {
+      const label = oauthProvider === 'outlook' ? 'Outlook' : oauthProvider === 'gmail' ? 'Gmail' : 'email';
+      const detail = OAUTH_ERROR_LABELS[oauthError] ?? `Error code: ${oauthError}`;
+      setError(`Could not connect ${label}. ${detail}`);
+    } else if (oauthSuccess === true) {
+      setError(null);
+    }
+  }, [route?.params]);
+
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load]),
   );
 
-  // Auto-refresh when OAuth deep link fires (handles case where screen is already focused)
   useEffect(() => {
     const sub = Linking.addEventListener('url', ({ url }) => {
       if (url.startsWith('gathergo://email-connected')) load();
@@ -120,13 +160,14 @@ export default function ConnectedEmailScreen({ navigation }: { navigation: any }
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
         >
-          <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8} style={styles.logoBtn}>
-            <Logo size="small" />
+          <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8} style={styles.backBtn}>
+            <BackArrow />
           </TouchableOpacity>
-          <Text style={styles.title}>Connected mail</Text>
-          <Text style={styles.subtitle}>
-            Link Gmail or Outlook so GatherrGo can find travel attachments when you import from email.
-          </Text>
+
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.headerTitle}>Connect to your mail</Text>
+            <Text style={styles.headerSubtitle}>Link Gmail or Outlook to import travel docs</Text>
+          </View>
 
           {loading && (
             <View style={styles.center}>
@@ -138,62 +179,58 @@ export default function ConnectedEmailScreen({ navigation }: { navigation: any }
 
           {!loading && (
             <>
-              <View style={styles.card}>
-                <Text style={styles.providerLabel}>Gmail</Text>
+              <EmailProviderGlassCard provider="gmail" connected={gmail.connected}>
                 {gmail.connected ? (
-                  <>
-                    <Text style={styles.connectedEmail} numberOfLines={1}>{gmail.email || 'Connected'}</Text>
+                  <View style={styles.connectedRow}>
+                    <Text style={styles.connectedEmail} numberOfLines={1}>
+                      {gmail.email || 'Connected'}
+                    </Text>
                     <TouchableOpacity
-                      style={styles.secondaryBtn}
+                      style={emailProviderStyles.glassSecondaryBtn}
                       onPress={() => confirmDisconnect('gmail', 'Gmail')}
                       activeOpacity={0.8}>
                       <Text style={styles.secondaryBtnText}>Disconnect</Text>
                     </TouchableOpacity>
-                  </>
+                  </View>
                 ) : (
-                  <TouchableOpacity
-                    style={styles.primaryBtn}
+                  <EmailProviderOutlineButton
+                    label="Connect Gmail"
+                    provider="gmail"
+                    variant="glass"
                     onPress={() => onConnect('gmail')}
-                    disabled={connecting !== null}
-                    activeOpacity={0.85}>
-                    {connecting === 'gmail' ? (
-                      <ActivityIndicator color={colors.accentForeground} />
-                    ) : (
-                      <Text style={styles.primaryBtnText}>Connect Gmail</Text>
-                    )}
-                  </TouchableOpacity>
+                    loading={connecting === 'gmail'}
+                    disabled={connecting !== null && connecting !== 'gmail'}
+                  />
                 )}
-              </View>
+              </EmailProviderGlassCard>
 
-              <View style={styles.card}>
-                <Text style={styles.providerLabel}>Outlook</Text>
+              <EmailProviderGlassCard provider="outlook" connected={outlook.connected}>
                 {outlook.connected ? (
-                  <>
-                    <Text style={styles.connectedEmail} numberOfLines={1}>{outlook.email || 'Connected'}</Text>
+                  <View style={styles.connectedRow}>
+                    <Text style={styles.connectedEmail} numberOfLines={1}>
+                      {outlook.email || 'Connected'}
+                    </Text>
                     <TouchableOpacity
-                      style={styles.secondaryBtn}
+                      style={emailProviderStyles.glassSecondaryBtn}
                       onPress={() => confirmDisconnect('outlook', 'Outlook')}
                       activeOpacity={0.8}>
                       <Text style={styles.secondaryBtnText}>Disconnect</Text>
                     </TouchableOpacity>
-                  </>
+                  </View>
                 ) : (
-                  <TouchableOpacity
-                    style={styles.primaryBtn}
+                  <EmailProviderOutlineButton
+                    label="Connect Outlook"
+                    provider="outlook"
+                    variant="glass"
                     onPress={() => onConnect('outlook')}
-                    disabled={connecting !== null}
-                    activeOpacity={0.85}>
-                    {connecting === 'outlook' ? (
-                      <ActivityIndicator color={colors.accentForeground} />
-                    ) : (
-                      <Text style={styles.primaryBtnText}>Connect Outlook</Text>
-                    )}
-                  </TouchableOpacity>
+                    loading={connecting === 'outlook'}
+                    disabled={connecting !== null && connecting !== 'outlook'}
+                  />
                 )}
-              </View>
+              </EmailProviderGlassCard>
 
               <Text style={styles.hint}>
-                After you tap Connect, sign in in your browser. When you return to the app, status refreshes when you open this screen again.
+                After tapping Connect, sign in via your browser. Status refreshes when you return to this screen.
               </Text>
             </>
           )}
@@ -203,38 +240,51 @@ export default function ConnectedEmailScreen({ navigation }: { navigation: any }
   );
 }
 
-const CARD_BG = 'rgba(255,255,255,0.2)';
-
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { paddingHorizontal: 20, paddingBottom: 40 },
-  logoBtn: { alignSelf: 'flex-start', paddingTop: 8, marginBottom: 4 },
-  title: { fontSize: 22, fontWeight: '500', color: colors.textPrimary, textAlign: 'center', marginBottom: 4 },
-  subtitle: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 20, lineHeight: 19 },
-  center: { paddingVertical: 24, alignItems: 'center' },
-  errorText: { fontSize: 13, color: colors.error, textAlign: 'center', marginBottom: 12 },
-  card: {
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    padding: 16,
+
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
     marginBottom: 14,
   },
-  providerLabel: { fontSize: 12, fontWeight: '600', color: colors.accent, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
-  connectedEmail: { fontSize: 15, fontWeight: '500', color: colors.textPrimary, marginBottom: 12 },
-  primaryBtn: {
-    backgroundColor: colors.buttonPrimary,
-    borderRadius: 10,
-    paddingVertical: 12,
+  headerTextBlock: {
+    marginBottom: 24,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '500',
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: colors.textSecondary,
+  },
+
+  center: { paddingVertical: 24, alignItems: 'center' },
+  errorText: { fontSize: 13, color: colors.error, marginBottom: 12 },
+
+  connectedRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 4,
   },
-  primaryBtnText: { color: colors.accentForeground, fontSize: 15, fontWeight: '500' },
-  secondaryBtn: {
-    alignSelf: 'flex-start',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.4)',
+  connectedEmail: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '400',
+    color: colors.textSecondary,
   },
-  secondaryBtnText: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
+  secondaryBtnText: { fontSize: 13, color: colors.textPrimary, fontWeight: '500' },
   hint: { fontSize: 12, color: colors.textMuted, lineHeight: 18, marginTop: 4 },
 });

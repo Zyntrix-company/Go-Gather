@@ -1,4 +1,4 @@
--- Allow 1_week_before reminder type for events (previously only event_start and 1_day_before)
+-- Allow 3_days_before on event_reminders (matches events.service.js + reminders.cron.js)
 ALTER TABLE event_reminders
   DROP CONSTRAINT IF EXISTS event_reminders_reminder_type_check;
 

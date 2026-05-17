@@ -71,7 +71,13 @@ const getPolls = async ({ parentType, parentId }, userId) => {
 };
 
 const getPollById = async ({ parentType, parentId }, pollId, userId) => {
-  const pollResult = await db('SELECT * FROM polls WHERE id = $1', [pollId]);
+  const pollResult = await db(
+    `SELECT p.*, pr.full_name AS creator_name
+     FROM polls p
+     LEFT JOIN profiles pr ON pr.user_id = p.created_by
+     WHERE p.id = $1`,
+    [pollId],
+  );
   const poll = pollResult.rows[0];
 
   const optionsResult = await db(
@@ -112,6 +118,7 @@ const formatPoll = (poll, options, myVote) => ({
   parentId: poll.parent_id,
   question: poll.question,
   createdBy: poll.created_by,
+  createdByName: poll.creator_name || null,
   createdAt: poll.created_at,
   myVotedOptionId: myVote || null,
   options: options.map((o) => ({

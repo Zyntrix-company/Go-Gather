@@ -65,6 +65,7 @@ import ChatTab, { SWEE_CHAT } from './ChatTab';
 import GalleryTab from './GalleryTab';
 import ProfileDropdown from './ProfileDropdown';
 import { UnifiedCard } from '../../components/common/Cards';
+import { requireTripFromResponse, runSafePostCreate } from '../../utils/createEntityFlow';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const INSIGHT_IMG_H = SCREEN_H < 700 ? 140 : SCREEN_H < 800 ? 160 : 192;
@@ -1041,7 +1042,7 @@ export default function HomeScreen({ navigation, route }: any) {
           <Search size={18} color="#94a3b8" />
           <TextInput
             style={{ flex: 1, fontSize: 14, color: '#1a1a2e', paddingVertical: 0 }}
-            placeholder="What are you planning?"
+            placeholder="Where to next ?"
             placeholderTextColor="#94a3b8"
             value={sweeSearchText}
             onChangeText={setSweeSearchText}
@@ -1459,29 +1460,28 @@ export default function HomeScreen({ navigation, route }: any) {
             emails: data.inviteEmail ? [data.inviteEmail as string] : undefined,
             ...(cropFraction ? { bannerCropFraction: cropFraction } : {}),
           });
-          let newTrip = res.trip;
+          let newTrip = requireTripFromResponse(res);
           const localUri = data.bannerImageUrl as string | undefined;
           const isLocalUri = localUri && (localUri.startsWith('file://') || localUri.startsWith('content://'));
           if (isLocalUri) {
             setTrips(p => [{ ...mapApiTrip(newTrip), bannerImageUrl: localUri, bannerCropFraction: cropFraction || null }, ...p]);
-            try {
+            await runSafePostCreate('Banner upload', async () => {
               const photoRes = await uploadTripPhotos(newTrip.id, [{
                 uri: localUri,
                 type: (data.bannerImageType as string) ?? 'image/jpeg',
                 name: `banner.${((data.bannerImageType as string) ?? 'image/jpeg').split('/')[1] ?? 'jpg'}`,
               }]);
               const photo = photoRes.photos?.[0];
-              const permanentUrl = (photo as any)?.fileUrl ?? photo?.url;
+              const permanentUrl = (photo as { fileUrl?: string; url?: string })?.fileUrl ?? photo?.url;
               if (permanentUrl) {
                 const updated = await apiUpdateTrip(newTrip.id, { bannerImageUrl: permanentUrl, ...(cropFraction ? { bannerCropFraction: cropFraction } : {}) });
-                newTrip = updated.trip;
+                newTrip = requireTripFromResponse(updated);
                 setTrips(p => p.map(t => t.id === newTrip.id ? { ...t, bannerImageUrl: newTrip.bannerImageUrl ?? permanentUrl } : t));
               }
-            } catch (e) { console.warn('Banner upload failed:', e); }
+            });
           } else {
             setTrips(p => [mapApiTrip(newTrip), ...p]);
           }
-          // Refresh trip list so memberAvatars are populated from the server
           loadTrips(1, true);
           setTripBannerUri(undefined);
           setTripBannerCrop(null);

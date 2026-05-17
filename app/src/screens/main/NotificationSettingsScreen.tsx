@@ -136,7 +136,7 @@ export default function NotificationSettingsScreen({ navigation }: any) {
   );
 }
 
-const CARD_BG = 'rgba(255,255,255,0.22)';
+
 
 const styles = StyleSheet.create({
   safe:       { flex: 1 },
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
   retryText:  { color: '#fff', fontWeight: '600', fontSize: 14 },
 
   card: {
-    backgroundColor: CARD_BG,
+    
     borderRadius: 14,
     padding: 16,
     marginBottom: 16,
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: '500' },
   rowSub:   { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
 
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(148,163,184,0.12)', marginVertical: 14 },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 14 },
 
   pillRow:         { flexDirection: 'row', gap: 10 },
   pill:            { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 8, backgroundColor: 'rgba(241,245,249,0.85)' },

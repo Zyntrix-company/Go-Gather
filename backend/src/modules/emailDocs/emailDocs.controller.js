@@ -1,4 +1,5 @@
 const service = require('./emailDocs.service');
+const logger  = require('../../utils/logger');
 
 const DEEP_LINK_BASE = 'gathergo://email-connected';
 
@@ -55,14 +56,17 @@ const googleCallback = async (req, res, next) => {
 };
 
 const microsoftCallback = async (req, res, next) => {
-  const { code, state, error: oauthError } = req.query;
+  const { code, state, error: oauthError, error_description } = req.query;
   if (oauthError || !code) {
+    logger.warn(`Microsoft OAuth callback error: ${oauthError} — ${error_description}`);
     return res.redirect(deepLinkUrl('outlook', false, oauthError || 'NO_CODE'));
   }
   try {
     await service.handleOAuthCallback('outlook', code, state);
+    logger.info('Microsoft OAuth connected successfully');
     res.redirect(deepLinkUrl('outlook', true));
   } catch (err) {
+    logger.error(`Microsoft token exchange failed: ${err.error} — ${err.message}`);
     res.redirect(deepLinkUrl('outlook', false, err.error || 'UNKNOWN_ERROR'));
   }
 };

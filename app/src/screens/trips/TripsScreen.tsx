@@ -48,6 +48,11 @@ import {
   type EmailAttachment,
 } from '../../api/trips.api';
 import { showAlert, showConfirm } from '../../store/alertStore';
+import {
+  requireTripFromResponse,
+  runSafePostCreate,
+  showCreateFailure,
+} from '../../utils/createEntityFlow';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -425,6 +430,7 @@ export function CreateTripModal({
   const [startDateObj, setStartDateObj] = useState<Date | undefined>(undefined);
   const [endDateObj, setEndDateObj] = useState<Date | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [apiFriends, setApiFriends] = useState<typeof CT_FRIENDS>([]);
   const [reminders, setReminders] = useState(false);
   const [uploadedDocs, setUploadedDocs] = useState<{ uri: string; name: string; type: string }[]>([]);
@@ -607,6 +613,7 @@ export function CreateTripModal({
 
   async function handleSave() {
     if (!name.trim()) { showAlert({ title: 'Error', message: 'Please enter a trip name' }); return; }
+    setSubmitError(null);
     setIsSubmitting(true);
     try {
       await onSave({
@@ -628,7 +635,7 @@ export function CreateTripModal({
       reset();
       onClose();
     } catch (err) {
-      handleApiError(err);
+      setSubmitError(showCreateFailure(err, 'trip'));
     } finally {
       setIsSubmitting(false);
     }
@@ -970,12 +977,17 @@ export function CreateTripModal({
           </ScrollView>
 
           <View style={styles.ctFooter}>
-            <TouchableOpacity onPress={() => { reset(); onClose(); }} activeOpacity={0.7}>
-              <Text style={styles.ctCancelText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.ctCreateBtn, isSubmitting && { opacity: 0.6 }]} onPress={handleSave} disabled={isSubmitting} activeOpacity={0.85}>
-              <Text style={styles.ctCreateBtnText}>{isSubmitting ? 'Creating...' : 'Create Trip'}</Text>
-            </TouchableOpacity>
+            {submitError ? (
+              <Text style={styles.ctSubmitError}>{submitError}</Text>
+            ) : null}
+            <View style={styles.ctFooterRow}>
+              <TouchableOpacity onPress={() => { reset(); onClose(); }} activeOpacity={0.7}>
+                <Text style={styles.ctCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.ctCreateBtn, isSubmitting && { opacity: 0.6 }]} onPress={handleSave} disabled={isSubmitting} activeOpacity={0.85}>
+                <Text style={styles.ctCreateBtnText}>{isSubmitting ? 'Creating...' : 'Create Trip'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -1612,13 +1624,13 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
             reminders: data.reminders as boolean | undefined,
             ...(cropFraction && { bannerCropFraction: cropFraction }),
           });
-          let newTrip = res.trip;
+          let newTrip = requireTripFromResponse(res);
           const localUri = data.bannerImageUrl as string | undefined;
           const isLocalUri = localUri && (localUri.startsWith('file://') || localUri.startsWith('content://') || localUri.startsWith('file:'));
           if (isLocalUri) {
             const tripWithBanner = mapApiTrip(newTrip);
             setTrips(p => [{ ...tripWithBanner, bannerImageUrl: localUri, bannerCropFraction: cropFraction || null }, ...p]);
-            try {
+            await runSafePostCreate('Banner upload', async () => {
               const photoRes = await uploadTripPhotos(newTrip.id, [{
                 uri: localUri,
                 type: (data.bannerImageType as string) ?? 'image/jpeg',
@@ -1629,19 +1641,14 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
               const displayUrl = photo?.url ?? permanentUrl;
               if (permanentUrl) {
                 const updated = await apiUpdateTrip(newTrip.id, { bannerImageUrl: permanentUrl, ...(cropFraction && { bannerCropFraction: cropFraction }) });
-                newTrip = updated.trip;
+                newTrip = requireTripFromResponse(updated);
                 setTrips(p => p.map(t => t.id === newTrip.id ? { ...t, bannerImageUrl: newTrip.bannerImageUrl ?? displayUrl } : t));
               }
-            } catch (e: any) {
-              console.warn('Banner upload failed:', e);
-              showAlert({ title: 'Banner Upload Failed', message: 'Your trip was created but the cover image could not be saved. You can add it again from the trip page.' });
-            }
+            });
           } else {
             setTrips(p => [mapApiTrip(newTrip), ...p]);
           }
-          // Refresh trip list so memberAvatars are populated from the server
           loadTrips(1, true);
-          // Import email attachments selected during creation
           const emailDocs = (data.emailDocs as { attachmentId: string; messageId: string; fileName: string; provider: 'gmail' | 'outlook' }[] | undefined) ?? [];
           if (emailDocs.length > 0) {
             const byProvider = emailDocs.reduce<Record<string, typeof emailDocs>>((acc, d) => {
@@ -1649,30 +1656,24 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
               return acc;
             }, {});
             for (const [provider, pdocs] of Object.entries(byProvider)) {
-              try {
+              await runSafePostCreate(`Email import (${provider})`, async () => {
                 await importEmailAttachments('trip', newTrip.id, provider as 'gmail' | 'outlook', pdocs);
-              } catch {
-                showAlert({ title: 'Email Import Failed', message: `Could not import ${pdocs.length} file(s) from ${provider}.` });
-              }
+              });
             }
           }
-          // Upload docs/photos attached during creation
           const extMime: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', txt: 'text/plain', csv: 'text/csv' };
           const docs = (data.uploadedDocs as { uri: string; name: string; type: string }[] | undefined) ?? [];
           for (const file of docs) {
             const ext = (file.name.split('.').pop() ?? file.uri.split('.').pop() ?? '').toLowerCase();
             const resolvedType = file.type && file.type !== 'application/octet-stream' ? file.type : (extMime[ext] ?? 'application/octet-stream');
             const isImage = /^image\//i.test(resolvedType);
-            try {
+            await runSafePostCreate(`Upload "${file.name}"`, async () => {
               if (isImage) {
                 await uploadTripPhotos(newTrip.id, [{ uri: file.uri, type: resolvedType, name: file.name }]);
               } else {
                 await uploadTripDoc(newTrip.id, { uri: file.uri, type: resolvedType, name: file.name });
               }
-            } catch (e: any) {
-              console.warn('Doc/photo upload failed:', e);
-              showAlert({ title: 'Upload Failed', message: `Could not upload "${file.name}": ${e?.message ?? 'Unknown error'}` });
-            }
+            });
           }
           // Clear banner only after the trip is successfully created
           setBannerImageUri(undefined);
@@ -1813,7 +1814,9 @@ const styles = StyleSheet.create({
   ctDocChip: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: '#a7f3d0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
   ctDocChipText: { flex: 1, fontSize: 12, color: '#334155' },
   ctDocRemove: { width: 18, height: 18, borderRadius: 9, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center' },
-  ctFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
+  ctFooter: { paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#e2e8f0', gap: 8 },
+  ctFooterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  ctSubmitError: { fontSize: 12, color: '#ef4444', lineHeight: 17, textAlign: 'center' },
   ctCancelText: { fontSize: 13, fontWeight: '500', color: '#0f172a', textDecorationLine: 'underline' },
   ctCreateBtn: { backgroundColor: '#0d9488', borderRadius: 999, paddingHorizontal: 28, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
   ctCreateBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },

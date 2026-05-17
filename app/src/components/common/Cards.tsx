@@ -97,6 +97,7 @@ export type UnifiedCardProps = {
   members: Member[];
   extraMembers?: number;
   daysToGo?: number;            // pass >0 to show badge, omit/0 to hide
+  isActiveToday?: boolean;      // show TODAY / ACTIVE badge (events happening today)
   // Interaction
   onPress: () => void;
   onToggleMenu?: () => void;
@@ -116,6 +117,7 @@ export function UnifiedCard({
   name, location, dateLabel,
   members, extraMembers = 0,
   daysToGo,
+  isActiveToday = false,
   onPress, onToggleMenu, showMenu = false,
   archiveLabel = 'Archive', onArchive, onDelete,
   extraMenuItems,
@@ -177,12 +179,17 @@ export function UnifiedCard({
 
           {/* Bottom row: days to go — always reserves space for uniform height */}
           <View style={s.rightBottom}>
-            {daysToGo && daysToGo > 0
+            {isActiveToday
               ? <>
-                  <Text style={s.daysNum}>{daysToGo}</Text>
-                  <Text style={s.daysLbl}>DAYS TO GO</Text>
+                  <Text style={[s.daysNum, { fontSize: 13, lineHeight: 16 }]}>TODAY</Text>
+                  <Text style={s.daysLbl}>ACTIVE</Text>
                 </>
-              : null
+              : daysToGo && daysToGo > 0
+                ? <>
+                    <Text style={s.daysNum}>{daysToGo}</Text>
+                    <Text style={s.daysLbl}>DAYS TO GO</Text>
+                  </>
+                : null
             }
           </View>
         </View>

@@ -15,6 +15,8 @@ import BlobBackground from '../../components/common/BlobBackground';
 import LocationAutocomplete from '../../components/common/LocationAutocomplete';
 import CachedImage from '../../components/common/CachedImage';
 import DetailDialogHeader from '../../components/details/DetailDialogHeader';
+import DocumentsUploadSection from '../../components/common/DocumentsUploadSection';
+import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
 import DetailTabBar from '../../components/details/DetailTabBar';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import SweeFab from '../../components/details/SweeFab';
@@ -69,7 +71,7 @@ type ExpenseLocal = {
   createdByUserId?: string;
   splitBreakdown?: { userId: string; amount: number; percentage: number | null }[];
 };
-type PollLocal = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null; createdBy?: string };
+type PollLocal = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null; createdBy?: string; createdByName?: string | null; createdAt?: string | null };
 type NoteLocal = { id: string; title: string; body: string; category: 'general' | 'idea' | 'important' | 'todo'; date: string; pinned?: boolean };
 type DebtLocal = { from: string; to: string; fromName: string; toName: string; amount: number };
 
@@ -497,6 +499,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
               question: p.question,
               options: p.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount, votedByMe: o.votedByMe })),
               myVoteOptionId: p.myVoteOptionId,
+              createdBy: p.createdBy,
+              createdByName: p.createdByName ?? null,
+              createdAt: p.createdAt ?? null,
             })));
 
             // Update notes
@@ -621,7 +626,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const memberIdSet = new Set(members.map(m => m.userId));
   const filteredFriends = apiFriends
     .filter(f => !memberIdSet.has(f.id) && f.name.toLowerCase().includes(memberSearch.toLowerCase()));
-  const dayLabel = event.dayCount > 0 ? 'Days to go' : event.dayCount === 0 ? 'Today!' : 'Days ago';
+  const dayLabel = event.dayCount > 0 ? 'Days to go' : event.dayCount === 0 ? 'Today' : 'Days ago';
+  const statusOnly = event.dayCount === 0;
 
   // ── Handlers ──
 
@@ -987,6 +993,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
         options: res.poll.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount, votedByMe: o.votedByMe })),
         myVoteOptionId: res.poll.myVoteOptionId,
         createdBy: res.poll.createdBy,
+        createdByName: res.poll.createdByName ?? null,
+        createdAt: res.poll.createdAt ?? null,
       }]);
       setPollQuestion(''); setPollOptions(['', '']);
       setShowPollForm(false);
@@ -1086,6 +1094,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
             location={event.location}
             dayCount={Math.abs(event.dayCount)}
             dayLabel={dayLabel}
+            statusOnly={statusOnly}
             memberCount={memberCount}
             memberAvatars={members
               .map(m => ({ id: m.userId, uri: m.avatarUrl ?? '' }))
@@ -1231,14 +1240,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
             </View>
 
             {photos.length === 0 ? (
-              <View style={styles.emptyBox}>
-                <Svg width={36} height={36} viewBox="0 0 24 24" fill="none">
-                  <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
-                  <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
-                  <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                </Svg>
-                <Text style={styles.emptyTitle}>No photos yet</Text>
-                <Text style={styles.emptySub}>Add photos to capture event memories</Text>
+              <View style={{ paddingVertical: 4 }}>
+                
+                <Text style={[styles.emptySub, { marginTop: 2 }]}>Add photos to capture event memories</Text>
               </View>
             ) : (() => {
               const THUMB = (Dimensions.get('window').width - 32 - 32 - 16) / 3;
@@ -1279,20 +1283,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
               <DHeader title="Documents" onClose={() => setShowDocs(false)} />
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.dBody}>
-                  <TouchableOpacity style={styles.tealBtnFull} onPress={handleUploadDoc} activeOpacity={0.85}>
-                    <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" style={{ marginRight: 8 }}>
-                      <Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                    <Text style={styles.tealBtnTxt}>Upload from Phone</Text>
-                  </TouchableOpacity>
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                    <TouchableOpacity style={[styles.tealBtnFull, { flex: 1, backgroundColor: '#EA4335' }]} onPress={() => openEmailPicker('gmail')} activeOpacity={0.85}>
-                      <Text style={styles.tealBtnTxt} numberOfLines={1}>{emailStatus.gmail.connected ? 'Gmail' : 'Connect Gmail'}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.tealBtnFull, { flex: 1, backgroundColor: '#0078D4' }]} onPress={() => openEmailPicker('outlook')} activeOpacity={0.85}>
-                      <Text style={styles.tealBtnTxt} numberOfLines={1}>{emailStatus.outlook.connected ? 'Outlook' : 'Connect Outlook'}</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <DocumentsUploadSection
+                    onUploadPhone={handleUploadDoc}
+                    emailStatus={emailStatus}
+                    onGmail={() => openEmailPicker('gmail')}
+                    onOutlook={() => openEmailPicker('outlook')}
+                  />
                   {docs.length === 0 ? (
                     <View style={styles.emptyCenter}>
                       <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
@@ -1330,7 +1326,11 @@ export default function EventDetailScreen({ route, navigation }: any) {
         <Modal visible={showEmailPicker} transparent animationType="slide" onRequestClose={() => setShowEmailPicker(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '85%' }]}>
-              <DHeader title={`Import from ${emailPickerProvider === 'gmail' ? 'Gmail' : 'Outlook'}`} onClose={() => setShowEmailPicker(false)} />
+              <DHeader
+                title={`Import from ${emailProviderLabel(emailPickerProvider)}`}
+                leading={<EmailProviderIcon provider={emailPickerProvider} size={22} />}
+                onClose={() => setShowEmailPicker(false)}
+              />
               {emailPickerLoading ? (
                 <View style={{ padding: 40, alignItems: 'center' }}>
                   <ActivityIndicator size="large" color="#0d9488" />
@@ -1812,16 +1812,18 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 <View style={styles.dBody}>
 
                   {/* Create Poll button */}
-                  <TouchableOpacity
-                    style={styles.tealBtnFull}
-                    onPress={() => setShowPollForm(v => !v)}
-                    activeOpacity={0.85}>
-                    <Text style={styles.tealBtnTxt}>{showPollForm ? '✕  Cancel' : '+  Create Poll'}</Text>
-                  </TouchableOpacity>
+                  {!showPollForm && (
+                    <TouchableOpacity
+                      style={styles.tealBtnFull}
+                      onPress={() => setShowPollForm(true)}
+                      activeOpacity={0.85}>
+                      <Text style={styles.tealBtnTxt}>+  Create Poll</Text>
+                    </TouchableOpacity>
+                  )}
 
                   {/* Inline create form */}
                   {showPollForm && (
-                    <View style={{ marginTop: 14 }}>
+                    <View>
                       <Text style={styles.fLabel}>Question</Text>
                       <TextInput style={styles.fInput} placeholder="What do you want to ask?" placeholderTextColor="#94a3b8" value={pollQuestion} onChangeText={setPollQuestion} />
                       <Text style={[styles.fLabel, { marginTop: 12 }]}>Options</Text>
@@ -1850,12 +1852,14 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     const totalVotes = poll.options.reduce((s, o) => s + o.voteCount, 0);
                     const isOwner = poll.createdBy === currentUserId;
                     const isVoting = votingPollId === poll.id;
+                    const pollCreatorName = isOwner ? 'You' : (poll.createdByName || 'A member');
+                    const pollDate = poll.createdAt ? new Date(poll.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }) : null;
                     return (
                       <View key={poll.id} style={styles.pollCard}>
                         <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
                           <View style={{ flex: 1 }}>
                             <Text style={styles.pollQ}>{poll.question}</Text>
-                            <Text style={styles.pollMeta}>{isOwner ? 'By You' : 'By a member'} • {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</Text>
+                            <Text style={styles.pollMeta}>By {pollCreatorName}{pollDate ? ` • ${pollDate}` : ''} • {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</Text>
                           </View>
                           <TouchableOpacity onPress={() => handleDeletePoll(poll.id)} activeOpacity={0.7} style={styles.pollDeleteBtn} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                             <TrashIcon color="#ef4444" size={15} />
