@@ -368,7 +368,7 @@ export default function FriendsScreen() {
 
               {!isSelecting && (
                 <View style={styles.searchBar}>
-                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" style={styles.searchIcon}>
+                  <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" style={styles.searchIcon}>
                     <Path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
                   <TextInput
@@ -685,18 +685,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'transparent',
     borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(15, 23, 42, 0.12)',
   },
   searchIcon: {
-    marginRight: 10,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '300',
     color: '#0f172a',
     padding: 0,

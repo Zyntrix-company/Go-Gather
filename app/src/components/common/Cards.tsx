@@ -180,10 +180,7 @@ export function UnifiedCard({
           {/* Bottom row: days to go — always reserves space for uniform height */}
           <View style={s.rightBottom}>
             {isActiveToday
-              ? <>
-                  <Text style={[s.daysNum, { fontSize: 13, lineHeight: 16 }]}>TODAY</Text>
-                  <Text style={s.daysLbl}>ACTIVE</Text>
-                </>
+              ? <Text style={[s.daysNum, { fontSize: 11, letterSpacing: 0.4 }]}>ONGOING</Text>
               : daysToGo && daysToGo > 0
                 ? <>
                     <Text style={s.daysNum}>{daysToGo}</Text>

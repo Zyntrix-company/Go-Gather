@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   center:     { alignItems: 'center', marginTop: 60 },
   errorText:  { fontSize: 14, color: colors.error, marginBottom: 12 },
   retryBtn:   { backgroundColor: colors.accent, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24 },
-  retryText:  { color: '#fff', fontWeight: '600', fontSize: 14 },
+  retryText:  { color: '#fff', fontWeight: '500', fontSize: 14 },
 
   card: {
     
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: colors.textPrimary, marginBottom: 14 },
+  sectionTitle: { fontSize: 14, fontWeight: '500', color: colors.textPrimary, marginBottom: 14 },
   digestSub:    { fontSize: 12, color: colors.textSecondary, marginBottom: 14 },
 
   row:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

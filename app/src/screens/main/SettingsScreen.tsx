@@ -201,13 +201,13 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: 10,
     marginBottom: 20,
     gap: 12,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '500',
     color: colors.textPrimary,
     marginBottom: 1,
   },
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.22)',
+   
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
     color: colors.accentHover,
   },
   profileText: { flex: 1, minWidth: 0 },
-  profileName: { fontSize: 16, fontWeight: '500', color: colors.textPrimary },
+  profileName: { fontSize: 15, fontWeight: '500', color: colors.textPrimary },
   profileEmail: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
 
   sectionTitle: {

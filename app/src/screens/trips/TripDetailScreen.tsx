@@ -90,7 +90,7 @@ type Expense = {
   createdByUserId?: string;
   splitBreakdown?: { userId: string; amount: number; percentage: number | null }[];
 };
-type Poll = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null; createdBy?: string };
+type Poll = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null; createdBy?: string; createdByName?: string | null; createdAt?: string | null };
 type Note = { id: string; title: string; body: string; category: 'general' | 'idea' | 'important' | 'todo'; date: string; pinned?: boolean };
 
 // ─── Friends ──────────────────────────────────────────────────────────────────
@@ -547,6 +547,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [apiFriends, setApiFriends] = useState<{ id: string; name: string; avatarUrl: string | null }[]>([]);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [showUpcoming, setShowUpcoming] = useState(true);
 
   const tripId: string = trip?.id ?? '';
 
@@ -814,6 +815,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
           options: p.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount ?? 0, votedByMe: o.votedByMe ?? false })),
           myVoteOptionId: p.myVoteOptionId ?? null,
           createdBy: p.createdBy,
+          createdByName: p.createdByName ?? null,
+          createdAt: p.createdAt ?? null,
         }));
         setPolls(mapped);
         setUnreadCounts(prev => ({ ...prev, polls: 0 }));
@@ -908,7 +911,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     if (actDate) {
       const tripStart = trip?.startDateISO ? new Date(trip.startDateISO) : null;
       const tripEnd = trip?.endDateISO ? new Date(trip.endDateISO) : null;
-      const actD = new Date(actDate.toISOString().split('T')[0]);
+      const actD = new Date(actDate.getFullYear(), actDate.getMonth(), actDate.getDate());
       if (tripStart) tripStart.setHours(0, 0, 0, 0);
       if (tripEnd) tripEnd.setHours(23, 59, 59, 999);
       if ((tripStart && actD < tripStart) || (tripEnd && actD > tripEnd)) {
@@ -925,7 +928,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         (timeHr !== null && !isNaN(timeHr) && timeMin !== null && !isNaN(timeMin))
           ? { hour: timeHr, minute: timeMin }
           : undefined;
-      const dateStr = actDate ? actDate.toISOString().split('T')[0] : undefined;
+      const dateStr = actDate ? `${actDate.getFullYear()}-${String(actDate.getMonth() + 1).padStart(2, '0')}-${String(actDate.getDate()).padStart(2, '0')}` : undefined;
 
       // If an expense was staged, create it first then link to activity
       let linkedExpenseId: string | undefined;
@@ -1663,68 +1666,69 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
           {/* ── Upcoming Activities — hidden for past trips ── */}
           {!isPastTrip && <View style={styles.section}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
-                <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-              </Svg>
-              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Upcoming Activities</Text>
-            </View>
-            {upcomingActs.length === 0 ? (
-              <Text style={styles.emptySub}>No upcoming activities yet</Text>
-            ) : (() => {
-              const groups = new Map<string, Activity[]>();
-              upcomingActs.forEach(a => {
-                const key = a.date || '__nodate__';
-                if (!groups.has(key)) groups.set(key, []);
-                groups.get(key)!.push(a);
-              });
-              const fmtActDate = (iso: string) => {
-                if (!iso) return 'No Date';
-                const d = new Date(iso);
-                return d.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short' });
-              };
-              return (
-                <View>
-                  {Array.from(groups.entries()).map(([dateKey, acts]) => {
-                    const isCollapsed = collapsedDates.has(dateKey);
-                    const toggleCollapse = () => {
-                      setCollapsedDates(prev => {
-                        const next = new Set(prev);
-                        next.has(dateKey) ? next.delete(dateKey) : next.add(dateKey);
-                        return next;
-                      });
+            <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => setShowUpcoming(p => !p)} activeOpacity={0.7}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                  <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
+                  <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={styles.sectionTitleDark}>Upcoming Activities</Text>
+              </View>
+              {showUpcoming ? <ChevUp /> : <ChevDown />}
+            </TouchableOpacity>
+            {showUpcoming && (
+              upcomingActs.length === 0
+                ? <Text style={styles.emptySub}>No upcoming activities yet</Text>
+                : (() => {
+                    const groups = new Map<string, Activity[]>();
+                    upcomingActs.forEach(a => {
+                      const key = a.date || '__nodate__';
+                      if (!groups.has(key)) groups.set(key, []);
+                      groups.get(key)!.push(a);
+                    });
+                    const fmtActDate = (iso: string) => {
+                      if (!iso) return 'No Date';
+                      const d = new Date(iso);
+                      return d.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short' });
                     };
                     return (
-                      <View key={dateKey} style={{ marginBottom: 4 }}>
-                        <TouchableOpacity
-                          style={styles.actDateRow}
-                          onPress={toggleCollapse}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.actDateLabel}>
-                            {fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}
-                          </Text>
-                          {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
-                        </TouchableOpacity>
-                        {!isCollapsed && (
-                          <View style={styles.actItemsWrap}>
-                            {acts.map((act, idx) => (
-                              <TouchableOpacity key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]} onPress={() => startEditActivity(act)} activeOpacity={0.7}>
-                                <Text style={styles.actTimeLabel}>
-                                  {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
+                      <View>
+                        {Array.from(groups.entries()).map(([dateKey, acts]) => {
+                          const isCollapsed = collapsedDates.has(dateKey);
+                          const toggleCollapse = () => {
+                            setCollapsedDates(prev => {
+                              const next = new Set(prev);
+                              next.has(dateKey) ? next.delete(dateKey) : next.add(dateKey);
+                              return next;
+                            });
+                          };
+                          return (
+                            <View key={dateKey} style={{ marginBottom: 4 }}>
+                              <TouchableOpacity style={styles.actDateRow} onPress={toggleCollapse} activeOpacity={0.7}>
+                                <Text style={styles.actDateLabel}>
+                                  {fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}
                                 </Text>
-                                <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
+                                {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
                               </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
+                              {!isCollapsed && (
+                                <View style={styles.actItemsWrap}>
+                                  {acts.map((act, idx) => (
+                                    <TouchableOpacity key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]} onPress={() => startEditActivity(act)} activeOpacity={0.7}>
+                                      <Text style={styles.actTimeLabel}>
+                                        {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
+                                      </Text>
+                                      <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })}
                       </View>
                     );
-                  })}
-                </View>
-              );
-            })()}
+                  })()
+            )}
           </View>}
 
           {/* ── Activities (past trip: flat list) / Completed Activities (active trip: collapsible) ── */}
@@ -2058,7 +2062,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         <View style={[styles.splitCheck, actExpSplitAmong.includes('You') && styles.splitCheckActive]}>{actExpSplitAmong.includes('You') && <CheckIcon />}</View>
                         <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>You</Text>
                         {actExpSplitType !== 'equally' && (
-                          <TextInput style={[styles.fInput, { width: 70, marginBottom: 0, paddingVertical: 5 }]} placeholder={actExpSplitType === 'percent' ? '%' : '₹'} placeholderTextColor="#94a3b8" keyboardType="numeric" value={actExpSplitDetails['You'] || ''} onChangeText={v => setActExpSplitDetails(p => ({ ...p, You: v }))} />
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                            {actExpSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>₹</Text>}
+                            <TextInput style={[styles.fInput, { width: 60, marginBottom: 0, paddingVertical: 5, textAlign: 'right' }]} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" value={actExpSplitDetails['You'] || ''} onChangeText={v => setActExpSplitDetails(p => ({ ...p, You: v }))} />
+                            {actExpSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
+                          </View>
                         )}
                       </TouchableOpacity>
                       {members.filter(m => m.userId !== currentUserId).map(m => (
@@ -2066,7 +2074,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           <View style={[styles.splitCheck, actExpSplitAmong.includes(m.userId) && styles.splitCheckActive]}>{actExpSplitAmong.includes(m.userId) && <CheckIcon />}</View>
                           <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName}</Text>
                           {actExpSplitType !== 'equally' && (
-                            <TextInput style={[styles.fInput, { width: 70, marginBottom: 0, paddingVertical: 5 }]} placeholder={actExpSplitType === 'percent' ? '%' : '₹'} placeholderTextColor="#94a3b8" keyboardType="numeric" value={actExpSplitDetails[m.userId] || ''} onChangeText={v => setActExpSplitDetails(p => ({ ...p, [m.userId]: v }))} />
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                              {actExpSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>₹</Text>}
+                              <TextInput style={[styles.fInput, { width: 60, marginBottom: 0, paddingVertical: 5, textAlign: 'right' }]} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" value={actExpSplitDetails[m.userId] || ''} onChangeText={v => setActExpSplitDetails(p => ({ ...p, [m.userId]: v }))} />
+                              {actExpSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
+                            </View>
                           )}
                         </TouchableOpacity>
                       ))}
@@ -2609,14 +2621,18 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           </View>
                           <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>You</Text>
                           {expSplitType !== 'equally' && (
-                            <TextInput
-                              style={[styles.fInput, { width: 72, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]}
-                              placeholder={expSplitType === 'percent' ? '0 %' : '0.00'}
-                              placeholderTextColor="#94a3b8"
-                              keyboardType="numeric"
-                              value={expSplitDetails['You'] || ''}
-                              onChangeText={v => setExpSplitDetails(p => ({ ...p, You: v }))}
-                            />
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                              {expSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>₹</Text>}
+                              <TextInput
+                                style={[styles.fInput, { width: 62, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]}
+                                placeholder="0"
+                                placeholderTextColor="#94a3b8"
+                                keyboardType="numeric"
+                                value={expSplitDetails['You'] || ''}
+                                onChangeText={v => setExpSplitDetails(p => ({ ...p, You: v }))}
+                              />
+                              {expSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
+                            </View>
                           )}
                         </TouchableOpacity>
                         {/* Other trip members */}
@@ -2627,14 +2643,18 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             </View>
                             <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName || (m as any).name || 'Member'}</Text>
                             {expSplitType !== 'equally' && (
-                              <TextInput
-                                style={[styles.fInput, { width: 72, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]}
-                                placeholder={expSplitType === 'percent' ? '0 %' : '0.00'}
-                                placeholderTextColor="#94a3b8"
-                                keyboardType="numeric"
-                                value={expSplitDetails[m.userId] || ''}
-                                onChangeText={v => setExpSplitDetails(p => ({ ...p, [m.userId]: v }))}
-                              />
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                                {expSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>₹</Text>}
+                                <TextInput
+                                  style={[styles.fInput, { width: 62, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]}
+                                  placeholder="0"
+                                  placeholderTextColor="#94a3b8"
+                                  keyboardType="numeric"
+                                  value={expSplitDetails[m.userId] || ''}
+                                  onChangeText={v => setExpSplitDetails(p => ({ ...p, [m.userId]: v }))}
+                                />
+                                {expSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
+                              </View>
                             )}
                           </TouchableOpacity>
                         ))}
@@ -2826,13 +2846,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   {polls.length > 0 && <View style={{ marginTop: 16 }} />}
                   {polls.map(poll => {
                     const totalVotes = poll.options.reduce((s, o) => s + o.voteCount, 0);
-                    const isOwner = poll.createdBy === currentUserId;
                     return (
                       <View key={poll.id} style={styles.pollCard}>
                         <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
                           <View style={{ flex: 1 }}>
                             <Text style={styles.pollQ}>{poll.question}</Text>
-                            <Text style={styles.pollMeta}>{isOwner ? 'By You' : 'By a member'} • {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</Text>
+                            <Text style={styles.pollMeta}>{poll.createdByName ? `By ${poll.createdByName}` : 'By You'}{poll.createdAt ? ` • ${new Date(poll.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' })}` : ''}</Text>
                           </View>
                           <TouchableOpacity onPress={() => handleDeletePoll(poll.id)} activeOpacity={0.7} style={styles.pollDeleteBtn} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                             <TrashIcon color="#ef4444" size={15} />

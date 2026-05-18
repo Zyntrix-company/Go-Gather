@@ -459,8 +459,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#e2e8f0',
     borderRadius: 14,
-    fontSize: 22,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '500',
     color: '#0f172a',
     // Android: vertically center text inside the box
     textAlignVertical: 'center',

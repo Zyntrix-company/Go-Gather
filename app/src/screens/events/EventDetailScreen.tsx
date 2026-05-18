@@ -1039,7 +1039,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         name: editName.trim(),
         ...(editLocation ? { location: { name: editLocation } } : {}),
         ...(editType ? { eventType: editType } : {}),
-        ...(editDateObj ? { eventDate: editDateObj.toISOString().split('T')[0] } : {}),
+        ...(editDateObj ? { eventDate: `${editDateObj.getFullYear()}-${String(editDateObj.getMonth() + 1).padStart(2, '0')}-${String(editDateObj.getDate()).padStart(2, '0')}` } : {}),
       });
       // Immediately fetch fresh event data to ensure consistency
       const freshData = await getEventDetail(event.id);
@@ -1692,7 +1692,11 @@ export default function EventDetailScreen({ route, navigation }: any) {
                           </View>
                           <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>You</Text>
                           {expSplitType !== 'equally' && (
-                            <TextInput style={[styles.fInput, { width: 72, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]} placeholder={expSplitType === 'percent' ? '0 %' : '0.00'} placeholderTextColor="#94a3b8" keyboardType="numeric" value={expSplitDetails['You'] || ''} onChangeText={v => setExpSplitDetails(p => ({ ...p, You: v }))} />
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                              {expSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>₹</Text>}
+                              <TextInput style={[styles.fInput, { width: 62, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" value={expSplitDetails['You'] || ''} onChangeText={v => setExpSplitDetails(p => ({ ...p, You: v }))} />
+                              {expSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
+                            </View>
                           )}
                         </TouchableOpacity>
                         {members.filter(m => m.userId !== currentUserId).map(m => (
@@ -1702,7 +1706,11 @@ export default function EventDetailScreen({ route, navigation }: any) {
                             </View>
                             <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName}</Text>
                             {expSplitType !== 'equally' && (
-                              <TextInput style={[styles.fInput, { width: 72, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]} placeholder={expSplitType === 'percent' ? '0 %' : '0.00'} placeholderTextColor="#94a3b8" keyboardType="numeric" value={expSplitDetails[m.userId] || ''} onChangeText={v => setExpSplitDetails(p => ({ ...p, [m.userId]: v }))} />
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                                {expSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>₹</Text>}
+                                <TextInput style={[styles.fInput, { width: 62, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" value={expSplitDetails[m.userId] || ''} onChangeText={v => setExpSplitDetails(p => ({ ...p, [m.userId]: v }))} />
+                                {expSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
+                              </View>
                             )}
                           </TouchableOpacity>
                         ))}
@@ -1859,7 +1867,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
                           <View style={{ flex: 1 }}>
                             <Text style={styles.pollQ}>{poll.question}</Text>
-                            <Text style={styles.pollMeta}>By {pollCreatorName}{pollDate ? ` • ${pollDate}` : ''} • {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</Text>
+                            <Text style={styles.pollMeta}>By {pollCreatorName}{pollDate ? ` • ${pollDate}` : ''}</Text>
                           </View>
                           <TouchableOpacity onPress={() => handleDeletePoll(poll.id)} activeOpacity={0.7} style={styles.pollDeleteBtn} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                             <TrashIcon color="#ef4444" size={15} />

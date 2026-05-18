@@ -26,6 +26,7 @@ import LocationAutocomplete from '../../components/common/LocationAutocomplete';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
 import { showAlert, showConfirm } from '../../store/alertStore';
+import { EmailProviderPickerRow } from '../../components/common/EmailProviderUI';
 import {
   requireEventFromResponse,
   runSafePostCreate,
@@ -86,9 +87,18 @@ const CT_FRIENDS: { id: string; name: string; email: string; uri: string }[] = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function parseLocalDate(iso: string): Date {
+  const p = iso.split('-');
+  return p.length === 3 ? new Date(+p[0], +p[1] - 1, +p[2]) : new Date(0);
+}
+
+function dateToISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function daysUntil(isoDate: string): number {
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const target = new Date(isoDate);
+  const target = parseLocalDate(isoDate);
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
@@ -119,7 +129,7 @@ function fmtDateNoYear(d: Date): string {
 }
 
 function fmtDateISO(d: Date): string {
-  return d.toISOString().split('T')[0];
+  return dateToISO(d);
 }
 
 function mapMemberAvatarsForCard(memberAvatars: any[]): { id: string; uri: string }[] {
@@ -1006,44 +1016,16 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
               </TouchableOpacity>
             </View>
             <View style={{ padding: 16, gap: 10 }}>
-              <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#fef2f2', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#fecaca' }}
+              <EmailProviderPickerRow
+                provider="gmail"
+                connected={emailStatus.gmail.connected}
                 onPress={() => { setShowProviderPicker(false); openEmailPicker('gmail'); }}
-                activeOpacity={0.8}
-              >
-                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#EA4335', alignItems: 'center', justifyContent: 'center' }}>
-                  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                    <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    <Path d="M22 6l-10 7L2 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#EA4335' }}>Import from Gmail</Text>
-                  <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{emailStatus.gmail.connected ? 'Connected' : 'Tap to connect'}</Text>
-                </View>
-                <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-                  <Path d="M9 18l6-6-6-6" stroke="#EA4335" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                </Svg>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#eff6ff', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#bfdbfe' }}
+              />
+              <EmailProviderPickerRow
+                provider="outlook"
+                connected={emailStatus.outlook.connected}
                 onPress={() => { setShowProviderPicker(false); openEmailPicker('outlook'); }}
-                activeOpacity={0.8}
-              >
-                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#0078D4', alignItems: 'center', justifyContent: 'center' }}>
-                  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                    <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    <Path d="M22 6l-10 7L2 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#0078D4' }}>Import from Outlook</Text>
-                  <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{emailStatus.outlook.connected ? 'Connected' : 'Tap to connect'}</Text>
-                </View>
-                <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-                  <Path d="M9 18l6-6-6-6" stroke="#0078D4" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                </Svg>
-              </TouchableOpacity>
+              />
             </View>
           </View>
         </View>

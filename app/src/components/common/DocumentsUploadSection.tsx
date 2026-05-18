@@ -82,7 +82,7 @@ export default function DocumentsUploadSection({
     <View style={styles.wrap}>
       <TouchableOpacity style={styles.phoneBtn} onPress={onUploadPhone} activeOpacity={0.85}>
         <UploadIcon />
-        <Text style={styles.phoneBtnText}>Upload from phone</Text>
+        <Text style={styles.phoneBtnText}>Upload from device</Text>
       </TouchableOpacity>
 
       <View style={styles.dividerRow}>

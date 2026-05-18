@@ -31,12 +31,31 @@ function formatEffective(iso: string | undefined) {
 }
 
 const WEB_CSS = `
-  body { margin:0; padding:16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-size: 16px; color: #334155; line-height: 1.55; background: #f8fafc; }
-  p { margin: 0 0 12px 0; }
-  a { color: #0d9488; }
-  h1,h2,h3,h4 { color: #0f172a; margin: 20px 0 10px 0; }
-  ul, ol { padding-left: 22px; margin: 0 0 12px 0; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px 18px 32px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px; color: #334155; line-height: 1.65; background: #f8fafc;
+  }
+  h1 {
+    font-size: 20px; font-weight: 700; color: #0f172a;
+    margin: 0 0 4px 0; padding-bottom: 10px;
+    border-bottom: 2px solid #0d9488;
+  }
+  h2 {
+    font-size: 15px; font-weight: 700; color: #0d9488;
+    margin: 22px 0 8px 0; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  h3, h4 { font-size: 14px; font-weight: 600; color: #1e293b; margin: 14px 0 6px 0; }
+  p { margin: 0 0 10px 0; }
+  p:last-child { margin-bottom: 0; }
+  a { color: #0d9488; text-decoration: none; }
+  ul, ol { padding-left: 20px; margin: 0 0 10px 0; }
+  li { margin-bottom: 6px; }
+  li:last-child { margin-bottom: 0; }
+  strong { color: #1e293b; }
+  em { color: #64748b; font-style: normal; font-size: 13px; }
+  hr { border: none; border-top: 1px solid #e2e8f0; margin: 16px 0; }
 `;
 
 export default function LegalModal({ visible, type, onClose }: Props) {
