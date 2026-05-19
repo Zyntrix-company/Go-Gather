@@ -58,6 +58,9 @@ const IDS = {
   vansh:   'a0000000-0000-4000-8000-000000000009',
   ankan:   'a0000000-0000-4000-8000-00000000000a',
   pooja:   'a0000000-0000-4000-8000-00000000000b',
+  riya:    'a0000000-0000-4000-8000-00000000000c',
+  arjun:   'a0000000-0000-4000-8000-00000000000d',
+  neha:    'a0000000-0000-4000-8000-00000000000e',
 
   // Trips
   goaTrip:     'b0000000-0000-4000-8000-000000000001',  // alice admin, UPCOMING
@@ -301,6 +304,10 @@ const IDS = {
   connAlicePooja:   'f0000000-0000-4000-8000-000000000019',
   connBobVansh:     'f0000000-0000-4000-8000-00000000001a',
   connBobPooja:     'f0000000-0000-4000-8000-00000000001b',
+  // Ankan's new friends
+  connAnkanRiya:    'f0000000-0000-4000-8000-00000000001c',
+  connAnkanArjun:   'f0000000-0000-4000-8000-00000000001d',
+  connAnkanNeha:    'f0000000-0000-4000-8000-00000000001e',
 };
 
 const PASSWORD = 'TestPass123!';
@@ -412,6 +419,9 @@ async function seed() {
       [IDS.vansh,   'vanshahuja318@gmail.com',  '+919876543218', 'vansh_gg'],
       [IDS.ankan,   'hello@gatherrgo.com',       '+919876543219', 'ankan_gg'],
       [IDS.pooja,   'poojadevrari07@gmail.com',  '+919876543220', 'pooja_gg'],
+      [IDS.riya,    'riya@gathergo.com',         '+919876543221', 'riya_gg'],
+      [IDS.arjun,   'arjun@gathergo.com',        '+919876543222', 'arjun_gg'],
+      [IDS.neha,    'neha@gathergo.com',         '+919876543223', 'neha_gg'],
     ];
     for (const [id, email, phone, username] of users) {
       const passwordHash = ALPHA_USER_IDS.has(id) ? alphaHash : hash;
@@ -439,6 +449,9 @@ async function seed() {
       [IDS.vansh,   'Vansh Ahuja',    '2002-04-20', 'male',   'India', 'Alpha tester | Bikes, rooftops, and messy group chats', ALPHA_AVATAR.vansh],
       [IDS.ankan,   'Ankan Nandi',    '1994-02-10', 'male',   'India', 'Alpha tester | River sports, bikes & weekend hikes', ALPHA_AVATAR.ankan],
       [IDS.pooja,   'Pooja Devrari',  '2005-01-18', 'female', 'India', 'Alpha tester | Food trails, board games, city nights', ALPHA_AVATAR.pooja],
+      [IDS.riya,    'Riya Mehta',     '1999-07-12', 'female', 'India', 'Solo traveller | Mountains over beaches | Chai enthusiast', 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=800&h=800&q=80'],
+      [IDS.arjun,   'Arjun Singh',    '1996-03-25', 'male',   'India', 'Weekend biker | Wildlife photographer | Himachal is home', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=800&h=800&q=80'],
+      [IDS.neha,    'Neha Joshi',     '2001-11-03', 'female', 'India', 'Bookworm + wanderer | Café hopper | Sunsets and street food', 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=800&h=800&q=80'],
     ];
     for (const [uid, name, dob, gender, country, bio, avatarUrl] of profiles) {
       await client.query(
@@ -482,6 +495,10 @@ async function seed() {
       [IDS.connAlicePooja,   IDS.alice,   IDS.pooja,   'accepted'],
       [IDS.connBobVansh,     IDS.bob,     IDS.vansh,   'accepted'],
       [IDS.connBobPooja,     IDS.bob,     IDS.pooja,   'accepted'],
+      // Ankan's new friends
+      [IDS.connAnkanRiya,    IDS.ankan,   IDS.riya,    'accepted'],
+      [IDS.connAnkanArjun,   IDS.ankan,   IDS.arjun,   'accepted'],
+      [IDS.connAnkanNeha,    IDS.ankan,   IDS.neha,    'accepted'],
     ];
     for (const [id, req, addr, status] of connections) {
       await client.query(
