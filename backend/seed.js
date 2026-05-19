@@ -410,7 +410,7 @@ async function seed() {
       [IDS.grace,   'grace@gathergo.com',   '+919876543216', 'grace_gg'],
       [IDS.henry,   'henry@gathergo.com',   '+919876543217', 'henry_gg'],
       [IDS.vansh,   'vanshahuja318@gmail.com',  '+919876543218', 'vansh_gg'],
-      [IDS.ankan,   'Hello@GatherrGo.com',       '+919876543219', 'ankan_gg'],
+      [IDS.ankan,   'hello@gatherrgo.com',       '+919876543219', 'ankan_gg'],
       [IDS.pooja,   'poojadevrari07@gmail.com',  '+919876543220', 'pooja_gg'],
     ];
     for (const [id, email, phone, username] of users) {
