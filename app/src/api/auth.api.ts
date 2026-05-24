@@ -208,6 +208,14 @@ const authApi = {
   },
 
   /**
+   * POST /auth/change-password
+   */
+  changePassword: async (currentPassword: string, newPassword: string): Promise<{ message: string }> => {
+    const { data } = await client.post('/auth/change-password', { currentPassword, newPassword });
+    return data;
+  },
+
+  /**
    * PUT /users/photo  (multipart/form-data)
    * Returns the photo URL (CloudFront CDN URL).
    */

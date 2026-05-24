@@ -11,6 +11,7 @@ import FriendProfileScreen from '../screens/main/FriendProfileScreen';
 import HowItWorksScreen from '../screens/home/HowItWorksScreen';
 import NotificationSettingsScreen from '../screens/main/NotificationSettingsScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
+import ChangePasswordScreen from '../screens/main/ChangePasswordScreen';
 import ConnectedEmailScreen from '../screens/main/ConnectedEmailScreen';
 import FaqScreen from '../screens/main/FaqScreen';
 
@@ -26,6 +27,7 @@ export type MainStackParamList = {
   HowItWorks: undefined;
   NotificationSettings: undefined;
   Settings: undefined;
+  ChangePassword: undefined;
   ConnectedEmail: undefined;
   Faq: undefined;
 };
@@ -52,6 +54,7 @@ export default function MainStack() {
       <Stack.Screen name="HowItWorks" component={HowItWorksScreen} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="ConnectedEmail" component={ConnectedEmailScreen} />
       <Stack.Screen name="Faq" component={FaqScreen} />
     </Stack.Navigator>

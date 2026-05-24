@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -37,45 +36,26 @@ function Chevron() {
   );
 }
 
-function ExternalIcon() {
-  return (
-    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
-        stroke={colors.textMuted}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
-
 type RowProps = {
   label: string;
   sub?: string;
   onPress: () => void;
-  showExternal?: boolean;
 };
 
-function SettingsRow({ label, sub, onPress, showExternal }: RowProps) {
+function SettingsRow({ label, sub, onPress }: RowProps) {
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.75}>
       <View style={styles.rowTextWrap}>
         <Text style={styles.rowLabel}>{label}</Text>
         {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
       </View>
-      {showExternal ? <ExternalIcon /> : <Chevron />}
+      <Chevron />
     </TouchableOpacity>
   );
 }
 
 function SectionTitle({ children }: { children: string }) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
-}
-
-function openAppSettings() {
-  Linking.openSettings();
 }
 
 export default function SettingsScreen({ navigation }: { navigation: any }) {
@@ -104,7 +84,7 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
             </TouchableOpacity>
             <View>
               <Text style={styles.headerTitle}>Settings</Text>
-              <Text style={styles.headerSubtitle}>Account, notifications, help</Text>
+              <Text style={styles.headerSubtitle}>Profile, notifications, help</Text>
             </View>
           </View>
 
@@ -130,7 +110,7 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
             </View>
           </View>
 
-          <SectionTitle>Account</SectionTitle>
+          <SectionTitle>Profile</SectionTitle>
           <View style={styles.card}>
             <SettingsRow
               label="Profile info"
@@ -139,16 +119,15 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
             />
             <View style={styles.divider} />
             <SettingsRow
-              label="Notifications"
-              sub="Your alerts and activity"
-              onPress={() => navigation.navigate('Notifications')}
+              label="Change password"
+              sub="Update your sign-in password"
+              onPress={() => navigation.navigate('ChangePassword')}
             />
             <View style={styles.divider} />
             <SettingsRow
-              label="Location"
-              sub="Open system settings for location access"
-              onPress={openAppSettings}
-              showExternal
+              label="Notifications"
+              sub="Your alerts and activity"
+              onPress={() => navigation.navigate('Notifications')}
             />
             <View style={styles.divider} />
             <SettingsRow

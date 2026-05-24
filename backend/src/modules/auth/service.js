@@ -469,6 +469,37 @@ const resetPassword = async ({ email, otp, password }) => {
 };
 
 /**
+ * POST /auth/change-password — Change password for authenticated email/password users.
+ */
+const changePassword = async ({ userId, currentPassword, newPassword }) => {
+  const result = await db.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+  if (result.rows.length === 0) {
+    const err = new Error('User not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const { password_hash: passwordHash } = result.rows[0];
+  if (!passwordHash) {
+    const err = new Error('This account uses social sign-in and has no password to change.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const valid = await bcrypt.compare(currentPassword, passwordHash);
+  if (!valid) {
+    const err = new Error('Current password is incorrect');
+    err.statusCode = 401;
+    throw err;
+  }
+
+  const newHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, userId]);
+
+  return { message: 'Password changed successfully' };
+};
+
+/**
  * POST /auth/resend-otp
  */
 const resendOTP = async ({ email, purpose }) => {
@@ -623,6 +654,7 @@ module.exports = {
   forgotPassword,
   verifyEmail,
   resetPassword,
+  changePassword,
   resendOTP,
   getMe,
   facebookDataDeletion,

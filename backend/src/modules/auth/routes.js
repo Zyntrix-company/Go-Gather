@@ -79,6 +79,15 @@ router.post(
   controller.resetPassword,
 );
 
+// POST /auth/change-password — Change password while logged in (requires auth)
+router.post(
+  '/change-password',
+  authenticateJWT,
+  validators.changePasswordValidation,
+  validate,
+  controller.changePassword,
+);
+
 // POST /auth/resend-otp — Resend code
 router.post(
   '/resend-otp',

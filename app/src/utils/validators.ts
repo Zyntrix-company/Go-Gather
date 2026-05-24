@@ -55,6 +55,18 @@ export const resetPasswordSchema = z
     path: ['confirmPassword'],
   });
 
+// ─── Change Password (logged in) ─────────────────────────────────────────────
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    password: strongPassword,
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ['confirmPassword'],
+  });
+
 // ─── Profile ──────────────────────────────────────────────────────────────────
 export const profileSchema = z.object({
   fullName: z

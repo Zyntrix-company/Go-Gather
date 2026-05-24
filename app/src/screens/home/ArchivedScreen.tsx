@@ -383,7 +383,7 @@ export default function ArchivedScreen() {
               />
             </Svg>
             <Text style={styles.emptyTitle}>No archived items</Text>
-            <Text style={styles.emptySub}>Archived gallery albums, trips, and events will appear here</Text>
+            <Text style={styles.emptySub}>Archived trips, events, and gallery albums will appear here</Text>
           </View>
         ) : (
           <ScrollView
@@ -392,53 +392,6 @@ export default function ArchivedScreen() {
             onScrollBeginDrag={() => setOpenMenuId(null)}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0d9488']} />}
           >
-            {galleryItems.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Archived Gallery</Text>
-                <View style={styles.galleryGrid}>
-                  {galleryItems.map((item) => {
-                    const menuKey = `gallery-${item.isCustom ? 'custom' : item.type}-${item.id}`;
-                    return (
-                      <View key={menuKey} style={{ width: GALLERY_CARD_W, marginBottom: 12, zIndex: openMenuId === menuKey ? 100 : 1 }}>
-                        <TouchableOpacity
-                          style={styles.galleryCard}
-                          activeOpacity={0.85}
-                          onPress={() => setOpenMenuId(openMenuId === menuKey ? null : menuKey)}
-                        >
-                          {item.bannerImageUrl ? (
-                            <Image source={{ uri: item.bannerImageUrl }} style={styles.galleryCardImage} resizeMode="cover" />
-                          ) : (
-                            <View style={[styles.galleryCardImage, styles.galleryCardPlaceholder]}>
-                              <Text style={styles.galleryCardPlaceholderText}>No cover</Text>
-                            </View>
-                          )}
-                          <View style={styles.galleryCardOverlay}>
-                            <Text style={styles.galleryCardTitle} numberOfLines={1}>{item.name}</Text>
-                            <Text style={styles.galleryCardMeta}>{item.isCustom ? 'Custom album' : item.type === 'trip' ? 'Trip album' : 'Event album'}</Text>
-                          </View>
-                        </TouchableOpacity>
-                        {openMenuId === menuKey && (
-                          <View style={styles.galleryMenu}>
-                            <TouchableOpacity style={styles.galleryMenuItem} onPress={() => handleRestoreGalleryItem(item)} activeOpacity={0.7}>
-                              <Text style={styles.galleryMenuItemText}>Restore</Text>
-                            </TouchableOpacity>
-                            {item.isCustom && (
-                              <>
-                                <View style={styles.galleryMenuDivider} />
-                                <TouchableOpacity style={styles.galleryMenuItem} onPress={() => handleDeleteGalleryItem(item)} activeOpacity={0.7}>
-                                  <Text style={[styles.galleryMenuItemText, { color: '#ef4444' }]}>Delete</Text>
-                                </TouchableOpacity>
-                              </>
-                            )}
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
-
             {/* Archived Trips Section */}
             {trips.length > 0 && (
               <View style={styles.section}>
@@ -486,6 +439,53 @@ export default function ArchivedScreen() {
                     mb={12}
                   />
                 ))}
+              </View>
+            )}
+
+            {galleryItems.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Archived Gallery</Text>
+                <View style={styles.galleryGrid}>
+                  {galleryItems.map((item) => {
+                    const menuKey = `gallery-${item.isCustom ? 'custom' : item.type}-${item.id}`;
+                    return (
+                      <View key={menuKey} style={{ width: GALLERY_CARD_W, marginBottom: 12, zIndex: openMenuId === menuKey ? 100 : 1 }}>
+                        <TouchableOpacity
+                          style={styles.galleryCard}
+                          activeOpacity={0.85}
+                          onPress={() => setOpenMenuId(openMenuId === menuKey ? null : menuKey)}
+                        >
+                          {item.bannerImageUrl ? (
+                            <Image source={{ uri: item.bannerImageUrl }} style={styles.galleryCardImage} resizeMode="cover" />
+                          ) : (
+                            <View style={[styles.galleryCardImage, styles.galleryCardPlaceholder]}>
+                              <Text style={styles.galleryCardPlaceholderText}>No cover</Text>
+                            </View>
+                          )}
+                          <View style={styles.galleryCardOverlay}>
+                            <Text style={styles.galleryCardTitle} numberOfLines={1}>{item.name}</Text>
+                            <Text style={styles.galleryCardMeta}>{item.isCustom ? 'Custom album' : item.type === 'trip' ? 'Trip album' : 'Event album'}</Text>
+                          </View>
+                        </TouchableOpacity>
+                        {openMenuId === menuKey && (
+                          <View style={styles.galleryMenu}>
+                            <TouchableOpacity style={styles.galleryMenuItem} onPress={() => handleRestoreGalleryItem(item)} activeOpacity={0.7}>
+                              <Text style={styles.galleryMenuItemText}>Restore</Text>
+                            </TouchableOpacity>
+                            {item.isCustom && (
+                              <>
+                                <View style={styles.galleryMenuDivider} />
+                                <TouchableOpacity style={styles.galleryMenuItem} onPress={() => handleDeleteGalleryItem(item)} activeOpacity={0.7}>
+                                  <Text style={[styles.galleryMenuItemText, { color: '#ef4444' }]}>Delete</Text>
+                                </TouchableOpacity>
+                              </>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
               </View>
             )}
           </ScrollView>

@@ -119,6 +119,17 @@ const resetPasswordValidation = [
     .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
 ];
 
+const changePasswordValidation = [
+  body('currentPassword')
+    .notEmpty()
+    .withMessage('Current password is required'),
+  body('newPassword')
+    .isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters')
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
+    .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
+];
+
 const resendOTPValidation = [
   body('email')
     .isEmail()
@@ -139,5 +150,6 @@ module.exports = {
   forgotPasswordValidation,
   verifyEmailValidation,
   resetPasswordValidation,
+  changePasswordValidation,
   resendOTPValidation,
 };

@@ -1542,7 +1542,16 @@ export default function HomeScreen({ navigation, route }: any) {
             onClose={() => setShowProfileMenu(false)}
             onNavigateToSettings={() => navigation.navigate('Settings')}
             onNavigateToArchived={() => navigation.navigate('Archived')}
-            onLogout={logout}
+            onLogout={() => {
+              setShowProfileMenu(false);
+              showConfirm({
+                title: 'Log out?',
+                message: 'Are you sure you want to log out of your account?',
+                confirmText: 'Log out',
+                destructive: true,
+                onConfirm: logout,
+              });
+            }}
           />
         )}
 

@@ -177,6 +177,26 @@ const resetPassword = async (req, res, next) => {
 };
 
 /**
+ * POST /auth/change-password
+ */
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const result = await authService.changePassword({
+      userId: req.user.id,
+      currentPassword,
+      newPassword,
+    });
+
+    logger.info('User changed password', { userId: req.user.id });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /auth/resend-otp
  */
 const resendOTP = async (req, res, next) => {
@@ -214,6 +234,7 @@ module.exports = {
   forgotPassword,
   verifyEmail,
   resetPassword,
+  changePassword,
   resendOTP,
   getMe,
   facebookDataDeletion,

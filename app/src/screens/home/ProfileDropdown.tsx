@@ -78,8 +78,12 @@ function ProfileDropdown({
   const photoUrl = user?.photoUrl || user?.avatarUrl || user?.profile?.avatarUrl || '';
 
   const openLegal = (type: 'terms' | 'privacy') => {
-    onClose();
     setLegal(type);
+  };
+
+  const closeLegal = () => {
+    setLegal(null);
+    onClose();
   };
 
   return (
@@ -137,7 +141,7 @@ function ProfileDropdown({
 
           <TouchableOpacity
             style={styles.dropdownItem}
-            onPress={() => { onClose(); onLogout(); }}
+            onPress={onLogout}
             activeOpacity={0.8}
           >
             <LogoutIcon />
@@ -146,8 +150,8 @@ function ProfileDropdown({
         </View>
       </View>
 
-      <LegalModal visible={legal === 'terms'} type="terms" onClose={() => setLegal(null)} />
-      <LegalModal visible={legal === 'privacy'} type="privacy" onClose={() => setLegal(null)} />
+      <LegalModal visible={legal === 'terms'} type="terms" onClose={closeLegal} />
+      <LegalModal visible={legal === 'privacy'} type="privacy" onClose={closeLegal} />
     </>
   );
 }
