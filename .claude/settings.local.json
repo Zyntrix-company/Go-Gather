@@ -181,7 +181,26 @@
       "Bash(echo \"DONE:$?\")",
       "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQVFKHWKSJ AWS_SECRET_ACCESS_KEY=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 AWS_DEFAULT_REGION=ap-south-1 /c/Program Files/Amazon/AWSCLIV2/aws ec2 *)",
       "Bash(AWS_ACCESS_KEY_ID=AKIARK547TXQVFKHWKSJ AWS_SECRET_ACCESS_KEY=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 AWS_DEFAULT_REGION=ap-south-1 /c/Program Files/Amazon/AWSCLIV2/aws ec2-instance-connect *)",
-      "Bash(ssh-keygen -t rsa -b 2048 -f /tmp/ec2_temp_key2 -N \"\" -q)"
+      "Bash(ssh-keygen -t rsa -b 2048 -f /tmp/ec2_temp_key2 -N \"\" -q)",
+      "PowerShell(Rename-Item \"e:\\\\Go Gather\\\\app\\\\node_modules\" \"node_modules__stash\")",
+      "PowerShell(Rename-Item \"e:\\\\Go Gather\\\\app\\\\android\\\\build\" \"build__stash\")",
+      "PowerShell(Rename-Item \"e:\\\\Go Gather\\\\app\\\\android\\\\build__stash\" \"build\")",
+      "PowerShell(Remove-Item \"e:\\\\Go Gather\\\\GatherGo_handoff_tmp\" -Recurse -Force -Confirm:$false)",
+      "PowerShell(Remove-Item \"e:\\\\Go Gather\\\\GatherGo-iOS-handoff.zip\" -Force -Confirm:$false -ErrorAction SilentlyContinue)",
+      "Bash(cmd /c \"rmdir /s /q \\\\\"e:\\\\Go Gather\\\\GatherGo_handoff_tmp\\\\\"\")",
+      "PowerShell(java -version 2>&1)",
+      "PowerShell(Get-Command java)",
+      "PowerShell($env:JAVA_HOME)",
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.gradle\\\\jdks\" -ErrorAction SilentlyContinue | Select-Object Name, LastWriteTime)",
+      "PowerShell(Test-Path \"$env:USERPROFILE\\\\.gradle\\\\jdks\"; Get-ChildItem \"$env:USERPROFILE\\\\.gradle\\\\jdks\" -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Process -Name \"java\" -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force -Confirm:$false)",
+      "PowerShell(Remove-Item \"e:\\\\Go Gather\\\\app\\\\android\\\\.gradle\" -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue)",
+      "PowerShell(Remove-Item \"e:\\\\Go Gather\\\\app\\\\node_modules\\\\@react-native\\\\gradle-plugin\\\\.gradle\" -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue)",
+      "Bash(adb -s 13871381370004X tcpip 5555)",
+      "Bash(adb -s 13871381370004X shell ip route)",
+      "Bash(adb connect *)",
+      "Bash(.\\\\gradlew.bat app:installDebug -x lint -PreactNativeDevServerPort=8081)"
     ]
   }
 }

@@ -59,6 +59,15 @@ import { authUserId } from '../../utils/avatarUri';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import { markEventSectionViewed } from '../../api/events.api';
 import ExpenseTotalsTab from '../../components/common/ExpenseTotalsTab';
+import {
+  EXPENSE_CATS,
+  NOTE_CATS,
+  ExpenseCategoryIcon,
+  ExpenseCatRow,
+  NoteCatRow,
+  NoteCategoryIcon,
+  resolveExpenseCategory,
+} from '../../components/common/CategoryIcons';
 import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -77,26 +86,6 @@ type NoteLocal = { id: string; title: string; body: string; category: 'general' 
 type DebtLocal = { from: string; to: string; fromName: string; toName: string; amount: number };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const EXPENSE_CATS = [
-  { label: 'General', emoji: '📦' },
-  { label: 'Food & Dining', emoji: '🍽️' },
-  { label: 'Transport', emoji: '🚗' },
-  { label: 'Stay', emoji: '🏨' },
-  { label: 'Entertainment', emoji: '🎭' },
-  { label: 'Shopping', emoji: '🛍️' },
-  { label: 'Other', emoji: '🌐' },
-];
-
-const EXPENSE_CAT_SLUG_TO_LABEL: Record<string, string> = {
-  general: 'General',
-  food: 'Food & Dining',
-  transportation: 'Transport',
-  accommodation: 'Stay',
-  entertainment: 'Entertainment',
-  shopping: 'Shopping',
-  other: 'Other',
-};
 
 function normalizeDebtArray(
   debts: any[],
@@ -179,14 +168,6 @@ function renderTextWithLinks(text: string, textStyle: any, linkStyle: any) {
     </Text>
   );
 }
-
-const NOTE_CATS = [
-  { key: 'general', label: 'General', emoji: '📝' },
-  { key: 'idea', label: 'Idea', emoji: '💡' },
-  { key: 'important', label: 'Important', emoji: '⚠️' },
-  { key: 'todo', label: 'To-Do', emoji: '✅' },
-];
-
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -796,11 +777,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
       }
     }
 
-    const catMap: Record<string, string> = {
-      'General': 'general', 'Food & Dining': 'food', 'Transport': 'transportation',
-      'Stay': 'accommodation', 'Entertainment': 'entertainment', 'Shopping': 'shopping', 'Other': 'other',
-    };
-    const categorySlug = catMap[expCategory.label] ?? 'general';
+    const categorySlug = expCategory.slug;
 
     const paidByUserId = expPaidBy === 'You' ? currentUserId
       : members.find(m => m.fullName === expPaidBy)?.userId ?? currentUserId;
@@ -855,8 +832,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   function startEditExpense(exp: ExpenseLocal) {
     setExpDesc(exp.description);
     setExpAmount(String(exp.amount));
-    const catLabel = EXPENSE_CAT_SLUG_TO_LABEL[exp.category] ?? exp.category;
-    setExpCategory(EXPENSE_CATS.find(c => c.label === catLabel) || EXPENSE_CATS[0]);
+    setExpCategory(resolveExpenseCategory(exp.category));
     setExpPaidBy(exp.paidBy);
     setExpSplitType(exp.splitType);
     const among = (exp.splitAmong ?? []).map(uid => (uid === currentUserId ? 'You' : uid));
@@ -1140,7 +1116,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
             <View style={styles.actionsRow}>
               <TouchableOpacity style={styles.actionBtn} onPress={() => { setShowPolls(true); setUnreadCounts(p => ({ ...p, polls: 0 })); markEventSectionViewed(event.id, 'polls'); }} activeOpacity={0.8}>
                 <View style={{ position: 'relative' }}>
-                  <View style={[styles.actionCircle, { backgroundColor: '#F1EBFF' }]}><ActionIcon path="polls" color="#8B5CF6" /></View>
+                  <View style={[styles.actionCircle, { backgroundColor: '#E3F4F7' }]}><ActionIcon path="polls" color="#0891B2" /></View>
                   {badgeCounts.polls > 0 && (
                     <View style={styles.cardBadge}>
                       <Text style={styles.cardBadgeText}>{badgeCounts.polls > 99 ? '99+' : badgeCounts.polls}</Text>
@@ -1664,14 +1640,14 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         <Text style={styles.fLabel}>Amount (₹)</Text>
                         <TextInput style={styles.fInput} placeholder="0.00" placeholderTextColor="#94a3b8" value={expAmount} onChangeText={setExpAmount} keyboardType="numeric" />
                         <Text style={styles.fLabel}>Category</Text>
-                        <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowExpCatDrop(p => !p)} activeOpacity={0.8}>
-                          <Text style={{ fontSize: 13, color: '#0f172a' }}>{expCategory.emoji} {expCategory.label}</Text>
+                        <TouchableOpacity style={[styles.fInputTouch, { justifyContent: 'center' }]} onPress={() => setShowExpCatDrop(p => !p)} activeOpacity={0.8}>
+                          <ExpenseCatRow cat={expCategory} />
                         </TouchableOpacity>
                         {showExpCatDrop && (
                           <View style={styles.dropdown}>
                             {EXPENSE_CATS.map(c => (
                               <TouchableOpacity key={c.label} style={styles.dropdownItem} onPress={() => { setExpCategory(c); setShowExpCatDrop(false); }} activeOpacity={0.7}>
-                                <Text style={{ fontSize: 13, color: '#0f172a' }}>{c.emoji} {c.label}</Text>
+                                <ExpenseCatRow cat={c} />
                               </TouchableOpacity>
                             ))}
                           </View>
@@ -1751,7 +1727,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                           const balColor = exp.paidBy === 'You' ? '#0d9488' : '#ef4444';
                           return (
                             <View key={exp.id} style={styles.expRow}>
-                              <View style={styles.expIconBox}><Text style={{ fontSize: 18 }}>{EXPENSE_CATS.find(c => c.label === (EXPENSE_CAT_SLUG_TO_LABEL[(exp.category || '').toLowerCase()] ?? exp.category))?.emoji || '📦'}</Text></View>
+                              <View style={styles.expIconBox}><ExpenseCategoryIcon category={exp.category} size={20} /></View>
                               <View style={{ flex: 1, marginLeft: 10 }}>
                                 <Text style={styles.expName}>{exp.description}</Text>
                                 <Text style={styles.expMeta}>Paid by {exp.paidBy}</Text>
@@ -1951,8 +1927,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   <TextInput style={styles.fInput} placeholder="Note title..." placeholderTextColor="#94a3b8" value={noteTitle} onChangeText={setNoteTitle} />
                   <TextInput style={[styles.fInput, { height: 90, textAlignVertical: 'top', paddingTop: 10, marginTop: 8 }]} placeholder="Write your note here..." placeholderTextColor="#94a3b8" value={noteBody} onChangeText={setNoteBody} multiline />
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 10, alignItems: 'center' }}>
-                    <TouchableOpacity style={styles.catBtn} onPress={() => setShowNoteCatDrop(p => !p)} activeOpacity={0.8}>
-                      <Text style={{ fontSize: 13, color: '#0f172a' }}>{noteCatDisplay.emoji} {noteCatDisplay.label}</Text>
+                    <TouchableOpacity style={[styles.catBtn, { justifyContent: 'center' }]} onPress={() => setShowNoteCatDrop(p => !p)} activeOpacity={0.8}>
+                      <NoteCatRow cat={noteCatDisplay} />
                     </TouchableOpacity>
                     {editingNoteId && (
                       <TouchableOpacity onPress={() => { setEditingNoteId(null); setNoteTitle(''); setNoteBody(''); setNoteCategory('general'); }} activeOpacity={0.7} style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
@@ -1967,7 +1943,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     <View style={styles.dropdown}>
                       {NOTE_CATS.map(c => (
                         <TouchableOpacity key={c.key} style={styles.dropdownItem} onPress={() => { setNoteCategory(c.key as any); setShowNoteCatDrop(false); }} activeOpacity={0.7}>
-                          <Text style={{ fontSize: 13, color: '#0f172a' }}>{c.emoji} {c.label}</Text>
+                          <NoteCatRow cat={c} />
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -1995,7 +1971,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                           >
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                               <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#f0fdf9', alignItems: 'center', justifyContent: 'center' }}>
-                                <Text style={{ fontSize: 20 }}>{cat.emoji}</Text>
+                                <NoteCategoryIcon categoryKey={note.category} size={20} />
                               </View>
                               <View style={{ flex: 1 }}>
                                 <Text style={[styles.noteTitle, { fontSize: 14 }]} numberOfLines={1}>{note.title}</Text>
@@ -2069,7 +2045,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   return (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                       <View style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#f0fdf9', borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Text style={{ fontSize: 13 }}>{cat.emoji}</Text>
+                        <NoteCategoryIcon categoryKey={cat.key} size={14} />
                         <Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '600' }}>{cat.label}</Text>
                       </View>
                       <Text style={{ fontSize: 12, color: '#94a3b8' }}>

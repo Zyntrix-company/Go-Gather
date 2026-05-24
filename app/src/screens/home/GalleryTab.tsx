@@ -8,8 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { Plane, CalendarDays, PencilLine, Pen } from 'lucide-react-native';
-import { getUserGallery, getUserPhotos, upsertGallerySubtitle } from '../../api/ai.api';
+import { Plane, CalendarDays, PencilLine, Pen, Archive, Trash2 } from 'lucide-react-native';
+import { getUserGallery, getUserPhotos, upsertGallerySubtitle, archiveGalleryItem } from '../../api/ai.api';
 import { getTripPhotos, uploadTripPhotos, deleteTripPhoto, updateTrip } from '../../api/trips.api';
 import { getEventPhotos, uploadEventPhotos, deleteEventPhoto, updateEvent } from '../../api/events.api';
 import Toast from 'react-native-toast-message';
@@ -190,6 +190,8 @@ type CustomCard = {
   bannerImageUrl?: string;
   type: 'trip' | 'event';
   photos: PhotoItem[];
+  archived?: boolean;
+  archivedAt?: string;
 };
 
 function customCardsStorageKey(userId: string) {
@@ -323,6 +325,7 @@ function PhotosModal({
   onSubtitleSaved,
   onNameSaved,
   onBannerSaved,
+  onArchived,
 }: {
   visible: boolean;
   title: string;
@@ -336,6 +339,7 @@ function PhotosModal({
   onSubtitleSaved?: (subtitle: string | null) => void;
   onNameSaved?: (name: string) => void;
   onBannerSaved?: (uri: string) => void;
+  onArchived?: () => void;
 }) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -522,6 +526,24 @@ function PhotosModal({
     }
   };
 
+  const handleArchiveAlbum = () => {
+    showConfirm({
+      title: 'Archive album?',
+      message: 'This album will be hidden from your gallery. You can restore it from Archived.',
+      confirmText: 'Archive',
+      onConfirm: async () => {
+        try {
+          await archiveGalleryItem(parentType, parentId);
+          Toast.show({ type: 'success', text1: 'Archived', text2: 'Album moved to Archived.' });
+          onArchived?.();
+          onClose();
+        } catch {
+          Toast.show({ type: 'error', text1: 'Could not archive', text2: 'Please try again.' });
+        }
+      },
+    });
+  };
+
   const activityGroups: Record<string, PhotoItem[]> = {};
   const directPhotos: PhotoItem[] = [];
   photos.forEach((ph) => {
@@ -547,7 +569,7 @@ function PhotosModal({
           >
             {deletingId === ph.id
               ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
-              : <XIcon size={9} />
+              : <Trash2 size={11} color="#fff" strokeWidth={2.5} />
             }
           </TouchableOpacity>
         )}
@@ -608,8 +630,8 @@ function PhotosModal({
                 ) : null)}
               </View>
 
-              {/* Right side: edit toggle + close */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              {/* Right side: edit, archive, close */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 {isOwner && !userId && (
                   editMode ? (
                     <TouchableOpacity
@@ -623,12 +645,20 @@ function PhotosModal({
                       }
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity
-                      onPress={() => setEditMode(true)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Pen size={18} color="#0d9488" />
-                    </TouchableOpacity>
+                    <>
+                      <TouchableOpacity
+                        onPress={() => setEditMode(true)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Pen size={18} color="#0d9488" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={handleArchiveAlbum}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Archive size={18} color="#64748b" />
+                      </TouchableOpacity>
+                    </>
                   )
                 )}
                 <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -843,11 +873,15 @@ function CustomCardPhotosModal({
   card,
   onClose,
   onUpdateCard,
+  onArchiveCard,
+  onDeleteCard,
 }: {
   visible: boolean;
   card: CustomCard | null;
   onClose: () => void;
   onUpdateCard: (next: CustomCard) => void;
+  onArchiveCard: (id: string) => void;
+  onDeleteCard: (id: string) => void;
 }) {
   const [editMode, setEditMode] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
@@ -943,15 +977,44 @@ function CustomCardPhotosModal({
               ) : (
                 <Text style={styles.dialogTitle} numberOfLines={1}>{card.name}</Text>
               )}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 {editMode ? (
                   <TouchableOpacity onPress={saveAndExitEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <CheckIcon />
                   </TouchableOpacity>
                 ) : (
-                  <TouchableOpacity onPress={() => setEditMode(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Pen size={18} color="#0d9488" />
-                  </TouchableOpacity>
+                  <>
+                    <TouchableOpacity onPress={() => setEditMode(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Pen size={18} color="#0d9488" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => {
+                        showConfirm({
+                          title: 'Archive album?',
+                          message: 'Hide this album from your gallery? Restore it from Archived.',
+                          confirmText: 'Archive',
+                          onConfirm: () => { onArchiveCard(card.id); onClose(); },
+                        });
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Archive size={18} color="#64748b" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => {
+                        showConfirm({
+                          title: 'Delete album?',
+                          message: `Permanently delete "${card.name}"? This cannot be undone.`,
+                          confirmText: 'Delete',
+                          destructive: true,
+                          onConfirm: () => { onDeleteCard(card.id); onClose(); },
+                        });
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Trash2 size={18} color="#ef4444" />
+                    </TouchableOpacity>
+                  </>
                 )}
                 <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <CloseIcon />
@@ -1004,7 +1067,7 @@ function CustomCardPhotosModal({
                               style={styles.thumbDeleteBtn}
                               hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                             >
-                              <XIcon size={9} />
+                              <Trash2 size={11} color="#fff" strokeWidth={2.5} />
                             </TouchableOpacity>
                           )}
                           {/* Set as cover button — bottom-left, only in edit mode */}
@@ -1147,6 +1210,23 @@ export default function GalleryTab({
     saveCustomCards(customCards.filter((c) => c.id !== id));
   };
 
+  const archiveCustomCard = (id: string) => {
+    saveCustomCards(customCards.map((c) =>
+      c.id === id ? { ...c, archived: true, archivedAt: new Date().toISOString() } : c,
+    ));
+    Toast.show({ type: 'success', text1: 'Archived', text2: 'Album moved to Archived.' });
+  };
+
+  const reloadGallery = () => {
+    if (!userId) return;
+    getUserGallery(userId)
+      .then((data) => {
+        setGalleryTrips(data.trips ?? []);
+        setGalleryEvents(data.events ?? []);
+      })
+      .catch(() => {});
+  };
+
   const handleSubtitleSaved = (parentId: string, parentType: 'trip' | 'event', subtitle: string | null) => {
     if (parentType === 'trip') {
       setGalleryTrips((prev) => prev.map((t) => t.id === parentId ? { ...t, gallerySubtitle: subtitle } : t));
@@ -1195,8 +1275,9 @@ export default function GalleryTab({
 
   const displayTrips = galleryTrips.length > 0 ? galleryTrips : propTrips;
 
-  const customTripCards = customCards.filter((c) => c.type === 'trip');
-  const customEventCards = customCards.filter((c) => c.type === 'event');
+  const activeCustomCards = customCards.filter((c) => !c.archived);
+  const customTripCards = activeCustomCards.filter((c) => c.type === 'trip');
+  const customEventCards = activeCustomCards.filter((c) => c.type === 'event');
 
   return (
     <>
@@ -1334,6 +1415,11 @@ export default function GalleryTab({
           onSubtitleSaved={(subtitle) => handleSubtitleSaved(photoModal.id, photoModal.type, subtitle)}
           onNameSaved={(name) => handleNameSaved(photoModal.id, photoModal.type, name)}
           onBannerSaved={(uri) => handleBannerSaved(photoModal.id, photoModal.type, uri)}
+          onArchived={() => {
+            setGalleryTrips((prev) => prev.filter((t) => t.id !== photoModal.id));
+            setGalleryEvents((prev) => prev.filter((e) => e.id !== photoModal.id));
+            reloadGallery();
+          }}
           onClose={() => setPhotoModal(null)}
         />
       )}
@@ -1350,6 +1436,8 @@ export default function GalleryTab({
         card={openCard}
         onClose={() => setOpenCard(null)}
         onUpdateCard={updateCustomCard}
+        onArchiveCard={archiveCustomCard}
+        onDeleteCard={deleteCustomCard}
       />
     </>
   );

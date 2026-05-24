@@ -139,7 +139,7 @@ export default function LocationAutocomplete({
       </View>
 
       {open && predictions.length > 0 ? (
-        <View style={styles.listView}>
+        <View style={isEdit ? styles.listViewInline : styles.listView}>
           {predictions.map((item, index) => (
             <React.Fragment key={item.place_id}>
               {index > 0 ? <View style={styles.separator} /> : null}
@@ -200,6 +200,18 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 1001,
     elevation: 1001,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    overflow: 'hidden',
+  },
+  listViewInline: {
+    marginTop: 4,
     backgroundColor: '#fff',
     borderRadius: 10,
     borderWidth: 1,

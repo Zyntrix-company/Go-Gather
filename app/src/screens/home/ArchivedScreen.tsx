@@ -7,7 +7,10 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Image,
+  Dimensions,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -21,10 +24,27 @@ import {
   handleApiError,
 } from '../../api/trips.api';
 import { getArchivedEvents, unarchiveEvent, deleteEvent } from '../../api/events.api';
+import { getArchivedUserGallery, unarchiveGalleryItem } from '../../api/ai.api';
 import { showConfirm } from '../../store/alertStore';
 import { UnifiedCard } from '../../components/common/Cards';
 import useAuthStore from '../../store/authStore';
 import { authFreshAvatarUrl, authUserId, resolveMemberAvatarUri } from '../../utils/avatarUri';
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const GALLERY_CARD_W = (SCREEN_W - 52) / 2;
+
+function customCardsStorageKey(userId: string) {
+  return `gogather_gallery_custom_cards_${userId}`;
+}
+
+type ArchivedGalleryItem = {
+  id: string;
+  name: string;
+  type: 'trip' | 'event';
+  bannerImageUrl?: string | null;
+  location?: string;
+  isCustom?: boolean;
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,8 +109,10 @@ function fmtDateTrip(iso: string): string {
 
 export default function ArchivedScreen() {
   const navigation = useNavigation<any>();
+  const userId = authUserId(useAuthStore.getState().user) ?? '';
   const [trips, setTrips] = useState<ArchivedTrip[]>([]);
   const [events, setEvents] = useState<ArchivedEvent[]>([]);
+  const [galleryItems, setGalleryItems] = useState<ArchivedGalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -98,9 +120,11 @@ export default function ArchivedScreen() {
   async function loadArchived(silent = false) {
     if (!silent) setLoading(true);
     try {
-      const [tripsRes, eventsRes] = await Promise.all([
+      const [tripsRes, eventsRes, galleryRes, customRaw] = await Promise.all([
         getArchivedTrips(),
         getArchivedEvents(),
+        getArchivedUserGallery(),
+        userId ? AsyncStorage.getItem(customCardsStorageKey(userId)) : Promise.resolve(null),
       ]);
 
       setTrips((tripsRes.trips || []).map(t => {
@@ -131,6 +155,43 @@ export default function ArchivedScreen() {
           extraMembers,
         };
       }));
+
+      const apiGallery: ArchivedGalleryItem[] = [
+        ...(galleryRes.trips ?? []).map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          type: 'trip' as const,
+          bannerImageUrl: t.bannerImageUrl,
+          location: t.location,
+        })),
+        ...(galleryRes.events ?? []).map((e: any) => ({
+          id: e.id,
+          name: e.name,
+          type: 'event' as const,
+          bannerImageUrl: e.bannerImageUrl,
+          location: e.location,
+        })),
+      ];
+
+      let customArchived: ArchivedGalleryItem[] = [];
+      if (customRaw) {
+        try {
+          const parsed = JSON.parse(customRaw);
+          if (Array.isArray(parsed)) {
+            customArchived = parsed
+              .filter((c: any) => c.archived)
+              .map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                type: c.type === 'event' ? 'event' : 'trip',
+                bannerImageUrl: c.bannerImageUrl,
+                isCustom: true,
+              }));
+          }
+        } catch { /* ignore */ }
+      }
+
+      setGalleryItems([...apiGallery, ...customArchived]);
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -226,6 +287,60 @@ export default function ArchivedScreen() {
     Toast.show({ type: 'success', text1: title, text2: msg });
   }
 
+  function handleRestoreGalleryItem(item: ArchivedGalleryItem) {
+    setOpenMenuId(null);
+    showConfirm({
+      title: 'Restore album',
+      message: `Restore "${item.name}" to your gallery?`,
+      confirmText: 'Restore',
+      onConfirm: async () => {
+        try {
+          if (item.isCustom) {
+            if (!userId) return;
+            const raw = await AsyncStorage.getItem(customCardsStorageKey(userId));
+            const parsed = raw ? JSON.parse(raw) : [];
+            const next = Array.isArray(parsed)
+              ? parsed.map((c: any) => c.id === item.id ? { ...c, archived: false, archivedAt: undefined } : c)
+              : [];
+            await AsyncStorage.setItem(customCardsStorageKey(userId), JSON.stringify(next));
+          } else {
+            await unarchiveGalleryItem(item.type, item.id);
+          }
+          toast('Restored', `"${item.name}" is back in your gallery.`);
+          setGalleryItems((p) => p.filter((g) => !(g.id === item.id && !!g.isCustom === !!item.isCustom)));
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
+  }
+
+  function handleDeleteGalleryItem(item: ArchivedGalleryItem) {
+    setOpenMenuId(null);
+    if (!item.isCustom) {
+      toast('Info', 'Remove trip/event albums from the Trips or Events sections below.');
+      return;
+    }
+    showConfirm({
+      title: 'Delete album',
+      message: `Permanently delete "${item.name}"?`,
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          if (!userId) return;
+          const raw = await AsyncStorage.getItem(customCardsStorageKey(userId));
+          const parsed = raw ? JSON.parse(raw) : [];
+          const next = Array.isArray(parsed) ? parsed.filter((c: any) => c.id !== item.id) : [];
+          await AsyncStorage.setItem(customCardsStorageKey(userId), JSON.stringify(next));
+          toast('Deleted', `"${item.name}" has been deleted.`);
+          setGalleryItems((p) => p.filter((g) => g.id !== item.id));
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
+  }
+
   if (loading) {
     return (
       <BlobBackground>
@@ -244,7 +359,7 @@ export default function ArchivedScreen() {
     );
   }
 
-  const isEmpty = trips.length === 0 && events.length === 0;
+  const isEmpty = trips.length === 0 && events.length === 0 && galleryItems.length === 0;
 
   return (
     <BlobBackground>
@@ -268,7 +383,7 @@ export default function ArchivedScreen() {
               />
             </Svg>
             <Text style={styles.emptyTitle}>No archived items</Text>
-            <Text style={styles.emptySub}>Archived trips and events will appear here</Text>
+            <Text style={styles.emptySub}>Archived gallery albums, trips, and events will appear here</Text>
           </View>
         ) : (
           <ScrollView
@@ -277,6 +392,53 @@ export default function ArchivedScreen() {
             onScrollBeginDrag={() => setOpenMenuId(null)}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0d9488']} />}
           >
+            {galleryItems.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Archived Gallery</Text>
+                <View style={styles.galleryGrid}>
+                  {galleryItems.map((item) => {
+                    const menuKey = `gallery-${item.isCustom ? 'custom' : item.type}-${item.id}`;
+                    return (
+                      <View key={menuKey} style={{ width: GALLERY_CARD_W, marginBottom: 12, zIndex: openMenuId === menuKey ? 100 : 1 }}>
+                        <TouchableOpacity
+                          style={styles.galleryCard}
+                          activeOpacity={0.85}
+                          onPress={() => setOpenMenuId(openMenuId === menuKey ? null : menuKey)}
+                        >
+                          {item.bannerImageUrl ? (
+                            <Image source={{ uri: item.bannerImageUrl }} style={styles.galleryCardImage} resizeMode="cover" />
+                          ) : (
+                            <View style={[styles.galleryCardImage, styles.galleryCardPlaceholder]}>
+                              <Text style={styles.galleryCardPlaceholderText}>No cover</Text>
+                            </View>
+                          )}
+                          <View style={styles.galleryCardOverlay}>
+                            <Text style={styles.galleryCardTitle} numberOfLines={1}>{item.name}</Text>
+                            <Text style={styles.galleryCardMeta}>{item.isCustom ? 'Custom album' : item.type === 'trip' ? 'Trip album' : 'Event album'}</Text>
+                          </View>
+                        </TouchableOpacity>
+                        {openMenuId === menuKey && (
+                          <View style={styles.galleryMenu}>
+                            <TouchableOpacity style={styles.galleryMenuItem} onPress={() => handleRestoreGalleryItem(item)} activeOpacity={0.7}>
+                              <Text style={styles.galleryMenuItemText}>Restore</Text>
+                            </TouchableOpacity>
+                            {item.isCustom && (
+                              <>
+                                <View style={styles.galleryMenuDivider} />
+                                <TouchableOpacity style={styles.galleryMenuItem} onPress={() => handleDeleteGalleryItem(item)} activeOpacity={0.7}>
+                                  <Text style={[styles.galleryMenuItemText, { color: '#ef4444' }]}>Delete</Text>
+                                </TouchableOpacity>
+                              </>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
             {/* Archived Trips Section */}
             {trips.length > 0 && (
               <View style={styles.section}>
@@ -348,4 +510,27 @@ const styles = StyleSheet.create({
   emptyCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyTitle: { fontSize: 15, fontWeight: '500', color: '#64748b', marginTop: 12 },
   emptySub: { fontSize: 13, color: '#94a3b8', marginTop: 4, textAlign: 'center' },
+
+  galleryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  galleryCard: { width: GALLERY_CARD_W, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: '#f1f5f9' },
+  galleryCardImage: { width: '100%', height: '100%' },
+  galleryCardPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
+  galleryCardPlaceholderText: { fontSize: 12, color: '#94a3b8' },
+  galleryCardOverlay: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 10, paddingVertical: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+  },
+  galleryCardTitle: { fontSize: 13, fontWeight: '500', color: '#fff' },
+  galleryCardMeta: { fontSize: 10, color: '#e2e8f0', marginTop: 2 },
+  galleryMenu: {
+    position: 'absolute', top: 8, right: 8,
+    backgroundColor: '#fff', borderRadius: 10,
+    borderWidth: 1, borderColor: '#e2e8f0',
+    overflow: 'hidden', minWidth: 120,
+    elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 8,
+  },
+  galleryMenuItem: { paddingHorizontal: 14, paddingVertical: 11 },
+  galleryMenuItemText: { fontSize: 13, color: '#0f172a', fontWeight: '500' },
+  galleryMenuDivider: { height: 1, backgroundColor: '#f1f5f9' },
 });

@@ -912,6 +912,8 @@ export default function HomeScreen({ navigation, route }: any) {
 
   // ─── Home-feed constants ────────────────────────────────────────────────────
   const H_PAD = 16;
+  const isNarrowSearch = SCREEN_W < 380;
+  const isTinySearch = SCREEN_W < 340;
   const CARD_BLOG_W      = SCREEN_W * 0.485;  // ≈182px on 375px — Figma exact
   const CARD_BLOG_H      = SCREEN_W * 0.362;  // ≈136px on 375px — Figma exact
   const CARD_BLOG_TEXT_H = SCREEN_W * 0.08;   // ≈30px — black title strip
@@ -1022,19 +1024,28 @@ export default function HomeScreen({ navigation, route }: any) {
         <View style={{
           flexDirection: 'row',
           alignItems: 'center',
-          height: 48,
+          minHeight: 48,
           borderRadius: 999,
           borderWidth: 1.5,
           borderColor: '#E0DBD3',
           backgroundColor: 'transparent',
           marginHorizontal: H_PAD,
-          paddingHorizontal: 12,
-          gap: 8,
+          paddingHorizontal: isNarrowSearch ? 10 : 12,
+          paddingVertical: 6,
+          gap: isNarrowSearch ? 6 : 8,
         }}>
-          <Search size={18} color="#94a3b8" />
+          <Search size={isNarrowSearch ? 16 : 18} color="#94a3b8" />
           <TextInput
-            style={{ flex: 1, fontSize: 14, color: '#1a1a2e', paddingVertical: 0 }}
-            placeholder="What do you have in mind?"
+            style={{
+              flex: 1,
+              flexShrink: 1,
+              minWidth: 0,
+              fontSize: isNarrowSearch ? 13 : 14,
+              color: '#1a1a2e',
+              paddingVertical: Platform.OS === 'android' ? 2 : 0,
+              ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
+            }}
+            placeholder={isTinySearch ? 'Ask Swee...' : 'What do you have in mind?'}
             placeholderTextColor="#94a3b8"
             value={sweeSearchText}
             onChangeText={setSweeSearchText}
@@ -1045,12 +1056,28 @@ export default function HomeScreen({ navigation, route }: any) {
             onPress={() => handleAskSwee()}
             activeOpacity={0.85}
             style={{
-              flexDirection: 'row', alignItems: 'center',
-              backgroundColor: '#009788', borderRadius: 999,
-              paddingHorizontal: 12, paddingVertical: 7, gap: 5,
+              flexDirection: 'row',
+              alignItems: 'center',
+              flexShrink: 0,
+              backgroundColor: '#009788',
+              borderRadius: 999,
+              paddingHorizontal: isTinySearch ? 9 : isNarrowSearch ? 10 : 12,
+              paddingVertical: isNarrowSearch ? 6 : 7,
+              gap: isTinySearch ? 0 : 5,
             }}>
-            <Sparkles size={15} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>Ask Swee</Text>
+            <Sparkles size={isNarrowSearch ? 14 : 15} color="#fff" />
+            {!isTinySearch ? (
+              <Text
+                style={{
+                  color: '#fff',
+                  fontSize: isNarrowSearch ? 12 : 13,
+                  fontWeight: '500',
+                  ...(Platform.OS === 'android' ? { includeFontPadding: false, lineHeight: 16 } : {}),
+                }}
+              >
+                Ask Swee
+              </Text>
+            ) : null}
           </TouchableOpacity>
         </View>
 
@@ -1513,7 +1540,6 @@ export default function HomeScreen({ navigation, route }: any) {
             user={user}
             firstName={firstName}
             onClose={() => setShowProfileMenu(false)}
-            onNavigateToAccount={() => navigation.navigate('EditProfile')}
             onNavigateToSettings={() => navigation.navigate('Settings')}
             onNavigateToArchived={() => navigation.navigate('Archived')}
             onLogout={logout}

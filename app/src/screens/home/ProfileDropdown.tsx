@@ -1,14 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import CachedImage from '../../components/common/CachedImage';
-import Svg, { Path, Circle } from 'react-native-svg';
-
-const UserMenuIcon = () => (
-  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-    <Circle cx={12} cy={8} r={4} stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-    <Path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
+import LegalModal from '../../components/common/LegalModal';
+import Svg, { Path } from 'react-native-svg';
 
 const SettingsIcon = () => (
   <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
@@ -17,9 +11,16 @@ const SettingsIcon = () => (
   </Svg>
 );
 
-const LogoutIcon = () => (
+const PrivacyIcon = () => (
   <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-    <Path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="#ef4444" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
+const TermsIcon = () => (
+  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    <Path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 
@@ -29,16 +30,14 @@ const ArchiveIcon = () => (
   </Svg>
 );
 
+const LogoutIcon = () => (
+  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <Path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="#ef4444" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+
 function AvatarOrInitial({ photoUrl, initial }: { photoUrl?: string; initial: string }) {
   const [imgFailed, setImgFailed] = useState(false);
-
-  const prevUrl = useRef(photoUrl);
-  useEffect(() => {
-    if (prevUrl.current !== photoUrl) {
-      prevUrl.current = photoUrl;
-      setImgFailed(false);
-    }
-  }, [photoUrl]);
 
   return (
     <View style={styles.dropdownAvatar}>
@@ -58,46 +57,98 @@ function AvatarOrInitial({ photoUrl, initial }: { photoUrl?: string; initial: st
   );
 }
 
-function ProfileDropdown({ user, firstName, onClose, onNavigateToAccount, onNavigateToSettings, onNavigateToArchived, onLogout }: any) {
+type ProfileDropdownProps = {
+  user: any;
+  firstName?: string;
+  onClose: () => void;
+  onNavigateToSettings: () => void;
+  onNavigateToArchived: () => void;
+  onLogout: () => void;
+};
+
+function ProfileDropdown({
+  user,
+  firstName,
+  onClose,
+  onNavigateToSettings,
+  onNavigateToArchived,
+  onLogout,
+}: ProfileDropdownProps) {
+  const [legal, setLegal] = useState<'terms' | 'privacy' | null>(null);
   const photoUrl = user?.photoUrl || user?.avatarUrl || user?.profile?.avatarUrl || '';
+
+  const openLegal = (type: 'terms' | 'privacy') => {
+    onClose();
+    setLegal(type);
+  };
+
   return (
-    <View style={styles.dropdownOverlay}>
-      <TouchableOpacity style={styles.dropdownBackdrop} activeOpacity={1} onPress={onClose} />
-      <View style={styles.profileDropdown}>
-        {/* Header */}
-        <View style={styles.dropdownHeader}>
-          <AvatarOrInitial photoUrl={photoUrl} initial={firstName?.[0] ?? '?'} />
-          <View style={styles.dropdownUserText}>
-            <Text style={styles.dropdownName} numberOfLines={1}>{user?.fullName || 'User'}</Text>
-            <Text style={styles.dropdownEmail} numberOfLines={1}>@{user?.username || user?.email || ''}</Text>
+    <>
+      <View style={styles.dropdownOverlay}>
+        <TouchableOpacity style={styles.dropdownBackdrop} activeOpacity={1} onPress={onClose} />
+        <View style={styles.profileDropdown}>
+          <View style={styles.dropdownHeader}>
+            <AvatarOrInitial photoUrl={photoUrl} initial={firstName?.[0] ?? '?'} />
+            <View style={styles.dropdownUserText}>
+              <Text style={styles.dropdownName} numberOfLines={1}>{user?.fullName || 'User'}</Text>
+              <Text style={styles.dropdownEmail} numberOfLines={1}>@{user?.username || user?.email || ''}</Text>
+            </View>
           </View>
+
+          <View style={styles.dropdownDivider} />
+
+          <TouchableOpacity
+            style={styles.dropdownItem}
+            onPress={() => { onClose(); onNavigateToSettings(); }}
+            activeOpacity={0.8}
+          >
+            <SettingsIcon />
+            <Text style={styles.dropdownItemText}>Settings</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.dropdownItem}
+            onPress={() => openLegal('privacy')}
+            activeOpacity={0.8}
+          >
+            <PrivacyIcon />
+            <Text style={styles.dropdownItemText}>Privacy</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.dropdownItem}
+            onPress={() => openLegal('terms')}
+            activeOpacity={0.8}
+          >
+            <TermsIcon />
+            <Text style={styles.dropdownItemText}>Terms & Conditions</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.dropdownItem}
+            onPress={() => { onClose(); onNavigateToArchived(); }}
+            activeOpacity={0.8}
+          >
+            <ArchiveIcon />
+            <Text style={styles.dropdownItemText}>Archived</Text>
+          </TouchableOpacity>
+
+          <View style={styles.dropdownDivider} />
+
+          <TouchableOpacity
+            style={styles.dropdownItem}
+            onPress={() => { onClose(); onLogout(); }}
+            activeOpacity={0.8}
+          >
+            <LogoutIcon />
+            <Text style={[styles.dropdownItemText, styles.logoutLabel]}>Logout</Text>
+          </TouchableOpacity>
         </View>
-
-        <View style={styles.dropdownDivider} />
-
-        <TouchableOpacity style={styles.dropdownItem} onPress={() => { onClose(); onNavigateToAccount(); }} activeOpacity={0.8}>
-          <UserMenuIcon />
-          <Text style={styles.dropdownItemText}>Account</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.dropdownItem} onPress={() => { onClose(); onNavigateToSettings?.(); }} activeOpacity={0.8}>
-          <SettingsIcon />
-          <Text style={styles.dropdownItemText}>Settings</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.dropdownItem} onPress={() => { onClose(); onNavigateToArchived(); }} activeOpacity={0.8}>
-          <ArchiveIcon />
-          <Text style={styles.dropdownItemText}>Archived</Text>
-        </TouchableOpacity>
-
-        <View style={styles.dropdownDivider} />
-
-        <TouchableOpacity style={styles.dropdownItem} onPress={() => { onClose(); onLogout(); }} activeOpacity={0.8}>
-          <LogoutIcon />
-          <Text style={[styles.dropdownItemText, styles.logoutLabel]}>Logout</Text>
-        </TouchableOpacity>
       </View>
-    </View>
+
+      <LegalModal visible={legal === 'terms'} type="terms" onClose={() => setLegal(null)} />
+      <LegalModal visible={legal === 'privacy'} type="privacy" onClose={() => setLegal(null)} />
+    </>
   );
 }
 
@@ -108,7 +159,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 70,
     right: 16,
-    width: 210,
+    width: 240,
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 8,
@@ -127,7 +178,7 @@ const styles = StyleSheet.create({
   dropdownEmail: { fontSize: 11, color: '#64748b', marginTop: 2 },
   dropdownDivider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 4 },
   dropdownItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderRadius: 10 },
-  dropdownItemText: { fontSize: 13, fontWeight: '400', color: '#0f172a' },
+  dropdownItemText: { fontSize: 13, fontWeight: '400', color: '#0f172a', flex: 1 },
   logoutLabel: { color: '#ef4444' },
 });
 

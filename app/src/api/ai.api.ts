@@ -123,6 +123,25 @@ export async function upsertGallerySubtitle(
   return res.data;
 }
 
+export async function getArchivedUserGallery(): Promise<{ trips: any[]; events: any[] }> {
+  try {
+    const res = await client.get('/users/me/gallery/archived');
+    return res.data;
+  } catch {
+    return { trips: [], events: [] };
+  }
+}
+
+export async function archiveGalleryItem(parentType: 'trip' | 'event', parentId: string) {
+  const res = await client.post(`/users/me/gallery-items/${parentType}/${parentId}/archive`);
+  return res.data;
+}
+
+export async function unarchiveGalleryItem(parentType: 'trip' | 'event', parentId: string) {
+  const res = await client.post(`/users/me/gallery-items/${parentType}/${parentId}/unarchive`);
+  return res.data;
+}
+
 /**
  * Fetch photos for a user's gallery, grouped by trip/event + activity.
  * When parentType + parentId are supplied the backend returns ALL photos for that specific

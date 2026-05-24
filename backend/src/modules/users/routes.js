@@ -71,6 +71,20 @@ router.patch(
   controller.upsertGallerySubtitle,
 );
 
+router.get('/me/gallery/archived', authenticateJWT, controller.getArchivedUserGallery);
+
+router.post(
+  '/me/gallery-items/:parentType/:parentId/archive',
+  authenticateJWT,
+  controller.archiveGalleryItem,
+);
+
+router.post(
+  '/me/gallery-items/:parentType/:parentId/unarchive',
+  authenticateJWT,
+  controller.unarchiveGalleryItem,
+);
+
 // ── Per-user routes ────────────────────────────────────────────────────────────
 
 // GET /users/:id/profile — Enhanced profile with friendship status + stats (requires auth)

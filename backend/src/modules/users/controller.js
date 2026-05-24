@@ -184,6 +184,43 @@ const upsertGallerySubtitle = async (req, res, next) => {
   }
 };
 
+const getArchivedUserGallery = async (req, res, next) => {
+  try {
+    const gallery = await usersService.getArchivedUserGallery(req.user.id);
+    return res.status(200).json(gallery);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const archiveGalleryItem = async (req, res, next) => {
+  try {
+    const { parentType, parentId } = req.params;
+    if (!['trip', 'event'].includes(parentType)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'parentType must be trip or event' });
+    }
+    const result = await usersService.archiveGalleryItem(req.user.id, parentType, parentId);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const unarchiveGalleryItem = async (req, res, next) => {
+  try {
+    const { parentType, parentId } = req.params;
+    if (!['trip', 'event'].includes(parentType)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'parentType must be trip or event' });
+    }
+    const result = await usersService.unarchiveGalleryItem(req.user.id, parentType, parentId);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
 /**
  * PATCH /users/device
  */
@@ -211,5 +248,8 @@ module.exports = {
   getLegalStatus,
   acknowledgeLegal,
   upsertGallerySubtitle,
+  getArchivedUserGallery,
+  archiveGalleryItem,
+  unarchiveGalleryItem,
   updateDeviceToken,
 };

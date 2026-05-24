@@ -70,6 +70,15 @@ import {
 import type { TripMember, Debt } from '../../api/trips.api';
 import { markTripSectionViewed } from '../../api/trips.api';
 import ExpenseTotalsTab from '../../components/common/ExpenseTotalsTab';
+import {
+  EXPENSE_CATS as EXPENSE_CATEGORY_OPTIONS,
+  NOTE_CATS as NOTE_CATEGORY_OPTIONS,
+  ExpenseCategoryIcon,
+  ExpenseCatRow,
+  NoteCatRow,
+  NoteCategoryIcon,
+  resolveExpenseCategory,
+} from '../../components/common/CategoryIcons';
 import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
 
 
@@ -104,26 +113,6 @@ const FRIENDS = [
   { id: '4', name: 'Priya Sharma', email: 'priya.sharma@example.com', avatar: 'https://i.pravatar.cc/150?img=45' },
   { id: '5', name: 'Carlos Rodriguez', email: 'carlos.r@example.com', avatar: 'https://i.pravatar.cc/150?img=12' },
 ];
-
-const EXPENSE_CATS = [
-  { label: 'General', emoji: '📦' },
-  { label: 'Food & Dining', emoji: '🍽️' },
-  { label: 'Transport', emoji: '🚗' },
-  { label: 'Stay', emoji: '🏨' },
-  { label: 'Entertainment', emoji: '🎭' },
-  { label: 'Shopping', emoji: '🛍️' },
-  { label: 'Other', emoji: '🌐' },
-];
-/** API category slug → UI label used in EXPENSE_CATS */
-const EXPENSE_CAT_SLUG_TO_LABEL: Record<string, string> = {
-  general: 'General',
-  food: 'Food & Dining',
-  transportation: 'Transport',
-  accommodation: 'Stay',
-  entertainment: 'Entertainment',
-  shopping: 'Shopping',
-  other: 'Other',
-};
 
 function mapApiExpenseToState(e: any, currentUserId: string, members: TripMember[]): Expense {
   const resolvePaidBy = (paidByRaw: any): string => {
@@ -163,13 +152,6 @@ function mapApiExpenseToState(e: any, currentUserId: string, members: TripMember
     })),
   };
 }
-const NOTE_CATS = [
-  { key: 'general', label: 'General', emoji: '📝' },
-  { key: 'idea', label: 'Idea', emoji: '💡' },
-  { key: 'important', label: 'Important', emoji: '⚠️' },
-  { key: 'todo', label: 'To-Do', emoji: '✅' },
-];
-
 // ─── Balance helpers (handle both old and new backend formats) ────────────────
 
 /** Enrich a flat debt array — fills in missing fromName/toName from members list */
@@ -732,7 +714,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [showActExp, setShowActExp] = useState(false);
   const [actExpDesc, setActExpDesc] = useState('');
   const [actExpAmount, setActExpAmount] = useState('');
-  const [actExpCategory, setActExpCategory] = useState(EXPENSE_CATS[0]);
+  const [actExpCategory, setActExpCategory] = useState(EXPENSE_CATEGORY_OPTIONS[0]);
   const [actExpPaidBy, setActExpPaidBy] = useState('You');
   const [actExpSplitType, setActExpSplitType] = useState<'equally' | 'amount' | 'percent'>('equally');
   const [actExpSplitAmong, setActExpSplitAmong] = useState<string[]>(['You']);
@@ -753,7 +735,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [expDesc, setExpDesc] = useState('');
   const [expAmount, setExpAmount] = useState('');
-  const [expCategory, setExpCategory] = useState(EXPENSE_CATS[0]);
+  const [expCategory, setExpCategory] = useState(EXPENSE_CATEGORY_OPTIONS[0]);
   const [expPaidBy, setExpPaidBy] = useState('You');
   const [expSplitType, setExpSplitType] = useState<'equally' | 'amount' | 'percent'>('equally');
   const [expSplitAmong, setExpSplitAmong] = useState<string[]>(['You']);
@@ -1039,7 +1021,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     });
   }, []);
   const memberCount = members.length;
-  const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
+  const noteCatDisplay = NOTE_CATEGORY_OPTIONS.find(c => c.key === noteCategory)!;
 
   // Badges = server-computed unread counts (items added by others since user last viewed)
   const badgeCounts = {
@@ -1059,7 +1041,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   function resetActForm() {
     setActTitle(''); setActDate(undefined); setActHour(''); setActMin(''); setActTime(undefined); setShowHourDrop(false); setShowMinDrop(false);
     setActLocation(''); setActDesc(''); setShowActExp(false); setActPhotos([]);
-    setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATS[0]);
+    setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATEGORY_OPTIONS[0]);
     setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']);
     setActExpSplitDetails({}); setActExpConfirmed(false);
     setEditingActivityId(null);
@@ -1096,10 +1078,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
       // If an expense was staged, create it first then link to activity
       let linkedExpenseId: string | undefined;
       if (actExpConfirmed && actExpDesc.trim() && actExpAmount) {
-        const catMap: Record<string, string> = {
-          'General': 'general', 'Food & Dining': 'food', 'Transport': 'transportation',
-          'Stay': 'accommodation', 'Entertainment': 'entertainment', 'Shopping': 'shopping', 'Other': 'other',
-        };
         const apiSplitType = actExpSplitType === 'equally' ? 'equal' : actExpSplitType === 'percent' ? 'percentage' : 'amount';
         const expAmount = parseFloat(actExpAmount) || 0;
         const payerId = actExpPaidBy === 'You' ? currentUserId : (members.find(m => m.fullName === actExpPaidBy)?.userId ?? currentUserId);
@@ -1118,7 +1096,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         const expRes = await createExpense(tripId, {
           description: actExpDesc.trim(),
           amount: expAmount,
-          category: catMap[actExpCategory.label] ?? 'general',
+          category: actExpCategory.slug,
           paidBy: payerId,
           splitType: apiSplitType as 'equal' | 'amount' | 'percentage',
           splitAmong: splitAmong.length ? splitAmong : [{ userId: currentUserId }],
@@ -1410,15 +1388,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
     setIsSubmitting(true);
     try {
-      const catMap: Record<string, string> = {
-        'General': 'general', 'Food & Dining': 'food', 'Transport': 'transportation',
-        'Stay': 'accommodation', 'Entertainment': 'entertainment', 'Shopping': 'shopping', 'Other': 'other',
-      };
       const payerId = expPaidBy === 'You' ? currentUserId : (members.find(m => (m.fullName || (m as any).name) === expPaidBy)?.userId ?? currentUserId);
       const body = {
         description: expDesc.trim(),
         amount,
-        category: catMap[expCategory.label] ?? 'general',
+        category: expCategory.slug,
         paidBy: payerId,
         splitType: apiSplitType as 'equal' | 'amount' | 'percentage',
         splitAmong: splitAmong.length ? splitAmong : [{ userId: currentUserId }],
@@ -1442,7 +1416,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       const balData = await getBalances(tripId);
       setMyBalance(balData.myBalance ?? 0);
       setTotalExpenses(balData.totalExpenses ?? '0');
-      setExpDesc(''); setExpAmount(''); setExpCategory(EXPENSE_CATS[0]);
+      setExpDesc(''); setExpAmount(''); setExpCategory(EXPENSE_CATEGORY_OPTIONS[0]);
       setExpPaidBy('You'); setExpSplitType('equally'); setExpSplitAmong(['You']);
       setExpSplitDetails({}); setShowAddExpense(false);
     } catch (err) {
@@ -1463,8 +1437,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   function startEditExpense(exp: Expense) {
     setExpDesc(exp.description);
     setExpAmount(String(exp.amount));
-    const catLabel = EXPENSE_CAT_SLUG_TO_LABEL[exp.category] ?? exp.category;
-    setExpCategory(EXPENSE_CATS.find(c => c.label === catLabel) || EXPENSE_CATS[0]);
+    setExpCategory(resolveExpenseCategory(exp.category));
     setExpPaidBy(exp.paidBy);
     setExpSplitType(exp.splitType);
     const among = (exp.splitAmong ?? []).map(uid => (uid === currentUserId ? 'You' : uid));
@@ -1806,7 +1779,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
             <View style={styles.actionsRow}>
               {[
                 { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => setShowExpenses(true), count: badgeCounts.expenses },
-                { label: 'Polls', bg: '#F1EBFF', ic: '#8B5CF6', p: 'polls', fn: () => setShowPolls(true), count: badgeCounts.polls },
+                { label: 'Polls', bg: '#E3F4F7', ic: '#0891B2', p: 'polls', fn: () => setShowPolls(true), count: badgeCounts.polls },
                 { label: 'Notes', bg: '#E8F7EA', ic: '#10B981', p: 'notes', fn: () => setShowNotes(true), count: badgeCounts.notes },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
@@ -2086,15 +2059,15 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       <TextInput style={styles.fInput} placeholder="Description" placeholderTextColor="#94a3b8" value={actExpDesc} onChangeText={setActExpDesc} />
                       <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                         <TextInput style={[styles.fInput, { flex: 1 }]} placeholder="Amount (₹)" placeholderTextColor="#94a3b8" value={actExpAmount} onChangeText={setActExpAmount} keyboardType="numeric" />
-                        <TouchableOpacity style={[styles.fInputTouch, { flex: 1 }]} onPress={() => setShowActExpCatDrop(p => !p)} activeOpacity={0.8}>
-                          <Text style={{ fontSize: 12, color: '#0f172a' }}>{actExpCategory.emoji} {actExpCategory.label}</Text>
+                        <TouchableOpacity style={[styles.fInputTouch, { flex: 1, justifyContent: 'center' }]} onPress={() => setShowActExpCatDrop(p => !p)} activeOpacity={0.8}>
+                          <ExpenseCatRow cat={actExpCategory} size={14} fontSize={12} />
                         </TouchableOpacity>
                       </View>
                       {showActExpCatDrop && (
                         <View style={styles.dropdown}>
-                          {EXPENSE_CATS.map(c => (
+                          {EXPENSE_CATEGORY_OPTIONS.map(c => (
                             <TouchableOpacity key={c.label} style={styles.dropdownItem} onPress={() => { setActExpCategory(c); setShowActExpCatDrop(false); }} activeOpacity={0.7}>
-                              <Text style={{ fontSize: 13, color: '#0f172a' }}>{c.emoji} {c.label}</Text>
+                              <ExpenseCatRow cat={c} />
                             </TouchableOpacity>
                           ))}
                         </View>
@@ -2146,7 +2119,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         </TouchableOpacity>
                       ))}
                       <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                        <TouchableOpacity style={[styles.splitTypeBtn, { flex: 1, paddingVertical: 10 }]} onPress={() => { setShowActExp(false); if (!actExpConfirmed) { setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATS[0]); setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']); setActExpSplitDetails({}); } }} activeOpacity={0.7}><Text style={styles.splitTypeTxt}>Cancel</Text></TouchableOpacity>
+                        <TouchableOpacity style={[styles.splitTypeBtn, { flex: 1, paddingVertical: 10 }]} onPress={() => { setShowActExp(false); if (!actExpConfirmed) { setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATEGORY_OPTIONS[0]); setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']); setActExpSplitDetails({}); } }} activeOpacity={0.7}><Text style={styles.splitTypeTxt}>Cancel</Text></TouchableOpacity>
                         <TouchableOpacity style={[styles.tealBtnFull, { flex: 1.4 }]} onPress={() => {
                           if (actExpDesc.trim() && actExpAmount) {
                             setActExpConfirmed(true);
@@ -2158,11 +2131,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   )}
                   {actExpConfirmed && !showActExp && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdf9', borderRadius: 8, padding: 10, marginTop: 4, borderWidth: 1, borderColor: '#ccfbf1' }}>
-                      <Text style={{ fontSize: 13, color: '#0f172a', flex: 1 }} numberOfLines={1}>{actExpCategory.emoji} {actExpDesc} · ₹{actExpAmount}</Text>
+                      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                        <ExpenseCategoryIcon category={actExpCategory.slug} size={16} />
+                        <Text style={{ fontSize: 13, color: '#0f172a', flex: 1 }} numberOfLines={1}>{actExpDesc} · ₹{actExpAmount}</Text>
+                      </View>
                       <TouchableOpacity onPress={() => setShowActExp(true)} activeOpacity={0.7} style={{ marginRight: 10 }}>
                         <Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => { setActExpConfirmed(false); setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATS[0]); setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']); setActExpSplitDetails({}); }} activeOpacity={0.7}>
+                      <TouchableOpacity onPress={() => { setActExpConfirmed(false); setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATEGORY_OPTIONS[0]); setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']); setActExpSplitDetails({}); }} activeOpacity={0.7}>
                         <Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Remove</Text>
                       </TouchableOpacity>
                     </View>
@@ -2648,14 +2624,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         <Text style={styles.fLabel}>Amount (₹)</Text>
                         <TextInput style={styles.fInput} placeholder="0.00" placeholderTextColor="#94a3b8" value={expAmount} onChangeText={setExpAmount} keyboardType="numeric" />
                         <Text style={styles.fLabel}>Category</Text>
-                        <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowExpCatDrop(p => !p)} activeOpacity={0.8}>
-                          <Text style={{ fontSize: 13, color: '#0f172a' }}>{expCategory.emoji} {expCategory.label}</Text>
+                        <TouchableOpacity style={[styles.fInputTouch, { justifyContent: 'center' }]} onPress={() => setShowExpCatDrop(p => !p)} activeOpacity={0.8}>
+                          <ExpenseCatRow cat={expCategory} />
                         </TouchableOpacity>
                         {showExpCatDrop && (
                           <View style={styles.dropdown}>
-                            {EXPENSE_CATS.map(c => (
+                            {EXPENSE_CATEGORY_OPTIONS.map(c => (
                               <TouchableOpacity key={c.label} style={styles.dropdownItem} onPress={() => { setExpCategory(c); setShowExpCatDrop(false); }} activeOpacity={0.7}>
-                                <Text style={{ fontSize: 13, color: '#0f172a' }}>{c.emoji} {c.label}</Text>
+                                <ExpenseCatRow cat={c} />
                               </TouchableOpacity>
                             ))}
                           </View>
@@ -2766,7 +2742,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             const balColor = exp.paidBy === 'You' ? '#0d9488' : '#ef4444';
                             return (
                               <View key={exp.id} style={styles.expRow}>
-                                <View style={styles.expIconBox}><Text style={{ fontSize: 18 }}>{EXPENSE_CATS.find(c => c.label === exp.category)?.emoji || '📦'}</Text></View>
+                                <View style={styles.expIconBox}><ExpenseCategoryIcon category={exp.category} size={20} /></View>
                                 <View style={{ flex: 1, marginLeft: 10 }}>
                                   <Text style={styles.expName}>{exp.description}</Text>
                                   <Text style={styles.expMeta}>Paid by {exp.paidBy}</Text>
@@ -2983,8 +2959,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <TextInput style={styles.fInput} placeholder="Note title..." placeholderTextColor="#94a3b8" value={noteTitle} onChangeText={setNoteTitle} />
                   <TextInput style={[styles.fInput, { height: 90, textAlignVertical: 'top', paddingTop: 10, marginTop: 8 }]} placeholder="Write your note here..." placeholderTextColor="#94a3b8" value={noteBody} onChangeText={setNoteBody} multiline />
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 10, alignItems: 'center' }}>
-                    <TouchableOpacity style={styles.catBtn} onPress={() => setShowNoteCatDrop(p => !p)} activeOpacity={0.8}>
-                      <Text style={{ fontSize: 13, color: '#0f172a' }}>{noteCatDisplay.emoji} {noteCatDisplay.label}</Text>
+                    <TouchableOpacity style={[styles.catBtn, { justifyContent: 'center' }]} onPress={() => setShowNoteCatDrop(p => !p)} activeOpacity={0.8}>
+                      <NoteCatRow cat={noteCatDisplay} />
                     </TouchableOpacity>
                     {editingNoteId && (
                       <TouchableOpacity onPress={() => { setEditingNoteId(null); setNoteTitle(''); setNoteBody(''); setNoteCategory('general'); }} activeOpacity={0.7} style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
@@ -2997,9 +2973,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </View>
                   {showNoteCatDrop && (
                     <View style={styles.dropdown}>
-                      {NOTE_CATS.map(c => (
+                      {NOTE_CATEGORY_OPTIONS.map(c => (
                         <TouchableOpacity key={c.key} style={styles.dropdownItem} onPress={() => { setNoteCategory(c.key as any); setShowNoteCatDrop(false); }} activeOpacity={0.7}>
-                          <Text style={{ fontSize: 13, color: '#0f172a' }}>{c.emoji} {c.label}</Text>
+                          <NoteCatRow cat={c} />
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -3017,7 +2993,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   ) : (
                     <View style={{ marginTop: 12 }}>
                       {notes.map(note => {
-                        const cat = NOTE_CATS.find(c => c.key === note.category)!;
+                        const cat = NOTE_CATEGORY_OPTIONS.find(c => c.key === note.category)!;
                         return (
                           <TouchableOpacity
                             key={note.id}
@@ -3026,9 +3002,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             style={[styles.noteCard, note.pinned && { backgroundColor: '#fefce8', borderColor: '#fde68a' }]}
                           >
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                              {/* Category emoji */}
                               <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#f0fdf9', alignItems: 'center', justifyContent: 'center' }}>
-                                <Text style={{ fontSize: 20 }}>{cat.emoji}</Text>
+                                <NoteCategoryIcon categoryKey={note.category} size={20} />
                               </View>
                               {/* Title + meta */}
                               <View style={{ flex: 1 }}>
@@ -3104,11 +3079,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16 }}>
                 {/* Category + meta */}
                 {viewingNote && (() => {
-                  const cat = NOTE_CATS.find(c => c.key === viewingNote.category)!;
+                  const cat = NOTE_CATEGORY_OPTIONS.find(c => c.key === viewingNote.category)!;
                   return (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                       <View style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#f0fdf9', borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                        <Text style={{ fontSize: 13 }}>{cat.emoji}</Text>
+                        <NoteCategoryIcon categoryKey={cat.key} size={14} />
                         <Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '600' }}>{cat.label}</Text>
                       </View>
                       <Text style={{ fontSize: 12, color: '#94a3b8' }}>

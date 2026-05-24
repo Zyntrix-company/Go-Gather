@@ -514,6 +514,7 @@ const getUserGallery = async (targetId) => {
        LEFT JOIN user_gallery_item_meta m
          ON m.user_id = $1 AND m.parent_type = 'trip' AND m.parent_id = t.id
        WHERE t.archived_at IS NULL
+         AND (m.archived_at IS NULL)
        ORDER BY t.end_date DESC
        LIMIT 50`,
       [targetId],
@@ -533,6 +534,7 @@ const getUserGallery = async (targetId) => {
        LEFT JOIN user_gallery_item_meta m
          ON m.user_id = $1 AND m.parent_type = 'event' AND m.parent_id = e.id
        WHERE e.archived_at IS NULL
+         AND (m.archived_at IS NULL)
        ORDER BY e.event_date DESC
        LIMIT 50`,
       [targetId],
@@ -810,13 +812,7 @@ const acknowledgeLegal = async (userId, { privacyVersion, termsVersion }) => {
   return getLegalStatus(userId);
 };
 
-/**
- * PATCH /users/me/gallery-items/:parentType/:parentId/subtitle
- * Upsert a per-user gallery subtitle for a trip or event the caller is a member of.
- * Pass subtitle = null / empty string to clear it.
- */
-const upsertGallerySubtitle = async (userId, parentType, parentId, subtitle) => {
-  // Verify membership — same rule as appearing in getUserGallery
+const verifyGalleryMembership = async (userId, parentType, parentId) => {
   const memberCheck = parentType === 'trip'
     ? await db.query('SELECT 1 FROM trip_members WHERE trip_id = $1 AND user_id = $2', [parentId, userId])
     : await db.query('SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2', [parentId, userId]);
@@ -827,6 +823,15 @@ const upsertGallerySubtitle = async (userId, parentType, parentId, subtitle) => 
     e.error = 'FORBIDDEN';
     throw e;
   }
+};
+
+/**
+ * PATCH /users/me/gallery-items/:parentType/:parentId/subtitle
+ * Upsert a per-user gallery subtitle for a trip or event the caller is a member of.
+ * Pass subtitle = null / empty string to clear it.
+ */
+const upsertGallerySubtitle = async (userId, parentType, parentId, subtitle) => {
+  await verifyGalleryMembership(userId, parentType, parentId);
 
   const cleanSubtitle = subtitle && subtitle.trim() ? subtitle.trim() : null;
 
@@ -839,6 +844,123 @@ const upsertGallerySubtitle = async (userId, parentType, parentId, subtitle) => 
   );
 
   return { subtitle: cleanSubtitle };
+};
+
+/**
+ * GET /users/me/gallery/archived — Trips/events hidden from the user's gallery only.
+ */
+const getArchivedUserGallery = async (userId) => {
+  const { getPresignedDownloadUrl } = require('../../utils/s3.util');
+  const cloudfrontDomain = config.s3?.cloudfrontDomain;
+
+  const presignBanner = async (rawUrl) => {
+    if (!rawUrl) return null;
+    try {
+      const hostname = new URL(rawUrl).hostname;
+      if (cloudfrontDomain && hostname === cloudfrontDomain) return rawUrl;
+      if (hostname.endsWith('.amazonaws.com')) {
+        const key = new URL(rawUrl).pathname.replace(/^\//, '');
+        return key ? await getPresignedDownloadUrl(key) : rawUrl;
+      }
+      return rawUrl;
+    } catch {
+      return rawUrl;
+    }
+  };
+
+  const [tripsResult, eventsResult] = await Promise.all([
+    db.query(
+      `SELECT
+         t.id,
+         t.name,
+         COALESCE(t.banner_image_url, t.cover_photo_url) AS "bannerImageUrl",
+         t.location_name   AS location,
+         t.end_date        AS "endDate",
+         (SELECT COUNT(*)::int FROM trip_members WHERE trip_id = t.id)                        AS "memberCount",
+         (SELECT COUNT(*)::int FROM photos       WHERE parent_type = 'trip' AND parent_id = t.id) AS "photoCount",
+         m.subtitle        AS "gallerySubtitle",
+         m.archived_at     AS "galleryArchivedAt"
+       FROM user_gallery_item_meta m
+       JOIN trips t ON t.id = m.parent_id
+       JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = $1
+       WHERE m.user_id = $1
+         AND m.parent_type = 'trip'
+         AND m.archived_at IS NOT NULL
+         AND t.archived_at IS NULL
+       ORDER BY m.archived_at DESC
+       LIMIT 50`,
+      [userId],
+    ),
+    db.query(
+      `SELECT
+         e.id,
+         e.name,
+         e.banner_image_url                        AS "bannerImageUrl",
+         e.location_name                           AS location,
+         e.event_date                              AS "endDate",
+         (SELECT COUNT(*)::int FROM event_members  WHERE event_id = e.id)                         AS "memberCount",
+         (SELECT COUNT(*)::int FROM photos         WHERE parent_type = 'event' AND parent_id = e.id) AS "photoCount",
+         m.subtitle        AS "gallerySubtitle",
+         m.archived_at     AS "galleryArchivedAt"
+       FROM user_gallery_item_meta m
+       JOIN events e ON e.id = m.parent_id
+       JOIN event_members em ON em.event_id = e.id AND em.user_id = $1
+       WHERE m.user_id = $1
+         AND m.parent_type = 'event'
+         AND m.archived_at IS NOT NULL
+         AND e.archived_at IS NULL
+       ORDER BY m.archived_at DESC
+       LIMIT 50`,
+      [userId],
+    ),
+  ]);
+
+  const [trips, events] = await Promise.all([
+    Promise.all(tripsResult.rows.map(async (row) => ({
+      ...row,
+      bannerImageUrl: await presignBanner(row.bannerImageUrl),
+    }))),
+    Promise.all(eventsResult.rows.map(async (row) => ({
+      ...row,
+      bannerImageUrl: await presignBanner(row.bannerImageUrl),
+    }))),
+  ]);
+
+  return { trips, events };
+};
+
+/**
+ * POST /users/me/gallery-items/:parentType/:parentId/archive
+ */
+const archiveGalleryItem = async (userId, parentType, parentId) => {
+  await verifyGalleryMembership(userId, parentType, parentId);
+
+  await db.query(
+    `INSERT INTO user_gallery_item_meta (user_id, parent_type, parent_id, archived_at, updated_at)
+     VALUES ($1, $2, $3, NOW(), NOW())
+     ON CONFLICT (user_id, parent_type, parent_id)
+     DO UPDATE SET archived_at = NOW(), updated_at = NOW()`,
+    [userId, parentType, parentId],
+  );
+
+  return { archived: true };
+};
+
+/**
+ * POST /users/me/gallery-items/:parentType/:parentId/unarchive
+ */
+const unarchiveGalleryItem = async (userId, parentType, parentId) => {
+  await verifyGalleryMembership(userId, parentType, parentId);
+
+  await db.query(
+    `INSERT INTO user_gallery_item_meta (user_id, parent_type, parent_id, archived_at, updated_at)
+     VALUES ($1, $2, $3, NULL, NOW())
+     ON CONFLICT (user_id, parent_type, parent_id)
+     DO UPDATE SET archived_at = NULL, updated_at = NOW()`,
+    [userId, parentType, parentId],
+  );
+
+  return { archived: false };
 };
 
 /**
@@ -868,5 +990,8 @@ module.exports = {
   getLegalStatus,
   acknowledgeLegal,
   upsertGallerySubtitle,
+  getArchivedUserGallery,
+  archiveGalleryItem,
+  unarchiveGalleryItem,
   updateDeviceToken,
 };
