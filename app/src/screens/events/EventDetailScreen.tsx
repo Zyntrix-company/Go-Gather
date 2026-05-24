@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
   TextInput, Image, Platform, NativeModules, Dimensions, Linking,
@@ -22,7 +22,6 @@ import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import SweeFab from '../../components/details/SweeFab';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
 import AppHeader from '../../components/common/AppHeader';
-import useNotificationStore from '../../store/notificationStore';
 import {
   BackIcon, PencilIcon, TrashIcon, CheckIcon,
 } from '../../components/common/Icons';
@@ -59,6 +58,8 @@ import useAuthStore from '../../store/authStore';
 import { authUserId } from '../../utils/avatarUri';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import { markEventSectionViewed } from '../../api/events.api';
+import ExpenseTotalsTab from '../../components/common/ExpenseTotalsTab';
+import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -240,7 +241,8 @@ function ActionIcon({ path, color }: { path: string; color: string }) {
   }
 }
 
-const { width: SCREEN_W } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const EXPENSES_MODAL_HEIGHT = Math.round(SCREEN_H * 0.78);
 const isSmall = SCREEN_W < 360;
 
 const DHeader = DetailDialogHeader;
@@ -374,7 +376,6 @@ function EventPhotoPreview({ photo }: { photo: PhotoItem }) {
 
 export default function EventDetailScreen({ route, navigation }: any) {
   const rawEvent = route?.params?.event;
-  const unreadCount = useNotificationStore(s => s.unreadCount);
 
   // Derive display fields from whatever shape the event param has
   const [event, setEvent] = useState({
@@ -568,7 +569,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [inviteInput, setInviteInput] = useState('');
 
   // ── Expenses modal ──
-  const [expTab, setExpTab] = useState<'All Expenses' | 'Balances'>('All Expenses');
+  const [expTab, setExpTab] = useState<'All Expenses' | 'Totals' | 'Balances'>('All Expenses');
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [expDesc, setExpDesc] = useState('');
   const [expAmount, setExpAmount] = useState('');
@@ -612,6 +613,14 @@ export default function EventDetailScreen({ route, navigation }: any) {
   // ── Derived ──
   const memberCount = members.length;
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
+  const expenseTotals = useMemo(
+    () => buildGroupExpenseTotals(
+      expenses,
+      buildExpenseMemberRoster(members, currentUserId),
+      currentUserId,
+    ),
+    [expenses, members, currentUserId],
+  );
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
 
   // Badges = server-computed unread counts (items added by others since user last viewed)
@@ -1075,7 +1084,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
       <SafeAreaView style={styles.container}>
 
         <AppHeader
-          notificationCount={unreadCount}
           onLogoPress={() => navigation.goBack()}
           onBellPress={() => navigation.navigate('Notifications')}
           onMenuPress={() => navigation.goBack()}
@@ -1628,13 +1636,17 @@ export default function EventDetailScreen({ route, navigation }: any) {
         ═══════════════════════════════════════════════════ */}
         <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); }}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '92%' }]}>
+            <View style={[styles.dialog, styles.expensesDialog]}>
               <DHeader title="Expenses" onClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); }} />
-              <TabBar tabs={['All Expenses', 'Balances']} active={expTab} onSelect={t => setExpTab(t as any)} />
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <TabBar tabs={['All Expenses', 'Totals', 'Balances']} active={expTab} onSelect={t => setExpTab(t as any)} />
+              <ScrollView
+                style={styles.expensesDialogScroll}
+                contentContainerStyle={styles.expensesDialogScrollContent}
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps="handled">
 
                 {expTab === 'All Expenses' && (
-                  <View style={styles.dBody}>
+                  <View>
                     <TouchableOpacity style={styles.tealBtnFull} onPress={() => {
                       const allIds = ['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.userId)];
                       setExpSplitAmong(allIds); setExpPaidBy('You');
@@ -1767,8 +1779,28 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   </View>
                 )}
 
+                {expTab === 'Totals' && (
+                  <View>
+                    <ExpenseTotalsTab
+                      totals={expenseTotals}
+                      styles={{
+                        emptyCenter: styles.emptyCenter,
+                        emptyTitle: styles.emptyTitle,
+                        emptySub: styles.emptySub,
+                        balCard: styles.balCard,
+                        balLabel: styles.balLabel,
+                        balValue: styles.balValue,
+                        expRow: styles.expRow,
+                        expName: styles.expName,
+                        expMeta: styles.expMeta,
+                        expAmt: styles.expAmt,
+                      }}
+                    />
+                  </View>
+                )}
+
                 {expTab === 'Balances' && (
-                  <View style={styles.dBody}>
+                  <View>
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
                       <View style={styles.balCard}><Text style={styles.balLabel}>Total</Text><Text style={styles.balValue}>₹{totalExp.toFixed(0)}</Text></View>
                       <View style={[styles.balCard, { backgroundColor: myBalance >= 0 ? '#f0fdf4' : '#fff1f2' }]}>
@@ -2168,6 +2200,18 @@ const styles = StyleSheet.create({
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
   dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '90%', overflow: 'hidden' },
+  expensesDialog: {
+    height: EXPENSES_MODAL_HEIGHT,
+    maxHeight: '92%',
+  },
+  expensesDialogScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  expensesDialogScrollContent: {
+    padding: 16,
+    flexGrow: 1,
+  },
 
   dBody: { padding: 16 },
   dFooterSingle: { padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },

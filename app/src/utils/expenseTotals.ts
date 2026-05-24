@@ -1,0 +1,84 @@
+export type MemberRosterEntry = { userId: string; name: string };
+
+export type MemberExpenseTotals = {
+  userId: string;
+  name: string;
+  shareTotal: number;
+  paidTotal: number;
+};
+
+export type GroupExpenseTotals = {
+  groupTotal: number;
+  members: MemberExpenseTotals[];
+};
+
+type ExpenseLike = {
+  amount: number;
+  paidBy: string;
+  splitAmong: string[];
+  splitType: 'equally' | 'amount' | 'percent';
+  splitBreakdown?: { userId: string; amount: number }[];
+};
+
+/** Sum group spend and per-member share (split) vs paid amounts from expense list. */
+export function buildGroupExpenseTotals(
+  expenses: ExpenseLike[],
+  roster: MemberRosterEntry[],
+  currentUserId: string,
+): GroupExpenseTotals {
+  const byId = new Map<string, MemberExpenseTotals>();
+  for (const r of roster) {
+    byId.set(r.userId, { userId: r.userId, name: r.name, shareTotal: 0, paidTotal: 0 });
+  }
+
+  const nameToUserId = new Map<string, string>();
+  for (const r of roster) nameToUserId.set(r.name, r.userId);
+
+  let groupTotal = 0;
+  for (const exp of expenses) {
+    groupTotal += exp.amount;
+
+    const payerId = nameToUserId.get(exp.paidBy);
+    if (payerId && byId.has(payerId)) {
+      byId.get(payerId)!.paidTotal += exp.amount;
+    }
+
+    if (exp.splitBreakdown?.length) {
+      for (const s of exp.splitBreakdown) {
+        const entry = byId.get(s.userId);
+        if (entry) entry.shareTotal += s.amount;
+      }
+    } else {
+      const participantIds = exp.splitAmong.map(id => (id === 'You' ? currentUserId : id));
+      const count = participantIds.length || 1;
+      const shareEach = exp.amount / count;
+      for (const uid of participantIds) {
+        const entry = byId.get(uid);
+        if (entry) entry.shareTotal += shareEach;
+      }
+    }
+  }
+
+  const members = roster
+    .map(r => byId.get(r.userId)!)
+    .sort((a, b) => b.shareTotal - a.shareTotal);
+
+  return { groupTotal, members };
+}
+
+export function buildExpenseMemberRoster(
+  members: { userId: string; fullName?: string; name?: string }[],
+  currentUserId: string,
+): MemberRosterEntry[] {
+  const roster: MemberRosterEntry[] = [
+    { userId: currentUserId, name: 'You' },
+  ];
+  for (const m of members) {
+    if (m.userId === currentUserId) continue;
+    roster.push({
+      userId: m.userId,
+      name: m.fullName ?? (m as { name?: string }).name ?? 'Member',
+    });
+  }
+  return roster;
+}

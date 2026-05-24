@@ -354,18 +354,18 @@ const styles = StyleSheet.create({
 
   // Typography — matches Figma text-2xl / text-slate-600 text-sm mb-10
   title: {
-    fontSize: SCREEN_W < 375 ? 22 : 27,
+    fontSize: SCREEN_W < 375 ? 20 : 24,
     fontWeight: '400',
     color: '#0f172a',
     textAlign: 'center',
     marginBottom: 12,
   },
   subtitle: {
-    fontSize: SCREEN_W < 375 ? 14 : 17,
+    fontSize: SCREEN_W < 375 ? 13 : 15,
     color: '#505c6dff',
     textAlign: 'center',
     marginBottom: 36,
-    lineHeight: SCREEN_W < 375 ? 19 : 22,
+    lineHeight: SCREEN_W < 375 ? 18 : 20,
   },
 
   // Social buttons — rounded-lg (matches web rounded-lg)

@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Image, TouchableOpacity, StyleSheet, Text } from 'react-native'; // Text kept for badge
 import Svg, { Path, Line } from 'react-native-svg';
+import useNotificationStore from '../../store/notificationStore';
 
 type AppHeaderProps = {
-  notificationCount?: number;
   onLogoPress?: () => void;
   onBellPress?: () => void;
   onMenuPress?: () => void;
@@ -34,11 +34,12 @@ function HamburgerIcon() {
 }
 
 export default function AppHeader({
-  notificationCount = 0,
   onLogoPress,
   onBellPress,
   onMenuPress,
 }: AppHeaderProps) {
+  const notificationCount = useNotificationStore((s) => s.unreadCount);
+
   return (
     <View style={s.header}>
       <TouchableOpacity style={s.iconBtn} onPress={onLogoPress} activeOpacity={0.8} disabled={!onLogoPress}>

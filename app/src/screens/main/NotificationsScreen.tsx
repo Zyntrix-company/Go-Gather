@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -182,16 +182,18 @@ export default function NotificationsScreen({ navigation }: any) {
 
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchNotifications(true);
-  }, []);
-
-  // Refresh list whenever the screen comes into focus so new notifications
-  // delivered while the user was elsewhere are visible immediately.
+  // Opening this screen marks every notification as read (bell badge clears app-wide).
   useFocusEffect(
     useCallback(() => {
-      fetchNotifications(true);
-    }, [fetchNotifications]),
+      let cancelled = false;
+      (async () => {
+        await markAllRead();
+        if (!cancelled) await fetchNotifications(true);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [markAllRead, fetchNotifications]),
   );
 
   const onRefresh = useCallback(async () => {
@@ -205,10 +207,9 @@ export default function NotificationsScreen({ navigation }: any) {
   const requestsTabItems      = notifications.filter(n =>  REQUEST_TYPES.includes(n.type));
   const displayed             = activeTab === 'notifications' ? notificationsTabItems : requestsTabItems;
 
-  // Per-tab unread counts
+  // Per-tab unread counts (for tab badges; cleared after mark-all-read on screen open)
   const notificationsUnread = notificationsTabItems.filter(n => !n.read).length;
   const requestsUnread      = requestsTabItems.filter(n => !n.read).length;
-  const activeTabUnread     = activeTab === 'notifications' ? notificationsUnread : requestsUnread;
 
   const onEndReached = useCallback(() => {
     if (activeTab === 'notifications' && !loading && hasMore) {
@@ -306,15 +307,6 @@ export default function NotificationsScreen({ navigation }: any) {
             </View>
           </TouchableOpacity>
         </View>
-
-        {/* Mark all read — active tab only */}
-        {activeTabUnread > 0 && (
-          <View style={styles.markReadRow}>
-            <TouchableOpacity onPress={markAllRead} activeOpacity={0.8}>
-              <Text style={styles.markReadText}>Mark all read</Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
         {/* Notification list */}
         <FlatList
@@ -492,18 +484,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#ffffff',
-  },
-
-  // Mark all read
-  markReadRow: {
-    alignItems: 'flex-end',
-    paddingHorizontal: 20,
-    paddingVertical: 6,
-  },
-  markReadText: {
-    fontSize: 13,
-    color: '#0d9488',
-    fontWeight: '500',
   },
 
   // List

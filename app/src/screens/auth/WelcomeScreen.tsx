@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: SCREEN_W < 375 ? 20 : 24,
+    paddingHorizontal: SCREEN_W < 375 ? 16 : 20,
     paddingTop: SCREEN_H < 700 ? 12 : SCREEN_H < 812 ? 18 : 24,
     paddingBottom: Platform.OS === 'ios' ? 28 : 24,
     maxWidth: 672,
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   subtitleWrap: {
-    gap: 2,
+    gap: 4,
     width: '100%',
     alignItems: 'center',
   },
@@ -358,9 +358,10 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   subtitleWord: {
-    fontSize: SCREEN_W < 375 ? 17 : SCREEN_W >= 768 ? 24 : 21,
+    fontSize: SCREEN_W < 340 ? 13 : SCREEN_W < 375 ? 15 : SCREEN_W < 430 ? 18 : SCREEN_W >= 768 ? 24 : 20,
     color: '#334155',
-    lineHeight: SCREEN_W < 375 ? 28 : SCREEN_W >= 768 ? 34 : 32,
+    lineHeight: SCREEN_W < 340 ? 21 : SCREEN_W < 375 ? 24 : SCREEN_W < 430 ? 28 : SCREEN_W >= 768 ? 34 : 30,
+    letterSpacing: -0.2,
   },
   ctaBlock: {
     marginTop: 36,

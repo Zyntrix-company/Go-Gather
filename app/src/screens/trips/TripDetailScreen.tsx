@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
   TextInput, Animated, PanResponder, Image, Platform, Linking, NativeModules,
-  ActivityIndicator, FlatList, Dimensions,
+  ActivityIndicator, FlatList, Dimensions, Easing, InteractionManager,
 } from 'react-native';
-const { width: SCREEN_W } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const EXPENSES_MODAL_HEIGHT = Math.round(SCREEN_H * 0.78);
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
@@ -23,7 +24,6 @@ import AppHeader from '../../components/common/AppHeader';
 import DocumentsUploadSection from '../../components/common/DocumentsUploadSection';
 import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
 import useAuthStore from '../../store/authStore';
-import useNotificationStore from '../../store/notificationStore';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
 import {
@@ -69,6 +69,8 @@ import {
 } from '../../api/trips.api';
 import type { TripMember, Debt } from '../../api/trips.api';
 import { markTripSectionViewed } from '../../api/trips.api';
+import ExpenseTotalsTab from '../../components/common/ExpenseTotalsTab';
+import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -320,6 +322,144 @@ const CheckIcon = () => (
   </Svg>
 );
 
+function formatActivityDate(iso: string) {
+  if (!iso) return 'No Date';
+  const d = new Date(iso);
+  return d.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function groupActivitiesByDate(items: Activity[]): [string, Activity[]][] {
+  const groups = new Map<string, Activity[]>();
+  items.forEach(a => {
+    const key = a.date || '__nodate__';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(a);
+  });
+  return Array.from(groups.entries());
+}
+
+function ActivityGroupsList({
+  activities,
+  collapsedDates,
+  onToggleDate,
+  onActivityPress,
+  animateKey,
+  canAnimate,
+  collapseKeyPrefix = '',
+}: {
+  activities: Activity[];
+  collapsedDates: Set<string>;
+  onToggleDate: (collapseKey: string) => void;
+  onActivityPress: (act: Activity) => void;
+  animateKey: number;
+  canAnimate: boolean;
+  collapseKeyPrefix?: string;
+}) {
+  const entries = useMemo(() => groupActivitiesByDate(activities), [activities]);
+  const animRefs = useRef<Animated.Value[]>([]);
+  const lastStartedKey = useRef(-1);
+
+  const ensureAnim = (index: number) => {
+    if (!animRefs.current[index]) {
+      animRefs.current[index] = new Animated.Value(0);
+    }
+    return animRefs.current[index];
+  };
+
+  useLayoutEffect(() => {
+    lastStartedKey.current = -1;
+    animRefs.current = entries.map((_, i) => {
+      const existing = animRefs.current[i];
+      if (existing) {
+        existing.setValue(0);
+        return existing;
+      }
+      return new Animated.Value(0);
+    });
+  }, [entries.length, animateKey]);
+
+  useEffect(() => {
+    if (!canAnimate) lastStartedKey.current = -1;
+  }, [canAnimate]);
+
+  useEffect(() => {
+    if (!canAnimate || entries.length === 0) return;
+    if (lastStartedKey.current === animateKey) return;
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const interactionTask = InteractionManager.runAfterInteractions(() => {
+      timeoutId = setTimeout(() => {
+        lastStartedKey.current = animateKey;
+        const anims = animRefs.current.slice(0, entries.length);
+        anims.forEach(v => v.setValue(0));
+        Animated.stagger(
+          72,
+          anims.map(v =>
+            Animated.timing(v, {
+              toValue: 1,
+              duration: 340,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+          ),
+        ).start();
+      }, 100);
+    });
+
+    return () => {
+      interactionTask.cancel();
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [canAnimate, animateKey, entries.length]);
+
+  return (
+    <View>
+      {entries.map(([dateKey, acts], index) => {
+        const collapseKey = `${collapseKeyPrefix}${dateKey}`;
+        const isCollapsed = collapsedDates.has(collapseKey);
+        const progress = ensureAnim(index);
+        return (
+          <Animated.View
+            key={collapseKey}
+            style={{
+              marginBottom: 4,
+              opacity: progress,
+              transform: [{
+                translateY: progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-14, 0],
+                }),
+              }],
+            }}>
+            <TouchableOpacity style={styles.actDateRow} onPress={() => onToggleDate(collapseKey)} activeOpacity={0.7}>
+              <Text style={styles.actDateLabel}>
+                {formatActivityDate(dateKey === '__nodate__' ? '' : dateKey)}
+              </Text>
+              {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
+            </TouchableOpacity>
+            {!isCollapsed && (
+              <View style={styles.actItemsWrap}>
+                {acts.map((act, idx) => (
+                  <TouchableOpacity
+                    key={act.id}
+                    style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]}
+                    onPress={() => onActivityPress(act)}
+                    activeOpacity={0.7}>
+                    <Text style={[styles.actItemLine, styles.actTimeLabel]}>
+                      {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
+                    </Text>
+                    <Text style={[styles.actItemLine, styles.actItemTitle]} numberOfLines={1}>{act.title}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </Animated.View>
+        );
+      })}
+    </View>
+  );
+}
+
 function ActionIcon({ path, color }: { path: string; color: string }) {
   const s = { width: 18, height: 18 };
   switch (path) {
@@ -517,7 +657,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const rawUser = useAuthStore(s => s.user) as any;
   const currentUserId: string = rawUser?.id ?? rawUser?.sub ?? '';
   const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
-  const unreadCount = useNotificationStore(s => s.unreadCount);
 
   // ── API-driven state ──
   const [role, setRole] = useState<'admin' | 'member'>('member');
@@ -548,6 +687,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [apiFriends, setApiFriends] = useState<{ id: string; name: string; avatarUrl: string | null }[]>([]);
   const [showCompleted, setShowCompleted] = useState(false);
   const [showUpcoming, setShowUpcoming] = useState(true);
+  const [activitiesAnimKey, setActivitiesAnimKey] = useState(0);
+  const [tripDetailReady, setTripDetailReady] = useState(false);
 
   const tripId: string = trip?.id ?? '';
 
@@ -608,7 +749,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [inviteInput, setInviteInput] = useState('');
 
   // ── Expenses modal ──
-  const [expTab, setExpTab] = useState<'All Expenses' | 'Balances'>('All Expenses');
+  const [expTab, setExpTab] = useState<'All Expenses' | 'Totals' | 'Balances'>('All Expenses');
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [expDesc, setExpDesc] = useState('');
   const [expAmount, setExpAmount] = useState('');
@@ -651,6 +792,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── Initial fetch: trip detail + members + activities ──
   useFocusEffect(useCallback(() => {
     if (!tripId) return;
+    setTripDetailReady(false);
     (async () => {
       try {
         const [detailRes, membersRes, activitiesRes, balRes] = await Promise.all([
@@ -686,6 +828,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
         handleApiError(err);
       } finally {
         setIsLoadingInit(false);
+        setTripDetailReady(true);
+        requestAnimationFrame(() => {
+          setActivitiesAnimKey(k => k + 1);
+        });
       }
     })();
   }, [tripId, currentUserId]));
@@ -875,6 +1021,23 @@ export default function TripDetailScreen({ route, navigation }: any) {
   });
   const previewPhoto = previewPhotoIndex !== null ? photos[previewPhotoIndex] ?? null : null;
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
+  const expenseTotals = useMemo(
+    () => buildGroupExpenseTotals(
+      expenses,
+      buildExpenseMemberRoster(members, currentUserId),
+      currentUserId,
+    ),
+    [expenses, members, currentUserId],
+  );
+
+  const toggleActivityDate = useCallback((collapseKey: string) => {
+    setCollapsedDates(prev => {
+      const next = new Set(prev);
+      if (next.has(collapseKey)) next.delete(collapseKey);
+      else next.add(collapseKey);
+      return next;
+    });
+  }, []);
   const memberCount = members.length;
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
 
@@ -1576,7 +1739,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
       <SafeAreaView style={styles.container}>
 
         <AppHeader
-          notificationCount={unreadCount}
           onLogoPress={() => navigation.goBack()}
           onBellPress={() => navigation.navigate('Notifications')}
           onMenuPress={() => navigation.goBack()}
@@ -1677,57 +1839,24 @@ export default function TripDetailScreen({ route, navigation }: any) {
               {showUpcoming ? <ChevUp /> : <ChevDown />}
             </TouchableOpacity>
             {showUpcoming && (
-              upcomingActs.length === 0
-                ? <Text style={styles.emptySub}>No upcoming activities yet</Text>
-                : (() => {
-                    const groups = new Map<string, Activity[]>();
-                    upcomingActs.forEach(a => {
-                      const key = a.date || '__nodate__';
-                      if (!groups.has(key)) groups.set(key, []);
-                      groups.get(key)!.push(a);
-                    });
-                    const fmtActDate = (iso: string) => {
-                      if (!iso) return 'No Date';
-                      const d = new Date(iso);
-                      return d.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short' });
-                    };
-                    return (
-                      <View>
-                        {Array.from(groups.entries()).map(([dateKey, acts]) => {
-                          const isCollapsed = collapsedDates.has(dateKey);
-                          const toggleCollapse = () => {
-                            setCollapsedDates(prev => {
-                              const next = new Set(prev);
-                              next.has(dateKey) ? next.delete(dateKey) : next.add(dateKey);
-                              return next;
-                            });
-                          };
-                          return (
-                            <View key={dateKey} style={{ marginBottom: 4 }}>
-                              <TouchableOpacity style={styles.actDateRow} onPress={toggleCollapse} activeOpacity={0.7}>
-                                <Text style={styles.actDateLabel}>
-                                  {fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}
-                                </Text>
-                                {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
-                              </TouchableOpacity>
-                              {!isCollapsed && (
-                                <View style={styles.actItemsWrap}>
-                                  {acts.map((act, idx) => (
-                                    <TouchableOpacity key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]} onPress={() => startEditActivity(act)} activeOpacity={0.7}>
-                                      <Text style={styles.actTimeLabel}>
-                                        {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
-                                      </Text>
-                                      <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
-                                    </TouchableOpacity>
-                                  ))}
-                                </View>
-                              )}
-                            </View>
-                          );
-                        })}
-                      </View>
-                    );
-                  })()
+              !tripDetailReady
+                ? (
+                  <View style={styles.activitiesLoading}>
+                    <ActivityIndicator size="small" color="#0d9488" />
+                  </View>
+                )
+                : upcomingActs.length === 0
+                  ? <Text style={styles.emptySub}>No upcoming activities yet</Text>
+                  : (
+                    <ActivityGroupsList
+                      activities={upcomingActs}
+                      collapsedDates={collapsedDates}
+                      onToggleDate={toggleActivityDate}
+                      onActivityPress={startEditActivity}
+                      animateKey={activitiesAnimKey}
+                      canAnimate={tripDetailReady}
+                    />
+                  )
             )}
           </View>}
 
@@ -1746,53 +1875,20 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <Text style={styles.emptyTitle}>No activities</Text>
                   <Text style={styles.emptySub}>No activities were recorded for this trip</Text>
                 </View>
-              ) : (() => {
-                const allGroups = new Map<string, Activity[]>();
-                activities.forEach((a: any) => {
-                  const key = a.date || '__nodate__';
-                  if (!allGroups.has(key)) allGroups.set(key, []);
-                  allGroups.get(key)!.push(a);
-                });
-                const fmtActDate = (iso: string) => {
-                  if (!iso) return 'No Date';
-                  const d = new Date(iso);
-                  return d.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short' });
-                };
-                return (
-                  <View>
-                    {Array.from(allGroups.entries()).map(([dateKey, acts]) => {
-                      const isCollapsed = collapsedDates.has(dateKey);
-                      const toggleCollapse = () => {
-                        setCollapsedDates(prev => {
-                          const next = new Set(prev);
-                          next.has(dateKey) ? next.delete(dateKey) : next.add(dateKey);
-                          return next;
-                        });
-                      };
-                      return (
-                        <View key={dateKey} style={{ marginBottom: 4 }}>
-                          <TouchableOpacity style={styles.actDateRow} onPress={toggleCollapse} activeOpacity={0.7}>
-                            <Text style={styles.actDateLabel}>{fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}</Text>
-                            {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
-                          </TouchableOpacity>
-                          {!isCollapsed && (
-                            <View style={styles.actItemsWrap}>
-                              {acts.map((act, idx) => (
-                                <TouchableOpacity key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]} activeOpacity={0.7} onPress={() => startEditActivity(act)}>
-                                  <Text style={styles.actTimeLabel}>
-                                    {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
-                                  </Text>
-                                  <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
-                                </TouchableOpacity>
-                              ))}
-                            </View>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                );
-              })()}
+              ) : !tripDetailReady ? (
+                <View style={styles.activitiesLoading}>
+                  <ActivityIndicator size="small" color="#0d9488" />
+                </View>
+              ) : (
+                <ActivityGroupsList
+                  activities={activities}
+                  collapsedDates={collapsedDates}
+                  onToggleDate={toggleActivityDate}
+                  onActivityPress={startEditActivity}
+                  animateKey={activitiesAnimKey}
+                  canAnimate={tripDetailReady}
+                />
+              )}
             </View>
           ) : (
             <View style={styles.section}>
@@ -1811,54 +1907,21 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   ? (
                     <Text style={styles.emptySub}>No completed activities yet</Text>
                   )
-                  : (() => {
-                    const cGroups = new Map<string, Activity[]>();
-                    completed.forEach(a => {
-                      const key = a.date || '__nodate__';
-                      if (!cGroups.has(key)) cGroups.set(key, []);
-                      cGroups.get(key)!.push(a);
-                    });
-                    const fmtActDate = (iso: string) => {
-                      if (!iso) return 'No Date';
-                      const d = new Date(iso);
-                      return d.toLocaleDateString('default', { weekday: 'short', day: 'numeric', month: 'short' });
-                    };
-                    return (
-                      <View>
-                        {Array.from(cGroups.entries()).map(([dateKey, acts]) => {
-                          const collapsedKey = `completed:${dateKey}`;
-                          const isCollapsed = collapsedDates.has(collapsedKey);
-                          const toggleCompletedDate = () => {
-                            setCollapsedDates(prev => {
-                              const next = new Set(prev);
-                              next.has(collapsedKey) ? next.delete(collapsedKey) : next.add(collapsedKey);
-                              return next;
-                            });
-                          };
-                          return (
-                            <View key={dateKey} style={{ marginBottom: 4 }}>
-                              <TouchableOpacity style={styles.actDateRow} onPress={toggleCompletedDate} activeOpacity={0.7}>
-                                <Text style={styles.actDateLabel}>{fmtActDate(dateKey === '__nodate__' ? '' : dateKey)}</Text>
-                                {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
-                              </TouchableOpacity>
-                              {!isCollapsed && (
-                                <View style={styles.actItemsWrap}>
-                                  {acts.map((act, idx) => (
-                                    <TouchableOpacity key={act.id} style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]} activeOpacity={0.7} onPress={() => startEditActivity(act)}>
-                                      <Text style={styles.actTimeLabel}>
-                                        {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
-                                      </Text>
-                                      <Text style={styles.actItemTitle} numberOfLines={1}>{act.title}</Text>
-                                    </TouchableOpacity>
-                                  ))}
-                                </View>
-                              )}
-                            </View>
-                          );
-                        })}
-                      </View>
-                    );
-                  })()
+                  : !tripDetailReady ? (
+                    <View style={styles.activitiesLoading}>
+                      <ActivityIndicator size="small" color="#0d9488" />
+                    </View>
+                  ) : (
+                    <ActivityGroupsList
+                      activities={completed}
+                      collapsedDates={collapsedDates}
+                      onToggleDate={toggleActivityDate}
+                      onActivityPress={startEditActivity}
+                      animateKey={activitiesAnimKey}
+                      canAnimate={tripDetailReady}
+                      collapseKeyPrefix="completed:"
+                    />
+                  )
               )}
             </View>
           )}
@@ -2555,13 +2618,17 @@ export default function TripDetailScreen({ route, navigation }: any) {
       ═══════════════════════════════════════════════════ */}
         <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); }}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '92%' }]}>
+            <View style={[styles.dialog, styles.expensesDialog]}>
               <DHeader title="Expenses" onClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); }} />
-              <TabBar tabs={['All Expenses', 'Balances']} active={expTab} onSelect={t => setExpTab(t as any)} />
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <TabBar tabs={['All Expenses', 'Totals', 'Balances']} active={expTab} onSelect={t => setExpTab(t as any)} />
+              <ScrollView
+                style={styles.expensesDialogScroll}
+                contentContainerStyle={styles.expensesDialogScrollContent}
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps="handled">
 
                 {expTab === 'All Expenses' && (
-                  <View style={styles.dBody}>
+                  <View>
                     <TouchableOpacity style={styles.tealBtnFull} onPress={() => {
                       // Initialize split among with all trip members
                       const allIds = ['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.userId)];
@@ -2754,8 +2821,28 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </View>
                 )}
 
+                {expTab === 'Totals' && (
+                  <View>
+                    <ExpenseTotalsTab
+                      totals={expenseTotals}
+                      styles={{
+                        emptyCenter: styles.emptyCenter,
+                        emptyTitle: styles.emptyTitle,
+                        emptySub: styles.emptySub,
+                        balCard: styles.balCard,
+                        balLabel: styles.balLabel,
+                        balValue: styles.balValue,
+                        expRow: styles.expRow,
+                        expName: styles.expName,
+                        expMeta: styles.expMeta,
+                        expAmt: styles.expAmt,
+                      }}
+                    />
+                  </View>
+                )}
+
                 {expTab === 'Balances' && (
-                  <View style={styles.dBody}>
+                  <View>
                     <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
                       <View style={[styles.balCard]}><Text style={styles.balLabel}>Total</Text><Text style={styles.balValue}>₹{parseFloat(totalExpenses || '0').toFixed(0)}</Text></View>
                       <View style={[styles.balCard, { backgroundColor: myBalance >= 0 ? '#f0fdf4' : '#fff1f2' }]}>
@@ -3148,12 +3235,14 @@ const styles = StyleSheet.create({
   actRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f1f5f9' },
   actTitle: { fontSize: 12, fontWeight: '400', color: '#0f172a', marginBottom: 2 },
   actMeta: { fontSize: 11, color: '#94a3b8' },
-  actDateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 2, paddingHorizontal: 4, marginBottom: 0 },
+  activitiesLoading: { paddingVertical: 28, alignItems: 'center', justifyContent: 'center' },
+  actDateRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 4, marginBottom: 2 },
   actDateLabel: { fontSize: 13, fontWeight: '500', color: '#334155' },
-  actItemsWrap: { marginLeft: 0, marginTop: 0 },
-  actItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, paddingHorizontal: 4, borderWidth: 1, borderColor: 'transparent', borderRadius: 10, backgroundColor: 'transparent', gap: 8, marginBottom: 2 },
-  actTimeLabel: { fontSize: 12, color: '#0f172a', minWidth: 44, fontWeight: '500' },
-  actItemTitle: { flex: 1, fontSize: 12, fontWeight: '500', color: '#0f172a' },
+  actItemsWrap: { marginLeft: 14, marginTop: 2, paddingBottom: 4 },
+  actItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, paddingLeft: 4, paddingRight: 4, borderWidth: 1, borderColor: 'transparent', borderRadius: 10, backgroundColor: 'transparent', gap: 8, marginBottom: 2 },
+  actItemLine: { fontSize: 12, fontWeight: '400', color: '#0f172a' },
+  actTimeLabel: { minWidth: 44 },
+  actItemTitle: { flex: 1 },
   doneBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#f0fdfa', marginLeft: 8 },
   doneTxt: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
   trashBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
@@ -3164,6 +3253,18 @@ const styles = StyleSheet.create({
   // Modal base
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
   dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '90%', overflow: 'hidden' },
+  expensesDialog: {
+    height: EXPENSES_MODAL_HEIGHT,
+    maxHeight: '92%',
+  },
+  expensesDialogScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  expensesDialogScrollContent: {
+    padding: 16,
+    flexGrow: 1,
+  },
 
   // Dialog header
   dHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },

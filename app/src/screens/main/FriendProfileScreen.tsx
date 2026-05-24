@@ -10,7 +10,6 @@ import { Plane, CalendarDays, UserMinus } from 'lucide-react-native';
 import BlobBackground from '../../components/common/BlobBackground';
 import CachedImage from '../../components/common/CachedImage';
 import AppHeader from '../../components/common/AppHeader';
-import useNotificationStore from '../../store/notificationStore';
 import { getUserProfile, removeFriend, handleApiError } from '../../api/trips.api';
 import { showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
@@ -373,7 +372,6 @@ export default function FriendProfileScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<{ FriendProfile: RouteParams }, 'FriendProfile'>>();
   const { userId, friendName, avatarUrl: paramAvatarUrl } = route.params;
-  const unreadCount = useNotificationStore(s => s.unreadCount);
 
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof getUserProfile>> | null>(null);
   const [galleryTrips, setGalleryTrips] = useState<any[]>([]);
@@ -431,7 +429,6 @@ export default function FriendProfileScreen() {
       <SafeAreaView style={styles.container}>
 
         <AppHeader
-          notificationCount={unreadCount}
           onLogoPress={() => navigation.goBack()}
           onBellPress={() => navigation.navigate('Notifications' as any)}
           onMenuPress={() => {}}
@@ -496,9 +493,9 @@ export default function FriendProfileScreen() {
 
             </View>
 
-            {/* ── Gallery of Trips ── */}
+            {/* ── Trips ── */}
             <SectionHeader
-              title="Gallery of Trips"
+              title="Trips"
               count={galleryTrips.length}
               icon={<Plane size={20} color="#0d9488" />}
             />
@@ -511,10 +508,10 @@ export default function FriendProfileScreen() {
               }
             </View>
 
-            {/* ── Gallery of Events ── */}
+            {/* ── Events ── */}
             <View style={styles.sectionSpacer} />
             <SectionHeader
-              title="Gallery of Events"
+              title="Events"
               count={galleryEvents.length}
               icon={<CalendarDays size={20} color="#f59e0b" />}
             />

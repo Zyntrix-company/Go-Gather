@@ -671,7 +671,7 @@ const styles = StyleSheet.create({
 
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
   title: {
-    fontSize: SCREEN_W < 375 ? 23 : 28,
+    fontSize: SCREEN_W < 375 ? 21 : 25,
     fontWeight: '400',
     color: '#0f172a',
     textAlign: 'center',

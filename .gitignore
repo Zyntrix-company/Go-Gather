@@ -48,6 +48,16 @@ Dockerfile
 
 # Local archives
 app.zip
+GatherGo-iOS-handoff.zip
+GatherGo_handoff_tmp/
+
+# React Native Android bundle outputs (regenerated at build time)
+app/android/app/src/main/assets/
+app/android/app/src/main/res/drawable-*/
+app/android/app/src/main/res/raw/
+
+# Claude / local IDE (machine-specific)
+.claude/
 
 # Internal / local docs (not pushed)
 docs/

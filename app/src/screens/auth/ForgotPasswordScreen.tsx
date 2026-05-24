@@ -157,17 +157,17 @@ const styles = StyleSheet.create({
   form: { maxWidth: 400, width: '100%', alignSelf: 'center', flex: 1, justifyContent: 'center', paddingBottom: 60 },
 
   title: {
-    fontSize: SCREEN_W < 375 ? 23 : 28,
+    fontSize: SCREEN_W < 375 ? 21 : 25,
     fontWeight: '400',
     color: '#0f172a',
     textAlign: 'center',
     marginBottom: 10,
   },
   subtitle: {
-    fontSize: SCREEN_W < 375 ? 13 : 15,
+    fontSize: SCREEN_W < 375 ? 12 : 14,
     color: '#566170',
     textAlign: 'center',
-    lineHeight: SCREEN_W < 375 ? 19 : 22,
+    lineHeight: SCREEN_W < 375 ? 18 : 20,
     marginBottom: 28,
   },
 

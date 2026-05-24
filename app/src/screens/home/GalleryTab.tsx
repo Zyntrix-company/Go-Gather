@@ -1246,9 +1246,9 @@ export default function GalleryTab({
           <GallerySkeleton />
         ) : (
           <>
-            {/* ── Gallery of Trips ── */}
+            {/* ── Trips ── */}
             <SectionHeader
-              title="Gallery of Trips"
+              title="Trips"
               count={displayTrips.length + customTripCards.length}
               onAdd={() => setShowCreateCard('trip')}
               icon={<Plane size={20} color="#0d9488" />}
@@ -1281,10 +1281,10 @@ export default function GalleryTab({
               )}
             </View>
 
-            {/* ── Gallery of Events ── */}
+            {/* ── Events ── */}
             <View style={styles.sectionSpacer} />
             <SectionHeader
-              title="Gallery of Events"
+              title="Events"
               count={galleryEvents.length + customEventCards.length}
               onAdd={() => setShowCreateCard('event')}
               icon={<CalendarDays size={20} color="#f59e0b" />}

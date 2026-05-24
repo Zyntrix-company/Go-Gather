@@ -31,13 +31,11 @@ import {
   Search,
   Sparkles,
   Plane,
-  CalendarPlus,
+  CalendarDays,
   HelpCircle,
   Compass,
   Settings2,
-  MapPin as LucideMapPin,
   ChevronLeft,
-  PartyPopper,
 } from 'lucide-react-native';
 import BlobBackground from '../../components/common/BlobBackground';
 import AppHeader from '../../components/common/AppHeader';
@@ -399,12 +397,7 @@ function NavIcon({ name, active, onPress }: { name: Tab; active: boolean; onPres
           />
         </Svg>
       )}
-      {name === 'events' && (
-        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-          <Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke={color} strokeWidth={2} />
-          <Path d="M16 2v4M8 2v4M3 10h18" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        </Svg>
-      )}
+      {name === 'events' && <CalendarDays size={20} color={color} />}
       {name === 'friends' && (
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
           <Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -597,7 +590,6 @@ export default function HomeScreen({ navigation, route }: any) {
   const { logout, refreshProfile } = useAuth();
   const rawUser = useAuthStore((s) => s.user) as any;
   const avatarUpdatedAt = useAuthStore((s) => s.avatarUpdatedAt);
-  const unreadCount = useNotificationStore((s) => s.unreadCount);
   const refreshUnreadCount = useNotificationStore((s) => s.refreshUnreadCount);
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -1042,7 +1034,7 @@ export default function HomeScreen({ navigation, route }: any) {
           <Search size={18} color="#94a3b8" />
           <TextInput
             style={{ flex: 1, fontSize: 14, color: '#1a1a2e', paddingVertical: 0 }}
-            placeholder="Where to next ?"
+            placeholder="What do you have in mind?"
             placeholderTextColor="#94a3b8"
             value={sweeSearchText}
             onChangeText={setSweeSearchText}
@@ -1057,8 +1049,8 @@ export default function HomeScreen({ navigation, route }: any) {
               backgroundColor: '#009788', borderRadius: 999,
               paddingHorizontal: 12, paddingVertical: 7, gap: 5,
             }}>
-            <Sparkles size={13} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '400' }}>Ask Swee</Text>
+            <Sparkles size={15} color="#fff" />
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>Ask Swee</Text>
           </TouchableOpacity>
         </View>
 
@@ -1075,7 +1067,7 @@ export default function HomeScreen({ navigation, route }: any) {
             onPress={() => setShowCreateEventModal(true)}
             activeOpacity={0.85}
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#61BFCE', borderRadius: 999, paddingVertical: 9, gap: 5 }}>
-            <CalendarPlus size={15} color="#fff" />
+            <CalendarDays size={15} color="#fff" />
             <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>Create Event</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -1238,7 +1230,7 @@ export default function HomeScreen({ navigation, route }: any) {
         {upcoming.length > 0 && (
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginRight: H_PAD, marginTop: 24, marginBottom: 10 }}>
-              <LucideMapPin size={19} color="#000000" strokeWidth={1.8} />
+              <Plane size={19} color="#000000" strokeWidth={1.8} />
               <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B', flex: 1 }}>Upcoming Trips</Text>
               {upcoming.length > 3 && (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setActiveTab('trips')}>
@@ -1280,7 +1272,7 @@ export default function HomeScreen({ navigation, route }: any) {
         {homeEvents.length > 0 && (
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginRight: H_PAD, marginTop: 24, marginBottom: 10 }}>
-              <PartyPopper size={19} color="#000000" strokeWidth={1.8} />
+              <CalendarDays size={19} color="#000000" strokeWidth={1.8} />
               <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B', flex: 1 }}>Upcoming Events</Text>
               {homeEvents.length > 3 && (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setActiveTab('events')}>
@@ -1511,7 +1503,6 @@ export default function HomeScreen({ navigation, route }: any) {
     <BlobBackground>
       <SafeAreaView style={styles.container}>
         <AppHeader
-          notificationCount={unreadCount}
           onLogoPress={() => setActiveTab('home')}
           onBellPress={() => navigation.navigate('Notifications')}
           onMenuPress={() => { setShowProfileMenu(true); refreshProfile(); }}
