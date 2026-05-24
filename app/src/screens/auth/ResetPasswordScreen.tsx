@@ -246,9 +246,7 @@ export default function ResetPasswordScreen({ navigation, route }: any) {
             <Text style={styles.subtitle}>
               Enter the 6-digit code sent to
             </Text>
-            <View style={styles.emailChip}>
-              <Text style={styles.emailChipText}>{email}</Text>
-            </View>
+            <Text style={styles.emailText}>{email}</Text>
 
             {/* ── OTP Row ── */}
             <View style={styles.otpContainer}>
@@ -428,20 +426,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 10,
   },
-  emailChip: {
-    alignSelf: 'center',
-    backgroundColor: '#f0fdfa',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: '#99f6e4',
-    marginBottom: 28,
-  },
-  emailChipText: {
-    fontSize: 13,
+  emailText: {
+    fontSize: 14,
     color: '#0d9488',
     fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 28,
   },
 
   // ── OTP ──
@@ -455,7 +445,7 @@ const styles = StyleSheet.create({
     flex: 1,
     // Explicit height gives Android enough room — prevents top-clipping
     height: 56,
-    backgroundColor: '#ffffff',
+    backgroundColor: 'transparent',
     borderWidth: 2,
     borderColor: '#e2e8f0',
     borderRadius: 14,
@@ -469,15 +459,15 @@ const styles = StyleSheet.create({
   },
   otpInputFocused: {
     borderColor: '#0d9488',
-    backgroundColor: '#f0fdfa',
+    backgroundColor: 'transparent',
   },
   otpInputFilled: {
     borderColor: '#0d9488',
-    backgroundColor: '#f0fdfa',
+    backgroundColor: 'transparent',
   },
   otpInputError: {
     borderColor: '#ef4444',
-    backgroundColor: '#fff5f5',
+    backgroundColor: 'transparent',
   },
 
   resendRow: {
@@ -521,12 +511,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#e2e8f0',
     borderRadius: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: 'transparent',
     flexDirection: 'row',
     alignItems: 'center',
   },
-  inputFocused: { borderColor: '#0d9488', backgroundColor: '#fafffe' },
-  inputError: { borderColor: '#ef4444', backgroundColor: '#fff5f5' },
+  inputFocused: { borderColor: '#0d9488', backgroundColor: 'transparent' },
+  inputError: { borderColor: '#ef4444', backgroundColor: 'transparent' },
   passwordField: {
     flex: 1,
     paddingHorizontal: 14,

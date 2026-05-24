@@ -14,6 +14,7 @@ import { getUserProfile, removeFriend, handleApiError } from '../../api/trips.ap
 import { showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
 import { getUserGallery, getUserPhotos } from '../../api/ai.api';
+import { getUserGalleryAlbumPhotos } from '../../api/gallery.api';
 import { getTripPhotos } from '../../api/trips.api';
 import { getEventPhotos } from '../../api/events.api';
 import type { MainStackParamList } from '../../navigation/MainStack';
@@ -225,6 +226,74 @@ function PreviewModal({ photos, initialIndex, onClose }: {
   );
 }
 
+function CustomAlbumPhotosModal({
+  visible,
+  title,
+  albumId,
+  userId,
+  onClose,
+}: {
+  visible: boolean;
+  title: string;
+  albumId: string;
+  userId: string;
+  onClose: () => void;
+}) {
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!visible || !albumId) return;
+    setLoading(true);
+    getUserGalleryAlbumPhotos(userId, albumId)
+      .then((res) => setPhotos(res.photos.map((p) => ({ id: p.id, uri: p.uri ?? '' }))))
+      .catch(() => setPhotos([]))
+      .finally(() => setLoading(false));
+  }, [visible, albumId, userId]);
+
+  return (
+    <>
+      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+        <View style={styles.overlay}>
+          <View style={[styles.dialog, { maxHeight: '85%' }]}>
+            <View style={styles.dialogHeader}>
+              <Text style={styles.dialogTitle} numberOfLines={1}>{title}</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <CloseIcon />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.dialogBody}>
+                {loading && <View style={styles.modalLoadingRow}><ActivityIndicator color="#0d9488" /></View>}
+                {!loading && photos.length === 0 && (
+                  <View style={styles.emptyCenter}>
+                    <Text style={styles.emptyTitle}>No photos yet</Text>
+                  </View>
+                )}
+                {!loading && photos.length > 0 && (
+                  <View style={styles.thumbRow}>
+                    {photos.map((ph) => (
+                      <PhotoThumb
+                        key={ph.id}
+                        photo={ph}
+                        onPress={() => setPreviewIndex(photos.findIndex((p) => p.id === ph.id))}
+                      />
+                    ))}
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
+        <PreviewModal photos={photos} initialIndex={previewIndex ?? 0} onClose={() => setPreviewIndex(null)} />
+      </Modal>
+    </>
+  );
+}
+
 function PhotosModal({ visible, title, onClose, parentId, parentType, userId, gallerySubtitle }: {
   visible: boolean; title: string; onClose: () => void;
   parentId: string; parentType: 'trip' | 'event'; userId?: string; gallerySubtitle?: string | null;
@@ -376,9 +445,12 @@ export default function FriendProfileScreen() {
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof getUserProfile>> | null>(null);
   const [galleryTrips, setGalleryTrips] = useState<any[]>([]);
   const [galleryEvents, setGalleryEvents] = useState<any[]>([]);
+  const [customTripAlbums, setCustomTripAlbums] = useState<any[]>([]);
+  const [customEventAlbums, setCustomEventAlbums] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [avatarError, setAvatarError] = useState(false);
   const [photoModal, setPhotoModal] = useState<{ id: string; name: string; type: 'trip' | 'event'; subtitle?: string | null } | null>(null);
+  const [customAlbumModal, setCustomAlbumModal] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => { setAvatarError(false); }, [profile?.avatarUrl, paramAvatarUrl]);
 
@@ -395,6 +467,8 @@ export default function FriendProfileScreen() {
         setProfile(prof);
         setGalleryTrips(gallery.trips ?? []);
         setGalleryEvents(gallery.events ?? []);
+        setCustomTripAlbums(gallery.customAlbums?.trip ?? []);
+        setCustomEventAlbums(gallery.customAlbums?.event ?? []);
       })
       .catch((err) => { console.error('[FriendProfileScreen] load failed', err?.response?.data ?? err?.message ?? err); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -496,32 +570,38 @@ export default function FriendProfileScreen() {
             {/* ── Trips ── */}
             <SectionHeader
               title="Trips"
-              count={galleryTrips.length}
+              count={galleryTrips.length + customTripAlbums.length}
               icon={<Plane size={20} color="#0d9488" />}
             />
             <View style={styles.grid}>
-              {galleryTrips.length > 0
-                ? galleryTrips.map((trip: any) => (
-                    <GridCard key={trip.id} item={trip} onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null })} />
-                  ))
-                : <EmptyCard label="No past trips yet" />
-              }
+              {galleryTrips.map((trip: any) => (
+                <GridCard key={trip.id} item={trip} onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null })} />
+              ))}
+              {customTripAlbums.map((album: any) => (
+                <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name })} />
+              ))}
+              {galleryTrips.length === 0 && customTripAlbums.length === 0 && (
+                <EmptyCard label="No past trips yet" />
+              )}
             </View>
 
             {/* ── Events ── */}
             <View style={styles.sectionSpacer} />
             <SectionHeader
               title="Events"
-              count={galleryEvents.length}
+              count={galleryEvents.length + customEventAlbums.length}
               icon={<CalendarDays size={20} color="#f59e0b" />}
             />
             <View style={styles.grid}>
-              {galleryEvents.length > 0
-                ? galleryEvents.map((ev: any) => (
-                    <GridCard key={ev.id} item={ev} onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null })} />
-                  ))
-                : <EmptyCard label="No past events yet" />
-              }
+              {galleryEvents.map((ev: any) => (
+                <GridCard key={ev.id} item={ev} onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null })} />
+              ))}
+              {customEventAlbums.map((album: any) => (
+                <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name })} />
+              ))}
+              {galleryEvents.length === 0 && customEventAlbums.length === 0 && (
+                <EmptyCard label="No past events yet" />
+              )}
             </View>
 
           </ScrollView>
@@ -537,6 +617,16 @@ export default function FriendProfileScreen() {
           userId={userId}
           gallerySubtitle={photoModal.subtitle}
           onClose={() => setPhotoModal(null)}
+        />
+      )}
+
+      {customAlbumModal && (
+        <CustomAlbumPhotosModal
+          visible
+          title={customAlbumModal.name}
+          albumId={customAlbumModal.id}
+          userId={userId}
+          onClose={() => setCustomAlbumModal(null)}
         />
       )}
     </BlobBackground>

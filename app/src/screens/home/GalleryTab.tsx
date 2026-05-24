@@ -4,8 +4,18 @@ import {
   Dimensions, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, FlatList,
 } from 'react-native';
 import { showConfirm } from '../../store/alertStore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
+import {
+  createGalleryAlbum,
+  updateGalleryAlbum,
+  archiveGalleryAlbum,
+  deleteGalleryAlbum,
+  getMyGalleryAlbumPhotos,
+  uploadGalleryAlbumPhotos,
+  deleteGalleryAlbumPhoto,
+  type GalleryAlbumCard,
+} from '../../api/gallery.api';
+import { migrateLocalCustomGalleryAlbums } from '../../utils/migrateCustomGalleryAlbums';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { Plane, CalendarDays, PencilLine, Pen, Archive, Trash2 } from 'lucide-react-native';
@@ -85,7 +95,7 @@ const CHIP_CONFIG = {
 
 type ChipType = keyof typeof CHIP_CONFIG;
 
-function GridCard({ item, onPress, onLongPress, chip }: { item: any; onPress: () => void; onLongPress?: () => void; chip?: ChipType }) {
+function GridCard({ item, onPress, chip }: { item: any; onPress: () => void; chip?: ChipType }) {
   const [imgError, setImgError] = useState(false);
   const hasImage = item.bannerImageUrl && !imgError;
   const borderColor = chip ? CHIP_CONFIG[chip].bg : undefined;
@@ -94,8 +104,6 @@ function GridCard({ item, onPress, onLongPress, chip }: { item: any; onPress: ()
     <TouchableOpacity
       style={[styles.gridCard, borderColor && { borderWidth: 3, borderColor }]}
       onPress={onPress}
-      onLongPress={onLongPress}
-      delayLongPress={400}
       activeOpacity={0.85}
     >
       {hasImage ? (
@@ -184,19 +192,9 @@ type PhotoItem = {
   activityTitle?: string | null;
 };
 
-type CustomCard = {
-  id: string;
-  name: string;
-  bannerImageUrl?: string;
+type CustomCard = GalleryAlbumCard & {
   type: 'trip' | 'event';
-  photos: PhotoItem[];
-  archived?: boolean;
-  archivedAt?: string;
 };
-
-function customCardsStorageKey(userId: string) {
-  return `gogather_gallery_custom_cards_${userId}`;
-}
 
 // ─── Photo thumbnail with loading state ──────────────────────────────────────
 
@@ -526,21 +524,41 @@ function PhotosModal({
     }
   };
 
+  const hideAlbumFromMyGallery = async () => {
+    try {
+      await archiveGalleryItem(parentType, parentId);
+      Toast.show({ type: 'success', text1: 'Removed', text2: 'Hidden from your gallery only.' });
+      onArchived?.();
+      onClose();
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not update gallery', text2: 'Please try again.' });
+    }
+  };
+
   const handleArchiveAlbum = () => {
+    const kind = parentType === 'trip' ? 'trip' : 'event';
     showConfirm({
       title: 'Archive album?',
-      message: 'This album will be hidden from your gallery. You can restore it from Archived.',
+      message:
+        `Hide "${title}" from your gallery only (your view).\n\n` +
+        `This does not archive the ${kind} for other members — they still see this album. ` +
+        'You can restore it anytime from Archived.',
       confirmText: 'Archive',
-      onConfirm: async () => {
-        try {
-          await archiveGalleryItem(parentType, parentId);
-          Toast.show({ type: 'success', text1: 'Archived', text2: 'Album moved to Archived.' });
-          onArchived?.();
-          onClose();
-        } catch {
-          Toast.show({ type: 'error', text1: 'Could not archive', text2: 'Please try again.' });
-        }
-      },
+      onConfirm: hideAlbumFromMyGallery,
+    });
+  };
+
+  const handleRemoveFromGallery = () => {
+    const kind = parentType === 'trip' ? 'trip' : 'event';
+    showConfirm({
+      title: 'Remove from my gallery?',
+      message:
+        `Remove "${title}" from your gallery only.\n\n` +
+        `The ${kind} and photos stay for other members. Friends viewing your gallery will not see this album. ` +
+        'Restore it anytime from Archived.',
+      confirmText: 'Remove',
+      destructive: true,
+      onConfirm: hideAlbumFromMyGallery,
     });
   };
 
@@ -560,7 +578,7 @@ function PhotosModal({
     return (
       <View key={ph.id} style={{ position: 'relative' }}>
         <PhotoThumb photo={ph} onPress={() => !editMode && setPreviewIndex(photos.findIndex(p => p.id === ph.id))} />
-        {editMode && isOwner && (
+        {editMode && !userId && (
           <TouchableOpacity
             style={styles.thumbDeleteBtn}
             onPress={() => handleDeletePhoto(ph)}
@@ -573,7 +591,7 @@ function PhotosModal({
             }
           </TouchableOpacity>
         )}
-        {editMode && isOwner && (
+        {editMode && !userId && (
           <TouchableOpacity
             onPress={() => handleSetAsCover(ph.uri)}
             style={[styles.thumbCoverBtn, isCover && styles.thumbCoverBtnActive]}
@@ -602,7 +620,7 @@ function PhotosModal({
             <View style={styles.dialogHeader}>
               {/* Left side: title + subtitle */}
               <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-                {(editMode && isOwner && !userId) ? (
+                {(editMode && !userId) ? (
                   <TextInput
                     value={nameDraft}
                     onChangeText={setNameDraft}
@@ -614,7 +632,7 @@ function PhotosModal({
                 ) : (
                   <Text style={styles.dialogTitle} numberOfLines={1}>{title}</Text>
                 )}
-                {(editMode && isOwner && !userId) ? (
+                {(editMode && !userId) ? (
                   <TextInput
                     value={subtitleDraft}
                     onChangeText={setSubtitleDraft}
@@ -630,9 +648,9 @@ function PhotosModal({
                 ) : null)}
               </View>
 
-              {/* Right side: edit, archive, close */}
+              {/* Right side: edit, archive, remove, close (own gallery only — friends see read-only) */}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                {isOwner && !userId && (
+                {!userId && (
                   editMode ? (
                     <TouchableOpacity
                       onPress={handleDoneEdit}
@@ -657,6 +675,12 @@ function PhotosModal({
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
                         <Archive size={18} color="#64748b" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={handleRemoveFromGallery}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Trash2 size={18} color="#ef4444" />
                       </TouchableOpacity>
                     </>
                   )
@@ -685,7 +709,7 @@ function PhotosModal({
                     </Svg>
                     <Text style={styles.emptyTitle}>No photos yet</Text>
                     <Text style={styles.emptySub}>
-                      {editMode && isOwner
+                      {editMode && !userId
                         ? 'Tap "Add photos" below to capture memories.'
                         : `No memories captured for this ${parentType}.`}
                     </Text>
@@ -725,7 +749,7 @@ function PhotosModal({
                   </View>
                 )}
 
-                {editMode && isOwner && !userId && (
+                {editMode && !userId && (
                   <TouchableOpacity
                     style={[styles.addPhotosBtn, uploading && { opacity: 0.6 }]}
                     onPress={handleAddPhotos}
@@ -872,34 +896,57 @@ function CustomCardPhotosModal({
   visible,
   card,
   onClose,
-  onUpdateCard,
+  onCardUpdated,
   onArchiveCard,
   onDeleteCard,
 }: {
   visible: boolean;
   card: CustomCard | null;
   onClose: () => void;
-  onUpdateCard: (next: CustomCard) => void;
+  onCardUpdated: (album: GalleryAlbumCard) => void;
   onArchiveCard: (id: string) => void;
   onDeleteCard: (id: string) => void;
 }) {
   const [editMode, setEditMode] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadPhotos = () => {
+    if (!card?.id) return;
+    setLoading(true);
+    getMyGalleryAlbumPhotos(card.id)
+      .then((res) => {
+        setPhotos(res.photos.map((p) => ({ id: p.id, uri: p.uri ?? '' })));
+      })
+      .catch(() => setPhotos([]))
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
     if (!visible) {
       setEditMode(false);
+      setPhotos([]);
     } else if (card) {
       setNameDraft(card.name);
+      loadPhotos();
     }
-  }, [visible, card]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, card?.id]);
 
-  const saveAndExitEdit = () => {
+  const saveAndExitEdit = async () => {
     if (!card) return;
     const trimmed = nameDraft.trim();
     if (trimmed && trimmed !== card.name) {
-      onUpdateCard({ ...card, name: trimmed });
+      try {
+        const updated = await updateGalleryAlbum(card.id, { name: trimmed });
+        onCardUpdated({ ...updated, type: card.type });
+      } catch {
+        Toast.show({ type: 'error', text1: 'Could not save', text2: 'Please try again.' });
+      }
     }
     setEditMode(false);
   };
@@ -908,52 +955,90 @@ function CustomCardPhotosModal({
     if (!card) return;
     launchImageLibrary(
       { mediaType: 'photo', selectionLimit: 20, includeBase64: false, quality: 0.85, maxWidth: 2048, maxHeight: 2048 },
-      (res) => {
+      async (res) => {
         if (res.didCancel || !res.assets?.length) return;
-        const ts = Date.now();
-        const newPhotos: PhotoItem[] = res.assets
-          .map((a, i) => ({ id: `local_${ts}_${i}`, uri: a.uri ?? '' }))
-          .filter((p) => p.uri);
-        if (!newPhotos.length) return;
-        onUpdateCard({ ...card, photos: [...card.photos, ...newPhotos] });
+        const assets = res.assets
+          .map((a) => ({ uri: a.uri ?? '', type: a.type ?? 'image/jpeg', name: a.fileName ?? 'photo.jpg' }))
+          .filter((a) => a.uri);
+        if (!assets.length) return;
+        setUploading(true);
+        try {
+          const { photos: uploaded } = await uploadGalleryAlbumPhotos(card.id, assets);
+          setPhotos((prev) => [
+            ...prev,
+            ...uploaded.map((p) => ({ id: p.id, uri: p.uri ?? '' })),
+          ]);
+          if (!card.bannerImageUrl && uploaded[0]?.uri) {
+            const updated = await updateGalleryAlbum(card.id, { bannerImageUrl: uploaded[0].uri });
+            onCardUpdated({ ...updated, type: card.type });
+          }
+        } catch {
+          Toast.show({ type: 'error', text1: 'Upload failed', text2: 'Please try again.' });
+        } finally {
+          setUploading(false);
+        }
       },
     );
   };
 
-  const deletePhoto = (photoId: string) => {
+  const deletePhoto = async (photoId: string) => {
     if (!card) return;
-    const next = card.photos.filter((p) => p.id !== photoId);
-    // If the deleted photo was the cover, clear the cover
-    const deletedUri = card.photos.find((p) => p.id === photoId)?.uri;
-    const nextBanner = deletedUri && card.bannerImageUrl === deletedUri ? undefined : card.bannerImageUrl;
-    onUpdateCard({ ...card, photos: next, bannerImageUrl: nextBanner });
+    setDeletingId(photoId);
+    try {
+      await deleteGalleryAlbumPhoto(card.id, photoId);
+      const removed = photos.find((p) => p.id === photoId);
+      setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      if (removed && card.bannerImageUrl === removed.uri) {
+        const updated = await updateGalleryAlbum(card.id, { bannerImageUrl: null });
+        onCardUpdated({ ...updated, type: card.type });
+      }
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not delete', text2: 'Please try again.' });
+    } finally {
+      setDeletingId(null);
+    }
   };
 
-  const setPhotoAsCover = (uri: string) => {
+  const setPhotoAsCover = async (uri: string) => {
     if (!card) return;
-    onUpdateCard({ ...card, bannerImageUrl: uri });
+    try {
+      const updated = await updateGalleryAlbum(card.id, { bannerImageUrl: uri });
+      onCardUpdated({ ...updated, type: card.type });
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not set cover', text2: 'Please try again.' });
+    }
   };
 
   const changeCoverFromLibrary = () => {
     if (!card) return;
     launchImageLibrary(
       { mediaType: 'photo', selectionLimit: 1, quality: 0.9, maxWidth: 1200, maxHeight: 800 },
-      (res) => {
+      async (res) => {
         if (res.didCancel || !res.assets?.length) return;
         const uri = res.assets[0].uri;
         if (!uri) return;
-        // Add to photos if not already present, and set as cover
-        const alreadyIn = card.photos.some((p) => p.uri === uri);
-        const photos = alreadyIn
-          ? card.photos
-          : [...card.photos, { id: `local_${Date.now()}_cover`, uri, localUri: uri }];
-        onUpdateCard({ ...card, bannerImageUrl: uri, photos });
+        const alreadyIn = photos.some((p) => p.uri === uri);
+        if (!alreadyIn) {
+          setUploading(true);
+          try {
+            const { photos: uploaded } = await uploadGalleryAlbumPhotos(card.id, [
+              { uri, type: res.assets[0].type ?? 'image/jpeg', name: res.assets[0].fileName ?? 'cover.jpg' },
+            ]);
+            setPhotos((prev) => [...prev, ...uploaded.map((p) => ({ id: p.id, uri: p.uri ?? '' }))]);
+            if (uploaded[0]?.uri) await setPhotoAsCover(uploaded[0].uri);
+          } catch {
+            Toast.show({ type: 'error', text1: 'Upload failed', text2: 'Please try again.' });
+          } finally {
+            setUploading(false);
+          }
+        } else {
+          await setPhotoAsCover(uri);
+        }
       },
     );
   };
 
   if (!card) return null;
-  const photos = card.photos;
 
   return (
     <>
@@ -991,7 +1076,9 @@ function CustomCardPhotosModal({
                       onPress={() => {
                         showConfirm({
                           title: 'Archive album?',
-                          message: 'Hide this album from your gallery? Restore it from Archived.',
+                          message:
+                            `Hide "${card.name}" from your gallery only.\n\n` +
+                            'Friends will not see this album on your profile. Restore from Archived.',
                           confirmText: 'Archive',
                           onConfirm: () => { onArchiveCard(card.id); onClose(); },
                         });
@@ -1003,8 +1090,10 @@ function CustomCardPhotosModal({
                     <TouchableOpacity
                       onPress={() => {
                         showConfirm({
-                          title: 'Delete album?',
-                          message: `Permanently delete "${card.name}"? This cannot be undone.`,
+                          title: 'Delete album permanently?',
+                          message:
+                            `Permanently delete "${card.name}" from your gallery.\n\n` +
+                            'Does not delete shared trips or events. This cannot be undone.',
                           confirmText: 'Delete',
                           destructive: true,
                           onConfirm: () => { onDeleteCard(card.id); onClose(); },
@@ -1036,7 +1125,13 @@ function CustomCardPhotosModal({
                   </TouchableOpacity>
                 )}
 
-                {photos.length === 0 && (
+                {loading && (
+                  <View style={styles.modalLoadingRow}>
+                    <ActivityIndicator color="#0d9488" />
+                  </View>
+                )}
+
+                {!loading && photos.length === 0 && (
                   <View style={styles.emptyCenter}>
                     <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
                       <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
@@ -1050,10 +1145,10 @@ function CustomCardPhotosModal({
                   </View>
                 )}
 
-                {photos.length > 0 && (
+                {!loading && photos.length > 0 && (
                   <View style={styles.thumbRow}>
                     {photos.map((ph) => {
-                      const isCover = !!card.bannerImageUrl && card.bannerImageUrl === (ph.localUri ?? ph.uri);
+                      const isCover = !!card.bannerImageUrl && card.bannerImageUrl === ph.uri;
                       return (
                         <View key={ph.id} style={{ position: 'relative' }}>
                           <PhotoThumb
@@ -1066,14 +1161,17 @@ function CustomCardPhotosModal({
                               onPress={() => deletePhoto(ph.id)}
                               style={styles.thumbDeleteBtn}
                               hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                              disabled={deletingId === ph.id}
                             >
-                              <Trash2 size={11} color="#fff" strokeWidth={2.5} />
+                              {deletingId === ph.id
+                                ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
+                                : <Trash2 size={11} color="#fff" strokeWidth={2.5} />}
                             </TouchableOpacity>
                           )}
                           {/* Set as cover button — bottom-left, only in edit mode */}
                           {editMode && (
                             <TouchableOpacity
-                              onPress={() => setPhotoAsCover(ph.localUri ?? ph.uri)}
+                              onPress={() => setPhotoAsCover(ph.uri)}
                               style={[styles.thumbCoverBtn, isCover && styles.thumbCoverBtnActive]}
                               hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                             >
@@ -1096,8 +1194,14 @@ function CustomCardPhotosModal({
                 )}
 
                 {editMode && (
-                  <TouchableOpacity style={styles.addPhotosBtn} onPress={addPhotos} activeOpacity={0.85}>
-                    <Text style={styles.addPhotosBtnText}>Add photos</Text>
+                  <TouchableOpacity
+                    style={[styles.addPhotosBtn, uploading && { opacity: 0.6 }]}
+                    onPress={addPhotos}
+                    disabled={uploading}
+                    activeOpacity={0.85}>
+                    {uploading
+                      ? <ActivityIndicator color="#0d9488" />
+                      : <Text style={styles.addPhotosBtnText}>Add photos</Text>}
                   </TouchableOpacity>
                 )}
               </View>
@@ -1143,9 +1247,8 @@ export default function GalleryTab({
     bannerImageUrl?: string | null;
   } | null>(null);
 
-  // Custom cards (local, stored in AsyncStorage)
-  const [customCards, setCustomCards] = useState<CustomCard[]>([]);
-  const [cardsLoaded, setCardsLoaded] = useState(false);
+  const [customTripCards, setCustomTripCards] = useState<CustomCard[]>([]);
+  const [customEventCards, setCustomEventCards] = useState<CustomCard[]>([]);
   const [showCreateCard, setShowCreateCard] = useState<'trip' | 'event' | null>(null);
   const [openCard, setOpenCard] = useState<CustomCard | null>(null);
 
@@ -1157,74 +1260,70 @@ export default function GalleryTab({
     setAvatarError(false);
   }, [user?.photoUrl]);
 
-  // Load custom cards from device storage
-  useEffect(() => {
-    if (!userId) {
-      setCustomCards([]);
-      setCardsLoaded(false);
-      return;
-    }
-    let cancelled = false;
-    AsyncStorage.getItem(customCardsStorageKey(userId))
-      .then((raw) => {
-        if (cancelled) return;
-        try {
-          const parsed = raw ? JSON.parse(raw) : [];
-          setCustomCards(Array.isArray(parsed) ? parsed : []);
-        } catch {
-          setCustomCards([]);
-        }
-      })
-      .finally(() => { if (!cancelled) setCardsLoaded(true); });
-    return () => { cancelled = true; };
-  }, [userId]);
-
-  const saveCustomCards = (next: CustomCard[]) => {
-    setCustomCards(next);
-    if (userId) {
-      AsyncStorage.setItem(customCardsStorageKey(userId), JSON.stringify(next)).catch(() => {});
-    }
-  };
-
-  const createCustomCard = (name: string, bannerUri?: string) => {
-    const photos: PhotoItem[] = bannerUri
-      ? [{ id: `local_${Date.now()}_0`, uri: bannerUri, localUri: bannerUri }]
-      : [];
-    const card: CustomCard = {
-      id: `cc_${Date.now()}`,
-      name,
-      bannerImageUrl: bannerUri,
-      type: showCreateCard ?? 'trip',
-      photos,
-    };
-    saveCustomCards([...customCards, card]);
-  };
-
-  const updateCustomCard = (next: CustomCard) => {
-    const updated = customCards.map((c) => (c.id === next.id ? next : c));
-    saveCustomCards(updated);
-    setOpenCard((prev) => (prev?.id === next.id ? next : prev));
-  };
-
-  const deleteCustomCard = (id: string) => {
-    saveCustomCards(customCards.filter((c) => c.id !== id));
-  };
-
-  const archiveCustomCard = (id: string) => {
-    saveCustomCards(customCards.map((c) =>
-      c.id === id ? { ...c, archived: true, archivedAt: new Date().toISOString() } : c,
-    ));
-    Toast.show({ type: 'success', text1: 'Archived', text2: 'Album moved to Archived.' });
+  const applyGalleryData = (data: Awaited<ReturnType<typeof getUserGallery>>) => {
+    setGalleryTrips(data.trips ?? []);
+    setGalleryEvents(data.events ?? []);
+    const custom = data.customAlbums ?? { trip: [], event: [] };
+    setCustomTripCards(
+      (custom.trip ?? []).map((a) => ({ ...a, type: 'trip' as const })),
+    );
+    setCustomEventCards(
+      (custom.event ?? []).map((a) => ({ ...a, type: 'event' as const })),
+    );
   };
 
   const reloadGallery = () => {
     if (!userId) return;
     getUserGallery(userId)
-      .then((data) => {
-        setGalleryTrips(data.trips ?? []);
-        setGalleryEvents(data.events ?? []);
-      })
+      .then(applyGalleryData)
       .catch(() => {});
+  };
+
+  const createCustomCard = async (name: string, bannerUri?: string) => {
+    const section = showCreateCard ?? 'trip';
+    try {
+      const album = await createGalleryAlbum({ name, section });
+      if (bannerUri) {
+        const { photos } = await uploadGalleryAlbumPhotos(album.id, [
+          { uri: bannerUri, type: 'image/jpeg', name: 'cover.jpg' },
+        ]);
+        const coverUrl = photos[0]?.uri ?? bannerUri;
+        await updateGalleryAlbum(album.id, { bannerImageUrl: coverUrl });
+      }
+      reloadGallery();
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not create album', text2: 'Please try again.' });
+    }
+  };
+
+  const handleCardUpdated = (album: GalleryAlbumCard) => {
+    const patch = (list: CustomCard[]) =>
+      list.map((c) => (c.id === album.id ? { ...c, ...album, type: c.type } : c));
+    setCustomTripCards(patch);
+    setCustomEventCards(patch);
+    setOpenCard((prev) => (prev?.id === album.id ? { ...prev, ...album } : prev));
+  };
+
+  const deleteCustomCard = async (id: string) => {
+    try {
+      await deleteGalleryAlbum(id);
+      setCustomTripCards((p) => p.filter((c) => c.id !== id));
+      setCustomEventCards((p) => p.filter((c) => c.id !== id));
+      Toast.show({ type: 'success', text1: 'Deleted', text2: 'Album removed.' });
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not delete', text2: 'Please try again.' });
+    }
+  };
+
+  const archiveCustomCard = async (id: string) => {
+    try {
+      await archiveGalleryAlbum(id);
+      setCustomTripCards((p) => p.filter((c) => c.id !== id));
+      setCustomEventCards((p) => p.filter((c) => c.id !== id));
+      Toast.show({ type: 'success', text1: 'Archived', text2: 'Album moved to Archived.' });
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not archive', text2: 'Please try again.' });
+    }
   };
 
   const handleSubtitleSaved = (parentId: string, parentType: 'trip' | 'event', subtitle: string | null) => {
@@ -1254,30 +1353,27 @@ export default function GalleryTab({
     setPhotoModal((prev) => prev?.id === parentId ? { ...prev, bannerImageUrl: uri } : prev);
   };
 
-  // Fetch gallery data from server
+  // Fetch gallery data from server (+ one-time local migration)
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
     setLoading(true);
-    getUserGallery(userId)
-      .then((data) => {
-        if (cancelled) return;
-        setGalleryTrips(data.trips ?? []);
-        setGalleryEvents(data.events ?? []);
-      })
-      .catch(() => {
+    (async () => {
+      try {
+        await migrateLocalCustomGalleryAlbums(userId);
+        const data = await getUserGallery(userId);
+        if (!cancelled) applyGalleryData(data);
+      } catch {
         if (!cancelled) setGalleryTrips(propTrips);
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const displayTrips = galleryTrips.length > 0 ? galleryTrips : propTrips;
-
-  const activeCustomCards = customCards.filter((c) => !c.archived);
-  const customTripCards = activeCustomCards.filter((c) => c.type === 'trip');
-  const customEventCards = activeCustomCards.filter((c) => c.type === 'event');
 
   return (
     <>
@@ -1342,19 +1438,12 @@ export default function GalleryTab({
                   onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null, bannerImageUrl: trip.bannerImageUrl ?? null })}
                 />
               ))}
-              {cardsLoaded && customTripCards.map((card) => (
+              {customTripCards.map((card) => (
                 <GridCard
                   key={card.id}
                   item={{ id: card.id, name: card.name, bannerImageUrl: card.bannerImageUrl }}
                   chip="custom-trip"
                   onPress={() => setOpenCard(card)}
-                  onLongPress={() => showConfirm({
-                    title: 'Delete album?',
-                    message: `Are you sure you want to delete "${card.name}"? This cannot be undone.`,
-                    confirmText: 'Delete',
-                    destructive: true,
-                    onConfirm: () => deleteCustomCard(card.id),
-                  })}
                 />
               ))}
               {displayTrips.length === 0 && customTripCards.length === 0 && (
@@ -1378,19 +1467,12 @@ export default function GalleryTab({
                   onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null, bannerImageUrl: ev.bannerImageUrl ?? null })}
                 />
               ))}
-              {cardsLoaded && customEventCards.map((card) => (
+              {customEventCards.map((card) => (
                 <GridCard
                   key={card.id}
                   item={{ id: card.id, name: card.name, bannerImageUrl: card.bannerImageUrl }}
                   chip="custom-event"
                   onPress={() => setOpenCard(card)}
-                  onLongPress={() => showConfirm({
-                    title: 'Delete album?',
-                    message: `Are you sure you want to delete "${card.name}"? This cannot be undone.`,
-                    confirmText: 'Delete',
-                    destructive: true,
-                    onConfirm: () => deleteCustomCard(card.id),
-                  })}
                 />
               ))}
               {galleryEvents.length === 0 && customEventCards.length === 0 && (
@@ -1435,7 +1517,7 @@ export default function GalleryTab({
         visible={!!openCard}
         card={openCard}
         onClose={() => setOpenCard(null)}
-        onUpdateCard={updateCustomCard}
+        onCardUpdated={handleCardUpdated}
         onArchiveCard={archiveCustomCard}
         onDeleteCard={deleteCustomCard}
       />

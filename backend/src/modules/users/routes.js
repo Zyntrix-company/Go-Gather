@@ -3,7 +3,7 @@ const controller = require('./controller');
 const validators = require('./validators');
 const validate = require('../../middleware/validate');
 const authenticateJWT = require('../../middleware/authenticate');
-const { avatarUpload, handleMulterError } = require('../../middleware/upload.middleware');
+const { avatarUpload, photoUpload, handleMulterError } = require('../../middleware/upload.middleware');
 
 const router = Router();
 
@@ -85,6 +85,72 @@ router.post(
   controller.unarchiveGalleryItem,
 );
 
+router.post(
+  '/me/gallery/albums',
+  authenticateJWT,
+  validators.createGalleryAlbumValidation,
+  validate,
+  controller.createGalleryAlbum,
+);
+
+router.patch(
+  '/me/gallery/albums/:albumId',
+  authenticateJWT,
+  validators.updateGalleryAlbumValidation,
+  validate,
+  controller.updateGalleryAlbum,
+);
+
+router.post(
+  '/me/gallery/albums/:albumId/archive',
+  authenticateJWT,
+  validators.albumIdParam,
+  validate,
+  controller.archiveGalleryAlbum,
+);
+
+router.post(
+  '/me/gallery/albums/:albumId/unarchive',
+  authenticateJWT,
+  validators.albumIdParam,
+  validate,
+  controller.unarchiveGalleryAlbum,
+);
+
+router.delete(
+  '/me/gallery/albums/:albumId',
+  authenticateJWT,
+  validators.albumIdParam,
+  validate,
+  controller.deleteGalleryAlbum,
+);
+
+router.get(
+  '/me/gallery/albums/:albumId/photos',
+  authenticateJWT,
+  validators.albumIdParam,
+  validate,
+  controller.getMyGalleryAlbumPhotos,
+);
+
+router.post(
+  '/me/gallery/albums/:albumId/photos',
+  authenticateJWT,
+  validators.albumIdParam,
+  validate,
+  photoUpload.array('photos', 20),
+  handleMulterError,
+  controller.uploadGalleryAlbumPhotos,
+);
+
+router.delete(
+  '/me/gallery/albums/:albumId/photos/:photoId',
+  authenticateJWT,
+  validators.albumIdParam,
+  validate,
+  controller.deleteGalleryAlbumPhoto,
+);
+
 // ── Per-user routes ────────────────────────────────────────────────────────────
 
 // GET /users/:id/profile — Enhanced profile with friendship status + stats (requires auth)
@@ -103,6 +169,15 @@ router.get(
   validators.getPublicProfileValidation,
   validate,
   controller.getUserGallery,
+);
+
+router.get(
+  '/:id/gallery/albums/:albumId/photos',
+  authenticateJWT,
+  validators.getPublicProfileValidation,
+  validators.albumIdParam,
+  validate,
+  controller.getUserGalleryAlbumPhotos,
 );
 
 // GET /users/:id/photos — All photos uploaded by user, grouped by trip/event + activity (requires auth)

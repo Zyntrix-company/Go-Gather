@@ -553,7 +553,10 @@ const getUserGallery = async (targetId) => {
     }))),
   ]);
 
-  return { trips, events };
+  const galleryAlbums = require('./galleryAlbums.service');
+  const customAlbums = await galleryAlbums.listAlbumsForUser(targetId, { archived: false });
+
+  return { trips, events, customAlbums };
 };
 
 /**
@@ -926,7 +929,10 @@ const getArchivedUserGallery = async (userId) => {
     }))),
   ]);
 
-  return { trips, events };
+  const galleryAlbums = require('./galleryAlbums.service');
+  const customAlbums = await galleryAlbums.listAlbumsForUser(userId, { archived: true });
+
+  return { trips, events, customAlbums };
 };
 
 /**

@@ -1,4 +1,5 @@
 const usersService = require('./service');
+const galleryAlbumsService = require('./galleryAlbums.service');
 const logger = require('../../utils/logger');
 
 /**
@@ -221,6 +222,100 @@ const unarchiveGalleryItem = async (req, res, next) => {
   }
 };
 
+const createGalleryAlbum = async (req, res, next) => {
+  try {
+    const album = await galleryAlbumsService.createAlbum(req.user.id, req.body);
+    return res.status(201).json({ album });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const updateGalleryAlbum = async (req, res, next) => {
+  try {
+    const album = await galleryAlbumsService.updateAlbum(req.user.id, req.params.albumId, req.body);
+    return res.status(200).json({ album });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const archiveGalleryAlbum = async (req, res, next) => {
+  try {
+    const result = await galleryAlbumsService.archiveAlbum(req.user.id, req.params.albumId);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const unarchiveGalleryAlbum = async (req, res, next) => {
+  try {
+    const result = await galleryAlbumsService.unarchiveAlbum(req.user.id, req.params.albumId);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const deleteGalleryAlbum = async (req, res, next) => {
+  try {
+    const result = await galleryAlbumsService.deleteAlbum(req.user.id, req.params.albumId);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const getMyGalleryAlbumPhotos = async (req, res, next) => {
+  try {
+    await galleryAlbumsService.assertAlbumOwner(req.params.albumId, req.user.id);
+    const result = await galleryAlbumsService.getAlbumPhotos(req.params.albumId);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const getUserGalleryAlbumPhotos = async (req, res, next) => {
+  try {
+    const result = await galleryAlbumsService.getAlbumPhotosForProfile(req.params.id, req.params.albumId);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const uploadGalleryAlbumPhotos = async (req, res, next) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'At least one photo is required' });
+    }
+    const result = await galleryAlbumsService.uploadAlbumPhotos(req.user.id, req.params.albumId, req.files);
+    return res.status(201).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const deleteGalleryAlbumPhoto = async (req, res, next) => {
+  try {
+    await galleryAlbumsService.deleteAlbumPhoto(req.user.id, req.params.albumId, req.params.photoId);
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
 /**
  * PATCH /users/device
  */
@@ -251,5 +346,14 @@ module.exports = {
   getArchivedUserGallery,
   archiveGalleryItem,
   unarchiveGalleryItem,
+  createGalleryAlbum,
+  updateGalleryAlbum,
+  archiveGalleryAlbum,
+  unarchiveGalleryAlbum,
+  deleteGalleryAlbum,
+  getMyGalleryAlbumPhotos,
+  getUserGalleryAlbumPhotos,
+  uploadGalleryAlbumPhotos,
+  deleteGalleryAlbumPhoto,
   updateDeviceToken,
 };

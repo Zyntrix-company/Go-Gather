@@ -98,12 +98,26 @@ export async function clearConversation(userId: string): Promise<void> {
 /**
  * Fetch user gallery (trips + events with photo counts + optional gallerySubtitle).
  */
-export async function getUserGallery(userId: string): Promise<{ trips: any[]; events: any[] }> {
+export type GalleryAlbumsBySection = {
+  trip: any[];
+  event: any[];
+};
+
+export async function getUserGallery(userId: string): Promise<{
+  trips: any[];
+  events: any[];
+  customAlbums?: GalleryAlbumsBySection;
+}> {
   try {
     const res = await client.get(`/users/${userId}/gallery`);
-    return res.data;
+    const data = res.data ?? {};
+    return {
+      trips: data.trips ?? [],
+      events: data.events ?? [],
+      customAlbums: data.customAlbums ?? { trip: [], event: [] },
+    };
   } catch {
-    return { trips: [], events: [] };
+    return { trips: [], events: [], customAlbums: { trip: [], event: [] } };
   }
 }
 
@@ -123,12 +137,21 @@ export async function upsertGallerySubtitle(
   return res.data;
 }
 
-export async function getArchivedUserGallery(): Promise<{ trips: any[]; events: any[] }> {
+export async function getArchivedUserGallery(): Promise<{
+  trips: any[];
+  events: any[];
+  customAlbums?: GalleryAlbumsBySection;
+}> {
   try {
     const res = await client.get('/users/me/gallery/archived');
-    return res.data;
+    const data = res.data ?? {};
+    return {
+      trips: data.trips ?? [],
+      events: data.events ?? [],
+      customAlbums: data.customAlbums ?? { trip: [], event: [] },
+    };
   } catch {
-    return { trips: [], events: [] };
+    return { trips: [], events: [], customAlbums: { trip: [], event: [] } };
   }
 }
 

@@ -66,9 +66,38 @@ const searchUsersValidation = [
     .trim(),
 ];
 
+const albumIdParam = [
+  param('albumId').isUUID().withMessage('albumId must be a valid UUID'),
+];
+
+const createGalleryAlbumValidation = [
+  body('name')
+    .notEmpty()
+    .withMessage('Album name is required')
+    .isLength({ min: 1, max: 120 })
+    .trim(),
+  body('section')
+    .isIn(['trip', 'event'])
+    .withMessage('section must be trip or event'),
+  body('subtitle')
+    .optional()
+    .isLength({ max: 80 })
+    .trim(),
+];
+
+const updateGalleryAlbumValidation = [
+  ...albumIdParam,
+  body('name').optional().isLength({ min: 1, max: 120 }).trim(),
+  body('subtitle').optional().isLength({ max: 80 }).trim(),
+  body('bannerImageUrl').optional().isString(),
+];
+
 module.exports = {
   saveProfileValidation,
   getPublicProfileValidation,
   updateProfileValidation,
   searchUsersValidation,
+  albumIdParam,
+  createGalleryAlbumValidation,
+  updateGalleryAlbumValidation,
 };

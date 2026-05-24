@@ -10,7 +10,6 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -25,6 +24,7 @@ import {
 } from '../../api/trips.api';
 import { getArchivedEvents, unarchiveEvent, deleteEvent } from '../../api/events.api';
 import { getArchivedUserGallery, unarchiveGalleryItem } from '../../api/ai.api';
+import { unarchiveGalleryAlbum, deleteGalleryAlbum } from '../../api/gallery.api';
 import { showConfirm } from '../../store/alertStore';
 import { UnifiedCard } from '../../components/common/Cards';
 import useAuthStore from '../../store/authStore';
@@ -32,10 +32,6 @@ import { authFreshAvatarUrl, authUserId, resolveMemberAvatarUri } from '../../ut
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const GALLERY_CARD_W = (SCREEN_W - 52) / 2;
-
-function customCardsStorageKey(userId: string) {
-  return `gogather_gallery_custom_cards_${userId}`;
-}
 
 type ArchivedGalleryItem = {
   id: string;
@@ -120,11 +116,10 @@ export default function ArchivedScreen() {
   async function loadArchived(silent = false) {
     if (!silent) setLoading(true);
     try {
-      const [tripsRes, eventsRes, galleryRes, customRaw] = await Promise.all([
+      const [tripsRes, eventsRes, galleryRes] = await Promise.all([
         getArchivedTrips(),
         getArchivedEvents(),
         getArchivedUserGallery(),
-        userId ? AsyncStorage.getItem(customCardsStorageKey(userId)) : Promise.resolve(null),
       ]);
 
       setTrips((tripsRes.trips || []).map(t => {
@@ -173,23 +168,22 @@ export default function ArchivedScreen() {
         })),
       ];
 
-      let customArchived: ArchivedGalleryItem[] = [];
-      if (customRaw) {
-        try {
-          const parsed = JSON.parse(customRaw);
-          if (Array.isArray(parsed)) {
-            customArchived = parsed
-              .filter((c: any) => c.archived)
-              .map((c: any) => ({
-                id: c.id,
-                name: c.name,
-                type: c.type === 'event' ? 'event' : 'trip',
-                bannerImageUrl: c.bannerImageUrl,
-                isCustom: true,
-              }));
-          }
-        } catch { /* ignore */ }
-      }
+      const customArchived: ArchivedGalleryItem[] = [
+        ...(galleryRes.customAlbums?.trip ?? []).map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          type: 'trip' as const,
+          bannerImageUrl: a.bannerImageUrl,
+          isCustom: true,
+        })),
+        ...(galleryRes.customAlbums?.event ?? []).map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          type: 'event' as const,
+          bannerImageUrl: a.bannerImageUrl,
+          isCustom: true,
+        })),
+      ];
 
       setGalleryItems([...apiGallery, ...customArchived]);
     } catch (err) {
@@ -296,13 +290,7 @@ export default function ArchivedScreen() {
       onConfirm: async () => {
         try {
           if (item.isCustom) {
-            if (!userId) return;
-            const raw = await AsyncStorage.getItem(customCardsStorageKey(userId));
-            const parsed = raw ? JSON.parse(raw) : [];
-            const next = Array.isArray(parsed)
-              ? parsed.map((c: any) => c.id === item.id ? { ...c, archived: false, archivedAt: undefined } : c)
-              : [];
-            await AsyncStorage.setItem(customCardsStorageKey(userId), JSON.stringify(next));
+            await unarchiveGalleryAlbum(item.id);
           } else {
             await unarchiveGalleryItem(item.type, item.id);
           }
@@ -323,15 +311,11 @@ export default function ArchivedScreen() {
     }
     showConfirm({
       title: 'Delete album',
-      message: `Permanently delete "${item.name}"?`,
+      message: `Permanently delete "${item.name}"? This cannot be undone.`,
       destructive: true,
       onConfirm: async () => {
         try {
-          if (!userId) return;
-          const raw = await AsyncStorage.getItem(customCardsStorageKey(userId));
-          const parsed = raw ? JSON.parse(raw) : [];
-          const next = Array.isArray(parsed) ? parsed.filter((c: any) => c.id !== item.id) : [];
-          await AsyncStorage.setItem(customCardsStorageKey(userId), JSON.stringify(next));
+          await deleteGalleryAlbum(item.id);
           toast('Deleted', `"${item.name}" has been deleted.`);
           setGalleryItems((p) => p.filter((g) => g.id !== item.id));
         } catch (err) {
