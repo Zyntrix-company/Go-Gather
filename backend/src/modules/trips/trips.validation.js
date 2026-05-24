@@ -96,6 +96,7 @@ const inviteValidation = [
   body('emails.*').optional().isEmail().withMessage('Each email must be valid'),
   body('phones').optional().isArray(),
   body('phones.*').optional().isString().withMessage('Each phone must be a string'),
+  body('shareOnly').optional().isBoolean().withMessage('shareOnly must be a boolean'),
 ];
 
 const tokenParam = [

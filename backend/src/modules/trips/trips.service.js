@@ -4,6 +4,7 @@ const { sendEmail, wrapEmail, sendTripCancelledEmail } = require('../../utils/ma
 const { createAndSendNotifications, createAndSendNotification } = require('../../utils/fcm.util');
 const { batchDeleteFromS3, getPresignedDownloadUrl } = require('../../utils/s3.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
+const { generateInviteShareText } = require('../../utils/shareText.util');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 
@@ -532,7 +533,7 @@ const deleteTrip = async (tripId, actorId) => {
 // emails / phones → check existing user → if friend: same as friendIds
 //                                       → else: Branch link + SES email
 
-const inviteToTrip = async (tripId, invitedBy, { friendIds = [], emails = [], phones = [] }) => {
+const inviteToTrip = async (tripId, invitedBy, { friendIds = [], emails = [], phones = [], shareOnly = false }) => {
   const inviterResult = await db(
     'SELECT p.full_name FROM profiles p WHERE p.user_id = $1',
     [invitedBy],
@@ -544,6 +545,25 @@ const inviteToTrip = async (tripId, invitedBy, { friendIds = [], emails = [], ph
     const e = new Error('Trip not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
   }
   const tripName = tripResult.rows[0].name;
+
+  if (shareOnly) {
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
+    let branchUrl = null;
+    try {
+      branchUrl = await createInviteSmartLink({ token, inviterName, context: tripName, type: 'trip' });
+    } catch (e) {
+      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gathergo.app'}/invite/trip/${token}`;
+      logger.warn('Branch link failed, using plain URL', { error: e.message });
+    }
+    await db(
+      `INSERT INTO trip_invites (trip_id, invited_by, email, phone, token, expires_at, branch_url)
+       VALUES ($1, $2, NULL, NULL, $3, $4, $5) ON CONFLICT (token) DO NOTHING`,
+      [tripId, invitedBy, token, expiresAt.toISOString(), branchUrl],
+    );
+    const shareText = generateInviteShareText({ inviterName, branchUrl, type: 'trip', context: tripName });
+    return { added: [], invited: [{ branchUrl, expiresAt: expiresAt.toISOString() }], skipped: [], shareText };
+  }
 
   const added = [];
   const invited = [];

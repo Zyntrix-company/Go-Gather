@@ -11,10 +11,15 @@ import {
 import colors from '../../theme/colors';
 import useAlertStore, { AlertButton } from '../../store/alertStore';
 
+const OVERLAY_COLOR = 'rgba(15, 23, 42, 0.48)';
+const DESTRUCTIVE_BG = 'rgba(239, 68, 68, 0.07)';
+const DESTRUCTIVE_BORDER = 'rgba(239, 68, 68, 0.18)';
+
 export default function ThemedAlert() {
   const { visible, config, hide } = useAlertStore();
-  const scaleAnim = useRef(new Animated.Value(0.88)).current;
+  const scaleAnim = useRef(new Animated.Value(0.92)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  const overlayAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
@@ -22,20 +27,26 @@ export default function ThemedAlert() {
         Animated.spring(scaleAnim, {
           toValue: 1,
           useNativeDriver: true,
-          tension: 180,
-          friction: 12,
+          tension: 210,
+          friction: 16,
         }),
         Animated.timing(opacityAnim, {
           toValue: 1,
-          duration: 150,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(overlayAnim, {
+          toValue: 1,
+          duration: 220,
           useNativeDriver: true,
         }),
       ]).start();
     } else {
-      scaleAnim.setValue(0.88);
+      scaleAnim.setValue(0.92);
       opacityAnim.setValue(0);
+      overlayAnim.setValue(0);
     }
-  }, [visible]);
+  }, [visible, scaleAnim, opacityAnim, overlayAnim]);
 
   useEffect(() => {
     if (!visible) return;
@@ -45,10 +56,10 @@ export default function ThemedAlert() {
         hide();
         return true;
       }
-      return true; // block back on destructive-only dialogs
+      return true;
     });
     return () => sub.remove();
-  }, [visible, config]);
+  }, [visible, config, hide]);
 
   if (!config) return null;
 
@@ -58,6 +69,7 @@ export default function ThemedAlert() {
       : [{ text: 'OK', style: 'default' }];
 
   const hasCancelButton = buttons.some((b) => b.style === 'cancel');
+  const isRow = buttons.length === 2;
 
   function handleButton(btn: AlertButton) {
     hide();
@@ -72,8 +84,6 @@ export default function ThemedAlert() {
     }
   }
 
-  const isRow = buttons.length === 2;
-
   return (
     <Modal
       visible={visible}
@@ -84,54 +94,63 @@ export default function ThemedAlert() {
         if (hasCancelButton || !config.buttons?.length) hide();
       }}
     >
-      <Pressable style={styles.overlay} onPress={handleOverlayPress}>
+      <Animated.View style={[styles.overlay, { opacity: overlayAnim }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleOverlayPress} />
         <Animated.View
           style={[
             styles.card,
             { transform: [{ scale: scaleAnim }], opacity: opacityAnim },
           ]}
-          // Prevent overlay tap from firing when tapping the card
-          onStartShouldSetResponder={() => true}
         >
-          <Text style={styles.title}>{config.title}</Text>
-          {!!config.message && (
-            <Text style={styles.message}>{config.message}</Text>
-          )}
+          <View style={styles.content}>
+            <Text style={styles.title}>{config.title}</Text>
+            {!!config.message && (
+              <Text style={styles.message}>{config.message}</Text>
+            )}
+          </View>
 
-          <View style={[styles.buttonRow, !isRow && styles.buttonStack]}>
-            {buttons.map((btn, i) => (
-              <Pressable
-                key={i}
-                style={({ pressed }) => [
-                  styles.btn,
-                  isRow && styles.btnRowItem,
-                  !isRow && styles.btnStackItem,
-                  btn.style === 'cancel' && styles.btnCancel,
-                  btn.style === 'destructive' && styles.btnDestructive,
-                  btn.style === 'default' && styles.btnConfirm,
-                  pressed && styles.btnPressed,
-                  isRow && i === 0 && styles.btnRowFirst,
-                  isRow && i === buttons.length - 1 && styles.btnRowLast,
-                ]}
-                onPress={() => handleButton(btn)}
-                accessibilityRole="button"
-                accessibilityLabel={btn.text}
-              >
-                <Text
-                  style={[
-                    styles.btnText,
-                    btn.style === 'cancel' && styles.btnTextCancel,
-                    btn.style === 'destructive' && styles.btnTextDestructive,
-                    btn.style === 'default' && styles.btnTextConfirm,
+          <View style={[styles.actions, isRow ? styles.actionsRow : styles.actionsStack]}>
+            {buttons.map((btn, i) => {
+              const isCancel = btn.style === 'cancel';
+              const isDestructive = btn.style === 'destructive';
+              const isDefault = btn.style === 'default' || (!isCancel && !isDestructive);
+
+              return (
+                <Pressable
+                  key={i}
+                  style={({ pressed }) => [
+                    styles.btn,
+                    isRow && styles.btnRow,
+                    isRow && i > 0 && styles.btnRowDivider,
+                    !isRow && styles.btnStack,
+                    !isRow && isCancel && styles.btnStackCancel,
+                    !isRow && isDestructive && styles.btnStackDestructive,
+                    !isRow && isDefault && styles.btnStackDefault,
+                    pressed && (isRow ? styles.btnRowPressed : styles.btnStackPressed),
                   ]}
+                  onPress={() => handleButton(btn)}
+                  accessibilityRole="button"
+                  accessibilityLabel={btn.text}
                 >
-                  {btn.text}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text
+                    style={[
+                      styles.btnText,
+                      isRow && isCancel && styles.btnTextRowCancel,
+                      isRow && isDestructive && styles.btnTextRowDestructive,
+                      isRow && isDefault && styles.btnTextRowDefault,
+                      !isRow && isCancel && styles.btnTextStackCancel,
+                      !isRow && isDestructive && styles.btnTextStackDestructive,
+                      !isRow && isDefault && styles.btnTextStackDefault,
+                    ]}
+                  >
+                    {btn.text}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </Animated.View>
-      </Pressable>
+      </Animated.View>
     </Modal>
   );
 }
@@ -139,95 +158,114 @@ export default function ThemedAlert() {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(3,2,19,0.55)',
+    backgroundColor: OVERLAY_COLOR,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 28,
   },
   card: {
     width: '100%',
+    maxWidth: 340,
     backgroundColor: colors.surface,
-    borderRadius: 20,
-    paddingTop: 28,
-    paddingHorizontal: 24,
-    paddingBottom: 0,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 24,
-    elevation: 12,
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 28,
+    elevation: 10,
+  },
+  content: {
+    paddingTop: 26,
+    paddingHorizontal: 22,
+    paddingBottom: 4,
   },
   title: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.textPrimary,
     textAlign: 'center',
-    marginBottom: 8,
-    letterSpacing: 0.1,
+    letterSpacing: -0.2,
   },
   message: {
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 4,
+    lineHeight: 21,
+    marginTop: 8,
   },
-  buttonRow: {
+  actions: {
+    marginTop: 22,
+  },
+  actionsRow: {
     flexDirection: 'row',
-    marginTop: 24,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
-  buttonStack: {
+  actionsStack: {
     flexDirection: 'column',
-    marginTop: 20,
-    marginBottom: 8,
     gap: 8,
-    borderTopWidth: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   btn: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 15,
   },
-  btnRowItem: {
+  btnRow: {
     flex: 1,
-  },
-  btnRowFirst: {
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: colors.border,
-  },
-  btnRowLast: {},
-  btnStackItem: {
-    borderRadius: 12,
     paddingVertical: 14,
   },
-  btnCancel: {
-    backgroundColor: 'transparent',
+  btnRowDivider: {
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: colors.border,
   },
-  btnDestructive: {
-    backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
+  btnRowPressed: {
+    backgroundColor: colors.surfaceSecondary,
   },
-  btnConfirm: {
+  btnStack: {
+    borderRadius: 12,
+    paddingVertical: 13,
+  },
+  btnStackCancel: {
+    backgroundColor: colors.surfaceSecondary,
+  },
+  btnStackDestructive: {
+    backgroundColor: DESTRUCTIVE_BG,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: DESTRUCTIVE_BORDER,
+  },
+  btnStackDefault: {
     backgroundColor: colors.accent,
   },
-  btnPressed: {
-    opacity: 0.72,
+  btnStackPressed: {
+    opacity: 0.88,
   },
   btnText: {
     fontSize: 15,
     fontWeight: '600',
-    letterSpacing: 0.1,
+    letterSpacing: -0.1,
   },
-  btnTextCancel: {
+  btnTextRowCancel: {
     color: colors.textSecondary,
+    fontWeight: '500',
   },
-  btnTextDestructive: {
+  btnTextRowDestructive: {
     color: colors.error,
   },
-  btnTextConfirm: {
+  btnTextRowDefault: {
+    color: colors.accent,
+  },
+  btnTextStackCancel: {
+    color: colors.textPrimary,
+    fontWeight: '500',
+  },
+  btnTextStackDestructive: {
+    color: colors.error,
+  },
+  btnTextStackDefault: {
     color: colors.accentForeground,
   },
 });

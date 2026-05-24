@@ -6,7 +6,6 @@ import {
   StyleSheet,
   FlatList,
   TextInput,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Modal,
@@ -14,6 +13,7 @@ import {
   ActivityIndicator,
   Animated,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import BlobBackground from '../../components/common/BlobBackground';
 import MarkdownText from '../../components/common/MarkdownText';
@@ -146,6 +146,7 @@ function TypingIndicator() {
 // ─── Main Screen ───────────────────────────────────────────────────────────
 
 export default function ChatDetailScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
   const rawUser = useAuthStore((s) => s.user) as any;
   const userId: string = rawUser?.id ?? '';
   const initialMessageParam = route?.params?.initialMessage;
@@ -336,7 +337,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
   return (
     <BlobBackground>
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
 
         {/* ── Header ── */}
         <View style={styles.header}>
@@ -411,7 +412,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
         {/* ── Input bar ── */}
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={styles.inputRow}>
+          <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, 10) }]}>
             <TextInput
               style={styles.input}
               placeholder="Ask Swee anything..."

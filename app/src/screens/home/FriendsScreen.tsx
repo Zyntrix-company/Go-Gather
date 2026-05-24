@@ -15,7 +15,8 @@ import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import BlobBackground from '../../components/common/BlobBackground';
-import { getFriends, createFriendInvite, createTrip, uploadTripPhotos, updateTrip as apiUpdateTrip } from '../../api/trips.api';
+import { getFriends, createTrip, uploadTripPhotos, updateTrip as apiUpdateTrip } from '../../api/trips.api';
+import InviteViaChannels from '../../components/common/InviteViaChannels';
 import { showAlert } from '../../store/alertStore';
 import { CreateTripModal, BannerCropFraction } from '../trips/TripsScreen';
 import { CreateEventModal } from '../events/EventsScreen';
@@ -177,9 +178,6 @@ export default function FriendsScreen() {
 
   // Invite modal
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteMethod, setInviteMethod] = useState<'email' | 'sms' | 'whatsapp'>('email');
-  const [inviteInput, setInviteInput] = useState('');
-  const [isSending, setIsSending] = useState(false);
 
   // Create Trip modal (reuses TripsScreen modal)
   const [showTripModal, setShowTripModal] = useState(false);
@@ -251,34 +249,7 @@ export default function FriendsScreen() {
   }
 
   function handleInviteFriends() {
-    setInviteInput('');
-    setInviteMethod('email');
     setShowInviteModal(true);
-  }
-
-  async function handleSendInvite() {
-    if (!inviteInput.trim()) {
-      showAlert({ title: 'Error', message: inviteMethod === 'email' ? 'Enter an email address' : 'Enter a phone number' });
-      return;
-    }
-    if (isSending) return;
-    setIsSending(true);
-    try {
-      const res = await createFriendInvite({
-        channels: [inviteMethod],
-        emails: inviteMethod === 'email' ? [inviteInput.trim()] : [],
-      });
-      Toast.show({ type: 'success', text1: 'Invite sent!' });
-      if (res.branchUrl) {
-        showAlert({ title: 'Invite Link', message: `Share this link:\n${res.branchUrl}` });
-      }
-      setInviteInput('');
-      setShowInviteModal(false);
-    } catch (err) {
-      showAlert({ title: 'Error', message: 'Failed to send invite. Please try again.' });
-    } finally {
-      setIsSending(false);
-    }
   }
 
   const showingEmptyState = !isLoading && friends.length === 0 && !searchQuery.trim();
@@ -431,61 +402,7 @@ export default function FriendsScreen() {
               </TouchableOpacity>
             </View>
             <View style={{ paddingHorizontal: 16, paddingVertical: 18 }}>
-              <Text style={modalStyles.sectionLabel}>Send via</Text>
-              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                {[
-                  {
-                    key: 'email',
-                    icon: (active: boolean) => (
-                      <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-                        <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke={active ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                        <Path d="M22 6l-10 7L2 6" stroke={active ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      </Svg>
-                    ),
-                  },
-                  {
-                    key: 'sms',
-                    icon: (active: boolean) => (
-                      <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-                        <Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={active ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      </Svg>
-                    ),
-                  },
-                  {
-                    key: 'whatsapp',
-                    icon: (active: boolean) => (
-                      <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-                        <Path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" stroke={active ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      </Svg>
-                    ),
-                  },
-                ].map(m => (
-                  <TouchableOpacity
-                    key={m.key}
-                    onPress={() => setInviteMethod(m.key as any)}
-                    style={[modalStyles.inviteIconBtn, inviteMethod === m.key && modalStyles.inviteIconBtnActive]}
-                    activeOpacity={0.7}
-                  >
-                    {m.icon(inviteMethod === m.key)}
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TextInput
-                  style={[modalStyles.fInput, { flex: 1 }]}
-                  placeholder={inviteMethod === 'email' ? 'Enter email address' : inviteMethod === 'sms' ? 'Enter phone number' : 'Enter WhatsApp number'}
-                  placeholderTextColor="#94a3b8"
-                  value={inviteInput}
-                  onChangeText={setInviteInput}
-                  keyboardType={inviteMethod === 'email' ? 'email-address' : 'phone-pad'}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity style={modalStyles.sendBtn} onPress={handleSendInvite} activeOpacity={0.85} disabled={isSending}>
-                  {isSending
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <Text style={modalStyles.sendBtnTxt}>Send</Text>}
-                </TouchableOpacity>
-              </View>
+              <InviteViaChannels variant="friend" onComplete={() => setShowInviteModal(false)} />
             </View>
           </View>
         </View>

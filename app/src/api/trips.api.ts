@@ -288,11 +288,13 @@ export async function removeTripMember(tripId: string, userId: string) {
   return res.data as { success: boolean };
 }
 
-export async function inviteToTrip(tripId: string, body: { friendIds?: string[]; emails?: string[] }) {
+export async function inviteToTrip(tripId: string, body: { friendIds?: string[]; emails?: string[]; phones?: string[]; shareOnly?: boolean }) {
   const res = await client.post(`/trips/${tripId}/invite`, body);
   return res.data as {
-    added: string[];
-    invited: { email: string; token: string; branchUrl: string; expiresAt: string }[];
+    added: { userId: string; name: string | null; method: string }[];
+    invited: { email?: string; phone?: string; branchUrl: string; expiresAt: string }[];
+    skipped?: { userId: string; reason: string }[];
+    shareText?: string;
   };
 }
 

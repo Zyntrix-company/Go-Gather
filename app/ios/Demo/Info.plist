@@ -45,7 +45,10 @@
 	<array>
 		<string>fbapi</string>
 		<string>fb-messenger-share-api</string>
+		<string>whatsapp</string>
 	</array>
+	<key>NSContactsUsageDescription</key>
+	<string>GatherGo uses your contacts so you can invite friends via SMS, WhatsApp, or email.</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>

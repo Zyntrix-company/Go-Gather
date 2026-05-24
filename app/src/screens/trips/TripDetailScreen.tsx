@@ -22,6 +22,7 @@ import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
 import AppHeader from '../../components/common/AppHeader';
 import DocumentsUploadSection from '../../components/common/DocumentsUploadSection';
+import InviteViaChannels from '../../components/common/InviteViaChannels';
 import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
 import useAuthStore from '../../store/authStore';
 import { showAlert, showConfirm } from '../../store/alertStore';
@@ -727,8 +728,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [memberTab, setMemberTab] = useState<'From Friends' | 'Invite New'>('From Friends');
   const [memberSearch, setMemberSearch] = useState('');
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
-  const [inviteMethod, setInviteMethod] = useState<'email' | 'sms' | 'whatsapp'>('email');
-  const [inviteInput, setInviteInput] = useState('');
 
   // ── Expenses modal ──
   const [expTab, setExpTab] = useState<'All Expenses' | 'Totals' | 'Balances'>('All Expenses');
@@ -1672,34 +1671,28 @@ export default function TripDetailScreen({ route, navigation }: any) {
     }
   }
 
+  async function refreshTripMembers() {
+    const membersRes = await getTripMembers(tripId);
+    const freshUrl = useAuthStore.getState().user?.photoUrl || useAuthStore.getState().user?.avatarUrl || null;
+    setMembers(membersRes.members.map((m: TripMember) =>
+      m.userId === currentUserId && freshUrl ? { ...m, avatarUrl: freshUrl } : m,
+    ));
+  }
+
   async function handleInviteMembers() {
-    const emailsToInvite = inviteInput.trim() ? [inviteInput.trim()] : [];
     const friendsToAdd = selectedFriends.length ? selectedFriends : [];
-    if (!emailsToInvite.length && !friendsToAdd.length) {
-      showAlert({ title: 'Error', message: 'Select friends or enter an email to invite' });
+    if (!friendsToAdd.length) {
+      showAlert({ title: 'Error', message: 'Select at least one friend to add' });
       return;
     }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const res = await inviteToTrip(tripId, {
-        friendIds: friendsToAdd.length ? friendsToAdd : undefined,
-        emails: emailsToInvite.length ? emailsToInvite : undefined,
-      });
+      const res = await inviteToTrip(tripId, { friendIds: friendsToAdd });
       const addedCount = res.added?.length ?? 0;
-      const invitedCount = res.invited?.length ?? 0;
-      Toast.show({ type: 'success', text1: `${addedCount} added, ${invitedCount} invite(s) sent` });
-      if (res.invited?.length) {
-        const url = res.invited[0].branchUrl;
-        showAlert({ title: 'Invite Link', message: `Share this link:\n${url}` });
-      }
-      // Refresh members list (re-apply auth avatar for current user — same as initial load)
-      const membersRes = await getTripMembers(tripId);
-      const freshUrl = useAuthStore.getState().user?.photoUrl || useAuthStore.getState().user?.avatarUrl || null;
-      setMembers(membersRes.members.map((m: TripMember) =>
-        m.userId === currentUserId && freshUrl ? { ...m, avatarUrl: freshUrl } : m,
-      ));
-      setInviteInput(''); setSelectedFriends([]);
+      Toast.show({ type: 'success', text1: `${addedCount} member${addedCount === 1 ? '' : 's'} added` });
+      await refreshTripMembers();
+      setSelectedFriends([]);
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -1758,7 +1751,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
           <View style={styles.actionsWrap}>
             <View style={styles.actionsRow}>
               {[
-                { label: 'Add\nActivity', bg: '#E7F8F2', ic: '#0D9488', p: 'plus', fn: () => setShowAddAct(true), count: 0 },
+                { label: 'Activity', bg: '#E7F8F2', ic: '#0D9488', p: 'plus', fn: () => setShowAddAct(true), count: 0 },
                 { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true), count: badgeCounts.docs },
                 { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true), count: badgeCounts.members },
                 { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => setShowPhotos(true), count: badgeCounts.photos },
@@ -1941,7 +1934,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <DHeader title="Add Activity" onClose={() => { resetActForm(); setShowAddAct(false); }} />
+                <DHeader title="Activity" onClose={() => { resetActForm(); setShowAddAct(false); }} />
               )}
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
                 <View style={styles.dBody}>
@@ -2152,7 +2145,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity style={styles.tealBtnFull} onPress={handleAddActivity} activeOpacity={0.85}>
-                    <Text style={styles.tealBtnTxt}>Add Activity</Text>
+                    <Text style={styles.tealBtnTxt}>Activity</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -2373,24 +2366,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
                 {memberTab === 'Invite New' && (
                   <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 }}>
-                    <Text style={styles.memberSectionLabel}>Invite new people to join this trip</Text>
-                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
-                      {[
-                        { key: 'email', icon: (active: boolean) => <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke={active ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M22 6l-10 7L2 6" stroke={active ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg> },
-                        { key: 'sms', icon: (active: boolean) => <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={active ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg> },
-                        { key: 'whatsapp', icon: (active: boolean) => <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" stroke={active ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg> },
-                      ].map(m => (
-                        <TouchableOpacity key={m.key} onPress={() => setInviteMethod(m.key as any)} style={[styles.inviteIconBtn, inviteMethod === m.key && styles.inviteIconBtnActive]} activeOpacity={0.7}>
-                          {m.icon(inviteMethod === m.key)}
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
-                      <TextInput style={[styles.fInput, { flex: 1 }]} placeholder={inviteMethod === 'email' ? 'Enter email address' : inviteMethod === 'sms' ? 'Enter phone number' : 'Enter WhatsApp number'} placeholderTextColor="#94a3b8" value={inviteInput} onChangeText={setInviteInput} keyboardType={inviteMethod === 'email' ? 'email-address' : 'phone-pad'} autoCapitalize="none" />
-                      <TouchableOpacity style={styles.sendBtn} onPress={handleInviteMembers} activeOpacity={0.85}>
-                        <Text style={styles.tealBtnTxt}>Send</Text>
-                      </TouchableOpacity>
-                    </View>
+                    <Text style={[styles.memberSectionLabel, { marginBottom: 12 }]}>Invite new people to join this trip</Text>
+                    <InviteViaChannels
+                      variant="trip"
+                      tripId={tripId}
+                      tripName={trip?.name}
+                      onComplete={() => { refreshTripMembers().catch(() => {}); }}
+                    />
                   </View>
                 )}
               </ScrollView>
