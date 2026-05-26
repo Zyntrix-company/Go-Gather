@@ -725,7 +725,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [actExpConfirmed, setActExpConfirmed] = useState(false);
 
   // ── Members modal ──
-  const [memberTab, setMemberTab] = useState<'From Friends' | 'Invite New'>('From Friends');
+  const [memberTab, setMemberTab] = useState<'Members' | 'From Friends' | 'Invite New'>('Members');
   const [memberSearch, setMemberSearch] = useState('');
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
 
@@ -2224,7 +2224,16 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       </Svg>
                       <Text style={{ flex: 1, fontSize: 13, color: '#0f172a', marginLeft: 10 }} numberOfLines={1}>{doc.name}</Text>
                       {(role === 'admin' || (doc as any).uploadedBy === currentUserId) && (
-                        <TouchableOpacity onPress={e => { e.stopPropagation?.(); handleDeleteDoc(doc.id, (doc as any).uploadedBy ?? ''); }} activeOpacity={0.7}>
+                        <TouchableOpacity onPress={e => {
+                          e.stopPropagation?.();
+                          showConfirm({
+                            title: 'Remove document?',
+                            message: `Remove "${doc.name}" from this trip?`,
+                            destructive: true,
+                            confirmText: 'Remove',
+                            onConfirm: async () => { await handleDeleteDoc(doc.id, (doc as any).uploadedBy ?? ''); },
+                          });
+                        }} activeOpacity={0.7}>
                           <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '500' }}>Remove</Text>
                         </TouchableOpacity>
                       )}
@@ -2305,33 +2314,46 @@ export default function TripDetailScreen({ route, navigation }: any) {
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
               <DHeader title="Trip Members" subtitle={`Current members: ${memberCount}`} onClose={() => setShowMembers(false)} />
-              <TabBar tabs={['From Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
+              <TabBar tabs={['Members', 'From Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                {/* Current members (always visible) */}
-                <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
-                  <Text style={styles.memberSectionLabel}>Current Members</Text>
-                  {members.map(m => (
-                    <View key={m.userId} style={styles.memberRow}>
-                      {m.avatarUrl && !failedAvatarIds.has(m.userId)
-                        ? <CachedImage
-                            uri={m.avatarUrl}
-                            style={styles.memberAvatar as any}
-                            resizeMode="cover"
-                            priority="normal"
-                            onError={() => setFailedAvatarIds(prev => { const s = new Set(prev); s.add(m.userId); return s; })}
-                          />
-                        : <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>}
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={styles.memberName}>{m.fullName || (m as any).name || 'Member'}{m.userId === currentUserId ? ' (You)' : ''}</Text>
+                {memberTab === 'Members' && (
+                  <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20 }}>
+                    <Text style={styles.memberSectionLabel}>Current Members</Text>
+                    {members.length === 0 ? (
+                      <Text style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 16 }}>No members yet.</Text>
+                    ) : members.map(m => (
+                      <View key={m.userId} style={styles.memberRow}>
+                        {m.avatarUrl && !failedAvatarIds.has(m.userId)
+                          ? <CachedImage
+                              uri={m.avatarUrl}
+                              style={styles.memberAvatar as any}
+                              resizeMode="cover"
+                              priority="normal"
+                              onError={() => setFailedAvatarIds(prev => { const s = new Set(prev); s.add(m.userId); return s; })}
+                            />
+                          : <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>}
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Text style={styles.memberName}>{m.fullName || (m as any).name || 'Member'}{m.userId === currentUserId ? ' (You)' : ''}</Text>
+                        </View>
+                        {m.role === 'admin'
+                          ? <View style={styles.ownerBadge}><Text style={styles.ownerTxt}>Admin</Text></View>
+                          : role === 'admin' && m.userId !== currentUserId
+                            ? <TouchableOpacity onPress={() => {
+                              showConfirm({
+                                title: 'Remove member?',
+                                message: `Remove ${m.fullName || (m as any).name || 'Member'} from this trip?`,
+                                destructive: true,
+                                confirmText: 'Remove',
+                                onConfirm: async () => {
+                                  try { await removeTripMember(tripId, m.userId); setMembers(p => p.filter(x => x.userId !== m.userId)); } catch (e) { handleApiError(e); }
+                                },
+                              });
+                            }} activeOpacity={0.7}><Text style={{ color: '#ef4444', fontSize: 12 }}>Remove</Text></TouchableOpacity>
+                            : null}
                       </View>
-                      {m.role === 'admin'
-                        ? <View style={styles.ownerBadge}><Text style={styles.ownerTxt}>Admin</Text></View>
-                        : role === 'admin' && m.userId !== currentUserId
-                          ? <TouchableOpacity onPress={async () => { try { await removeTripMember(tripId, m.userId); setMembers(p => p.filter(x => x.userId !== m.userId)); } catch (e) { handleApiError(e); } }} activeOpacity={0.7}><Text style={{ color: '#ef4444', fontSize: 12 }}>Remove</Text></TouchableOpacity>
-                          : null}
-                    </View>
-                  ))}
-                </View>
+                    ))}
+                  </View>
+                )}
 
                 {memberTab === 'From Friends' && (
                   <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}>
@@ -2365,8 +2387,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 )}
 
                 {memberTab === 'Invite New' && (
-                  <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 }}>
-                    <Text style={[styles.memberSectionLabel, { marginBottom: 12 }]}>Invite new people to join this trip</Text>
+                  <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20 }}>
                     <InviteViaChannels
                       variant="trip"
                       tripId={tripId}
@@ -3049,7 +3070,21 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 </TouchableOpacity>
                 {/* Delete */}
                 <TouchableOpacity
-                  onPress={() => { if (viewingNote) { handleDeleteNote(viewingNote.id); setViewingNote(null); } }}
+                  onPress={() => {
+                    if (!viewingNote) return;
+                    showConfirm({
+                      title: 'Delete note?',
+                      message: 'This note will be permanently deleted.',
+                      destructive: true,
+                      onConfirm: async () => {
+                        try {
+                          await handleDeleteNote(viewingNote.id);
+                        } finally {
+                          setViewingNote(null);
+                        }
+                      },
+                    });
+                  }}
                   activeOpacity={0.7}
                   style={{ padding: 6, marginLeft: 4 }}
                 >
@@ -3260,7 +3295,7 @@ const styles = StyleSheet.create({
   docRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
 
   // Members
-  memberSectionLabel: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  memberSectionLabel: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 10 },
   memberSectionLabelTitle: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 6 },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },

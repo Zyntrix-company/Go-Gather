@@ -581,7 +581,14 @@ function PhotosModal({
         {editMode && !userId && (
           <TouchableOpacity
             style={styles.thumbDeleteBtn}
-            onPress={() => handleDeletePhoto(ph)}
+            onPress={() => {
+              showConfirm({
+                title: 'Delete photo?',
+                message: 'This photo will be removed from the gallery.',
+                destructive: true,
+                onConfirm: () => { handleDeletePhoto(ph); },
+              });
+            }}
             hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
             disabled={deletingId === ph.id}
           >
@@ -1158,7 +1165,14 @@ function CustomCardPhotosModal({
                           {/* Delete button — top-right */}
                           {editMode && (
                             <TouchableOpacity
-                              onPress={() => deletePhoto(ph.id)}
+                              onPress={() => {
+                                showConfirm({
+                                  title: 'Delete photo?',
+                                  message: 'This photo will be removed from the album.',
+                                  destructive: true,
+                                  onConfirm: () => { deletePhoto(ph.id); },
+                                });
+                              }}
                               style={styles.thumbDeleteBtn}
                               hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                               disabled={deletingId === ph.id}

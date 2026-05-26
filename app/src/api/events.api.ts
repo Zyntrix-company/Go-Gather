@@ -158,12 +158,18 @@ export async function removeEventMember(eventId: string, userId: string) {
   return res.data as { success: boolean };
 }
 
-export async function inviteToEvent(eventId: string, body: { friendIds?: string[]; emails?: string[] }) {
+export async function inviteToEvent(eventId: string, body: {
+  friendIds?: string[];
+  emails?: string[];
+  phones?: string[];
+  shareOnly?: boolean;
+}) {
   const res = await client.post(`/events/${eventId}/invite`, body);
   return res.data as {
     added: { userId: string; name: string; method: string }[];
-    invited: { email: string; branchUrl: string; expiresAt: string }[];
+    invited: { email?: string; phone?: string; branchUrl: string; expiresAt: string }[];
     skipped: { userId: string; reason: string }[];
+    shareText?: string;
   };
 }
 

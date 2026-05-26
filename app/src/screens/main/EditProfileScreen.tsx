@@ -348,6 +348,18 @@ export default function EditProfileScreen({ navigation }: any) {
               {errors.username && <Text style={styles.errorText}>{errors.username.message}</Text>}
             </View>
 
+            {/* ── Email (read-only) ── */}
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Email</Text>
+              <View style={styles.dobReadOnly}>
+                <Text
+                  style={user?.email ? styles.dobReadOnlyText : styles.dobReadOnlyPlaceholder}
+                  numberOfLines={1}>
+                  {user?.email || 'Not set'}
+                </Text>
+              </View>
+            </View>
+
             {/* ── Date of Birth ── */}
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Date of Birth</Text>

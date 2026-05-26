@@ -17,6 +17,15 @@ Accept the invite:
 ${branchUrl}`;
 }
 
+export function buildEventInviteMessage(inviterName: string, eventName: string, branchUrl: string): string {
+  return `${inviterName} is inviting you to "${eventName}" on GatherGo!
+
+Plan trips together, split expenses, and keep all your travel memories in one place.
+
+Accept the invite:
+${branchUrl}`;
+}
+
 export async function openSms(phone: string, body: string): Promise<boolean> {
   const digits = normalizePhoneDigits(phone);
   const encoded = encodeURIComponent(body);

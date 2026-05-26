@@ -14,6 +14,7 @@ import AppDatePicker from '../../components/common/AppDatePicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import LocationAutocomplete from '../../components/common/LocationAutocomplete';
 import CachedImage from '../../components/common/CachedImage';
+import InviteViaChannels from '../../components/common/InviteViaChannels';
 import DetailDialogHeader from '../../components/details/DetailDialogHeader';
 import DocumentsUploadSection from '../../components/common/DocumentsUploadSection';
 import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
@@ -543,11 +544,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
   }, [avatarUpdatedAt, currentUserId]);
 
   // ── Members modal ──
-  const [memberTab, setMemberTab] = useState<'From Friends' | 'Invite New'>('From Friends');
+  const [memberTab, setMemberTab] = useState<'Members' | 'From Friends' | 'Invite New'>('Members');
   const [memberSearch, setMemberSearch] = useState('');
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
-  const [inviteMethod, setInviteMethod] = useState<'email' | 'sms' | 'whatsapp'>('email');
-  const [inviteInput, setInviteInput] = useState('');
 
   // ── Expenses modal ──
   const [expTab, setExpTab] = useState<'All Expenses' | 'Totals' | 'Balances'>('All Expenses');
@@ -944,14 +943,13 @@ export default function EventDetailScreen({ route, navigation }: any) {
   }
 
   async function handleAddMembersFromFriends() {
-    if (!selectedFriends.length && !inviteInput.trim()) {
-      showAlert({ title: 'Error', message: 'Select friends or enter a contact to invite' });
+    if (!selectedFriends.length) {
+      showAlert({ title: 'Error', message: 'Select at least one friend to add' });
       return;
     }
     try {
       const res = await inviteToEvent(event.id, {
-        friendIds: selectedFriends.length > 0 ? selectedFriends : undefined,
-        emails: inviteInput.trim() ? [inviteInput.trim()] : undefined,
+        friendIds: selectedFriends,
       });
       // Add newly added members to local list
       const added = apiFriends
@@ -961,10 +959,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
         const existing = new Set(p.map(m => m.userId));
         return [...p, ...added.filter(m => !existing.has(m.userId))];
       });
-      if (res.invited.length > 0) showAlert({ title: 'Invite Sent', message: `Invitation sent to ${inviteInput.trim()}` });
     } catch (err) { handleApiError(err); }
     setSelectedFriends([]);
-    setInviteInput('');
   }
 
   async function handleCreatePoll() {
@@ -1291,8 +1287,16 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       </Svg>
                       <Text style={{ flex: 1, fontSize: 13, color: '#0f172a', marginLeft: 10 }} numberOfLines={1}>{doc.name}</Text>
                       <TouchableOpacity onPress={async () => {
-                        try { await deleteEventDoc(event.id, doc.id); setDocs(p => p.filter(d => d.id !== doc.id)); }
-                        catch (err) { handleApiError(err); }
+                        showConfirm({
+                          title: 'Remove document?',
+                          message: `Remove "${doc.name}" from this event?`,
+                          destructive: true,
+                          confirmText: 'Remove',
+                          onConfirm: async () => {
+                            try { await deleteEventDoc(event.id, doc.id); setDocs(p => p.filter(d => d.id !== doc.id)); }
+                            catch (err) { handleApiError(err); }
+                          },
+                        });
                       }} activeOpacity={0.7}>
                         <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '500' }}>Remove</Text>
                       </TouchableOpacity>
@@ -1373,37 +1377,49 @@ export default function EventDetailScreen({ route, navigation }: any) {
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
               <DHeader title="Event Members" subtitle={`Current members: ${memberCount}`} onClose={() => setShowMembers(false)} />
-              <TabBar tabs={['From Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
+              <TabBar tabs={['Members', 'From Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
-                  <Text style={styles.memberSectionLabel}>Current Members</Text>
-                  {members.map(m => (
-                    <View key={m.userId} style={styles.memberRow}>
-                      {m.avatarUrl && !failedAvatarIds.has(m.userId)
-                        ? <CachedImage
-                            uri={m.avatarUrl}
-                            style={styles.memberAvatar as any}
-                            resizeMode="cover"
-                            priority="normal"
-                            onError={() => setFailedAvatarIds(prev => { const s = new Set(prev); s.add(m.userId); return s; })}
-                          />
-                        : <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>}
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={styles.memberName}>{m.fullName}{m.userId === currentUserId ? ' (You)' : ''}</Text>
+                {memberTab === 'Members' && (
+                  <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20 }}>
+                    <Text style={styles.memberSectionLabel}>Current Members</Text>
+                    {members.length === 0 ? (
+                      <Text style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 16 }}>No members yet.</Text>
+                    ) : members.map(m => (
+                      <View key={m.userId} style={styles.memberRow}>
+                        {m.avatarUrl && !failedAvatarIds.has(m.userId)
+                          ? <CachedImage
+                              uri={m.avatarUrl}
+                              style={styles.memberAvatar as any}
+                              resizeMode="cover"
+                              priority="normal"
+                              onError={() => setFailedAvatarIds(prev => { const s = new Set(prev); s.add(m.userId); return s; })}
+                            />
+                          : <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>}
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Text style={styles.memberName}>{m.fullName}{m.userId === currentUserId ? ' (You)' : ''}</Text>
+                        </View>
+                        {m.role === 'admin'
+                          ? <View style={styles.ownerBadge}><Text style={styles.ownerTxt}>Admin</Text></View>
+                          : m.userId !== currentUserId
+                            ? <TouchableOpacity onPress={() => {
+                              showConfirm({
+                                title: 'Remove member?',
+                                message: `Remove ${m.fullName} from this event?`,
+                                destructive: true,
+                                confirmText: 'Remove',
+                                onConfirm: async () => {
+                                  try { await removeEventMember(event.id, m.userId); setMembers(p => p.filter(x => x.userId !== m.userId)); }
+                                  catch (err) { handleApiError(err); }
+                                },
+                              });
+                            }} activeOpacity={0.7}>
+                              <Text style={{ color: '#ef4444', fontSize: 12 }}>Remove</Text>
+                            </TouchableOpacity>
+                            : null}
                       </View>
-                      {m.role === 'admin'
-                        ? <View style={styles.ownerBadge}><Text style={styles.ownerTxt}>Admin</Text></View>
-                        : m.userId !== currentUserId
-                          ? <TouchableOpacity onPress={async () => {
-                            try { await removeEventMember(event.id, m.userId); setMembers(p => p.filter(x => x.userId !== m.userId)); }
-                            catch (err) { handleApiError(err); }
-                          }} activeOpacity={0.7}>
-                            <Text style={{ color: '#ef4444', fontSize: 12 }}>Remove</Text>
-                          </TouchableOpacity>
-                          : null}
-                    </View>
-                  ))}
-                </View>
+                    ))}
+                  </View>
+                )}
 
                 {memberTab === 'From Friends' && (
                   <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}>
@@ -1435,25 +1451,24 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 )}
 
                 {memberTab === 'Invite New' && (
-                  <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 }}>
-                    <Text style={styles.memberSectionLabel}>Invite new people to this event</Text>
-                    <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
-                      {[
-                        { key: 'email', icon: (a: boolean) => <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke={a ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M22 6l-10 7L2 6" stroke={a ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg> },
-                        { key: 'sms', icon: (a: boolean) => <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke={a ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg> },
-                        { key: 'whatsapp', icon: (a: boolean) => <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" stroke={a ? '#fff' : '#64748b'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg> },
-                      ].map(m => (
-                        <TouchableOpacity key={m.key} onPress={() => setInviteMethod(m.key as any)} style={[styles.inviteIconBtn, inviteMethod === m.key && styles.inviteIconBtnActive]} activeOpacity={0.7}>
-                          {m.icon(inviteMethod === m.key)}
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
-                      <TextInput style={[styles.fInput, { flex: 1 }]} placeholder={inviteMethod === 'email' ? 'Enter email address' : 'Enter phone number'} placeholderTextColor="#94a3b8" value={inviteInput} onChangeText={setInviteInput} keyboardType={inviteMethod === 'email' ? 'email-address' : 'phone-pad'} autoCapitalize="none" />
-                      <TouchableOpacity style={styles.sendBtn} onPress={handleAddMembersFromFriends} activeOpacity={0.85}>
-                        <Text style={styles.tealBtnTxt}>Send</Text>
-                      </TouchableOpacity>
-                    </View>
+                  <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20 }}>
+                    <InviteViaChannels
+                      variant="event"
+                      eventId={event.id}
+                      eventName={event.name}
+                      onComplete={() => {
+                        getEventMembers(event.id)
+                          .then(res => {
+                            setMembers(res.members.map(m => ({
+                              userId: m.userId,
+                              fullName: m.fullName,
+                              avatarUrl: m.avatarUrl ?? undefined,
+                              role: (m.role as 'admin' | 'member') ?? 'member',
+                            })));
+                          })
+                          .catch(() => {});
+                      }}
+                    />
                   </View>
                 )}
               </ScrollView>
@@ -2024,11 +2039,20 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 </TouchableOpacity>
                 {/* Delete */}
                 <TouchableOpacity
-                  onPress={async () => {
+                  onPress={() => {
                     if (!viewingNote) return;
-                    try { await deleteEventNote(event.id, viewingNote.id); setNotes(p => p.filter(n => n.id !== viewingNote.id)); }
-                    catch (err) { handleApiError(err); }
-                    setViewingNote(null);
+                    showConfirm({
+                      title: 'Delete note?',
+                      message: 'This note will be permanently deleted.',
+                      destructive: true,
+                      onConfirm: async () => {
+                        try {
+                          await deleteEventNote(event.id, viewingNote.id);
+                          setNotes(p => p.filter(n => n.id !== viewingNote.id));
+                        } catch (err) { handleApiError(err); }
+                        setViewingNote(null);
+                      },
+                    });
                   }}
                   activeOpacity={0.7}
                   style={{ padding: 6, marginLeft: 4 }}
@@ -2204,7 +2228,7 @@ const styles = StyleSheet.create({
 
   docRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
 
-  memberSectionLabel: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  memberSectionLabel: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 10 },
   memberSectionLabelTitle: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 6 },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },

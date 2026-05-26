@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingTop: 10,
-    marginBottom: 20,
+    marginBottom: 8,
     gap: 12,
   },
   headerTitle: {
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     
     
     padding: 16,
-    marginBottom: 10,
+    marginBottom: 4,
     overflow: 'hidden',
   },
   avatarRing: {

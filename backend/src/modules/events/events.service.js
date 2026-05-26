@@ -4,6 +4,7 @@ const { sendEmail, wrapEmail } = require('../../utils/mailer');
 const { createAndSendNotification, createAndSendNotifications } = require('../../utils/fcm.util');
 const { batchDeleteFromS3, getPresignedDownloadUrl } = require('../../utils/s3.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
+const { generateInviteShareText } = require('../../utils/shareText.util');
 const config = require('../../config');
 const logger = require('../../utils/logger');
 
@@ -179,8 +180,8 @@ const createEvent = async (userId, body) => {
             logger.warn('Branch link failed, using plain URL', { error: e.message });
           }
           await db(
-            `INSERT INTO event_invites (event_id, invited_by, email, token, expires_at, branch_url)
-             VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (token) DO NOTHING`,
+            `INSERT INTO event_invites (event_id, invited_by, email, phone, token, expires_at, branch_url)
+             VALUES ($1, $2, $3, NULL, $4, $5, $6) ON CONFLICT (token) DO NOTHING`,
             [event.id, userId, email, token, expiresAt.toISOString(), branchUrl],
           );
           await sendEmail({
@@ -484,9 +485,90 @@ const deleteEvent = async (eventId) => {
   await db('DELETE FROM events WHERE id = $1', [eventId]);
 };
 
-// ─── Invite Members — friend vs non-friend flow ───────────────────────────────
+// ─── Invite Members — friend vs non-friend flow (parity with trips) ───────────
 
-const inviteToEvent = async (eventId, invitedBy, { friendIds = [], emails = [] }) => {
+const processEventEmailOrPhoneInvite = async ({
+  email, phone, eventId, eventName, invitedBy, inviterName, invited, added, skipped,
+}) => {
+  const identifier = email || phone;
+  try {
+    let existingUser = null;
+    if (email) {
+      const r = await db('SELECT id FROM users WHERE email = $1', [email]);
+      existingUser = r.rows[0] || null;
+    } else if (phone) {
+      const r = await db('SELECT id FROM users WHERE phone = $1', [phone]);
+      existingUser = r.rows[0] || null;
+    }
+
+    if (existingUser) {
+      const memberCheck = await db(
+        'SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2',
+        [eventId, existingUser.id],
+      );
+      if (memberCheck.rowCount > 0) {
+        skipped.push({ userId: existingUser.id, reason: 'already_member' });
+        return;
+      }
+
+      const friendCheck = await db(
+        `SELECT id FROM friend_connections
+         WHERE status = 'accepted'
+           AND ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))`,
+        [invitedBy, existingUser.id],
+      );
+
+      if (friendCheck.rowCount > 0) {
+        await db(
+          `INSERT INTO event_members (event_id, user_id, role) VALUES ($1, $2, 'member')
+           ON CONFLICT (event_id, user_id) DO NOTHING`,
+          [eventId, existingUser.id],
+        );
+        const profile = await db('SELECT full_name AS name FROM profiles WHERE user_id = $1', [existingUser.id]);
+        createAndSendNotification(
+          existingUser.id,
+          { title: `${eventName} — ${inviterName} added you!`, body: 'Open GatherGo to see the event' },
+          'EVENT_MEMBER_ADDED',
+          { eventId, screen: 'events' },
+        ).catch((err) => logger.error('Notification failed', { err: err.message }));
+        added.push({ userId: existingUser.id, name: profile.rows[0]?.name || null, method: 'direct' });
+        return;
+      }
+    }
+
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
+    let branchUrl = null;
+
+    try {
+      branchUrl = await createInviteSmartLink({ token, inviterName, context: eventName, type: 'event' });
+    } catch (e) {
+      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gathergo.app'}/invite/event/${token}`;
+      logger.warn('Branch link failed, using plain URL', { error: e.message });
+    }
+
+    await db(
+      `INSERT INTO event_invites (event_id, invited_by, email, phone, token, expires_at, branch_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (token) DO NOTHING`,
+      [eventId, invitedBy, email, phone, token, expiresAt.toISOString(), branchUrl],
+    );
+
+    if (email) {
+      sendEmail({
+        to: email,
+        subject: `${inviterName} invited you to "${eventName}" on GatherGo`,
+        html: buildInviteEmail({ inviterName, eventName, deepLink: branchUrl, expiresAt }),
+        text: `${inviterName} invited you to join "${eventName}". Accept: ${branchUrl}`,
+      }).catch((err) => logger.error('SES invite email failed', { email, error: err.message }));
+    }
+
+    invited.push({ [email ? 'email' : 'phone']: identifier, branchUrl, expiresAt: expiresAt.toISOString() });
+  } catch (err) {
+    logger.error('Failed to process event invite', { identifier, error: err.message });
+  }
+};
+
+const inviteToEvent = async (eventId, invitedBy, { friendIds = [], emails = [], phones = [], shareOnly = false }) => {
   const inviterResult = await db(
     'SELECT p.full_name FROM profiles p WHERE p.user_id = $1',
     [invitedBy],
@@ -498,6 +580,25 @@ const inviteToEvent = async (eventId, invitedBy, { friendIds = [], emails = [] }
     const e = new Error('Event not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
   }
   const eventName = eventResult.rows[0].name;
+
+  if (shareOnly) {
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
+    let branchUrl = null;
+    try {
+      branchUrl = await createInviteSmartLink({ token, inviterName, context: eventName, type: 'event' });
+    } catch (e) {
+      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gathergo.app'}/invite/event/${token}`;
+      logger.warn('Branch link failed, using plain URL', { error: e.message });
+    }
+    await db(
+      `INSERT INTO event_invites (event_id, invited_by, email, phone, token, expires_at, branch_url)
+       VALUES ($1, $2, NULL, NULL, $3, $4, $5) ON CONFLICT (token) DO NOTHING`,
+      [eventId, invitedBy, token, expiresAt.toISOString(), branchUrl],
+    );
+    const shareText = generateInviteShareText({ inviterName, branchUrl, type: 'event', context: eventName });
+    return { added: [], invited: [{ branchUrl, expiresAt: expiresAt.toISOString() }], skipped: [], shareText };
+  }
 
   const added = [];
   const invited = [];
@@ -538,77 +639,16 @@ const inviteToEvent = async (eventId, invitedBy, { friendIds = [], emails = [] }
     added.push({ userId: friendId, name: profile.rows[0]?.name || null, method: 'direct' });
   }
 
-  // ── Path B: emails ───────────────────────────────────────────
   for (const email of emails) {
-    try {
-      // Check if a GatherGo user exists with this email
-      const existingUser = await db('SELECT id FROM users WHERE email = $1', [email]);
-      const user = existingUser.rows[0] || null;
+    await processEventEmailOrPhoneInvite({
+      email, phone: null, eventId, eventName, invitedBy, inviterName, invited, added, skipped,
+    });
+  }
 
-      if (user) {
-        const memberCheck = await db(
-          'SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2',
-          [eventId, user.id],
-        );
-        if (memberCheck.rowCount > 0) {
-          skipped.push({ userId: user.id, reason: 'already_member' });
-          continue;
-        }
-
-        const friendCheck = await db(
-          `SELECT id FROM friend_connections
-           WHERE status = 'accepted'
-             AND ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))`,
-          [invitedBy, user.id],
-        );
-
-        if (friendCheck.rowCount > 0) {
-          await db(
-            `INSERT INTO event_members (event_id, user_id, role) VALUES ($1, $2, 'member')
-             ON CONFLICT (event_id, user_id) DO NOTHING`,
-            [eventId, user.id],
-          );
-          const profile = await db('SELECT full_name AS name FROM profiles WHERE user_id = $1', [user.id]);
-          createAndSendNotification(
-            user.id,
-            { title: `${eventName} — ${inviterName} added you!`, body: 'Open GatherGo to see the event' },
-            'EVENT_MEMBER_ADDED',
-            { eventId, screen: 'events' },
-          ).catch((err) => logger.error('Notification failed', { err: err.message }));
-          added.push({ userId: user.id, name: profile.rows[0]?.name || null, method: 'direct' });
-          continue;
-        }
-        // Not a friend — fall through to Branch invite
-      }
-
-      const token = crypto.randomUUID();
-      const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
-      let branchUrl = null;
-
-      try {
-        branchUrl = await createInviteSmartLink({ token, inviterName, context: eventName, type: 'event' });
-      } catch (e) {
-        branchUrl = `${config.appDeepLinkBaseUrl || 'https://gathergo.app'}/invite/event/${token}`;
-        logger.warn('Branch link failed, using plain URL', { error: e.message });
-      }
-
-      await db(
-        `INSERT INTO event_invites (event_id, invited_by, email, token, expires_at, branch_url)
-         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (token) DO NOTHING`,
-        [eventId, invitedBy, email, token, expiresAt.toISOString(), branchUrl],
-      );
-
-      sendEmail({
-        to: email,
-        subject: `${inviterName} invited you to "${eventName}" on GatherGo`,
-        html: buildInviteEmail({ inviterName, eventName, deepLink: branchUrl, expiresAt }),
-        text: `${inviterName} invited you to join "${eventName}". Accept: ${branchUrl}`,
-      }).catch((err) => logger.error('SES invite email failed', { email, error: err.message }));
-
-      invited.push({ email, branchUrl, expiresAt: expiresAt.toISOString() });
-    } catch (err) {
-      logger.error('Failed to process event invite', { email, error: err.message });
-    }
+  for (const phone of phones) {
+    await processEventEmailOrPhoneInvite({
+      email: null, phone, eventId, eventName, invitedBy, inviterName, invited, added, skipped,
+    });
   }
 
   return { added, invited, skipped };

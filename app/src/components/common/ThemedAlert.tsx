@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Animated,
   BackHandler,
+  Easing,
 } from 'react-native';
 import colors from '../../theme/colors';
 import useAlertStore, { AlertButton } from '../../store/alertStore';
@@ -15,51 +16,93 @@ const OVERLAY_COLOR = 'rgba(15, 23, 42, 0.48)';
 const DESTRUCTIVE_BG = 'rgba(239, 68, 68, 0.07)';
 const DESTRUCTIVE_BORDER = 'rgba(239, 68, 68, 0.18)';
 
+const ENTER_DURATION = 240;
+const EXIT_DURATION = 180;
+
 export default function ThemedAlert() {
   const { visible, config, hide } = useAlertStore();
-  const scaleAnim = useRef(new Animated.Value(0.92)).current;
+  const scaleAnim = useRef(new Animated.Value(0.94)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
+  const dismissingRef = useRef(false);
 
-  useEffect(() => {
-    if (visible) {
+  const dismissAnimated = useCallback(
+    (after?: () => void) => {
+      if (dismissingRef.current) return;
+      dismissingRef.current = true;
       Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: 1,
+        Animated.timing(scaleAnim, {
+          toValue: 0.96,
+          duration: EXIT_DURATION,
+          easing: Easing.bezier(0.4, 0, 1, 1),
           useNativeDriver: true,
-          tension: 210,
-          friction: 16,
         }),
         Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 200,
+          toValue: 0,
+          duration: EXIT_DURATION - 20,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(overlayAnim, {
-          toValue: 1,
-          duration: 220,
+          toValue: 0,
+          duration: EXIT_DURATION + 40,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
-      ]).start();
-    } else {
-      scaleAnim.setValue(0.92);
-      opacityAnim.setValue(0);
-      overlayAnim.setValue(0);
-    }
-  }, [visible, scaleAnim, opacityAnim, overlayAnim]);
+      ]).start(() => {
+        scaleAnim.setValue(0.94);
+        opacityAnim.setValue(0);
+        overlayAnim.setValue(0);
+        dismissingRef.current = false;
+        after?.();
+      });
+    },
+    [scaleAnim, opacityAnim, overlayAnim],
+  );
+
+  useEffect(() => {
+    if (!visible || !config) return;
+    scaleAnim.setValue(0.94);
+    opacityAnim.setValue(0);
+    overlayAnim.setValue(0);
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 300,
+        friction: 24,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: ENTER_DURATION,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(overlayAnim, {
+        toValue: 1,
+        duration: ENTER_DURATION + 30,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [visible, config, scaleAnim, opacityAnim, overlayAnim]);
 
   useEffect(() => {
     if (!visible) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       const hasCancel = config?.buttons?.some((b) => b.style === 'cancel');
       if (hasCancel || !config?.buttons?.length) {
-        hide();
+        dismissAnimated(() => {
+          hide();
+          const cancel = config?.buttons?.find((b) => b.style === 'cancel');
+          cancel?.onPress?.();
+        });
         return true;
       }
       return true;
     });
     return () => sub.remove();
-  }, [visible, config, hide]);
+  }, [visible, config, hide, dismissAnimated]);
 
   if (!config) return null;
 
@@ -72,15 +115,19 @@ export default function ThemedAlert() {
   const isRow = buttons.length === 2;
 
   function handleButton(btn: AlertButton) {
-    hide();
-    btn.onPress?.();
+    dismissAnimated(() => {
+      hide();
+      btn.onPress?.();
+    });
   }
 
   function handleOverlayPress() {
     if (hasCancelButton || buttons.length === 1) {
       const cancel = buttons.find((b) => b.style === 'cancel') ?? buttons[0];
-      hide();
-      cancel.onPress?.();
+      dismissAnimated(() => {
+        hide();
+        cancel.onPress?.();
+      });
     }
   }
 
@@ -91,7 +138,13 @@ export default function ThemedAlert() {
       animationType="none"
       statusBarTranslucent
       onRequestClose={() => {
-        if (hasCancelButton || !config.buttons?.length) hide();
+        if (hasCancelButton || !config.buttons?.length) {
+          dismissAnimated(() => {
+            hide();
+            const cancel = config.buttons?.find((b) => b.style === 'cancel');
+            cancel?.onPress?.();
+          });
+        }
       }}
     >
       <Animated.View style={[styles.overlay, { opacity: overlayAnim }]}>

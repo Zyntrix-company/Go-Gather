@@ -11,12 +11,14 @@ import {
   Platform,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import WhatsAppIcon from './WhatsAppIcon';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Toast from 'react-native-toast-message';
 import { createFriendInvite, inviteToTrip } from '../../api/trips.api';
+import { inviteToEvent } from '../../api/events.api';
 import useAuthStore from '../../store/authStore';
 import { showAlert } from '../../store/alertStore';
 import {
+  buildEventInviteMessage,
   buildTripInviteMessage,
   openSms,
   openWhatsAppShare,
@@ -31,9 +33,11 @@ import {
 export type InviteChannel = 'email' | 'sms' | 'whatsapp';
 
 type Props = {
-  variant: 'friend' | 'trip';
+  variant: 'friend' | 'trip' | 'event';
   tripId?: string;
   tripName?: string;
+  eventId?: string;
+  eventName?: string;
   onComplete?: () => void;
 };
 
@@ -56,7 +60,7 @@ function ChannelIcon({ channel, active }: { channel: InviteChannel; active: bool
   );
 }
 
-export default function InviteViaChannels({ variant, tripId, tripName, onComplete }: Props) {
+export default function InviteViaChannels({ variant, tripId, tripName, eventId, eventName, onComplete }: Props) {
   const inviterName = useAuthStore(s => s.user?.fullName || s.user?.profile?.fullName || 'A GatherGo user');
 
   const [channel, setChannel] = useState<InviteChannel>('sms');
@@ -86,16 +90,31 @@ export default function InviteViaChannels({ variant, tripId, tripName, onComplet
       const res = await createFriendInvite({ channels: ['whatsapp'], emails: [] });
       return res.shareText;
     }
+    if (variant === 'event') {
+      if (!eventId) throw new Error('Event not found');
+      const res = await inviteToEvent(eventId, { shareOnly: true });
+      return res.shareText ?? buildEventInviteMessage(inviterName, eventName || 'an event', res.invited[0].branchUrl);
+    }
     if (!tripId) throw new Error('Trip not found');
     const res = await inviteToTrip(tripId, { shareOnly: true });
     return res.shareText ?? buildTripInviteMessage(inviterName, tripName || 'a trip', res.invited[0].branchUrl);
-  }, [variant, tripId, tripName, inviterName]);
+  }, [variant, tripId, tripName, eventId, eventName, inviterName]);
 
   const fetchSmsShareText = useCallback(
     async (phone: string): Promise<string> => {
       if (variant === 'friend') {
         const res = await createFriendInvite({ channels: ['sms'], emails: [] });
         return res.shareText;
+      }
+      if (variant === 'event') {
+        if (!eventId) throw new Error('Event not found');
+        const res = await inviteToEvent(eventId, { phones: [phone] });
+        if ((res.added?.length ?? 0) > 0 && !(res.invited?.length)) {
+          throw new Error('ALREADY_MEMBER');
+        }
+        const branchUrl = res.invited?.[0]?.branchUrl;
+        if (!branchUrl) throw new Error('No invite link returned');
+        return res.shareText ?? buildEventInviteMessage(inviterName, eventName || 'an event', branchUrl);
       }
       if (!tripId) throw new Error('Trip not found');
       const res = await inviteToTrip(tripId, { phones: [phone] });
@@ -106,7 +125,7 @@ export default function InviteViaChannels({ variant, tripId, tripName, onComplet
       if (!branchUrl) throw new Error('No invite link returned');
       return res.shareText ?? buildTripInviteMessage(inviterName, tripName || 'a trip', branchUrl);
     },
-    [variant, tripId, tripName, inviterName],
+    [variant, tripId, tripName, eventId, eventName, inviterName],
   );
 
   async function handleEmailSend() {
@@ -120,6 +139,8 @@ export default function InviteViaChannels({ variant, tripId, tripName, onComplet
     try {
       if (variant === 'friend') {
         await createFriendInvite({ channels: ['email'], emails: [email] });
+      } else if (variant === 'event' && eventId) {
+        await inviteToEvent(eventId, { emails: [email] });
       } else if (tripId) {
         await inviteToTrip(tripId, { emails: [email] });
       }
@@ -163,7 +184,13 @@ export default function InviteViaChannels({ variant, tripId, tripName, onComplet
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
       if (msg === 'ALREADY_MEMBER') {
-        showAlert({ title: 'Already on trip', message: 'This person is already a member of this trip.' });
+        showAlert({
+          title: variant === 'event' ? 'Already on event' : 'Already on trip',
+          message:
+            variant === 'event'
+              ? 'This person is already a member of this event.'
+              : 'This person is already a member of this trip.',
+        });
       } else {
         showAlert({ title: 'Error', message: 'Could not prepare the invite. Please try again.' });
       }
@@ -217,7 +244,6 @@ export default function InviteViaChannels({ variant, tripId, tripName, onComplet
 
   return (
     <View>
-      <Text style={styles.sectionLabel}>Send via</Text>
       <View style={styles.channelRow}>
         {(['email', 'sms', 'whatsapp'] as InviteChannel[]).map(key => {
           if (key === 'whatsapp') {
@@ -227,10 +253,9 @@ export default function InviteViaChannels({ variant, tripId, tripName, onComplet
                 key={key}
                 onPress={() => setChannel('whatsapp')}
                 activeOpacity={0.85}
-                style={styles.whatsappBtnOuter}
+                style={[styles.iconBtn, selected && styles.iconBtnActive]}
               >
-                <WhatsAppIcon size={BTN_SIZE} />
-                {selected ? <View style={styles.whatsappRing} pointerEvents="none" /> : null}
+                <MaterialCommunityIcons name="whatsapp" size={26} color={selected ? '#fff' : '#25D366'} />
               </TouchableOpacity>
             );
           }
@@ -377,7 +402,6 @@ export default function InviteViaChannels({ variant, tripId, tripName, onComplet
 }
 
 const styles = StyleSheet.create({
-  sectionLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   channelRow: { flexDirection: 'row', gap: 10, marginBottom: 16, alignItems: 'center' },
   iconBtn: {
     width: BTN_SIZE,
@@ -390,18 +414,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconBtnActive: { borderColor: '#0d9488', backgroundColor: '#0d9488' },
-  whatsappBtnOuter: {
-    width: BTN_SIZE,
-    height: BTN_SIZE,
-    borderRadius: BTN_SIZE / 2,
-    overflow: 'hidden',
-  },
-  whatsappRing: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: BTN_SIZE / 2,
-    borderWidth: 3,
-    borderColor: '#0d9488',
-  },
   hint: { fontSize: 12, color: '#64748b', lineHeight: 18, marginBottom: 14 },
   chooseBtn: {
     backgroundColor: '#0d9488',
