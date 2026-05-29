@@ -2,7 +2,9 @@ const aiService = require('./ai.service');
 const logger = require('../../utils/logger');
 
 /**
- * POST /ai/chat — Non-streaming chat with Swee.
+ * POST /ai/chat
+ * Non-streaming chat with Swee. Returns { reply, pendingAction }.
+ * pendingAction is non-null when Swee has collected enough info and is showing a recap.
  */
 const chat = async (req, res, next) => {
   try {
@@ -37,7 +39,6 @@ const chatStream = async (req, res, next) => {
       return res.status(400).json({ error: 'BadRequest', message: 'message is required' });
     }
 
-    // chatStream writes directly to res and calls res.end()
     await aiService.chatStream(
       req.user.id,
       message.trim(),
@@ -47,7 +48,6 @@ const chatStream = async (req, res, next) => {
     );
   } catch (error) {
     logger.error('Swee stream error', { error: error.message, userId: req.user?.id });
-    // If headers not yet sent, pass to error handler; otherwise the stream is broken
     if (!res.headersSent) {
       next(error);
     } else {
@@ -60,11 +60,39 @@ const chatStream = async (req, res, next) => {
 };
 
 /**
- * DELETE /ai/chat/:userId — Clear conversation history.
- * Conversation history is held client-side; this endpoint just confirms the reset.
+ * DELETE /ai/chat/:userId — Clear conversation (client-side history; server acknowledges).
  */
-const clearConversation = async (req, res) => {
+const clearConversation = async (_req, res) => {
   return res.status(200).json({ success: true });
+};
+
+/**
+ * POST /ai/execute
+ * Execute a confirmed Swee action (create_trip, create_event, update_trip, update_event, add_note).
+ * Body: { pendingAction: { intent, draft, tripId?, targetTripName?, ... } }
+ * Returns: { reply, created: { id, type, name } | null }
+ */
+const executeAction = async (req, res, next) => {
+  try {
+    const { pendingAction } = req.body;
+
+    if (!pendingAction || typeof pendingAction !== 'object') {
+      return res.status(400).json({ error: 'BadRequest', message: 'pendingAction is required' });
+    }
+
+    if (!pendingAction.readyToCreate) {
+      return res.status(400).json({ error: 'BadRequest', message: 'Action is not ready for execution' });
+    }
+
+    const result = await aiService.executeAction(req.user.id, pendingAction);
+    return res.status(200).json(result);
+  } catch (error) {
+    logger.error('Swee execute error', { error: error.message, userId: req.user?.id });
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: 'ExecuteError', message: error.message });
+    }
+    next(error);
+  }
 };
 
 /**
@@ -86,4 +114,4 @@ const reportIssue = async (req, res, next) => {
   }
 };
 
-module.exports = { chat, chatStream, clearConversation, reportIssue };
+module.exports = { chat, chatStream, clearConversation, executeAction, reportIssue };
