@@ -13,7 +13,9 @@ const {
   APP_EVENT_TYPES,
 } = require('./swee.config');
 
-const MAX_HISTORY_MESSAGES = 20;
+
+// 10 messages = ~5 back-and-forth exchanges (one user + one assistant each)
+const MAX_HISTORY_MESSAGES = 10;
 
 // ─── Lazy Gemini client ────────────────────────────────────────────────────────
 
@@ -210,6 +212,33 @@ async function writePlanningNote(parentType, parentId, userId, planningData) {
   }
 }
 
+// ─── Activity bulk creator ────────────────────────────────────────────────────
+
+/**
+ * Create a list of suggested activities for a newly created trip.
+ * Silently skips any activity that fails (non-critical).
+ * @param {string} tripId
+ * @param {string} userId
+ * @param {Array<{title:string, date?:string, time?:{hour:number,minute:number}, locationName?:string, description?:string}>} activities
+ */
+async function bulkCreateActivities(tripId, userId, activities) {
+  const activitiesService = require('../trips/submodules/activities/activities.service');
+  for (const act of activities) {
+    if (!act.title) continue;
+    try {
+      await activitiesService.createActivity(tripId, userId, {
+        title: String(act.title).slice(0, 255),
+        date: act.date || null,
+        time: act.time || null,
+        locationName: act.locationName || null,
+        description: act.description || null,
+      });
+    } catch (err) {
+      logger.warn('bulkCreateActivities: activity skipped', { title: act.title, error: err.message });
+    }
+  }
+}
+
 // ─── Gemini chat ──────────────────────────────────────────────────────────────
 
 async function geminiChat(message, history, systemPrompt) {
@@ -243,12 +272,12 @@ async function geminiChatStream(message, history, systemPrompt, res) {
  * parses the ###ACTION block, and returns { reply, pendingAction }.
  */
 const chat = async (userId, message, conversationHistory, tripContext) => {
-  const [userContext, history] = await Promise.all([
-    loadUserContext(userId),
-    Promise.resolve(trimHistory(conversationHistory)),
-  ]);
+  const history = trimHistory(conversationHistory);
+  const historyLength = history.length;
 
-  const systemPrompt = buildSweetSystemPrompt(userContext, tripContext);
+  const [userContext] = await Promise.all([loadUserContext(userId)]);
+
+  const systemPrompt = buildSweetSystemPrompt(userContext, tripContext, historyLength);
   const rawReply = await geminiChat(message, history, systemPrompt);
   const { reply, pendingAction } = parseActionBlock(rawReply);
 
@@ -262,12 +291,12 @@ const chatStream = async (userId, message, conversationHistory, tripContext, res
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
-  const [userContext, history] = await Promise.all([
-    loadUserContext(userId),
-    Promise.resolve(trimHistory(conversationHistory)),
-  ]);
+  const history = trimHistory(conversationHistory);
+  const historyLength = history.length;
 
-  const systemPrompt = buildSweetSystemPrompt(userContext, tripContext);
+  const [userContext] = await Promise.all([loadUserContext(userId)]);
+
+  const systemPrompt = buildSweetSystemPrompt(userContext, tripContext, historyLength);
   await geminiChatStream(message, history, systemPrompt, res);
 };
 
@@ -301,6 +330,11 @@ const executeAction = async (userId, pendingAction) => {
 
     // createTrip returns the enriched trip object directly
     const trip = await tripsService.createTrip(userId, body);
+
+    // Create suggested activities if Swee collected them during the conversation
+    if (Array.isArray(draft.activities) && draft.activities.length > 0) {
+      await bulkCreateActivities(trip.id, userId, draft.activities);
+    }
 
     await writePlanningNote('trip', trip.id, userId, draft);
 
