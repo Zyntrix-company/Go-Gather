@@ -221,6 +221,31 @@ async function writePlanningNote(parentType, parentId, userId, planningData) {
  * @param {string} userId
  * @param {Array<{title:string, date?:string, time?:{hour:number,minute:number}, locationName?:string, description?:string}>} activities
  */
+/**
+ * Parse a time value from the AI into { hour, minute }.
+ * Accepts: "17:00", "08:30", 17, 930, { hour:17, minute:0 }
+ */
+function parseActivityTime(rawTime) {
+  if (!rawTime) return null;
+  if (typeof rawTime === 'object' && rawTime !== null) {
+    const h = parseInt(rawTime.hour, 10);
+    const m = parseInt(rawTime.minute ?? 0, 10);
+    if (!isNaN(h)) return { hour: h, minute: isNaN(m) ? 0 : m };
+  }
+  if (typeof rawTime === 'string') {
+    const match = rawTime.match(/^(\d{1,2}):(\d{2})$/);
+    if (match) return { hour: parseInt(match[1], 10), minute: parseInt(match[2], 10) };
+  }
+  if (typeof rawTime === 'number') {
+    // Support compact like 900 = 9:00, 1730 = 17:30
+    if (rawTime < 24) return { hour: rawTime, minute: 0 };
+    const h = Math.floor(rawTime / 100);
+    const m = rawTime % 100;
+    if (h < 24 && m < 60) return { hour: h, minute: m };
+  }
+  return null;
+}
+
 async function bulkCreateActivities(tripId, userId, activities) {
   const activitiesService = require('../trips/submodules/activities/activities.service');
   for (const act of activities) {
@@ -229,13 +254,62 @@ async function bulkCreateActivities(tripId, userId, activities) {
       await activitiesService.createActivity(tripId, userId, {
         title: String(act.title).slice(0, 255),
         date: act.date || null,
-        time: act.time || null,
+        time: parseActivityTime(act.time),
         locationName: act.locationName || null,
         description: act.description || null,
       });
     } catch (err) {
       logger.warn('bulkCreateActivities: activity skipped', { title: act.title, error: err.message });
     }
+  }
+}
+
+/**
+ * Build smart default notes for a newly created trip or event.
+ * Returns an array of note objects { title, content }.
+ */
+function buildSmartNotes(type, draft) {
+  const notes = [];
+
+  if (type === 'trip') {
+    notes.push({ title: 'Documents checklist', content: 'Passport / ID, Visa (if needed), Travel insurance, Hotel confirmations, Flight tickets' });
+    notes.push({ title: 'Packing essentials', content: 'Chargers, Adapters, Medications, Sunscreen, Comfortable footwear' });
+    if (draft.destination) {
+      notes.push({ title: 'Local tips', content: `Things to research before visiting ${draft.destination}: local currency, emergency contacts, transport options, tipping customs` });
+    }
+    if (draft.notes && String(draft.notes).trim()) {
+      notes.push({ title: 'Special preferences', content: String(draft.notes).trim() });
+    }
+  }
+
+  if (type === 'event') {
+    notes.push({ title: 'Event checklist', content: 'Confirm venue booking, Notify guests, Arrange transport, Prepare any materials/gifts' });
+    if (draft.notes && String(draft.notes).trim()) {
+      notes.push({ title: 'Notes', content: String(draft.notes).trim() });
+    }
+  }
+
+  return notes;
+}
+
+/**
+ * Write smart default notes + any planning notes for a trip or event.
+ */
+async function writeAllNotes(type, parentId, userId, draft) {
+  const smartNotes = buildSmartNotes(type, draft);
+  await writePlanningNote(type, parentId, userId, draft); // existing planning meta note
+
+  try {
+    const sharedNotes = require('../shared/notes/notes.service');
+    for (const n of smartNotes) {
+      await sharedNotes.createNote(
+        { parentType: type, parentId },
+        userId,
+        { title: n.title, content: n.content, category: 'general' },
+      );
+    }
+  } catch (err) {
+    logger.warn('writeAllNotes: smart notes skipped', { parentId, error: err.message });
   }
 }
 
@@ -336,7 +410,7 @@ const executeAction = async (userId, pendingAction) => {
       await bulkCreateActivities(trip.id, userId, draft.activities);
     }
 
-    await writePlanningNote('trip', trip.id, userId, draft);
+    await writeAllNotes('trip', trip.id, userId, draft);
 
     return {
       reply: 'Trip created! Add places and invite friends now.',
@@ -369,7 +443,7 @@ const executeAction = async (userId, pendingAction) => {
     // createEvent returns the enriched event object directly
     const event = await eventsService.createEvent(userId, body);
 
-    await writePlanningNote('event', event.id, userId, draft);
+    await writeAllNotes('event', event.id, userId, draft);
 
     return {
       reply: 'Event created! You can invite your friends directly from the event page.',
