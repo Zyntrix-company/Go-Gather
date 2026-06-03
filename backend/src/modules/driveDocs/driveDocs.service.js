@@ -1,0 +1,201 @@
+const { v4: uuidv4 } = require('uuid');
+
+const { query: db }              = require('../../config/database');
+const { encrypt, decrypt }       = require('../../utils/encrypt.util');
+const { uploadToS3, sanitiseFilename } = require('../../utils/s3.util');
+const { validateMimeFromBuffer } = require('../../middleware/upload.middleware');
+const driveProvider              = require('../emailDocs/providers/drive.provider');
+
+// Re-use state helpers from emailDocs service (generateState, validateState, getValidAccessToken)
+const emailDocsService = require('../emailDocs/emailDocs.service');
+
+const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const MAX_DOCS       = 50;
+
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+  'text/csv',
+]);
+
+// ── Public exports ──────────────────────────────────────────────────────────
+
+// Expose generateState so controller can create CSRF state
+const { generateState } = emailDocsService;
+
+async function handleOAuthCallback(code, state) {
+  // Reuse emailDocs OAuth callback, passing 'drive' as the provider.
+  // emailDocs.service already supports any provider stored in email_oauth_tokens.
+  return emailDocsService.handleOAuthCallback('drive', code, state);
+}
+
+async function getStatus(userId) {
+  const result = await db(
+    'SELECT email FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2',
+    [userId, 'drive'],
+  );
+  if (result.rowCount === 0) return { connected: false, email: null };
+  return { connected: true, email: result.rows[0].email };
+}
+
+async function listFiles(userId, folderId) {
+  // getValidAccessToken is not exported from emailDocs — replicate the lookup here
+  const result = await db(
+    'SELECT * FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2',
+    [userId, 'drive'],
+  );
+  if (result.rowCount === 0) {
+    const e = new Error('Google Drive not connected');
+    e.statusCode = 401; e.error = 'NOT_CONNECTED'; throw e;
+  }
+
+  const row      = result.rows[0];
+  const bufferMs = 5 * 60 * 1000;
+  let accessToken;
+
+  if (new Date(row.token_expiry) > new Date(Date.now() + bufferMs)) {
+    accessToken = decrypt(row.access_token);
+  } else {
+    const plainRefresh = decrypt(row.refresh_token);
+    let newTokens;
+    try {
+      newTokens = await driveProvider.refreshAccessToken(plainRefresh);
+    } catch {
+      await db('DELETE FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2', [userId, 'drive']);
+      const e = new Error('Drive authorization expired — please reconnect');
+      e.statusCode = 401; e.error = 'REAUTH_REQUIRED'; throw e;
+    }
+    const newEncAccess  = encrypt(newTokens.accessToken);
+    const newEncRefresh = newTokens.refreshToken ? encrypt(newTokens.refreshToken) : row.refresh_token;
+    await db(
+      'UPDATE email_oauth_tokens SET access_token=$1, refresh_token=$2, token_expiry=$3, updated_at=NOW() WHERE user_id=$4 AND provider=$5',
+      [newEncAccess, newEncRefresh, newTokens.expiresAt, userId, 'drive'],
+    );
+    accessToken = newTokens.accessToken;
+  }
+
+  const files = await driveProvider.listFiles(accessToken, folderId);
+  return { files, total: files.length };
+}
+
+async function importFiles(userId, parentType, parentId, files) {
+  const countRes = await db(
+    'SELECT COUNT(*) FROM docs WHERE parent_type = $1 AND parent_id = $2',
+    [parentType, parentId],
+  );
+  const currentCount = parseInt(countRes.rows[0].count, 10);
+  if (currentCount + files.length > MAX_DOCS) {
+    const label = parentType === 'event' ? 'event' : 'trip';
+    const e = new Error(`This ${label} already has ${currentCount} documents. Adding ${files.length} more would exceed the ${MAX_DOCS} document limit.`);
+    e.statusCode = 422; e.error = 'LIMIT_EXCEEDED'; throw e;
+  }
+
+  // Resolve access token once for the whole batch
+  const tokenRes = await db(
+    'SELECT * FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2',
+    [userId, 'drive'],
+  );
+  if (tokenRes.rowCount === 0) {
+    const e = new Error('Google Drive not connected');
+    e.statusCode = 401; e.error = 'NOT_CONNECTED'; throw e;
+  }
+  const row      = tokenRes.rows[0];
+  const bufferMs = 5 * 60 * 1000;
+  let accessToken;
+  if (new Date(row.token_expiry) > new Date(Date.now() + bufferMs)) {
+    accessToken = decrypt(row.access_token);
+  } else {
+    const plainRefresh = decrypt(row.refresh_token);
+    try {
+      const newTokens = await driveProvider.refreshAccessToken(plainRefresh);
+      accessToken = newTokens.accessToken;
+      const newEncAccess  = encrypt(newTokens.accessToken);
+      const newEncRefresh = newTokens.refreshToken ? encrypt(newTokens.refreshToken) : row.refresh_token;
+      await db(
+        'UPDATE email_oauth_tokens SET access_token=$1, refresh_token=$2, token_expiry=$3, updated_at=NOW() WHERE user_id=$4 AND provider=$5',
+        [newEncAccess, newEncRefresh, newTokens.expiresAt, userId, 'drive'],
+      );
+    } catch {
+      await db('DELETE FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2', [userId, 'drive']);
+      const e = new Error('Drive authorization expired — please reconnect');
+      e.statusCode = 401; e.error = 'REAUTH_REQUIRED'; throw e;
+    }
+  }
+
+  const imported = [];
+  const failed   = [];
+
+  for (const { fileId, name, mimeType } of files) {
+    const fileName = name || 'document';
+    try {
+      const buffer = await driveProvider.downloadFile(accessToken, fileId);
+
+      if (buffer.length > MAX_FILE_BYTES) {
+        failed.push({ fileName, reason: 'FILE_TOO_LARGE' });
+        continue;
+      }
+
+      // Accept mimeType reported by Drive if it's in our allowed set;
+      // fall back to MIME sniffing for images/pdf.
+      let resolvedMime = ALLOWED_MIME_TYPES.has(mimeType) ? mimeType : null;
+      if (!resolvedMime) {
+        // Try sniffing from bytes (images + pdf only)
+        for (const allowed of ['application/pdf', 'image/jpeg', 'image/png']) {
+          if (validateMimeFromBuffer(buffer, allowed)) { resolvedMime = allowed; break; }
+        }
+      }
+      if (!resolvedMime) {
+        failed.push({ fileName, reason: 'INVALID_FILE_TYPE' });
+        continue;
+      }
+
+      const s3Key = `${parentType}s/${parentId}/docs/${uuidv4()}-${sanitiseFilename(fileName)}`;
+      await uploadToS3(buffer, s3Key, resolvedMime);
+
+      const docRes = await db(
+        `INSERT INTO docs (parent_type, parent_id, uploaded_by, file_name, file_url, s3_key, file_size_bytes, mime_type)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id`,
+        [parentType, parentId, userId, fileName, s3Key, s3Key, buffer.length, resolvedMime],
+      );
+
+      imported.push({ docId: docRes.rows[0].id, fileName, fileUrl: s3Key });
+    } catch (err) {
+      if (err.error === 'NOT_CONNECTED' || err.error === 'REAUTH_REQUIRED') throw err;
+      failed.push({ fileName, reason: err.error || 'UNKNOWN_ERROR' });
+    }
+  }
+
+  return { imported, failed };
+}
+
+async function disconnect(userId) {
+  const result = await db(
+    'SELECT access_token FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2',
+    [userId, 'drive'],
+  );
+  if (result.rowCount === 0) {
+    const e = new Error('No Drive connection found');
+    e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
+  }
+  try {
+    const plainAccessToken = decrypt(result.rows[0].access_token);
+    await driveProvider.revokeToken(plainAccessToken);
+  } catch {}
+  await db('DELETE FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2', [userId, 'drive']);
+}
+
+module.exports = {
+  generateState,
+  handleOAuthCallback,
+  getStatus,
+  listFiles,
+  importFiles,
+  disconnect,
+};

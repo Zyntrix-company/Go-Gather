@@ -17,6 +17,7 @@ const friendsRoutes = require('./modules/friends/friends.routes');
 const invitesRoutes = require('./modules/invites/invites.routes');
 const contactRoutes = require('./modules/contact/contact.routes');
 const { authRouter: emailAuthRoutes, emailDocsRouter } = require('./modules/emailDocs/emailDocs.routes');
+const { authRouter: driveAuthRoutes, driveDocsRouter } = require('./modules/driveDocs/driveDocs.routes');
 const aiRoutes = require('./modules/ai/ai.routes');
 const blogsRoutes         = require('./modules/blogs/blogs.routes');
 const dealsRoutes         = require('./modules/deals/deals.routes');
@@ -116,6 +117,8 @@ app.use('/api/contact', contactRoutes);
 app.use('/admin',       adminRoutes);
 app.use('/auth',        emailAuthRoutes);
 app.use('/email-docs',  emailDocsRouter);
+app.use('/auth',        driveAuthRoutes);
+app.use('/drive-docs',  driveDocsRouter);
 
 /* ───────────────────────────────────────────
  * 404 Handler

@@ -54,11 +54,19 @@ module.exports = {
     platformAppArnAndroid: process.env.AWS_SNS_PLATFORM_APP_ARN_ANDROID,
   },
 
+  // ─── Brevo (transactional email) ─────────────
+  brevo: {
+    apiKey: process.env.BREVO_API_KEY,
+    fromEmail: process.env.BREVO_FROM_EMAIL,
+    fromName: process.env.BREVO_FROM_NAME || 'Gatherrgo',
+  },
+
   // ─── Google OAuth ────────────────────────────
   google: {
-    clientId:     process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    redirectUri:  process.env.GOOGLE_REDIRECT_URI,
+    clientId:         process.env.GOOGLE_CLIENT_ID,
+    clientSecret:     process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri:      process.env.GOOGLE_REDIRECT_URI,
+    driveRedirectUri: process.env.GOOGLE_DRIVE_REDIRECT_URI,
   },
 
   // ─── Microsoft / Outlook OAuth ───────────────
