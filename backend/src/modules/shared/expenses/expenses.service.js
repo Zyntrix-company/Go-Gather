@@ -71,17 +71,38 @@ const computeSplits = (totalAmount, splitType, splitAmong, payerId) => {
 
 const computeSimplifiedDebts = async (parentType, parentId) => {
   const splitsResult = await db(
-    `SELECT es.user_id, es.amount, e.paid_by
+    `SELECT es.user_id, es.amount, e.paid_by, COALESCE(e.currency, 'INR') AS currency
      FROM expense_splits es
      JOIN expenses e ON e.id = es.expense_id
      WHERE e.parent_type = $1 AND e.parent_id = $2`,
     [parentType, parentId],
   );
   const settlementsResult = await db(
-    `SELECT paid_by, paid_to, amount FROM settlements WHERE parent_type = $1 AND parent_id = $2`,
+    `SELECT paid_by, paid_to, amount, COALESCE(currency, 'INR') AS currency
+     FROM settlements WHERE parent_type = $1 AND parent_id = $2`,
     [parentType, parentId],
   );
-  return simplifyDebts(buildTransactions(splitsResult.rows, settlementsResult.rows));
+
+  // Group splits and settlements by currency, run simplifyDebts independently per group
+  const currencyGroups = {};
+  for (const row of splitsResult.rows) {
+    const cur = row.currency || 'INR';
+    if (!currencyGroups[cur]) currencyGroups[cur] = { splits: [], settlements: [] };
+    currencyGroups[cur].splits.push(row);
+  }
+  for (const row of settlementsResult.rows) {
+    const cur = row.currency || 'INR';
+    if (!currencyGroups[cur]) currencyGroups[cur] = { splits: [], settlements: [] };
+    currencyGroups[cur].settlements.push(row);
+  }
+
+  const results = [];
+  for (const [currency, { splits, settlements }] of Object.entries(currencyGroups)) {
+    const txns = buildTransactions(splits, settlements);
+    const simplified = simplifyDebts(txns);
+    results.push(...simplified.map((d) => ({ ...d, currency })));
+  }
+  return results;
 };
 
 const enrichSimplifiedDebts = async (simplified, currentUserId = null) => {
@@ -94,13 +115,15 @@ const enrichSimplifiedDebts = async (simplified, currentUserId = null) => {
     fromName: currentUserId && t.from === currentUserId ? 'You' : (profiles[t.from]?.name || 'Member'),
     toName:   currentUserId && t.to   === currentUserId ? 'You' : (profiles[t.to]?.name   || 'Member'),
     amount: t.amount,
+    currency: t.currency || 'INR',
   }));
 };
 
 // ─── Add Expense ──────────────────────────────────────────────────────────────
 
 const addExpense = async ({ parentType, parentId }, createdBy, body) => {
-  const { description, amount, category, paidBy, splitType, splitAmong } = body;
+  const { description, amount, category, paidBy, splitType, splitAmong, currency = 'INR' } = body;
+  const resolvedCurrency = (typeof currency === 'string' ? currency.toUpperCase() : 'INR') || 'INR';
 
   const resolvedCategory = VALID_CATEGORIES.includes(category) ? category : 'general';
 
@@ -116,9 +139,9 @@ const addExpense = async ({ parentType, parentId }, createdBy, body) => {
     await client.query('BEGIN');
 
     const expResult = await client.query(
-      `INSERT INTO expenses (parent_type, parent_id, description, amount, category, paid_by, split_type, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [parentType, parentId, description, amount, resolvedCategory, paidBy, splitType, createdBy],
+      `INSERT INTO expenses (parent_type, parent_id, description, amount, category, paid_by, split_type, created_by, currency)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [parentType, parentId, description, amount, resolvedCategory, paidBy, splitType, createdBy, resolvedCurrency],
     );
     const expense = expResult.rows[0];
 
@@ -189,11 +212,16 @@ const getExpenses = async ({ parentType, parentId }, { category, page = 1, limit
   if (category) { catFilter = `AND e.category = $${params.push(category)}`; }
 
   const grandTotalResult = await db(
-    `SELECT COALESCE(SUM(amount), 0)::numeric AS grand_total
-     FROM expenses WHERE parent_type = $1 AND parent_id = $2`,
+    `SELECT COALESCE(currency, 'INR') AS currency, COALESCE(SUM(amount), 0)::numeric AS grand_total
+     FROM expenses WHERE parent_type = $1 AND parent_id = $2
+     GROUP BY currency`,
     [parentType, parentId],
   );
-  const grandTotal = parseFloat(grandTotalResult.rows[0].grand_total);
+  const grandTotalByCurrency = {};
+  for (const row of grandTotalResult.rows) {
+    grandTotalByCurrency[row.currency] = parseFloat(row.grand_total);
+  }
+  const grandTotal = grandTotalByCurrency['INR'] ?? Object.values(grandTotalByCurrency)[0] ?? 0;
 
   const result = await db(
     `SELECT
@@ -226,6 +254,7 @@ const getExpenses = async ({ parentType, parentId }, { category, page = 1, limit
     id: row.id,
     description: row.description,
     amount: parseFloat(row.amount),
+    currency: row.currency || 'INR',
     category: row.category,
     paidBy: {
       userId: row.paid_by,
@@ -244,7 +273,7 @@ const getExpenses = async ({ parentType, parentId }, { category, page = 1, limit
     createdAt: row.created_at,
   }));
 
-  return { expenses, total, page, limit: safLimit, grandTotal };
+  return { expenses, total, page, limit: safLimit, grandTotal, grandTotalByCurrency };
 };
 
 // ─── Update Expense ───────────────────────────────────────────────────────────
@@ -289,6 +318,10 @@ const updateExpense = async ({ parentType, parentId }, expId, requesterId, reque
     if (body.category    !== undefined) {
       const cat = VALID_CATEGORIES.includes(body.category) ? body.category : 'general';
       fields.push(`category = $${idx++}`); values.push(cat);
+    }
+    if (body.currency  !== undefined) {
+      fields.push(`currency = $${idx++}`);
+      values.push((typeof body.currency === 'string' ? body.currency.toUpperCase() : 'INR') || 'INR');
     }
     if (body.paidBy    !== undefined) { fields.push(`paid_by = $${idx++}`);    values.push(body.paidBy); }
     if (body.splitType !== undefined) { fields.push(`split_type = $${idx++}`); values.push(body.splitType); }
@@ -360,44 +393,67 @@ const deleteExpense = async ({ parentType, parentId }, expId, requesterId, reque
 const getBalances = async ({ parentType, parentId }, userId) => {
   const [paidResult, shareResult, totalResult] = await Promise.all([
     db(
-      `SELECT COALESCE(SUM(amount), 0) AS total_paid
-       FROM expenses WHERE parent_type = $1 AND parent_id = $2 AND paid_by = $3`,
+      `SELECT COALESCE(currency, 'INR') AS currency, COALESCE(SUM(amount), 0) AS total_paid
+       FROM expenses WHERE parent_type = $1 AND parent_id = $2 AND paid_by = $3
+       GROUP BY currency`,
       [parentType, parentId, userId],
     ),
     db(
-      `SELECT COALESCE(SUM(es.amount), 0) AS total_share
+      `SELECT COALESCE(e.currency, 'INR') AS currency, COALESCE(SUM(es.amount), 0) AS total_share
        FROM expense_splits es
        JOIN expenses e ON e.id = es.expense_id
-       WHERE e.parent_type = $1 AND e.parent_id = $2 AND es.user_id = $3`,
+       WHERE e.parent_type = $1 AND e.parent_id = $2 AND es.user_id = $3
+       GROUP BY e.currency`,
       [parentType, parentId, userId],
     ),
     db(
-      `SELECT COALESCE(SUM(amount), 0) AS total
-       FROM expenses WHERE parent_type = $1 AND parent_id = $2`,
+      `SELECT COALESCE(currency, 'INR') AS currency, COALESCE(SUM(amount), 0) AS total
+       FROM expenses WHERE parent_type = $1 AND parent_id = $2
+       GROUP BY currency`,
       [parentType, parentId],
     ),
   ]);
 
-  const youPaid    = parseFloat(paidResult.rows[0].total_paid);
-  const yourShare  = parseFloat(shareResult.rows[0].total_share);
-  const yoursTotal = parseFloat(totalResult.rows[0].total);
+  // Build the set of all currencies present across all three result sets
+  const allCurrencies = new Set([
+    ...paidResult.rows.map((r) => r.currency),
+    ...shareResult.rows.map((r) => r.currency),
+    ...totalResult.rows.map((r) => r.currency),
+  ]);
+
+  const myBalances = {};
+  const totalExpensesByCurrency = {};
+
+  for (const currency of allCurrencies) {
+    const paid  = parseFloat(paidResult.rows.find((r) => r.currency === currency)?.total_paid  ?? '0');
+    const share = parseFloat(shareResult.rows.find((r) => r.currency === currency)?.total_share ?? '0');
+    const total = parseFloat(totalResult.rows.find((r) => r.currency === currency)?.total      ?? '0');
+    myBalances[currency] = Math.round((paid - share) * 100) / 100;
+    totalExpensesByCurrency[currency] = String(total);
+  }
 
   const simplified = await computeSimplifiedDebts(parentType, parentId);
   const debts = await enrichSimplifiedDebts(simplified, userId);
 
+  // Legacy single-value fields (primary = INR, or first available) for backward compatibility
+  const primaryCurrency = myBalances['INR'] !== undefined ? 'INR' : (Object.keys(myBalances)[0] ?? 'INR');
+
   return {
     debts,
-    myBalance: Math.round((youPaid - yourShare) * 100) / 100,
-    totalExpenses: String(yoursTotal),
+    myBalances,
+    totalExpensesByCurrency,
+    myBalance: myBalances[primaryCurrency] ?? 0,
+    totalExpenses: totalExpensesByCurrency[primaryCurrency] ?? '0',
   };
 };
 
 // ─── Settle ───────────────────────────────────────────────────────────────────
 
-const settle = async ({ parentType, parentId }, payerId, { withUserId, amount }) => {
+const settle = async ({ parentType, parentId }, payerId, { withUserId, amount, currency = 'INR' }) => {
+  const resolvedCurrency = (typeof currency === 'string' ? currency.toUpperCase() : 'INR') || 'INR';
   await db(
-    'INSERT INTO settlements (parent_type, parent_id, paid_by, paid_to, amount) VALUES ($1, $2, $3, $4, $5)',
-    [parentType, parentId, payerId, withUserId, amount],
+    'INSERT INTO settlements (parent_type, parent_id, paid_by, paid_to, amount, currency) VALUES ($1, $2, $3, $4, $5, $6)',
+    [parentType, parentId, payerId, withUserId, amount, resolvedCurrency],
   );
   const simplified = await computeSimplifiedDebts(parentType, parentId);
   return enrichSimplifiedDebts(simplified, payerId);
@@ -429,6 +485,7 @@ const formatExpense = (e, splits, profiles = {}) => {
     parentId: e.parent_id,
     description: e.description,
     amount: parseFloat(e.amount),
+    currency: e.currency || 'INR',
     category: e.category || 'general',
     createdBy: e.created_by,
     paidBy: {
