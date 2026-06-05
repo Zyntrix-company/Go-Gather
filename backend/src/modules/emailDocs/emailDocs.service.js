@@ -277,6 +277,7 @@ async function disconnect(userId, provider) {
 
 module.exports = {
   generateState,
+  validateState,
   handleOAuthCallback,
   getStatus,
   listAttachments,

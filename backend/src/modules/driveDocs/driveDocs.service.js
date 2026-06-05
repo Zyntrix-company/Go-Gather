@@ -26,13 +26,38 @@ const ALLOWED_MIME_TYPES = new Set([
 
 // ── Public exports ──────────────────────────────────────────────────────────
 
-// Expose generateState so controller can create CSRF state
-const { generateState } = emailDocsService;
+// Expose state helpers from emailDocs service
+const { generateState, validateState } = emailDocsService;
 
 async function handleOAuthCallback(code, state) {
-  // Reuse emailDocs OAuth callback, passing 'drive' as the provider.
-  // emailDocs.service already supports any provider stored in email_oauth_tokens.
-  return emailDocsService.handleOAuthCallback('drive', code, state);
+  const userId = validateState(state);
+
+  let tokens;
+  try {
+    tokens = await driveProvider.exchangeCode(code);
+  } catch (err) {
+    const e = new Error('Failed to exchange OAuth code with Google Drive');
+    e.statusCode = 502;
+    e.error = 'PROVIDER_ERROR';
+    throw e;
+  }
+
+  const encryptedAccess  = encrypt(tokens.accessToken);
+  const encryptedRefresh = encrypt(tokens.refreshToken);
+
+  await db(
+    `INSERT INTO email_oauth_tokens (user_id, provider, access_token, refresh_token, token_expiry, email)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (user_id, provider) DO UPDATE
+       SET access_token  = EXCLUDED.access_token,
+           refresh_token = EXCLUDED.refresh_token,
+           token_expiry  = EXCLUDED.token_expiry,
+           email         = EXCLUDED.email,
+           updated_at    = NOW()`,
+    [userId, 'drive', encryptedAccess, encryptedRefresh, tokens.expiresAt, tokens.email],
+  );
+
+  return { provider: 'drive', email: tokens.email };
 }
 
 async function getStatus(userId) {
