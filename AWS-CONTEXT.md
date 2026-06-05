@@ -123,9 +123,7 @@ Reference template: `backend/.env.example`.
 | `EC2_USER` | Backend SSH (typically `ubuntu`) |
 | `EC2_SSH_KEY` | Private key for SSH |
 | `FIREBASE_SERVICE_ACCOUNT_B64` | Injected into EC2 `backend/.env` on deploy |
-| `BREVO_API_KEY` | Brevo transactional email (injected on backend deploy) |
-| `BREVO_FROM_EMAIL` | Optional; defaults to `Hello@GatherrGo.com` on deploy |
-| `BREVO_FROM_NAME` | Optional; defaults to `Gatherrgo` on deploy |
+| `BREVO_*` | **Not** in GitHub — set once in EC2 `backend/.env` only (deploy leaves them unchanged) |
 | `CLOUDFRONT_FRONTEND_DISTRIBUTION_ID` | Frontend cache invalidation |
 | `CLOUDFRONT_ADMIN_DISTRIBUTION_ID` | Admin cache invalidation |
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run on the API EC2 host. Set BREVO_* in .env and recreate gathergo-container.
+# One-time setup on the API EC2 host. Brevo lives permanently in backend/.env;
+# backend deploy does NOT read or overwrite BREVO_* (no GitHub secret dependency).
 # Usage (do not commit the key):
 #   export BREVO_API_KEY='your-brevo-key'
 #   export BREVO_FROM_EMAIL='Hello@GatherrGo.com'
