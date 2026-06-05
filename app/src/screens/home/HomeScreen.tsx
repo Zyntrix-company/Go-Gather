@@ -1030,8 +1030,9 @@ export default function HomeScreen({ navigation, route }: any) {
           borderColor: '#E0DBD3',
           backgroundColor: 'transparent',
           marginHorizontal: H_PAD,
-          paddingHorizontal: isNarrowSearch ? 10 : 12,
-          paddingVertical: 6,
+          paddingLeft: isNarrowSearch ? 10 : 12,
+          paddingRight: 4,
+          paddingVertical: 4,
           gap: isNarrowSearch ? 6 : 8,
         }}>
           <Search size={isNarrowSearch ? 16 : 18} color="#94a3b8" />
@@ -1058,11 +1059,13 @@ export default function HomeScreen({ navigation, route }: any) {
             style={{
               flexDirection: 'row',
               alignItems: 'center',
+              justifyContent: 'center',
+              alignSelf: 'stretch',
               flexShrink: 0,
               backgroundColor: '#009788',
               borderRadius: 999,
-              paddingHorizontal: isTinySearch ? 9 : isNarrowSearch ? 10 : 12,
-              paddingVertical: isNarrowSearch ? 6 : 7,
+              minWidth: isTinySearch ? 41 : isNarrowSearch ? 80 : 90,
+              paddingHorizontal: isTinySearch ? 7 : isNarrowSearch ? 9 : 10,
               gap: isTinySearch ? 0 : 5,
             }}>
             <Sparkles size={isNarrowSearch ? 14 : 15} color="#fff" />
@@ -1830,7 +1833,7 @@ const styles = StyleSheet.create({
   cardBody: { padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardMain: { flex: 1, paddingRight: 8 },
   // Figma: text-base font-bold text-slate-900
-  cardTitle: { fontSize: 16, fontWeight: '400', color: '#009788', marginBottom: 4, lineHeight: 22 },
+  cardTitle: { fontSize: 15, fontWeight: '400', color: '#009788', marginBottom: 4, lineHeight: 21 },
   infoItem: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   // Figma: text-xs text-slate-600
   infoText: { fontSize: 12, color: '#475569', fontWeight: '400' },

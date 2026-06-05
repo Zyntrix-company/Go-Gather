@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import type { GroupExpenseTotals } from '../../utils/expenseTotals';
+import { formatCurrency } from '../../utils/currency';
 
 type Props = {
   totals: GroupExpenseTotals;
@@ -20,9 +21,13 @@ type Props = {
 };
 
 export default function ExpenseTotalsTab({ totals, styles: s }: Props) {
-  const { groupTotal, members } = totals;
+  const { byCurrency } = totals;
 
-  if (groupTotal <= 0 && members.every(m => m.shareTotal <= 0 && m.paidTotal <= 0)) {
+  const hasExpenses = byCurrency.some(
+    c => c.groupTotal > 0 || c.members.some(m => m.shareTotal > 0 || m.paidTotal > 0),
+  );
+
+  if (!hasExpenses) {
     return (
       <View style={s.emptyCenter}>
         <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
@@ -40,29 +45,42 @@ export default function ExpenseTotalsTab({ totals, styles: s }: Props) {
     );
   }
 
+  // Single combined total string: "₹1,200 + $50 + €30"
+  const totalSummary = byCurrency
+    .filter(c => c.groupTotal > 0)
+    .map(c => formatCurrency(c.groupTotal, c.currency))
+    .join('  +  ');
+
+  const memberCount = byCurrency[0]?.members.length ?? 0;
+
   return (
     <View>
+      {/* One group total card showing all currencies inline */}
       <View style={[local.groupCard, s.balCard]}>
         <Text style={s.balLabel}>Group total expenditure</Text>
-        <Text style={[s.balValue, { fontSize: 22 }]}>₹{groupTotal.toFixed(2)}</Text>
-        <Text style={local.groupHint}>{members.length} member{members.length !== 1 ? 's' : ''}</Text>
+        <Text style={[s.balValue, { fontSize: byCurrency.length > 1 ? 18 : 22 }]}>{totalSummary}</Text>
+        <Text style={local.groupHint}>
+          {memberCount} member{memberCount !== 1 ? 's' : ''}
+        </Text>
       </View>
 
       <Text style={local.sectionLabel}>Individual breakdown</Text>
 
-      {members.map(m => (
-        <View key={m.userId} style={[s.expRow, { alignItems: 'flex-start' }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.expName}>{m.name}</Text>
-            <Text style={s.expMeta}>Share of group spend</Text>
-            <Text style={[s.expAmt, { marginTop: 4 }]}>₹{m.shareTotal.toFixed(2)}</Text>
+      {/* Per-currency member rows — no section headers, amounts are self-labelled */}
+      {byCurrency.map(({ currency, members }) =>
+        members.map(m => (
+          <View key={`${m.userId}-${currency}`} style={[s.expRow, { alignItems: 'flex-start' }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.expName}>{m.name}</Text>
+              <Text style={[s.expAmt, { marginTop: 4 }]}>{formatCurrency(m.shareTotal, currency)}</Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={s.expMeta}>Paid out</Text>
+              <Text style={[s.expAmt, { color: '#0d9488' }]}>{formatCurrency(m.paidTotal, currency)}</Text>
+            </View>
           </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={s.expMeta}>Paid out</Text>
-            <Text style={[s.expAmt, { color: '#0d9488' }]}>₹{m.paidTotal.toFixed(2)}</Text>
-          </View>
-        </View>
-      ))}
+        )),
+      )}
     </View>
   );
 }

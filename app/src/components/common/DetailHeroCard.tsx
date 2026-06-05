@@ -30,7 +30,8 @@ export interface DetailHeroCardProps {
   memberAvatars?: { id: string; uri: string }[];
   docCount: number;
   photoCount: number;
-  totalExpenses: number;
+  /** Pre-formatted expense label, e.g. '₹1,200' or '₹1,200 +1' for multi-currency */
+  totalExpenses: number | string;
   /** Optional tag badge text (e.g. event type) */
   typeBadge?: string;
   /** Background color for the type badge pill */
@@ -166,7 +167,7 @@ export default function DetailHeroCard({
           <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
             <Path d="M6 3h12M6 8h12M6 13l10 8M6 8a6 6 0 0 0 0 5h3a6 6 0 0 0 6-5" stroke="#009788" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
           </Svg>
-          <Text style={styles.statTxt}>{totalExpenses > 0 ? totalExpenses.toFixed(0) : '0'}</Text>
+          <Text style={styles.statTxt}>{typeof totalExpenses === 'string' ? (totalExpenses || '0') : (totalExpenses > 0 ? (totalExpenses as number).toFixed(0) : '0')}</Text>
         </View>
       </View>
     </LinearGradient>

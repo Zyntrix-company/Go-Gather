@@ -7,6 +7,7 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
+  Image,
   Linking,
   Alert,
 } from 'react-native';
@@ -24,6 +25,9 @@ import {
   getEmailStatus,
   getEmailConnectUrl,
   disconnectEmailProvider,
+  getDriveStatus,
+  getDriveConnectUrl,
+  disconnectDrive,
   type EmailProvider,
 } from '../../api/trips.api';
 
@@ -56,29 +60,31 @@ function normalizeStatus(data: unknown) {
 }
 
 const OAUTH_ERROR_LABELS: Record<string, string> = {
-  PROVIDER_ERROR: 'Sign-in with the provider failed. Check your Azure redirect URI and credentials.',
+  PROVIDER_ERROR: 'Sign-in with the provider failed. Check your redirect URI and credentials.',
   INVALID_STATE:  'Session expired — please try again.',
   STATE_EXPIRED:  'Session expired — please try again.',
   access_denied:  'Permission was denied. Please try again and accept all requested permissions.',
-  NO_CODE:        'No authorisation code received. Verify the redirect URI in Azure matches exactly.',
+  NO_CODE:        'No authorisation code received. Verify the redirect URI matches exactly.',
 };
 
 export default function ConnectedEmailScreen({ navigation, route }: { navigation: any; route: any }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState<EmailProvider | null>(null);
+  const [connecting, setConnecting] = useState<EmailProvider | 'drive' | null>(null);
   const [gmail, setGmail] = useState({ connected: false, email: null as string | null });
   const [outlook, setOutlook] = useState({ connected: false, email: null as string | null });
+  const [drive, setDrive] = useState({ connected: false, email: null as string | null });
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getEmailStatus();
-      const n = normalizeStatus(data);
+      const [emailData, driveData] = await Promise.all([getEmailStatus(), getDriveStatus()]);
+      const n = normalizeStatus(emailData);
       setGmail(n.gmail);
       setOutlook(n.outlook);
+      setDrive({ connected: Boolean(driveData?.connected), email: driveData?.email ?? null });
     } catch {
-      setError('Could not load email connections.');
+      setError('Could not load connected services.');
     } finally {
       setLoading(false);
     }
@@ -91,7 +97,7 @@ export default function ConnectedEmailScreen({ navigation, route }: { navigation
       oauthProvider?: string;
     };
     if (oauthSuccess === false && oauthError) {
-      const label = oauthProvider === 'outlook' ? 'Outlook' : oauthProvider === 'gmail' ? 'Gmail' : 'email';
+      const label = oauthProvider === 'outlook' ? 'Outlook' : oauthProvider === 'gmail' ? 'Gmail' : oauthProvider === 'drive' ? 'Google Drive' : 'service';
       const detail = OAUTH_ERROR_LABELS[oauthError] ?? `Error code: ${oauthError}`;
       setError(`Could not connect ${label}. ${detail}`);
     } else if (oauthSuccess === true) {
@@ -118,13 +124,25 @@ export default function ConnectedEmailScreen({ navigation, route }: { navigation
     try {
       const { url } = await getEmailConnectUrl(provider);
       const ok = await Linking.canOpenURL(url);
-      if (!ok) {
-        setError('Cannot open the sign-in page on this device.');
-        return;
-      }
+      if (!ok) { setError('Cannot open the sign-in page on this device.'); return; }
       await Linking.openURL(url);
     } catch {
       setError(`Could not start ${provider === 'gmail' ? 'Gmail' : 'Outlook'} connection. Try again.`);
+    } finally {
+      setConnecting(null);
+    }
+  }
+
+  async function onConnectDrive() {
+    setConnecting('drive');
+    setError(null);
+    try {
+      const { url } = await getDriveConnectUrl();
+      const ok = await Linking.canOpenURL(url);
+      if (!ok) { setError('Cannot open the sign-in page on this device.'); return; }
+      await Linking.openURL(url);
+    } catch {
+      setError('Could not start Google Drive connection. Try again.');
     } finally {
       setConnecting(null);
     }
@@ -152,6 +170,28 @@ export default function ConnectedEmailScreen({ navigation, route }: { navigation
     );
   }
 
+  function confirmDisconnectDrive() {
+    Alert.alert(
+      'Disconnect Google Drive?',
+      'Imported docs stay in your trips; you can reconnect anytime.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await disconnectDrive();
+              await load();
+            } catch {
+              setError('Could not disconnect. Try again.');
+            }
+          },
+        },
+      ],
+    );
+  }
+
   return (
     <BlobBackground>
       <SafeAreaView style={styles.safe}>
@@ -165,8 +205,8 @@ export default function ConnectedEmailScreen({ navigation, route }: { navigation
           </TouchableOpacity>
 
           <View style={styles.headerTextBlock}>
-            <Text style={styles.headerTitle}>Connect to your mail</Text>
-            <Text style={styles.headerSubtitle}>Link Gmail or Outlook to import travel docs</Text>
+            <Text style={styles.headerTitle}>Connected Services</Text>
+            <Text style={styles.headerSubtitle}>Link Gmail, Outlook or Google Drive to import travel docs</Text>
           </View>
 
           {loading && (
@@ -228,6 +268,46 @@ export default function ConnectedEmailScreen({ navigation, route }: { navigation
                   />
                 )}
               </EmailProviderGlassCard>
+
+              {/* Google Drive card */}
+              <View style={[emailProviderStyles.glassCard, { backgroundColor: 'rgba(66, 133, 244, 0.06)' }]}>
+                <View style={emailProviderStyles.glassCardContent}>
+                  <View style={emailProviderStyles.providerRowLabel}>
+                    <Image
+                      source={require('../../../assets/drive-icon.png')}
+                      style={{ width: 22, height: 22 }}
+                      resizeMode="contain"
+                    />
+                    <Text style={emailProviderStyles.providerLabelText}>Google Drive</Text>
+                  </View>
+                  {drive.connected ? (
+                    <>
+                      <View style={emailProviderStyles.connectedBadge}>
+                        <Text style={emailProviderStyles.connectedBadgeText}>Connected</Text>
+                      </View>
+                      <View style={styles.connectedRow}>
+                        <Text style={styles.connectedEmail} numberOfLines={1}>
+                          {drive.email || 'Connected'}
+                        </Text>
+                        <TouchableOpacity
+                          style={emailProviderStyles.glassSecondaryBtn}
+                          onPress={confirmDisconnectDrive}
+                          activeOpacity={0.8}>
+                          <Text style={styles.secondaryBtnText}>Disconnect</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  ) : (
+                    <EmailProviderOutlineButton
+                      label="Connect Google Drive"
+                      variant="glass"
+                      onPress={onConnectDrive}
+                      loading={connecting === 'drive'}
+                      disabled={connecting !== null && connecting !== 'drive'}
+                    />
+                  )}
+                </View>
+              </View>
 
               <Text style={styles.hint}>
                 After tapping Connect, sign in via your browser. Status refreshes when you return to this screen.

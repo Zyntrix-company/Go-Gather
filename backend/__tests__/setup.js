@@ -29,6 +29,10 @@ process.env.AWS_SES_FROM_EMAIL = 'noreply@gathergo.app';
 process.env.AWS_SES_ACCESS_KEY_ID = 'test-ses-key';
 process.env.AWS_SES_SECRET_ACCESS_KEY = 'test-ses-secret';
 
+// ── Brevo ─────────────────────────────────────────────────────────────────────
+process.env.BREVO_API_KEY = 'test-brevo-api-key';
+process.env.BREVO_FROM_EMAIL = 'noreply@gathergo.app';
+
 // ── SNS ───────────────────────────────────────────────────────────────────────
 process.env.AWS_SNS_PLATFORM_APP_ARN_IOS = 'arn:aws:sns:us-east-1:123456789:app/APNS/test';
 process.env.AWS_SNS_PLATFORM_APP_ARN_ANDROID = 'arn:aws:sns:us-east-1:123456789:app/GCM/test';

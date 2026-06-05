@@ -48,6 +48,10 @@ services:
       AWS_SES_FROM_EMAIL:   ${AWS_SES_FROM_EMAIL}
       AWS_SES_ACCESS_KEY_ID: ${AWS_SES_ACCESS_KEY_ID}
       AWS_SES_SECRET_ACCESS_KEY: ${AWS_SES_SECRET_ACCESS_KEY}
+      # ── Brevo (provider toggle in src/config/emailProvider.js) ─────────────
+      BREVO_API_KEY:        ${BREVO_API_KEY}
+      BREVO_FROM_EMAIL:     ${BREVO_FROM_EMAIL}
+      BREVO_FROM_NAME:      ${BREVO_FROM_NAME:-Gatherrgo}
       AWS_SNS_PLATFORM_APP_ARN_IOS:     ${AWS_SNS_PLATFORM_APP_ARN_IOS}
       AWS_SNS_PLATFORM_APP_ARN_ANDROID: ${AWS_SNS_PLATFORM_APP_ARN_ANDROID}
       # ── Auth ───────────────────────────────────────────────────────────────

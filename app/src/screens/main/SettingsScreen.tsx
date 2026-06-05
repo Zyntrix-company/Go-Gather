@@ -110,7 +110,7 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
             </View>
           </View>
 
-          <SectionTitle>Profile</SectionTitle>
+          <SectionTitle>Account</SectionTitle>
           <View style={styles.card}>
             <SettingsRow
               label="Profile info"
@@ -122,12 +122,6 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
               label="Change password"
               sub="Update your sign-in password"
               onPress={() => navigation.navigate('ChangePassword')}
-            />
-            <View style={styles.divider} />
-            <SettingsRow
-              label="Notifications"
-              sub="Your alerts and activity"
-              onPress={() => navigation.navigate('Notifications')}
             />
             <View style={styles.divider} />
             <SettingsRow
@@ -146,22 +140,11 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
             />
           </View>
 
-          <SectionTitle>Help & support</SectionTitle>
+          <SectionTitle>Privacy</SectionTitle>
           <View style={styles.card}>
             <SettingsRow
               label="Privacy policy"
               onPress={() => setLegal('privacy')}
-            />
-            <View style={styles.divider} />
-            <SettingsRow
-              label="Terms & conditions"
-              onPress={() => setLegal('terms')}
-            />
-            <View style={styles.divider} />
-            <SettingsRow
-              label="FAQ & help"
-              sub="Questions and answers"
-              onPress={() => navigation.navigate('Faq')}
             />
           </View>
         </ScrollView>

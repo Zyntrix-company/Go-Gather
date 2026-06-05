@@ -10,6 +10,7 @@ const { query } = require('../../config/database');
 const { sesClient, s3Client } = require('../../config/aws');
 const { uploadToS3, deleteFromS3, sanitiseFilename } = require('../../utils/s3.util');
 const config = require('../../config');
+const { EMAIL_PROVIDER } = require('../../config/emailProvider');
 const logger = require('../../utils/logger');
 const legalService = require('../legal/legal.service');
 
@@ -278,13 +279,18 @@ router.get('/health', async (_req, res) => {
     }
   }
 
-  // SES — GetSendQuota is read-only, sends nothing
-  try {
-    await sesClient.send(new GetSendQuotaCommand({}));
-    result.email = 'ok';
-  } catch (e) {
-    result.email = (e.name === 'CredentialsProviderError' || e.Code === 'AuthFailure')
-      ? 'not_configured' : 'error';
+  // Email — provider selected in config/emailProvider.js (not env)
+  if (EMAIL_PROVIDER === 'brevo') {
+    result.email = (cfg.brevo.apiKey && cfg.brevo.fromEmail) ? 'ok' : 'not_configured';
+  } else {
+    // SES — GetSendQuota is read-only, sends nothing
+    try {
+      await sesClient.send(new GetSendQuotaCommand({}));
+      result.email = 'ok';
+    } catch (e) {
+      result.email = (e.name === 'CredentialsProviderError' || e.Code === 'AuthFailure')
+        ? 'not_configured' : 'error';
+    }
   }
 
   // FCM — OAuth token fetch only, no push sent

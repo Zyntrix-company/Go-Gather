@@ -3,10 +3,10 @@ import {
   View, Text, TouchableOpacity, ScrollView,
   Dimensions, StyleSheet, ActivityIndicator, Modal, Animated, FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { Plane, CalendarDays, UserMinus } from 'lucide-react-native';
+import { UserMinus } from 'lucide-react-native';
 import BlobBackground from '../../components/common/BlobBackground';
 import CachedImage from '../../components/common/CachedImage';
 import AppHeader from '../../components/common/AppHeader';
@@ -294,28 +294,64 @@ function CustomAlbumPhotosModal({
   );
 }
 
+function FriendHeroPhoto({ photo }: { photo: PhotoItem }) {
+  const [loading, setLoading] = useState(true);
+  const [localUriFailed, setLocalUriFailed] = useState(false);
+  const uri = (photo.localUri && !localUriFailed) ? photo.localUri : photo.uri;
+  const prevId = useRef(photo.id);
+  useEffect(() => {
+    if (prevId.current !== photo.id) {
+      prevId.current = photo.id;
+      setLocalUriFailed(false);
+      setLoading(true);
+    }
+  }, [photo.id]);
+  return (
+    <View style={{ flex: 1 }}>
+      <CachedImage
+        uri={uri}
+        style={{ width: '100%', height: '100%' }}
+        resizeMode="cover"
+        onLoad={() => setLoading(false)}
+        onError={() => {
+          if (photo.localUri && !localUriFailed) { setLocalUriFailed(true); setLoading(true); }
+          else setLoading(false);
+        }}
+      />
+      {loading && (
+        <View style={{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+          <ActivityIndicator size="large" color="#5eead4" />
+        </View>
+      )}
+    </View>
+  );
+}
+
 function PhotosModal({ visible, title, onClose, parentId, parentType, userId, gallerySubtitle }: {
   visible: boolean; title: string; onClose: () => void;
   parentId: string; parentType: 'trip' | 'event'; userId?: string; gallerySubtitle?: string | null;
 }) {
+  const insets = useSafeAreaInsets();
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const heroFlatListRef = useRef<any>(null);
   const localUriCache = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    if (visible) { setHeroIndex(0); setDescExpanded(false); }
+  }, [visible]);
 
   useEffect(() => {
     if (!visible || !parentId) return;
     let cancelled = false;
     const capturedCache = { ...localUriCache.current };
-
     setLoading(true);
     setPhotos([]);
 
     let fetcher: Promise<{ photos?: any[] }>;
-
     if (userId) {
-      // Pass parentType + parentId so the backend returns ALL photos for this trip/event,
-      // not just photos uploaded by the friend.
       fetcher = getUserPhotos(userId, { parentType, parentId }).then((data) => {
         const parentList: any[] = parentType === 'trip' ? (data.trips ?? []) : (data.events ?? []);
         const match = parentList.find((p: any) => p.id === parentId);
@@ -332,13 +368,15 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
     fetcher
       .then((data) => {
         if (cancelled) return;
-        setPhotos((data.photos ?? []).map((ph: any) => ({
+        const mapped: PhotoItem[] = (data.photos ?? []).map((ph: any) => ({
           id: ph.id,
           uri: ph.uri ?? ph.url ?? ph.fileUrl ?? '',
           localUri: capturedCache[ph.id],
           activityId: ph.activityId ?? null,
           activityTitle: ph.activityTitle ?? null,
-        })));
+        }));
+        // Direct photos first, then activity photos
+        setPhotos([...mapped.filter(p => !p.activityId), ...mapped.filter(p => !!p.activityId)]);
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -356,80 +394,218 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
     }
   });
 
+  const heroPhoto = photos.length > 0 ? photos[Math.min(heroIndex, photos.length - 1)] : null;
+  const isActivityPhoto = !!(heroPhoto?.activityTitle);
+  const dynamicTitle = isActivityPhoto ? heroPhoto!.activityTitle! : title;
+  const CELL = (SCREEN_W - 32 - 12) / 3;
+
   return (
-    <>
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        <View style={styles.overlay}>
-          <View style={[styles.dialog, { maxHeight: '85%' }]}>
-            <View style={styles.dialogHeader}>
-              <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-                <Text style={styles.dialogTitle} numberOfLines={1}>{title}</Text>
-                {gallerySubtitle?.trim() ? (
-                  <Text style={styles.modalSubtitleText}>{gallerySubtitle}</Text>
-                ) : null}
-              </View>
-              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <CloseIcon />
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.dialogBody}>
-                {loading && <View style={styles.modalLoadingRow}><ActivityIndicator color="#0d9488" /></View>}
+    <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
 
-                {!loading && photos.length === 0 && (
-                  <View style={styles.emptyCenter}>
-                    <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
-                      <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
-                      <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
-                      <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                    <Text style={styles.emptyTitle}>No photos yet</Text>
-                    <Text style={styles.emptySub}>No memories captured for this {parentType}.</Text>
-                  </View>
-                )}
-
-                {!loading && photos.length > 0 && (
-                  <View>
-                    {directPhotos.length > 0 && (
-                      <View style={{ marginBottom: Object.keys(activityGroups).length > 0 ? 16 : 8 }}>
-                        {Object.keys(activityGroups).length > 0 && (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                            <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
-                            <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>
-                              {parentType === 'trip' ? 'Trip Photos' : 'Event Photos'}
-                            </Text>
-                            <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
-                          </View>
-                        )}
-                        <View style={styles.thumbRow}>
-                          {directPhotos.map(ph => <PhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewIndex(photos.findIndex(p => p.id === ph.id))} />)}
-                        </View>
-                      </View>
-                    )}
-                    {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
-                      <View key={actTitle} style={{ marginBottom: 16 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                          <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>{actTitle}</Text>
-                          <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
-                        </View>
-                        <View style={styles.thumbRow}>
-                          {actPhotos.map(ph => <PhotoThumb key={ph.id} photo={ph} onPress={() => setPreviewIndex(photos.findIndex(p => p.id === ph.id))} />)}
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            </ScrollView>
+        {/* ── Sticky header (safe-area aware) ── */}
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30, paddingTop: insets.top, backgroundColor: 'transparent' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8 }}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, elevation: 4 }}
+              activeOpacity={0.8}
+            >
+              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                <Path d="M19 12H5M12 5l-7 7 7 7" stroke="#0f172a" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+              </Svg>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
 
-      <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
-        <PreviewModal photos={photos} initialIndex={previewIndex ?? 0} onClose={() => setPreviewIndex(null)} />
-      </Modal>
-    </>
+        <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+
+          {/* ── Hero Photo (swipeable FlatList pager) ── */}
+          <View style={{ height: 290, backgroundColor: '#0f172a', position: 'relative' }}>
+            {loading ? (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator size="large" color="#5eead4" />
+              </View>
+            ) : photos.length > 0 ? (
+              <FlatList
+                ref={heroFlatListRef}
+                data={photos}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                initialScrollIndex={heroIndex}
+                getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
+                onMomentumScrollEnd={e => setHeroIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
+                renderItem={({ item }) => (
+                  <View style={{ width: SCREEN_W, height: 290 }}>
+                    <FriendHeroPhoto photo={item} />
+                  </View>
+                )}
+                keyExtractor={item => item.id}
+              />
+            ) : (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <Svg width={56} height={56} viewBox="0 0 24 24" fill="none">
+                  <Rect x={3} y={3} width={18} height={18} rx={2} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} />
+                  <Circle cx={8.5} cy={8.5} r={1.5} fill="rgba(255,255,255,0.25)" />
+                  <Path d="M21 15l-5-5L5 21" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 10 }}>No photos yet</Text>
+              </View>
+            )}
+            {photos.length > 0 && (
+              <View style={{ position: 'absolute', bottom: 14, right: 14, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.52)', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14 }}>
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{heroIndex + 1} / {photos.length}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* ── Thumbnail Strip ── */}
+          {photos.length > 0 && (
+            <View style={{ backgroundColor: '#fff', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, flexDirection: 'row' }}>
+                {photos.map((ph, idx) => {
+                  const thumbUri = ph.localUri ?? ph.uri;
+                  return (
+                    <TouchableOpacity
+                      key={ph.id}
+                      onPress={() => { setHeroIndex(idx); heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); }}
+                      activeOpacity={0.85}
+                      style={{ width: 74, height: 60, borderRadius: 10, overflow: 'hidden', borderWidth: idx === heroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0' }}
+                    >
+                      <CachedImage uri={thumbUri} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* ── Identity Card ── */}
+          <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 18 }}>
+            {isActivityPhoto && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#0d9488', letterSpacing: 0.3 }}>ACTIVITY</Text>
+              </View>
+            )}
+            <Text style={{ fontSize: 26, fontWeight: '700', color: '#0f172a', letterSpacing: -0.4, marginBottom: 4 }} numberOfLines={2}>
+              {dynamicTitle}
+            </Text>
+            {isActivityPhoto && (
+              <Text style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>from {title}</Text>
+            )}
+
+            {/* Subtitle / description */}
+            {gallerySubtitle?.trim() ? (
+              <>
+                <Text
+                  style={{ fontSize: 14, color: '#64748b', lineHeight: 20, marginBottom: 4 }}
+                  numberOfLines={descExpanded ? undefined : 3}
+                >
+                  {gallerySubtitle}
+                </Text>
+                {gallerySubtitle.length > 120 && (
+                  <TouchableOpacity onPress={() => setDescExpanded(v => !v)} activeOpacity={0.7}>
+                    <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '600' }}>{descExpanded ? 'Show less' : 'Read more'}</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            ) : null}
+
+            {/* Type badge + photo count */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 }}>
+              <View style={{ backgroundColor: parentType === 'trip' ? '#f0fdf4' : '#fdf2f8', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                {parentType === 'trip' ? (
+                  <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+                    <Path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" stroke="#0d9488" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                ) : (
+                  <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+                    <Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke="#db2777" strokeWidth={2} />
+                    <Path d="M16 2v4M8 2v4M3 10h18" stroke="#db2777" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                )}
+                <Text style={{ fontSize: 12, fontWeight: '600', color: parentType === 'trip' ? '#0d9488' : '#db2777' }}>
+                  {parentType === 'trip' ? 'Trip' : 'Event'}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+                  <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
+                  <Circle cx={8.5} cy={8.5} r={1.5} fill="#0d9488" />
+                  <Path d="M21 15l-5-5L5 21" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '600' }}>
+                  {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'Photo' : 'Photos'}`}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* ── All Photos Grid ── */}
+          {!loading && photos.length > 0 && (
+            <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 36 }}>
+              {/* Direct photos first */}
+              {directPhotos.length > 0 && (
+                <View style={{ marginBottom: Object.keys(activityGroups).length > 0 ? 16 : 8 }}>
+                  {Object.keys(activityGroups).length > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
+                      <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 }}>
+                        {parentType === 'trip' ? 'Trip Photos' : 'Event Photos'}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
+                    </View>
+                  )}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {directPhotos.map(ph => {
+                      const idx = photos.findIndex(p => p.id === ph.id);
+                      return (
+                        <TouchableOpacity
+                          key={ph.id}
+                          onPress={() => { setHeroIndex(idx); heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); }}
+                          activeOpacity={0.85}
+                          style={{ width: CELL, height: CELL, borderRadius: 10, overflow: 'hidden', borderWidth: idx === heroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0' }}
+                        >
+                          <FriendHeroPhoto photo={ph} />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+              {/* Activity groups after */}
+              {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
+                <View key={actTitle} style={{ marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
+                    <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 }}>{actTitle}</Text>
+                    <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {actPhotos.map(ph => {
+                      const idx = photos.findIndex(p => p.id === ph.id);
+                      return (
+                        <TouchableOpacity
+                          key={ph.id}
+                          onPress={() => { setHeroIndex(idx); heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); }}
+                          activeOpacity={0.85}
+                          style={{ width: CELL, height: CELL, borderRadius: 10, overflow: 'hidden', borderWidth: idx === heroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0' }}
+                        >
+                          <FriendHeroPhoto photo={ph} />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+        </ScrollView>
+      </View>
+    </Modal>
   );
 }
 
@@ -571,7 +747,7 @@ export default function FriendProfileScreen() {
             <SectionHeader
               title="Trips"
               count={galleryTrips.length + customTripAlbums.length}
-              icon={<Plane size={20} color="#0d9488" />}
+              icon={<Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" stroke="#0d9488" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" /></Svg>}
             />
             <View style={styles.grid}>
               {galleryTrips.map((trip: any) => (
@@ -590,7 +766,7 @@ export default function FriendProfileScreen() {
             <SectionHeader
               title="Events"
               count={galleryEvents.length + customEventAlbums.length}
-              icon={<CalendarDays size={20} color="#f59e0b" />}
+              icon={<Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke="#f59e0b" strokeWidth={2} /><Path d="M16 2v4M8 2v4M3 10h18" stroke="#f59e0b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>}
             />
             <View style={styles.grid}>
               {galleryEvents.map((ev: any) => (

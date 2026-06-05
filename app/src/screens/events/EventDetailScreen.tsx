@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
-  TextInput, Image, Platform, NativeModules, Dimensions, Linking,
+  TextInput, Image, Platform, Dimensions, Linking,
   ActivityIndicator, FlatList,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { WebView } from 'react-native-webview';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AppDatePicker from '../../components/common/AppDatePicker';
@@ -54,12 +55,13 @@ import {
   deleteEventPoll,
   handleApiError,
 } from '../../api/events.api';
-import { getFriends, getEmailStatus, listEmailAttachments, importEmailAttachments, type EmailAttachment } from '../../api/trips.api';
+import { getFriends, getEmailStatus, listEmailAttachments, importEmailAttachments, getDriveStatus, listDriveFiles, importDriveFiles, type EmailAttachment, type DriveFile } from '../../api/trips.api';
 import useAuthStore from '../../store/authStore';
 import { authUserId } from '../../utils/avatarUri';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import { markEventSectionViewed } from '../../api/events.api';
 import ExpenseTotalsTab from '../../components/common/ExpenseTotalsTab';
+import { ExpenseListSkeleton, TotalTabSkeleton, BalanceTabSkeleton } from '../../components/common/ExpenseTabSkeleton';
 import {
   EXPENSE_CATS,
   NOTE_CATS,
@@ -70,6 +72,7 @@ import {
   resolveExpenseCategory,
 } from '../../components/common/CategoryIcons';
 import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
+import { SUPPORTED_CURRENCIES, formatCurrency, buildExpenseLabel } from '../../utils/currency';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -78,13 +81,14 @@ type PhotoItem = { id: string; uri: string; localUri?: string; name: string };
 type EventMemberLocal = { userId: string; fullName: string; avatarUrl?: string; role: 'admin' | 'member' };
 type ExpenseLocal = {
   id: string; description: string; amount: number; category: string;
+  currency: string;
   paidBy: string; splitType: 'equally' | 'amount' | 'percent'; splitAmong: string[]; date: string; myAmount?: number;
   createdByUserId?: string;
   splitBreakdown?: { userId: string; amount: number; percentage: number | null }[];
 };
 type PollLocal = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null; createdBy?: string; createdByName?: string | null; createdAt?: string | null };
 type NoteLocal = { id: string; title: string; body: string; category: 'general' | 'idea' | 'important' | 'todo'; date: string; pinned?: boolean };
-type DebtLocal = { from: string; to: string; fromName: string; toName: string; amount: number };
+type DebtLocal = { from: string; to: string; fromName: string; toName: string; amount: number; currency: string };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -99,6 +103,7 @@ function normalizeDebtArray(
     fromName: d.fromName || (d.from === currentUid ? 'You' : (membersList.find(m => m.userId === d.from)?.fullName || 'Member')),
     toName: d.toName || (d.to === currentUid ? 'You' : (membersList.find(m => m.userId === d.to)?.fullName || 'Member')),
     amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
+    currency: d.currency || 'INR',
   }));
 }
 
@@ -127,6 +132,7 @@ function mapApiEventExpenseToState(e: any, currentUserId: string, membersList: E
     id: e.id,
     description: e.description,
     amount: parseFloat(String(e.amount)),
+    currency: (e.currency as string) || 'INR',
     category: catSlug,
     paidBy: paidByStr,
     splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
@@ -354,6 +360,39 @@ function EventPhotoPreview({ photo }: { photo: PhotoItem }) {
   );
 }
 
+function EventAlbumHeroPhoto({ photo }: { photo: PhotoItem }) {
+  const [loading, setLoading] = useState(true);
+  const [localUriFailed, setLocalUriFailed] = useState(false);
+  const uri = (photo.localUri && !localUriFailed) ? photo.localUri : photo.uri;
+  const prevId = useRef(photo.id);
+  useEffect(() => {
+    if (prevId.current !== photo.id) {
+      prevId.current = photo.id;
+      setLocalUriFailed(false);
+      setLoading(true);
+    }
+  }, [photo.id]);
+  return (
+    <View style={{ flex: 1 }}>
+      <CachedImage
+        uri={uri}
+        style={{ width: '100%', height: '100%' }}
+        resizeMode="cover"
+        onLoad={() => setLoading(false)}
+        onError={() => {
+          if (photo.localUri && !localUriFailed) { setLocalUriFailed(true); setLoading(true); }
+          else setLoading(false);
+        }}
+      />
+      {loading && (
+        <View style={{ ...StyleSheet.absoluteFillObject as any, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+          <ActivityIndicator size="large" color="#5eead4" />
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function EventDetailScreen({ route, navigation }: any) {
@@ -385,6 +424,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [emailPickerLoading, setEmailPickerLoading] = useState(false);
   const [emailImporting, setEmailImporting] = useState(false);
   const [emailStatus, setEmailStatus] = useState({ gmail: { connected: false }, outlook: { connected: false } });
+  const [showDrivePicker, setShowDrivePicker] = useState(false);
+  const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
+  const [drivePickerLoading, setDrivePickerLoading] = useState(false);
+  const [selectedDriveFileIds, setSelectedDriveFileIds] = useState<Set<string>>(new Set());
+  const [driveImporting, setDriveImporting] = useState(false);
+  const [driveStatus, setDriveStatus] = useState({ connected: false });
   const [showMembers, setShowMembers] = useState(false);
   const [showPhotos, setShowPhotos] = useState(false);
   const [showExpenses, setShowExpenses] = useState(false);
@@ -394,16 +439,21 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [previewPhotoIndex, setPreviewPhotoIndex] = useState<number | null>(null);
   const photoListRef = useRef<any>(null);
   const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
+  const [albumHeroIndex, setAlbumHeroIndex] = useState(0);
+  const [albumDescExpanded, setAlbumDescExpanded] = useState(false);
+  const albumHeroRef = useRef<any>(null);
 
   // ── Data state ──
   const [loadingDetail, setLoadingDetail] = useState(true);
+  const isLoadingExpenses = loadingDetail;
   const [members, setMembers] = useState<EventMemberLocal[]>([]);
   const [apiFriends, setApiFriends] = useState<{ id: string; name: string; avatar: string }[]>([]);
   const [docs, setDocs] = useState<DocItem[]>([]);
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [expenses, setExpenses] = useState<ExpenseLocal[]>([]);
   const [balances, setBalances] = useState<DebtLocal[]>([]);
-  const [myBalance, setMyBalance] = useState(0);
+  const [myBalances, setMyBalances] = useState<Record<string, number>>({});
+  const [totalExpensesByCurrency, setTotalExpensesByCurrency] = useState<Record<string, string>>({});
   const [polls, setPolls] = useState<PollLocal[]>([]);
   const [notes, setNotes] = useState<NoteLocal[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
@@ -474,7 +524,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
             }));
             setExpenses((expData.expenses ?? []).map(e => mapApiEventExpenseToState(e, currentUserId, membersForMap)));
             setBalances(normalizeDebtArray(balData.debts, currentUserId, membersForMap));
-            setMyBalance(balData.myBalance ?? 0);
+            setMyBalances(balData.myBalances ?? (balData.myBalance !== undefined ? { INR: balData.myBalance } : {}));
+            setTotalExpensesByCurrency(balData.totalExpensesByCurrency ?? (balData.totalExpenses !== undefined ? { INR: balData.totalExpenses } : {}));
 
             // Update polls
             setPolls(pollsData.polls.map(p => ({
@@ -519,6 +570,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
         outlook: { connected: Boolean(d?.outlook?.connected) },
       });
     }).catch(() => {});
+    getDriveStatus().then((d: any) => {
+      setDriveStatus({ connected: Boolean(d?.connected) });
+    }).catch(() => {});
   }, [showDocs]);
 
   useEffect(() => {
@@ -544,12 +598,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
   }, [avatarUpdatedAt, currentUserId]);
 
   // ── Members modal ──
-  const [memberTab, setMemberTab] = useState<'Members' | 'From Friends' | 'Invite New'>('Members');
+  const [memberTab, setMemberTab] = useState<'Members' | 'Invite from Friends' | 'Invite New'>('Members');
   const [memberSearch, setMemberSearch] = useState('');
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
 
   // ── Expenses modal ──
-  const [expTab, setExpTab] = useState<'All Expenses' | 'Totals' | 'Balances'>('All Expenses');
+  const [expTab, setExpTab] = useState<'Expense' | 'Total' | 'Balance'>('Expense');
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [expDesc, setExpDesc] = useState('');
   const [expAmount, setExpAmount] = useState('');
@@ -558,8 +612,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [expSplitType, setExpSplitType] = useState<'equally' | 'amount' | 'percent'>('equally');
   const [expSplitAmong, setExpSplitAmong] = useState<string[]>(['You']);
   const [expSplitDetails, setExpSplitDetails] = useState<{ [k: string]: string }>({});
+  const [expCurrency, setExpCurrency] = useState<string>('INR');
   const [showExpCatDrop, setShowExpCatDrop] = useState(false);
   const [showPaidByDrop, setShowPaidByDrop] = useState(false);
+  const [showExpCurrencyDrop, setShowExpCurrencyDrop] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
   // ── Polls modal ──
@@ -592,7 +648,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   // ── Derived ──
   const memberCount = members.length;
-  const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
   const expenseTotals = useMemo(
     () => buildGroupExpenseTotals(
       expenses,
@@ -601,6 +656,18 @@ export default function EventDetailScreen({ route, navigation }: any) {
     ),
     [expenses, members, currentUserId],
   );
+  const expenseLabel = useMemo(() => {
+    if (Object.keys(totalExpensesByCurrency).length > 0) {
+      return buildExpenseLabel(totalExpensesByCurrency);
+    }
+    // Fallback: build per-currency map from local expenses
+    const localByCurrency: Record<string, string> = {};
+    for (const exp of expenses) {
+      const cur = exp.currency || 'INR';
+      localByCurrency[cur] = String((parseFloat(localByCurrency[cur] ?? '0') + exp.amount));
+    }
+    return buildExpenseLabel(localByCurrency);
+  }, [totalExpensesByCurrency, expenses]);
   const noteCatDisplay = NOTE_CATS.find(c => c.key === noteCategory)!;
 
   // Badges = server-computed unread counts (items added by others since user last viewed)
@@ -622,26 +689,17 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   async function handleUploadDoc() {
     try {
-      const FilePicker = NativeModules.FilePicker;
-      if (!FilePicker) {
-        // Fallback: use image picker for images only if native FilePicker not available
-        launchImageLibrary({ mediaType: 'mixed', selectionLimit: 1, includeBase64: false }, async res => {
-          if (res.didCancel || res.errorCode) return;
-          const asset = res.assets?.[0];
-          if (!asset?.uri) return;
-          try {
-            const result = await uploadEventDoc(event.id, { uri: asset.uri, type: asset.type, name: asset.fileName ?? 'document' });
-            setDocs(p => [...p, { id: result.doc.id, name: result.doc.fileName, uri: result.doc.downloadUrl ?? result.doc.fileUrl ?? '', mimeType: result.doc.mimeType }]);
-          } catch (err) { handleApiError(err); }
-        });
-        return;
-      }
-      const file: { uri: string; name: string; type: string } = await FilePicker.pick();
-      if (!file?.uri) return;
-      const result = await uploadEventDoc(event.id, { uri: file.uri, type: file.type ?? 'application/octet-stream', name: file.name ?? 'document' });
+      const [picked] = await pickDocument({ type: [docTypes.allFiles] });
+      const [localCopy] = await keepLocalCopy({
+        files: [{ uri: picked.uri, fileName: picked.name ?? 'document' }],
+        destination: 'cachesDirectory',
+      });
+      if (localCopy.status === 'error') throw new Error(localCopy.copyError);
+      const file = { uri: localCopy.localUri, name: picked.name ?? 'document', type: picked.type ?? 'application/octet-stream' };
+      const result = await uploadEventDoc(event.id, file);
       setDocs(p => [...p, { id: result.doc.id, name: result.doc.fileName, uri: result.doc.downloadUrl ?? result.doc.fileUrl ?? '', mimeType: result.doc.mimeType }]);
     } catch (err: any) {
-      if (err?.code === 'CANCELLED' || err?.message === 'User cancelled') return;
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
       handleApiError(err);
     }
   }
@@ -685,6 +743,47 @@ export default function EventDetailScreen({ route, navigation }: any) {
       handleApiError(err);
     } finally {
       setEmailImporting(false);
+    }
+  }
+
+  async function openDrivePicker() {
+    if (!driveStatus.connected) {
+      setShowDocs(false);
+      (navigation as any).navigate('ConnectedEmail');
+      return;
+    }
+    setDriveFiles([]);
+    setSelectedDriveFileIds(new Set());
+    setDrivePickerLoading(true);
+    setShowDrivePicker(true);
+    try {
+      const res = await listDriveFiles();
+      setDriveFiles(res.files);
+    } catch (err) {
+      handleApiError(err);
+      setShowDrivePicker(false);
+    } finally {
+      setDrivePickerLoading(false);
+    }
+  }
+
+  async function confirmDriveImport() {
+    if (selectedDriveFileIds.size === 0 || driveImporting) return;
+    setDriveImporting(true);
+    try {
+      const selected = driveFiles.filter(f => selectedDriveFileIds.has(f.fileId));
+      const res = await importDriveFiles('event', event.id, selected);
+      setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl }))]);
+      setShowDrivePicker(false);
+      if (res.failed?.length) {
+        Toast.show({ type: 'error', text1: `${res.failed.length} file(s) failed to import` });
+      } else {
+        Toast.show({ type: 'success', text1: `${res.imported.length} file(s) imported from Drive` });
+      }
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setDriveImporting(false);
     }
   }
 
@@ -785,6 +884,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
       if (editingExpenseId) {
         const res = await updateEventExpense(event.id, editingExpenseId, {
           description: expDesc.trim(), amount, category: categorySlug,
+          currency: expCurrency || 'INR',
           splitType: apiSplitType, splitAmong,
         });
         const mapped = mapApiEventExpenseToState(res.expense, currentUserId, members);
@@ -792,18 +892,21 @@ export default function EventDetailScreen({ route, navigation }: any) {
         if (res.balances) setBalances(normalizeDebtArray(res.balances, currentUserId, members));
         const balData = await getEventBalances(event.id);
         setBalances(normalizeDebtArray(balData.debts, currentUserId, members));
-        setMyBalance(balData.myBalance ?? 0);
+        setMyBalances(balData.myBalances ?? (balData.myBalance !== undefined ? { INR: balData.myBalance } : {}));
+        setTotalExpensesByCurrency(balData.totalExpensesByCurrency ?? (balData.totalExpenses !== undefined ? { INR: balData.totalExpenses } : {}));
         setEditingExpenseId(null);
       } else {
         const res = await createEventExpense(event.id, {
           description: expDesc.trim(), amount, category: categorySlug,
+          currency: expCurrency || 'INR',
           paidBy: paidByUserId, splitType: apiSplitType, splitAmong,
         });
         setExpenses(p => [...p, mapApiEventExpenseToState(res.expense, currentUserId, members)]);
         if (res.balances) setBalances(normalizeDebtArray(res.balances, currentUserId, members));
         const balData = await getEventBalances(event.id);
         setBalances(normalizeDebtArray(balData.debts, currentUserId, members));
-        setMyBalance(balData.myBalance ?? 0);
+        setMyBalances(balData.myBalances ?? (balData.myBalance !== undefined ? { INR: balData.myBalance } : {}));
+        setTotalExpensesByCurrency(balData.totalExpensesByCurrency ?? (balData.totalExpenses !== undefined ? { INR: balData.totalExpenses } : {}));
       }
     } catch (err: any) {
       const errorMsg = err?.message?.toLowerCase() || '';
@@ -813,7 +916,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         handleApiError(err);
       }
     }
-    setExpDesc(''); setExpAmount(''); setExpCategory(EXPENSE_CATS[0]);
+    setExpDesc(''); setExpAmount(''); setExpCurrency('INR'); setExpCategory(EXPENSE_CATS[0]);
     setExpPaidBy('You'); setExpSplitType('equally');
     setExpSplitAmong(['You']); setExpSplitDetails({});
     setEditingExpenseId(null);
@@ -831,6 +934,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   function startEditExpense(exp: ExpenseLocal) {
     setExpDesc(exp.description);
     setExpAmount(String(exp.amount));
+    setExpCurrency(exp.currency || 'INR');
     setExpCategory(resolveExpenseCategory(exp.category));
     setExpPaidBy(exp.paidBy);
     setExpSplitType(exp.splitType);
@@ -870,13 +974,14 @@ export default function EventDetailScreen({ route, navigation }: any) {
           setExpenses(p => p.filter(e => e.id !== eid));
           const balData = await getEventBalances(event.id);
           setBalances(normalizeDebtArray(balData.debts, currentUserId, members));
-          setMyBalance(balData.myBalance ?? 0);
+          setMyBalances(balData.myBalances ?? (balData.myBalance !== undefined ? { INR: balData.myBalance } : {}));
+          setTotalExpensesByCurrency(balData.totalExpensesByCurrency ?? (balData.totalExpenses !== undefined ? { INR: balData.totalExpenses } : {}));
         } catch (err) { handleApiError(err); }
       },
     });
   }
 
-  function handleSettleEventDebt(withUserId: string, amount: number) {
+  function handleSettleEventDebt(withUserId: string, amount: number, currency: string = 'INR') {
     const amt = typeof amount === 'number' && !Number.isNaN(amount) ? amount : parseFloat(String(amount));
     if (!amt || amt <= 0) {
       showAlert({ title: 'Invalid amount', message: 'Enter a valid settlement amount.' });
@@ -884,15 +989,16 @@ export default function EventDetailScreen({ route, navigation }: any) {
     }
     showConfirm({
       title: 'Record settlement',
-      message: `Record a payment of ₹${amt.toFixed(2)} to settle this balance? Balances will update for everyone on this event.`,
+      message: `Record a payment of ${formatCurrency(amt, currency)} to settle this balance? Balances will update for everyone on this event.`,
       confirmText: 'Settle',
       destructive: false,
       onConfirm: async () => {
         try {
-          const res = await settleEventDebt(event.id, { withUserId, amount: amt });
+          const res = await settleEventDebt(event.id, { withUserId, amount: amt, currency });
           setBalances(normalizeDebtArray(res.outstanding ?? [], currentUserId, members));
           const balData = await getEventBalances(event.id);
-          setMyBalance(balData.myBalance ?? 0);
+          setMyBalances(balData.myBalances ?? (balData.myBalance !== undefined ? { INR: balData.myBalance } : {}));
+          setTotalExpensesByCurrency(balData.totalExpensesByCurrency ?? (balData.totalExpenses !== undefined ? { INR: balData.totalExpenses } : {}));
           setBalances(normalizeDebtArray(balData.debts, currentUserId, members));
           Toast.show({ type: 'success', text1: 'Settlement recorded' });
         } catch (err) {
@@ -1081,7 +1187,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
               .filter(m => m.uri)}
             docCount={docs.length}
             photoCount={photos.length}
-            totalExpenses={totalExp}
+            totalExpenses={expenseLabel}
             onEdit={openEditEvent}
           />
 
@@ -1092,7 +1198,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
               {[
                 { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => { setShowDocs(true); setUnreadCounts(p => ({ ...p, docs: 0 })); markEventSectionViewed(event.id, 'docs'); }, count: badgeCounts.docs },
                 { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => { setShowMembers(true); setUnreadCounts(p => ({ ...p, members: 0 })); markEventSectionViewed(event.id, 'members'); }, count: badgeCounts.members },
-                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => { setShowPhotos(true); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); }, count: badgeCounts.photos },
+                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => { setShowPhotos(true); setAlbumHeroIndex(0); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); }, count: badgeCounts.photos },
                 { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => { setShowExpenses(true); setUnreadCounts(p => ({ ...p, expenses: 0 })); markEventSectionViewed(event.id, 'expenses'); }, count: badgeCounts.expenses },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
@@ -1220,17 +1326,62 @@ export default function EventDetailScreen({ route, navigation }: any) {
             </View>
 
             {photos.length === 0 ? (
-              <View style={{ paddingVertical: 4 }}>
-                
-                <Text style={[styles.emptySub, { marginTop: 2 }]}>Add photos to capture event memories</Text>
-              </View>
+              <TouchableOpacity
+                onPress={() => { setShowPhotos(true); setAlbumHeroIndex(0); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); }}
+                activeOpacity={0.8}
+                style={{ borderWidth: 1.5, borderColor: '#e2e8f0', borderStyle: 'dashed', borderRadius: 12, paddingVertical: 20, alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              >
+                <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
+                  <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
+                  <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
+                  <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+                <Text style={[styles.emptySub, { marginTop: 2 }]}>Tap to add photos and capture memories</Text>
+              </TouchableOpacity>
             ) : (() => {
-              const THUMB = (Dimensions.get('window').width - 32 - 32 - 16) / 3;
+              const openAt = (idx: number) => { setShowPhotos(true); setAlbumHeroIndex(idx); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); };
+              const remaining = photos.length - 3;
               return (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {photos.map(p => (
-                    <EventMainPhotoItem key={p.id} photo={p} size={THUMB} onPress={() => openPhotoPreview(p.id)} />
-                  ))}
+                <View style={{ borderRadius: 14, overflow: 'hidden' }}>
+                  {photos.length === 1 ? (
+                    /* ── Single photo ── */
+                    <TouchableOpacity onPress={() => openAt(0)} activeOpacity={0.88}>
+                      <CachedImage
+                        uri={photos[0].localUri ?? photos[0].uri}
+                        style={{ width: '100%', height: 220, backgroundColor: '#e2e8f0' }}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  ) : photos.length === 2 ? (
+                    /* ── Two photos side by side ── */
+                    <View style={{ flexDirection: 'row', gap: 2, height: 180 }}>
+                      {photos.slice(0, 2).map((p, idx) => (
+                        <TouchableOpacity key={p.id} style={{ flex: 1 }} onPress={() => openAt(idx)} activeOpacity={0.88}>
+                          <CachedImage uri={p.localUri ?? p.uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : (
+                    /* ── 3+ photos: large left + 2 stacked right ── */
+                    <View style={{ flexDirection: 'row', gap: 2, height: 210 }}>
+                      <TouchableOpacity style={{ flex: 2 }} onPress={() => openAt(0)} activeOpacity={0.88}>
+                        <CachedImage uri={photos[0].localUri ?? photos[0].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
+                      </TouchableOpacity>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <TouchableOpacity style={{ flex: 1 }} onPress={() => openAt(1)} activeOpacity={0.88}>
+                          <CachedImage uri={photos[1].localUri ?? photos[1].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={{ flex: 1 }} onPress={() => openAt(2)} activeOpacity={0.88}>
+                          <CachedImage uri={photos[2].localUri ?? photos[2].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
+                          {remaining > 0 && (
+                            <View style={{ ...StyleSheet.absoluteFillObject as any, backgroundColor: 'rgba(15,23,42,0.58)', alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 18 }}>+{remaining}</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
                 </View>
               );
             })()}
@@ -1268,6 +1419,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     emailStatus={emailStatus}
                     onGmail={() => openEmailPicker('gmail')}
                     onOutlook={() => openEmailPicker('outlook')}
+                    driveConnected={driveStatus.connected}
+                    onDrive={openDrivePicker}
                   />
                   {docs.length === 0 ? (
                     <View style={styles.emptyCenter}>
@@ -1371,13 +1524,77 @@ export default function EventDetailScreen({ route, navigation }: any) {
         </Modal>
 
         {/* ═══════════════════════════════════════════════════
+            MODAL 1c — Google Drive File Picker
+        ═══════════════════════════════════════════════════ */}
+        <Modal visible={showDrivePicker} transparent animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
+          <View style={styles.overlay}>
+            <View style={[styles.dialog, { maxHeight: '85%' }]}>
+              <DHeader
+                title="Import from Google Drive"
+                leading={<Image source={require('../../../assets/drive-icon.png')} style={{ width: 22, height: 22 }} resizeMode="contain" />}
+                onClose={() => setShowDrivePicker(false)}
+              />
+              {drivePickerLoading ? (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#0d9488" />
+                  <Text style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>Loading files…</Text>
+                </View>
+              ) : driveFiles.length === 0 ? (
+                <View style={{ padding: 32, alignItems: 'center' }}>
+                  <Text style={{ color: '#64748b', fontSize: 14, textAlign: 'center' }}>No compatible files found in your Drive root.</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={driveFiles}
+                  keyExtractor={f => f.fileId}
+                  style={{ maxHeight: 380 }}
+                  renderItem={({ item }) => {
+                    const sel = selectedDriveFileIds.has(item.fileId);
+                    return (
+                      <TouchableOpacity
+                        style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderColor: '#e2e8f0' }}
+                        onPress={() => setSelectedDriveFileIds(prev => { const n = new Set(prev); sel ? n.delete(item.fileId) : n.add(item.fileId); return n; })}
+                        activeOpacity={0.7}>
+                        <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: sel ? '#0d9488' : '#cbd5e1', backgroundColor: sel ? '#0d9488' : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                          {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>✓</Text>}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }} numberOfLines={1}>{item.name}</Text>
+                          <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
+                            {item.sizeBytes ? `${Math.round(item.sizeBytes / 1024)} KB · ` : ''}
+                            {new Date(item.modifiedTime).toLocaleDateString()}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              )}
+              {!drivePickerLoading && driveFiles.length > 0 && (
+                <View style={{ padding: 16, borderTopWidth: 0.5, borderColor: '#e2e8f0' }}>
+                  <TouchableOpacity
+                    style={[styles.tealBtnFull, { opacity: selectedDriveFileIds.size === 0 ? 0.5 : 1 }]}
+                    onPress={confirmDriveImport}
+                    disabled={selectedDriveFileIds.size === 0 || driveImporting}
+                    activeOpacity={0.85}>
+                    {driveImporting
+                      ? <ActivityIndicator color="#fff" />
+                      : <Text style={styles.tealBtnTxt}>Import {selectedDriveFileIds.size > 0 ? `${selectedDriveFileIds.size} file${selectedDriveFileIds.size > 1 ? 's' : ''}` : 'Selected'}</Text>}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* ═══════════════════════════════════════════════════
             MODAL 2 — Members
         ═══════════════════════════════════════════════════ */}
         <Modal visible={showMembers} transparent animationType="fade" onRequestClose={() => setShowMembers(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
               <DHeader title="Event Members" subtitle={`Current members: ${memberCount}`} onClose={() => setShowMembers(false)} />
-              <TabBar tabs={['Members', 'From Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
+              <TabBar tabs={['Members', 'Invite from Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {memberTab === 'Members' && (
                   <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20 }}>
@@ -1421,9 +1638,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   </View>
                 )}
 
-                {memberTab === 'From Friends' && (
+                {memberTab === 'Invite from Friends' && (
                   <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}>
-                    <Text style={styles.memberSectionLabelTitle}>Add From Friends</Text>
+                    <Text style={styles.memberSectionLabelTitle}>Invite from Friends</Text>
                     <View style={styles.searchBox}>
                       <Svg width={14} height={14} viewBox="0 0 24 24" fill="none"><Circle cx={11} cy={11} r={8} stroke="#94a3b8" strokeWidth={2} /><Path d="M21 21l-4.35-4.35" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
                       <TextInput style={styles.searchInput} placeholder="Search by name..." placeholderTextColor="#94a3b8" value={memberSearch} onChangeText={setMemberSearch} />
@@ -1477,51 +1694,213 @@ export default function EventDetailScreen({ route, navigation }: any) {
         </Modal>
 
         {/* ═══════════════════════════════════════════════════
-            MODAL 3 — Photos
+            MODAL 3 — Photos (Immersive Album View)
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showPhotos} transparent animationType="fade" onRequestClose={() => setShowPhotos(false)}>
-          <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '90%' }]}>
-              <DHeader title="Event Photos" onClose={() => setShowPhotos(false)} />
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={styles.dBody}>
-                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                    <TouchableOpacity style={styles.uploadPhotosBtn} onPress={() => handlePickPhoto(false)} activeOpacity={0.85}>
-                      <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                        <Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#be123c" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      </Svg>
-                      <Text style={styles.uploadPhotosTxt}>Upload Photos</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.takePhotoBtn} onPress={() => handlePickPhoto(true)} activeOpacity={0.85}>
-                      <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                        <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#0e7490" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                        <Circle cx={12} cy={13} r={4} stroke="#0e7490" strokeWidth={2} />
-                      </Svg>
-                      <Text style={styles.takePhotoTxt}>Take Photo</Text>
-                    </TouchableOpacity>
-                  </View>
+        <Modal visible={showPhotos} transparent={false} animationType="slide" onRequestClose={() => setShowPhotos(false)}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false} stickyHeaderIndices={[]}>
 
-                  {photos.length === 0 ? (
-                    <View style={styles.emptyCenter}>
-                      <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
-                        <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
-                        <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
-                        <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+              {/* ── Hero Photo (swipeable FlatList pager) ── */}
+              <View style={{ height: 290, backgroundColor: '#0f172a', position: 'relative' }}>
+                {photos.length > 0 ? (
+                  <FlatList
+                    ref={albumHeroRef}
+                    data={photos}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    initialScrollIndex={albumHeroIndex}
+                    getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
+                    onMomentumScrollEnd={e => {
+                      const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
+                      setAlbumHeroIndex(idx);
+                    }}
+                    renderItem={({ item }) => (
+                      <View style={{ width: SCREEN_W, height: 290 }}>
+                        <EventAlbumHeroPhoto photo={item} />
+                      </View>
+                    )}
+                    keyExtractor={item => item.id}
+                  />
+                ) : (
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <Svg width={56} height={56} viewBox="0 0 24 24" fill="none">
+                      <Rect x={3} y={3} width={18} height={18} rx={2} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} />
+                      <Circle cx={8.5} cy={8.5} r={1.5} fill="rgba(255,255,255,0.25)" />
+                      <Path d="M21 15l-5-5L5 21" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                    <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 10 }}>No photos yet</Text>
+                  </View>
+                )}
+                {/* Back button */}
+                <TouchableOpacity
+                  onPress={() => setShowPhotos(false)}
+                  style={{ position: 'absolute', top: 16, left: 16, zIndex: 10, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, elevation: 4 }}
+                  activeOpacity={0.8}
+                >
+                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                    <Path d="M19 12H5M12 5l-7 7 7 7" stroke="#0f172a" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                </TouchableOpacity>
+                {/* Photo count badge */}
+                {photos.length > 0 && (
+                  <View style={{ position: 'absolute', top: 16, right: 16, backgroundColor: 'rgba(0,0,0,0.52)', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, zIndex: 10 }}>
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{albumHeroIndex + 1} / {photos.length}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* ── Thumbnail Strip ── */}
+              {photos.length > 0 && (
+                <View style={{ backgroundColor: '#fff', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, flexDirection: 'row' }}>
+                    {photos.map((ph, idx) => {
+                      const thumbUri = (ph as any).localUri ?? ph.uri;
+                      return (
+                        <TouchableOpacity
+                          key={ph.id}
+                          onPress={() => { setAlbumHeroIndex(idx); albumHeroRef.current?.scrollToIndex({ index: idx, animated: true }); }}
+                          activeOpacity={0.85}
+                          style={{
+                            width: 74, height: 60, borderRadius: 10, overflow: 'hidden',
+                            borderWidth: idx === albumHeroIndex ? 2.5 : 0,
+                            borderColor: '#0d9488',
+                            backgroundColor: '#e2e8f0',
+                          }}
+                        >
+                          <CachedImage uri={thumbUri} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* ── Event Identity Card ── */}
+              <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 18 }}>
+                {/* Title */}
+                <Text style={{ fontSize: 26, fontWeight: '700', color: '#0f172a', letterSpacing: -0.4, marginBottom: 8 }} numberOfLines={2}>
+                  {event.name}
+                </Text>
+
+                {/* Location + Type + Date row */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                  {!!event.location && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                        <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#10b981" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                        <Circle cx={12} cy={10} r={3} stroke="#10b981" strokeWidth={2} />
                       </Svg>
-                      <Text style={styles.emptyTitle}>No photos yet</Text>
-                      <Text style={styles.emptySub}>Start capturing memories from this event!</Text>
+                      <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '500' }}>{event.location}</Text>
                     </View>
-                  ) : (
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                      {photos.map(ph => (
-                        <EventPhotoThumb key={ph.id} photo={ph} onPress={() => openPhotoPreview(ph.id)} />
-                      ))}
+                  )}
+                  {!!event.type && (
+                    <View style={{ backgroundColor: event.typeColor || '#f0fdf4', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#0f172a' }}>{event.type}</Text>
+                    </View>
+                  )}
+                  {!!event.dateLine && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+                        <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#64748b" strokeWidth={2} />
+                        <Path d="M16 2v4M8 2v4M3 10h18" stroke="#64748b" strokeWidth={2} strokeLinecap="round" />
+                      </Svg>
+                      <Text style={{ fontSize: 13, color: '#64748b' }}>{event.dateLine}</Text>
                     </View>
                   )}
                 </View>
-              </ScrollView>
-            </View>
-          </View>
+
+                {/* Member Avatars */}
+                {members.length > 0 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+                    {members.slice(0, 5).map((m, idx) => (
+                      <View key={m.userId} style={{ marginLeft: idx === 0 ? 0 : -10, zIndex: 5 - idx }}>
+                        <EventFriendAvatar
+                          uri={m.avatarUrl || ''}
+                          name={m.fullName}
+                          style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 2.5, borderColor: '#fff' }}
+                        />
+                      </View>
+                    ))}
+                    {members.length > 5 && (
+                      <View style={{ marginLeft: -10, width: 34, height: 34, borderRadius: 17, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', zIndex: 0 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#475569' }}>+{members.length - 5}</Text>
+                      </View>
+                    )}
+                    <Text style={{ marginLeft: 10, fontSize: 13, color: '#64748b', fontWeight: '500' }}>
+                      {members.length} {members.length === 1 ? 'member' : 'members'}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Photo count pill */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
+                    <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
+                    <Circle cx={8.5} cy={8.5} r={1.5} fill="#0d9488" />
+                    <Path d="M21 15l-5-5L5 21" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                  <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '600' }}>
+                    {photos.length === 0 ? 'No photos yet' : `${photos.length} ${photos.length === 1 ? 'Photo' : 'Photos'}`}
+                  </Text>
+                </View>
+              </View>
+
+              {/* ── Description ── */}
+              {!!event.description && (
+                <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 20 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#0f172a', marginBottom: 8 }}>Description</Text>
+                  <Text style={{ fontSize: 14, color: '#475569', lineHeight: 22 }} numberOfLines={albumDescExpanded ? undefined : 3}>
+                    {event.description}
+                  </Text>
+                  {event.description.length > 130 && (
+                    <TouchableOpacity onPress={() => setAlbumDescExpanded(p => !p)} activeOpacity={0.7} style={{ marginTop: 5 }}>
+                      <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>
+                        {albumDescExpanded ? 'Show less' : '.....Read more'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {/* ── All Photos Grid ── */}
+              {photos.length > 1 && (
+                <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#0f172a', marginBottom: 12 }}>All Photos</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {photos.map((ph, idx) => (
+                      <TouchableOpacity
+                        key={ph.id}
+                        onPress={() => { setAlbumHeroIndex(idx); albumHeroRef.current?.scrollToIndex({ index: idx, animated: true }); }}
+                        activeOpacity={0.85}
+                        style={{ width: (SCREEN_W - 32 - 12) / 3, height: (SCREEN_W - 32 - 12) / 3, borderRadius: 10, overflow: 'hidden', borderWidth: idx === albumHeroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0' }}
+                      >
+                        <EventAlbumHeroPhoto photo={ph} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* ── Upload / Camera Buttons ── */}
+              <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 36, flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={[styles.uploadPhotosBtn, { flex: 1 }]} onPress={() => handlePickPhoto(false)} activeOpacity={0.85}>
+                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
+                    <Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#be123c" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                  <Text style={styles.uploadPhotosTxt}>Upload Photos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.takePhotoBtn, { flex: 1 }]} onPress={() => handlePickPhoto(true)} activeOpacity={0.85}>
+                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
+                    <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#0e7490" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    <Circle cx={12} cy={13} r={4} stroke="#0e7490" strokeWidth={2} />
+                  </Svg>
+                  <Text style={styles.takePhotoTxt}>Take Photo</Text>
+                </TouchableOpacity>
+              </View>
+
+            </ScrollView>
+          </SafeAreaView>
         </Modal>
 
         {/* Fullscreen photo preview */}
@@ -1625,24 +2004,26 @@ export default function EventDetailScreen({ route, navigation }: any) {
         {/* ═══════════════════════════════════════════════════
             MODAL 4 — Expenses
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); }}>
+        <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); setShowExpCurrencyDrop(false); }}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, styles.expensesDialog]}>
-              <DHeader title="Expenses" onClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); }} />
-              <TabBar tabs={['All Expenses', 'Totals', 'Balances']} active={expTab} onSelect={t => setExpTab(t as any)} />
+              <DHeader title="Expenses" onClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); setShowExpCurrencyDrop(false); }} />
+              <TabBar tabs={['Expense', 'Total', 'Balance']} active={expTab} onSelect={t => setExpTab(t as any)} />
               <ScrollView
                 style={styles.expensesDialogScroll}
                 contentContainerStyle={styles.expensesDialogScrollContent}
                 showsVerticalScrollIndicator
                 keyboardShouldPersistTaps="handled">
 
-                {expTab === 'All Expenses' && (
+                {expTab === 'Expense' && (
                   <View>
-                    <TouchableOpacity style={styles.tealBtnFull} onPress={() => {
+                    {isLoadingExpenses ? <ExpenseListSkeleton /> : null}
+                    <TouchableOpacity style={[styles.tealBtnFull, isLoadingExpenses && { opacity: 0 }]} disabled={isLoadingExpenses} onPress={() => {
                       const allIds = ['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.userId)];
                       setExpSplitAmong(allIds); setExpPaidBy('You');
-                      setExpDesc(''); setExpAmount(''); setExpSplitType('equally'); setExpSplitDetails({});
+                      setExpDesc(''); setExpAmount(''); setExpCurrency('INR'); setExpSplitType('equally'); setExpSplitDetails({});
                       setEditingExpenseId(null);
+                      setShowExpCurrencyDrop(false);
                       setShowAddExpense(p => !p);
                     }} activeOpacity={0.85}>
                       <Text style={styles.tealBtnTxt}>+ Add Expense</Text>
@@ -1652,8 +2033,22 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       <View style={{ marginTop: 14 }}>
                         <Text style={styles.fLabel}>Description</Text>
                         <TextInput style={styles.fInput} placeholder="e.g., Event tickets" placeholderTextColor="#94a3b8" value={expDesc} onChangeText={setExpDesc} />
-                        <Text style={styles.fLabel}>Amount (₹)</Text>
-                        <TextInput style={styles.fInput} placeholder="0.00" placeholderTextColor="#94a3b8" value={expAmount} onChangeText={setExpAmount} keyboardType="numeric" />
+                        <Text style={styles.fLabel}>Amount</Text>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <TextInput style={[styles.fInput, { flex: 1 }]} placeholder="0.00" placeholderTextColor="#94a3b8" value={expAmount} onChangeText={setExpAmount} keyboardType="numeric" />
+                          <TouchableOpacity style={[styles.fInputTouch, { minWidth: 64, justifyContent: 'center' }]} onPress={() => { setShowExpCurrencyDrop(p => !p); setShowExpCatDrop(false); setShowPaidByDrop(false); }} activeOpacity={0.8}>
+                            <Text style={{ fontSize: 13, color: '#0f172a', fontWeight: '600' }}>{expCurrency}</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {showExpCurrencyDrop && (
+                          <View style={styles.dropdown}>
+                            {SUPPORTED_CURRENCIES.map(c => (
+                              <TouchableOpacity key={c.code} style={styles.dropdownItem} onPress={() => { setExpCurrency(c.code); setShowExpCurrencyDrop(false); }} activeOpacity={0.7}>
+                                <Text style={{ fontSize: 13, color: '#0f172a' }}>{c.symbol} {c.code} — {c.name}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
                         <Text style={styles.fLabel}>Category</Text>
                         <TouchableOpacity style={[styles.fInputTouch, { justifyContent: 'center' }]} onPress={() => setShowExpCatDrop(p => !p)} activeOpacity={0.8}>
                           <ExpenseCatRow cat={expCategory} />
@@ -1696,7 +2091,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                           <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>You</Text>
                           {expSplitType !== 'equally' && (
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                              {expSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>₹</Text>}
+                              {expSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>{expCurrency}</Text>}
                               <TextInput style={[styles.fInput, { width: 62, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" value={expSplitDetails['You'] || ''} onChangeText={v => setExpSplitDetails(p => ({ ...p, You: v }))} />
                               {expSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
                             </View>
@@ -1710,7 +2105,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                             <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName}</Text>
                             {expSplitType !== 'equally' && (
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                                {expSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>₹</Text>}
+                                {expSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>{expCurrency}</Text>}
                                 <TextInput style={[styles.fInput, { width: 62, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" value={expSplitDetails[m.userId] || ''} onChangeText={v => setExpSplitDetails(p => ({ ...p, [m.userId]: v }))} />
                                 {expSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
                               </View>
@@ -1737,8 +2132,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         {expenses.map(exp => {
                           const myAmt = exp.myAmount ?? 0;
                           const balText = exp.paidBy === 'You'
-                            ? `You lent ₹${(exp.amount - myAmt).toFixed(2)}`
-                            : `You owe ₹${myAmt.toFixed(2)}`;
+                            ? `You lent ${formatCurrency(exp.amount - myAmt, exp.currency)}`
+                            : `You owe ${formatCurrency(myAmt, exp.currency)}`;
                           const balColor = exp.paidBy === 'You' ? '#0d9488' : '#ef4444';
                           return (
                             <View key={exp.id} style={styles.expRow}>
@@ -1749,7 +2144,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                                 <Text style={styles.expMeta}>{exp.date}</Text>
                               </View>
                               <View style={{ alignItems: 'flex-end' }}>
-                                <Text style={styles.expAmt}>₹{exp.amount.toFixed(2)}</Text>
+                                <Text style={styles.expAmt}>{formatCurrency(exp.amount, exp.currency)}</Text>
                                 <Text style={{ fontSize: 11, color: balColor, marginBottom: 6 }}>{balText}</Text>
                                 {(canEditExpense(exp) || myMemberRole === 'admin' || exp.createdByUserId === currentUserId) && (
                                   <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -1770,60 +2165,77 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   </View>
                 )}
 
-                {expTab === 'Totals' && (
+                {expTab === 'Total' && (
                   <View>
-                    <ExpenseTotalsTab
-                      totals={expenseTotals}
-                      styles={{
-                        emptyCenter: styles.emptyCenter,
-                        emptyTitle: styles.emptyTitle,
-                        emptySub: styles.emptySub,
-                        balCard: styles.balCard,
-                        balLabel: styles.balLabel,
-                        balValue: styles.balValue,
-                        expRow: styles.expRow,
-                        expName: styles.expName,
-                        expMeta: styles.expMeta,
-                        expAmt: styles.expAmt,
-                      }}
-                    />
+                    {isLoadingExpenses ? <TotalTabSkeleton /> : (
+                      <ExpenseTotalsTab
+                        totals={expenseTotals}
+                        styles={{
+                          emptyCenter: styles.emptyCenter,
+                          emptyTitle: styles.emptyTitle,
+                          emptySub: styles.emptySub,
+                          balCard: styles.balCard,
+                          balLabel: styles.balLabel,
+                          balValue: styles.balValue,
+                          expRow: styles.expRow,
+                          expName: styles.expName,
+                          expMeta: styles.expMeta,
+                          expAmt: styles.expAmt,
+                        }}
+                      />
+                    )}
                   </View>
                 )}
 
-                {expTab === 'Balances' && (
+                {expTab === 'Balance' && (
                   <View>
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                      <View style={styles.balCard}><Text style={styles.balLabel}>Total</Text><Text style={styles.balValue}>₹{totalExp.toFixed(0)}</Text></View>
-                      <View style={[styles.balCard, { backgroundColor: myBalance >= 0 ? '#f0fdf4' : '#fff1f2' }]}>
-                        <Text style={styles.balLabel}>My Balance</Text>
-                        <Text style={[styles.balValue, { color: myBalance >= 0 ? '#16a34a' : '#e11d48' }]}>
-                          {myBalance >= 0 ? '+' : ''}₹{Math.abs(myBalance).toFixed(0)}
-                        </Text>
-                      </View>
-                    </View>
-                    {balances.length === 0 ? (
-                      <View style={styles.emptyCenter}>
-                        <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
-                          <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                        </Svg>
-                        <Text style={styles.emptyTitle}>All settled up!</Text>
-                        <Text style={styles.emptySub}>No outstanding balances</Text>
-                      </View>
-                    ) : balances.map((debt, i) => (
-                      <View key={i} style={[styles.expRow, { alignItems: 'center' }]}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.expName}>{debt.fromName} owes {debt.toName}</Text>
-                          <Text style={styles.expMeta}>₹{debt.amount.toFixed(2)}</Text>
-                        </View>
-                        {debt.from === currentUserId && (
-                          <TouchableOpacity style={[styles.tealBtnFull, { paddingHorizontal: 12, paddingVertical: 6 }]}
-                            onPress={() => handleSettleEventDebt(debt.to, debt.amount)}
-                            activeOpacity={0.85}>
-                            <Text style={[styles.tealBtnTxt, { fontSize: 12 }]}>Settle</Text>
-                          </TouchableOpacity>
+                    {isLoadingExpenses ? <BalanceTabSkeleton /> : (
+                      <>
+                        {Object.entries(totalExpensesByCurrency).filter(([, v]) => parseFloat(v) > 0).map(([cur, total]) => {
+                          const mb = myBalances[cur] ?? 0;
+                          return (
+                            <View key={cur} style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                              <View style={styles.balCard}><Text style={styles.balLabel}>Total ({cur})</Text><Text style={styles.balValue}>{formatCurrency(parseFloat(total), cur)}</Text></View>
+                              <View style={[styles.balCard, { backgroundColor: mb >= 0 ? '#f0fdf4' : '#fff1f2' }]}>
+                                <Text style={styles.balLabel}>My Balance</Text>
+                                <Text style={[styles.balValue, { color: mb >= 0 ? '#16a34a' : '#e11d48' }]}>
+                                  {mb >= 0 ? '+' : ''}{formatCurrency(Math.abs(mb), cur)}
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                        {Object.keys(totalExpensesByCurrency).length === 0 && (
+                          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                            <View style={styles.balCard}><Text style={styles.balLabel}>Total</Text><Text style={styles.balValue}>₹0</Text></View>
+                            <View style={styles.balCard}><Text style={styles.balLabel}>My Balance</Text><Text style={styles.balValue}>₹0</Text></View>
+                          </View>
                         )}
-                      </View>
-                    ))}
+                        {balances.length === 0 ? (
+                          <View style={styles.emptyCenter}>
+                            <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
+                              <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                            </Svg>
+                            <Text style={styles.emptyTitle}>All settled up!</Text>
+                            <Text style={styles.emptySub}>No outstanding balances</Text>
+                          </View>
+                        ) : balances.map((debt, i) => (
+                          <View key={i} style={[styles.expRow, { alignItems: 'center' }]}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.expName}>{debt.fromName} owes {debt.toName}</Text>
+                              <Text style={styles.expMeta}>{formatCurrency(debt.amount, debt.currency)}</Text>
+                            </View>
+                            {debt.from === currentUserId && (
+                              <TouchableOpacity style={[styles.tealBtnFull, { paddingHorizontal: 12, paddingVertical: 6 }]}
+                                onPress={() => handleSettleEventDebt(debt.to, debt.amount, debt.currency)}
+                                activeOpacity={0.85}>
+                                <Text style={[styles.tealBtnTxt, { fontSize: 12 }]}>Settle</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ))}
+                      </>
+                    )}
                   </View>
                 )}
               </ScrollView>

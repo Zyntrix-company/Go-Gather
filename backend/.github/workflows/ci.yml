@@ -54,6 +54,8 @@ jobs:
       AWS_S3_BUCKET: test-bucket
       AWS_CLOUDFRONT_DOMAIN: test.cloudfront.net
       AWS_SES_FROM_EMAIL: test@gathergo.app
+      BREVO_API_KEY: test-brevo-api-key
+      BREVO_FROM_EMAIL: test@gathergo.app
       GOOGLE_CLIENT_ID: test-google-client-id
       GOOGLE_CLIENT_SECRET: test-google-client-secret
 

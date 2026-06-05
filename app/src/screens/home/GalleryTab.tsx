@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View, Text, TouchableOpacity, ScrollView, Image,
   Dimensions, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, FlatList,
@@ -18,7 +19,7 @@ import {
 import { migrateLocalCustomGalleryAlbums } from '../../utils/migrateCustomGalleryAlbums';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { Plane, CalendarDays, PencilLine, Pen, Archive, Trash2 } from 'lucide-react-native';
+import { PencilLine, Pen, Archive, Trash2 } from 'lucide-react-native';
 import { getUserGallery, getUserPhotos, upsertGallerySubtitle, archiveGalleryItem } from '../../api/ai.api';
 import { getTripPhotos, uploadTripPhotos, deleteTripPhoto, updateTrip } from '../../api/trips.api';
 import { getEventPhotos, uploadEventPhotos, deleteEventPhoto, updateEvent } from '../../api/events.api';
@@ -253,6 +254,41 @@ function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void 
   );
 }
 
+// ─── Full-size hero photo for album view ─────────────────────────────────────
+
+function GalleryHeroPhoto({ photo }: { photo: PhotoItem }) {
+  const [loading, setLoading] = useState(true);
+  const [localUriFailed, setLocalUriFailed] = useState(false);
+  const uri = (photo.localUri && !localUriFailed) ? photo.localUri : photo.uri;
+  const prevId = useRef(photo.id);
+  useEffect(() => {
+    if (prevId.current !== photo.id) {
+      prevId.current = photo.id;
+      setLocalUriFailed(false);
+      setLoading(true);
+    }
+  }, [photo.id]);
+  return (
+    <View style={{ flex: 1 }}>
+      <CachedImage
+        uri={uri}
+        style={{ width: '100%', height: '100%' }}
+        resizeMode="cover"
+        onLoad={() => setLoading(false)}
+        onError={() => {
+          if (photo.localUri && !localUriFailed) { setLocalUriFailed(true); setLoading(true); }
+          else setLoading(false);
+        }}
+      />
+      {loading && (
+        <View style={{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+          <ActivityIndicator size="large" color="#5eead4" />
+        </View>
+      )}
+    </View>
+  );
+}
+
 // ─── Full-screen preview (swipeable) ────────────────────────────────────────
 
 function PreviewItem({ photo }: { photo: PhotoItem }) {
@@ -341,10 +377,14 @@ function PhotosModal({
 }) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const insets = useSafeAreaInsets();
   const [editMode, setEditMode] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const heroFlatListRef = useRef<any>(null);
   const [nameDraft, setNameDraft] = useState(title);
   const [subtitleDraft, setSubtitleDraft] = useState('');
   const [saving, setSaving] = useState(false);
@@ -353,6 +393,8 @@ function PhotosModal({
   useEffect(() => {
     if (visible) {
       setEditMode(false);
+      setHeroIndex(0);
+      setDescExpanded(false);
       setNameDraft(title);
       setSubtitleDraft(initialSubtitle ?? '');
     }
@@ -390,13 +432,15 @@ function PhotosModal({
     fetcher
       .then((data) => {
         if (cancelled) return;
-        setPhotos(((data as any).photos ?? []).map((ph: any) => ({
+        const mapped: PhotoItem[] = ((data as any).photos ?? []).map((ph: any) => ({
           id: ph.id,
           uri: ph.uri ?? ph.url ?? ph.fileUrl ?? '',
           localUri: capturedCache[ph.id],
           activityId: ph.activityId ?? null,
           activityTitle: ph.activityTitle ?? null,
-        })));
+        }));
+        // Direct (trip/event-level) photos first, then activity photos
+        setPhotos([...mapped.filter(p => !p.activityId), ...mapped.filter(p => !!p.activityId)]);
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -619,159 +663,332 @@ function PhotosModal({
     );
   };
 
+  const heroPhoto = photos.length > 0 ? photos[Math.min(heroIndex, photos.length - 1)] : null;
+  const isActivityPhoto = !!(heroPhoto?.activityTitle);
+  const dynamicTitle = isActivityPhoto ? heroPhoto!.activityTitle! : title;
+
   return (
     <>
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        <View style={styles.overlay}>
-          <View style={[styles.dialog, { maxHeight: '85%' }]}>
-            <View style={styles.dialogHeader}>
-              {/* Left side: title + subtitle */}
-              <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-                {(editMode && !userId) ? (
-                  <TextInput
-                    value={nameDraft}
-                    onChangeText={setNameDraft}
-                    style={styles.titleEditInput}
-                    placeholderTextColor="#94a3b8"
-                    placeholder="Album title"
-                    returnKeyType="next"
-                  />
-                ) : (
-                  <Text style={styles.dialogTitle} numberOfLines={1}>{title}</Text>
-                )}
-                {(editMode && !userId) ? (
-                  <TextInput
-                    value={subtitleDraft}
-                    onChangeText={setSubtitleDraft}
-                    placeholder="Add a short description…"
-                    placeholderTextColor="#94a3b8"
-                    style={styles.modalSubtitleInput}
-                    maxLength={80}
-                    returnKeyType="done"
-                    onSubmitEditing={handleDoneEdit}
-                  />
-                ) : (initialSubtitle?.trim() ? (
-                  <Text style={styles.modalSubtitleText}>{initialSubtitle}</Text>
-                ) : null)}
-              </View>
+      <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
+        <View style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
 
-              {/* Right side: edit, archive, remove, close (own gallery only — friends see read-only) */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {/* ── Sticky header bar (safe-area aware) ── */}
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30, paddingTop: insets.top, backgroundColor: 'transparent' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 8 }}>
+              {/* Back */}
+              <TouchableOpacity
+                onPress={onClose}
+                style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, elevation: 4 }}
+                activeOpacity={0.8}
+              >
+                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                  <Path d="M19 12H5M12 5l-7 7 7 7" stroke="#0f172a" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+                </Svg>
+              </TouchableOpacity>
+              {/* Edit / Archive */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 {!userId && (
                   editMode ? (
                     <TouchableOpacity
                       onPress={handleDoneEdit}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, elevation: 4 }}
                       disabled={saving}
                     >
-                      {saving
-                        ? <ActivityIndicator size="small" color="#0d9488" />
-                        : <CheckIcon />
-                      }
+                      {saving ? <ActivityIndicator size="small" color="#0d9488" /> : <CheckIcon />}
                     </TouchableOpacity>
                   ) : (
                     <>
                       <TouchableOpacity
                         onPress={() => setEditMode(true)}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, elevation: 4 }}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                       >
-                        <Pen size={18} color="#0d9488" />
+                        <Pen size={16} color="#0d9488" />
                       </TouchableOpacity>
                       <TouchableOpacity
                         onPress={handleArchiveAlbum}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, elevation: 4 }}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                       >
-                        <Archive size={18} color="#64748b" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={handleRemoveFromGallery}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Trash2 size={18} color="#ef4444" />
+                        <Archive size={16} color="#64748b" />
                       </TouchableOpacity>
                     </>
                   )
                 )}
-                <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <CloseIcon />
-                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+
+            {/* ── Hero Photo (swipeable FlatList pager) ── */}
+            <View style={{ height: 290, backgroundColor: '#0f172a', position: 'relative' }}>
+              {loading ? (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <ActivityIndicator size="large" color="#5eead4" />
+                </View>
+              ) : photos.length > 0 ? (
+                <FlatList
+                  ref={heroFlatListRef}
+                  data={photos}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  initialScrollIndex={heroIndex}
+                  getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
+                  onMomentumScrollEnd={e => {
+                    const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
+                    setHeroIndex(idx);
+                  }}
+                  renderItem={({ item }) => (
+                    <View style={{ width: SCREEN_W, height: 290 }}>
+                      <GalleryHeroPhoto photo={item} />
+                    </View>
+                  )}
+                  keyExtractor={item => item.id}
+                />
+              ) : (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <Svg width={56} height={56} viewBox="0 0 24 24" fill="none">
+                    <Rect x={3} y={3} width={18} height={18} rx={2} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} />
+                    <Circle cx={8.5} cy={8.5} r={1.5} fill="rgba(255,255,255,0.25)" />
+                    <Path d="M21 15l-5-5L5 21" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                  <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 10 }}>No photos yet</Text>
+                </View>
+              )}
+              {/* Photo count */}
+              {photos.length > 0 && (
+                <View style={{ position: 'absolute', bottom: 14, right: 14, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.52)', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14 }}>
+                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{heroIndex + 1} / {photos.length}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* ── Thumbnail Strip ── */}
+            {photos.length > 0 && (
+              <View style={{ backgroundColor: '#fff', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, flexDirection: 'row' }}>
+                  {photos.map((ph, idx) => {
+                    const thumbUri = ph.localUri ?? ph.uri;
+                    return (
+                      <TouchableOpacity
+                        key={ph.id}
+                        onPress={() => { setHeroIndex(idx); heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); }}
+                        activeOpacity={0.85}
+                        style={{
+                          width: 74, height: 60, borderRadius: 10, overflow: 'hidden',
+                          borderWidth: idx === heroIndex ? 2.5 : 0,
+                          borderColor: '#0d9488',
+                          backgroundColor: '#e2e8f0',
+                        }}
+                      >
+                        <CachedImage uri={thumbUri} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* ── Identity Card ── */}
+            <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 18 }}>
+              {/* Edit mode name input */}
+              {(editMode && !userId) ? (
+                <TextInput
+                  value={nameDraft}
+                  onChangeText={setNameDraft}
+                  style={[styles.titleEditInput, { fontSize: 22, marginBottom: 6 }]}
+                  placeholderTextColor="#94a3b8"
+                  placeholder="Album title"
+                  returnKeyType="next"
+                />
+              ) : (
+                <>
+                  {isActivityPhoto && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#0d9488', letterSpacing: 0.3 }}>ACTIVITY</Text>
+                    </View>
+                  )}
+                  <Text style={{ fontSize: 26, fontWeight: '700', color: '#0f172a', letterSpacing: -0.4, marginBottom: 4 }} numberOfLines={2}>
+                    {dynamicTitle}
+                  </Text>
+                  {isActivityPhoto && (
+                    <Text style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>
+                      from <Text style={{ fontWeight: '600', color: '#0f172a' }}>{title}</Text>
+                    </Text>
+                  )}
+                </>
+              )}
+
+              {/* Subtitle edit / display */}
+              {(editMode && !userId) ? (
+                <TextInput
+                  value={subtitleDraft}
+                  onChangeText={setSubtitleDraft}
+                  placeholder="Add a short description…"
+                  placeholderTextColor="#94a3b8"
+                  style={[styles.modalSubtitleInput, { marginBottom: 10 }]}
+                  maxLength={80}
+                  returnKeyType="done"
+                  onSubmitEditing={handleDoneEdit}
+                />
+              ) : (initialSubtitle?.trim() ? (
+                <Text style={{ fontSize: 14, color: '#64748b', marginBottom: 10 }}>{initialSubtitle}</Text>
+              ) : null)}
+
+              {/* Type badge + photo count */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                <View style={{ backgroundColor: parentType === 'trip' ? '#f0fdf4' : '#fdf2f8', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  {parentType === 'trip' ? (
+                    <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+                      <Path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" stroke="#0d9488" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                  ) : (
+                    <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+                      <Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke="#db2777" strokeWidth={2} />
+                      <Path d="M16 2v4M8 2v4M3 10h18" stroke="#db2777" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                  )}
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: parentType === 'trip' ? '#0d9488' : '#db2777' }}>
+                    {parentType === 'trip' ? 'Trip' : 'Event'}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                  <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+                    <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
+                    <Circle cx={8.5} cy={8.5} r={1.5} fill="#0d9488" />
+                    <Path d="M21 15l-5-5L5 21" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                  <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '600' }}>
+                    {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'Photo' : 'Photos'}`}
+                  </Text>
+                </View>
               </View>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.dialogBody}>
+            {/* ── Description (subtitle as description) ── */}
+            {!editMode && initialSubtitle && initialSubtitle.trim().length > 60 && (
+              <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 20 }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#0f172a', marginBottom: 8 }}>Description</Text>
+                <Text style={{ fontSize: 14, color: '#475569', lineHeight: 22 }} numberOfLines={descExpanded ? undefined : 3}>
+                  {initialSubtitle}
+                </Text>
+                <TouchableOpacity onPress={() => setDescExpanded(p => !p)} activeOpacity={0.7} style={{ marginTop: 5 }}>
+                  <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>
+                    {descExpanded ? 'Show less' : '.....Read more'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
-                {loading && (
-                  <View style={styles.modalLoadingRow}>
-                    <ActivityIndicator color="#0d9488" />
-                  </View>
-                )}
-
-                {!loading && photos.length === 0 && (
-                  <View style={styles.emptyCenter}>
-                    <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
-                      <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
-                      <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
-                      <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                    <Text style={styles.emptyTitle}>No photos yet</Text>
-                    <Text style={styles.emptySub}>
-                      {editMode && !userId
-                        ? 'Tap "Add photos" below to capture memories.'
-                        : `No memories captured for this ${parentType}.`}
-                    </Text>
-                  </View>
-                )}
-
-                {!loading && photos.length > 0 && (
-                  <View>
-                    {directPhotos.length > 0 && (
-                      <View style={{ marginBottom: Object.keys(activityGroups).length > 0 ? 16 : 8 }}>
-                        {Object.keys(activityGroups).length > 0 && (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                            <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
-                            <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>
-                              {parentType === 'trip' ? 'Trip Photos' : 'Event Photos'}
-                            </Text>
-                            <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
-                          </View>
-                        )}
-                        <View style={styles.thumbRow}>
-                          {directPhotos.map(renderThumb)}
-                        </View>
+            {/* ── All Photos Grid (grouped by activity) ── */}
+            {!loading && photos.length > 0 && (
+              <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 }}>
+                {directPhotos.length > 0 && (
+                  <View style={{ marginBottom: Object.keys(activityGroups).length > 0 ? 16 : 8 }}>
+                    {Object.keys(activityGroups).length > 0 && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
+                        <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 }}>
+                          {parentType === 'trip' ? 'Trip Photos' : 'Event Photos'}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
                       </View>
                     )}
-                    {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
-                      <View key={actTitle} style={{ marginBottom: 16 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                          <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>{actTitle}</Text>
-                          <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
-                        </View>
-                        <View style={styles.thumbRow}>
-                          {actPhotos.map(renderThumb)}
-                        </View>
-                      </View>
-                    ))}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {directPhotos.map(ph => {
+                        const idx = photos.findIndex(p => p.id === ph.id);
+                        return (
+                          <TouchableOpacity
+                            key={ph.id}
+                            onPress={() => { setHeroIndex(idx); heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); }}
+                            activeOpacity={0.85}
+                            style={{ width: (SCREEN_W - 32 - 12) / 3, height: (SCREEN_W - 32 - 12) / 3, borderRadius: 10, overflow: 'hidden', borderWidth: idx === heroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0', position: 'relative' }}
+                          >
+                            <GalleryHeroPhoto photo={ph} />
+                            {editMode && !userId && (
+                              <TouchableOpacity
+                                style={[styles.thumbDeleteBtn, { top: 4, right: 4 }]}
+                                onPress={() => showConfirm({ title: 'Delete photo?', message: 'This photo will be removed from the gallery.', destructive: true, onConfirm: () => handleDeletePhoto(ph) })}
+                                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                                disabled={deletingId === ph.id}
+                              >
+                                {deletingId === ph.id ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} /> : <Trash2 size={11} color="#fff" strokeWidth={2.5} />}
+                              </TouchableOpacity>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   </View>
                 )}
-
-                {editMode && !userId && (
-                  <TouchableOpacity
-                    style={[styles.addPhotosBtn, uploading && { opacity: 0.6 }]}
-                    onPress={handleAddPhotos}
-                    disabled={uploading}
-                    activeOpacity={0.85}
-                  >
-                    {uploading
-                      ? <ActivityIndicator color="#0d9488" />
-                      : <Text style={styles.addPhotosBtnText}>Add photos</Text>
-                    }
-                  </TouchableOpacity>
-                )}
+                {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
+                  <View key={actTitle} style={{ marginBottom: 16 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
+                      <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 }}>{actTitle}</Text>
+                      <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {actPhotos.map(ph => {
+                        const idx = photos.findIndex(p => p.id === ph.id);
+                        return (
+                          <TouchableOpacity
+                            key={ph.id}
+                            onPress={() => { setHeroIndex(idx); heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); }}
+                            activeOpacity={0.85}
+                            style={{ width: (SCREEN_W - 32 - 12) / 3, height: (SCREEN_W - 32 - 12) / 3, borderRadius: 10, overflow: 'hidden', borderWidth: idx === heroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0', position: 'relative' }}
+                          >
+                            <GalleryHeroPhoto photo={ph} />
+                            {editMode && !userId && (
+                              <TouchableOpacity
+                                style={[styles.thumbDeleteBtn, { top: 4, right: 4 }]}
+                                onPress={() => showConfirm({ title: 'Delete photo?', message: 'This photo will be removed from the gallery.', destructive: true, onConfirm: () => handleDeletePhoto(ph) })}
+                                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                                disabled={deletingId === ph.id}
+                              >
+                                {deletingId === ph.id ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} /> : <Trash2 size={11} color="#fff" strokeWidth={2.5} />}
+                              </TouchableOpacity>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ))}
               </View>
-            </ScrollView>
-          </View>
+            )}
+
+            {/* ── Add Photos Button (edit mode) / empty state ── */}
+            <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 36 }}>
+              {!loading && photos.length === 0 && (
+                <View style={styles.emptyCenter}>
+                  <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
+                    <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
+                    <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
+                    <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                  <Text style={styles.emptyTitle}>No photos yet</Text>
+                  <Text style={styles.emptySub}>
+                    {!userId ? 'Tap "Add photos" below to capture memories.' : `No memories captured for this ${parentType}.`}
+                  </Text>
+                </View>
+              )}
+              {!userId && (
+                <TouchableOpacity
+                  style={[styles.addPhotosBtn, uploading && { opacity: 0.6 }]}
+                  onPress={handleAddPhotos}
+                  disabled={uploading}
+                  activeOpacity={0.85}
+                >
+                  {uploading ? <ActivityIndicator color="#0d9488" /> : <Text style={styles.addPhotosBtnText}>Add photos</Text>}
+                </TouchableOpacity>
+              )}
+            </View>
+
+          </ScrollView>
         </View>
       </Modal>
       <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
@@ -1442,7 +1659,7 @@ export default function GalleryTab({
               title="Trips"
               count={displayTrips.length + customTripCards.length}
               onAdd={() => setShowCreateCard('trip')}
-              icon={<Plane size={20} color="#0d9488" />}
+              icon={<Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" stroke="#0d9488" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" /></Svg>}
             />
             <View style={styles.grid}>
               {displayTrips.map((trip: any) => (
@@ -1471,7 +1688,7 @@ export default function GalleryTab({
               title="Events"
               count={galleryEvents.length + customEventCards.length}
               onAdd={() => setShowCreateCard('event')}
-              icon={<CalendarDays size={20} color="#f59e0b" />}
+              icon={<Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke="#f59e0b" strokeWidth={2} /><Path d="M16 2v4M8 2v4M3 10h18" stroke="#f59e0b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>}
             />
             <View style={styles.grid}>
               {galleryEvents.map((ev: any) => (

@@ -250,10 +250,18 @@ export async function deleteEventExpense(eventId: string, eid: string) {
 
 export async function getEventBalances(eventId: string) {
   const res = await client.get(`/events/${eventId}/balances`);
-  return res.data as { debts: Debt[]; myBalance: number; totalExpenses: string };
+  return res.data as {
+    debts: Debt[];
+    myBalances: Record<string, number>;
+    totalExpensesByCurrency: Record<string, string>;
+    /** @deprecated legacy single-value field for backward compat */
+    myBalance: number;
+    /** @deprecated legacy single-value field for backward compat */
+    totalExpenses: string;
+  };
 }
 
-export async function settleEventDebt(eventId: string, body: { withUserId: string; amount: number }) {
+export async function settleEventDebt(eventId: string, body: { withUserId: string; amount: number; currency?: string }) {
   const res = await client.post(`/events/${eventId}/settlements`, body);
   return res.data as { outstanding: Debt[] };
 }

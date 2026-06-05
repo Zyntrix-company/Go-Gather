@@ -23,8 +23,11 @@ import {
   sendMessageStream,
   reportMessage,
   clearConversation,
+  executeAction,
   type ConversationMessage,
   type TripContext,
+  type PendingAction,
+  type ExecuteResult,
 } from '../../api/ai.api';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -35,16 +38,26 @@ type Message = {
   sender: 'user' | 'swee';
   time: string;
   streaming?: boolean;
+  // When this Swee message contains a recap + confirm request
+  pendingAction?: PendingAction | null;
+  // When this Swee message is a success confirmation with navigation
+  createdResult?: ExecuteResult['created'];
 };
 
 // ─── Welcome message ───────────────────────────────────────────────────────
+// Static object — created fresh each time via makeWelcome() so the time
+// always reflects when the screen opened, not when the module loaded.
 
-const WELCOME_MESSAGE: Message = {
-  id: 'welcome',
-  text: "Hi! I'm Swee, your travel assistant. How can I help you plan your next adventure?",
-  sender: 'swee',
-  time: formatTime(),
-};
+function makeWelcome(): Message {
+  return {
+    id: 'welcome',
+    text: "Hi! I'm Swee. Let's plan your next trip or event!",
+    sender: 'swee',
+    time: formatTime(),
+    // mark as pre-rendered so renderMessage never shows the streaming cursor
+    streaming: false,
+  };
+}
 
 function formatTime() {
   const now = new Date();
@@ -164,9 +177,10 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     route?.params?.tripContext ?? null,
   );
 
-  const [messages, setMessages] = useState<Message[]>([{ ...WELCOME_MESSAGE }]);
+  const [messages, setMessages] = useState<Message[]>([makeWelcome()]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isExecuting, setIsExecuting] = useState(false);
   const [showOverflow, setShowOverflow] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
@@ -230,10 +244,12 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           ),
         );
       },
-      () => {
+      (pendingAction) => {
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === streamingMsgId ? { ...m, streaming: false } : m,
+            m.id === streamingMsgId
+              ? { ...m, streaming: false, pendingAction: pendingAction ?? null }
+              : m,
           ),
         );
         setIsTyping(false);
@@ -253,6 +269,48 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     );
   }, [inputText, isTyping, messages, tripContext]);
 
+  // Execute a confirmed Swee action (create/update trip or event)
+  const handleConfirmAction = useCallback(async (action: PendingAction, fromMsgId: string) => {
+    if (isExecuting) return;
+    setIsExecuting(true);
+
+    // Clear the pendingAction from the source message so chips disappear
+    setMessages((prev) =>
+      prev.map((m) => m.id === fromMsgId ? { ...m, pendingAction: null } : m),
+    );
+
+    // Show a "working" Swee message
+    const workingId = `exec_${Date.now()}`;
+    setMessages((prev) => [...prev, {
+      id: workingId,
+      text: '',
+      sender: 'swee',
+      time: formatTime(),
+      streaming: true,
+    }]);
+
+    try {
+      const result = await executeAction(action);
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === workingId
+            ? { ...m, text: result.reply, streaming: false, createdResult: result.created ?? undefined }
+            : m,
+        ),
+      );
+    } catch (err: any) {
+      const msg: string = err?.response?.data?.message ?? err?.message ?? 'Something went wrong.';
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === workingId ? { ...m, text: msg, streaming: false } : m,
+        ),
+      );
+    } finally {
+      setIsExecuting(false);
+    }
+  }, [isExecuting]);
+
   useEffect(() => {
     const text = typeof initialMessageParam === 'string' ? initialMessageParam.trim() : '';
     if (!text || isTyping) return;
@@ -268,7 +326,8 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     abortRef.current = null;
     setShowOverflow(false);
     setIsTyping(false);
-    setMessages([{ ...WELCOME_MESSAGE, time: formatTime() }]);
+    setIsExecuting(false);
+    setMessages([makeWelcome()]);
     try {
       await clearConversation(userId);
     } catch (_) { /* silent — client already cleared */ }
@@ -307,6 +366,13 @@ export default function ChatDetailScreen({ route, navigation }: any) {
       return <TypingIndicator />;
     }
 
+    // Use a wider bubble when the message contains a markdown table
+    const hasTable = !isUser && /\|.+\|/.test(item.text);
+    const bubbleWidthStyle = hasTable ? styles.msgBubbleWide : null;
+
+    const showConfirmChips = !isUser && !item.streaming && item.pendingAction?.readyToCreate === true;
+    const showViewBtn = !isUser && !item.streaming && item.createdResult;
+
     return (
       <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowOther]}>
         {!isUser && (
@@ -314,7 +380,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             <SweeIcon size={14} color="#fff" />
           </View>
         )}
-        <View style={[styles.msgBubble, isUser ? styles.msgBubbleUser : styles.msgBubbleSwee]}>
+        <View style={[styles.msgBubble, isUser ? styles.msgBubbleUser : styles.msgBubbleSwee, bubbleWidthStyle]}>
           {isUser ? (
             <Text style={textStyle}>{item.text}</Text>
           ) : (
@@ -329,6 +395,59 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           )}
           {!item.streaming && (
             <Text style={[styles.msgTime, isUser && styles.msgTimeUser]}>{item.time}</Text>
+          )}
+
+          {/* ── Confirm chips (shown when Swee asks for confirmation) ── */}
+          {showConfirmChips && (
+            <View style={styles.confirmRow}>
+              <TouchableOpacity
+                style={styles.confirmYes}
+                onPress={() => handleConfirmAction(item.pendingAction!, item.id)}
+                activeOpacity={0.8}
+                disabled={isExecuting}
+              >
+                {isExecuting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.confirmYesText}>
+                    {item.pendingAction?.intent === 'update_trip' || item.pendingAction?.intent === 'update_event'
+                      ? 'Save changes'
+                      : item.pendingAction?.intent === 'add_note'
+                        ? 'Save note'
+                        : 'Yes, create it'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmNo}
+                onPress={() =>
+                  setMessages((prev) =>
+                    prev.map((m) => m.id === item.id ? { ...m, pendingAction: null } : m),
+                  )
+                }
+                activeOpacity={0.8}
+              >
+                <Text style={styles.confirmNoText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* ── View Trip/Event button after successful creation ── */}
+          {showViewBtn && (
+            <TouchableOpacity
+              style={styles.viewBtn}
+              onPress={() => {
+                const res = item.createdResult!;
+                if (res.type === 'trip') {
+                  navigation.navigate('TripDetail', { trip: { id: res.id, name: res.name } });
+                } else {
+                  navigation.navigate('EventDetail', { event: { id: res.id, name: res.name } });
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.viewBtnText}>View {item.createdResult!.type === 'trip' ? 'Trip' : 'Event'} →</Text>
+            </TouchableOpacity>
           )}
         </View>
       </View>
@@ -607,11 +726,35 @@ const styles = StyleSheet.create({
     backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
   },
   msgBubble: { maxWidth: '78%', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 13 },
+  msgBubbleWide: { maxWidth: '96%' },
   msgBubbleUser: { backgroundColor: '#0d9488', borderBottomRightRadius: 4 },
   msgBubbleSwee: {
     backgroundColor: '#f0fdfa', borderBottomLeftRadius: 4,
     borderWidth: 1, borderColor: '#ccfbf1',
   },
+
+  // Confirm chips
+  confirmRow: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' },
+  confirmYes: {
+    backgroundColor: '#0d9488', borderRadius: 20,
+    paddingHorizontal: 18, paddingVertical: 9,
+    minWidth: 110, alignItems: 'center',
+  },
+  confirmYesText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  confirmNo: {
+    backgroundColor: '#fff', borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 9,
+    borderWidth: 1.5, borderColor: '#e2e8f0',
+  },
+  confirmNoText: { color: '#64748b', fontSize: 13, fontWeight: '600' },
+
+  // View Trip/Event button after creation
+  viewBtn: {
+    marginTop: 10, backgroundColor: '#0d9488',
+    borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16,
+    alignSelf: 'flex-start',
+  },
+  viewBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
   msgText: { fontSize: 14, color: '#0f172a', lineHeight: 21 },
   msgTextUser: { color: '#ffffff' },

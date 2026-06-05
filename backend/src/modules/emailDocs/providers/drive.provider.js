@@ -20,6 +20,12 @@ const ALLOWED_DRIVE_MIMES = [
 ];
 
 function getAuthUrl(state) {
+  if (!config.google.driveRedirectUri) {
+    const e = new Error('GOOGLE_DRIVE_REDIRECT_URI is not configured on the server');
+    e.statusCode = 500;
+    e.error = 'DRIVE_OAUTH_NOT_CONFIGURED';
+    throw e;
+  }
   const params = new URLSearchParams({
     client_id:     config.google.clientId,
     redirect_uri:  config.google.driveRedirectUri,

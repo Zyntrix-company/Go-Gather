@@ -190,6 +190,7 @@ export type Debt = {
   amount: number;
   fromName: string;
   toName: string;
+  currency: string;
 };
 
 export type Note = {
@@ -395,10 +396,18 @@ export async function deleteExpense(tripId: string, eid: string) {
 
 export async function getBalances(tripId: string) {
   const res = await client.get(`/trips/${tripId}/balances`);
-  return res.data as { debts: Debt[]; myBalance: number; totalExpenses: string };
+  return res.data as {
+    debts: Debt[];
+    myBalances: Record<string, number>;
+    totalExpensesByCurrency: Record<string, string>;
+    /** @deprecated legacy single-value field for backward compat */
+    myBalance: number;
+    /** @deprecated legacy single-value field for backward compat */
+    totalExpenses: string;
+  };
 }
 
-export async function settleDebt(tripId: string, body: { withUserId: string; amount: number }) {
+export async function settleDebt(tripId: string, body: { withUserId: string; amount: number; currency?: string }) {
   const res = await client.post(`/trips/${tripId}/settlements`, body);
   return res.data as { outstanding: Debt[] };
 }
@@ -481,6 +490,50 @@ export async function importEmailAttachments(
 
 export async function disconnectEmailProvider(provider: EmailProvider) {
   const res = await client.delete(`/auth/email/${provider}/disconnect`);
+  return res.data as { success: boolean };
+}
+
+// ─── 5c. Google Drive Import ──────────────────────────────────────────────────
+
+export type DriveFile = {
+  fileId: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number | null;
+  modifiedTime: string;
+};
+
+export async function getDriveConnectUrl() {
+  const res = await client.get('/auth/drive/connect-url');
+  return res.data as { url: string };
+}
+
+export async function getDriveStatus() {
+  const res = await client.get('/drive-docs/status');
+  return res.data as { connected: boolean; email: string | null };
+}
+
+export async function listDriveFiles(folderId?: string) {
+  const res = await client.get('/drive-docs/files', {
+    params: folderId ? { folderId } : {},
+  });
+  return res.data as { files: DriveFile[]; total: number };
+}
+
+export async function importDriveFiles(
+  parentType: 'trip' | 'event',
+  parentId: string,
+  files: Pick<DriveFile, 'fileId' | 'name' | 'mimeType'>[],
+) {
+  const res = await client.post('/drive-docs/import', { parentType, parentId, files });
+  return res.data as {
+    imported: { docId: string; fileName: string; fileUrl: string }[];
+    failed:   { fileName: string; reason: string }[];
+  };
+}
+
+export async function disconnectDrive() {
+  const res = await client.delete('/auth/drive/disconnect');
   return res.data as { success: boolean };
 }
 

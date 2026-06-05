@@ -11,8 +11,8 @@ interface DetailStatsBarProps {
   memberCount: number;
   docCount: number;
   photoCount: number;
-  /** Total expense amount (numeric, will be formatted with ₹) */
-  totalExpenses: number;
+  /** Pre-formatted expense label, e.g. '₹1,200' or '₹1,200 +1' for multi-currency */
+  expenseLabel: string;
 }
 
 const ICON_COLOR = colors.accent;
@@ -71,7 +71,7 @@ function PhotosIcon() {
 
 function ExpensesIcon() {
   return (
-    <Text style={{ fontSize: 13, color: ICON_COLOR, fontWeight: '700', lineHeight: 16 }}>₹</Text>
+    <Text style={{ fontSize: 13, color: ICON_COLOR, fontWeight: '700', lineHeight: 16 }}>$₹</Text>
   );
 }
 
@@ -94,7 +94,7 @@ export default function DetailStatsBar({
   memberCount,
   docCount,
   photoCount,
-  totalExpenses,
+  expenseLabel,
 }: DetailStatsBarProps) {
   return (
     <View style={styles.bar}>
@@ -115,7 +115,7 @@ export default function DetailStatsBar({
       <View style={styles.divider} />
       <StatItem
         icon={<ExpensesIcon />}
-        label={`₹${totalExpenses > 0 ? totalExpenses.toLocaleString() : '0'}`}
+        label={expenseLabel || '0'}
       />
     </View>
   );

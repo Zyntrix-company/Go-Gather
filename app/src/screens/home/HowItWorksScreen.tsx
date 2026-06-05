@@ -33,14 +33,23 @@ function formatVideoTime(seconds: number) {
 
 type FeatureIconType = 'trips' | 'events' | 'expenses' | 'photos' | 'polls' | 'swee';
 
+const FEATURE_COLORS: Record<FeatureIconType, string> = {
+  trips: '#0d9488',    // teal — app brand accent
+  events: '#f59e0b',   // amber — warning/events colour
+  expenses: '#facc15', // bright yellow — split expenses
+  photos: '#ef4444',   // red — share memories
+  polls: '#3b82f6',    // blue — group polls
+  swee: '#0d9488',     // teal — Swee AI uses brand accent
+};
+
 function FeatureIcon({ type }: { type: FeatureIconType }) {
   const size = 22;
-  const color = '#0d9488';
+  const color = FEATURE_COLORS[type];
   switch (type) {
     case 'trips':
       return <Plane size={size} color={color} strokeWidth={2} />;
     case 'events':
-      return <CalendarDays size={size} color="#f59e0b" strokeWidth={2} />;
+      return <CalendarDays size={size} color={color} strokeWidth={2} />;
     case 'expenses':
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -71,6 +80,8 @@ function FeatureIcon({ type }: { type: FeatureIconType }) {
 export default function HowItWorksScreen({ navigation }: { navigation: any }) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoError, setVideoError] = useState(false);
+  /** After `/promo-video` fetch settles — avoids flashing "coming soon" while URL is still loading. */
+  const [promoFetchDone, setPromoFetchDone] = useState(false);
   const [videoLoading, setVideoLoading] = useState(true);
   const [videoPaused, setVideoPaused] = useState(false);
   const [videoMuted, setVideoMuted] = useState(false);
@@ -159,20 +170,24 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
 
   useEffect(() => {
     let cancelled = false;
-    const load = () => {
-      fetch(`${API_BASE}/promo-video`)
-        .then(r => r.json())
-        .then(data => {
-          if (!cancelled && data?.videoUrl) {
-            setVideoUrl(data.videoUrl);
-            setVideoError(false);
-          }
-        })
-        .catch(err => {
-          console.warn('[HowItWorks] Failed to fetch promo video URL:', err?.message ?? err);
-        });
-    };
-    load();
+    fetch(`${API_BASE}/promo-video`)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(data => {
+        if (cancelled) return;
+        if (data?.videoUrl) {
+          setVideoUrl(data.videoUrl);
+          setVideoError(false);
+        }
+      })
+      .catch(err => {
+        console.warn('[HowItWorks] Failed to fetch promo video URL:', err?.message ?? err);
+      })
+      .finally(() => {
+        if (!cancelled) setPromoFetchDone(true);
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -222,6 +237,7 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
                   }}
                   onError={(err: any) => {
                     console.warn('[HowItWorks] Video load error:', JSON.stringify(err?.error ?? err));
+                    setVideoLoading(false);
                     setVideoError(true);
                   }}
                 />
@@ -302,6 +318,11 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
                   </View>
                 )}
               </>
+            ) : !promoFetchDone ? (
+              <View style={styles.videoPlaceholder}>
+                <ActivityIndicator size="large" color="#fff" />
+                <Text style={styles.videoLabel}>Loading video…</Text>
+              </View>
             ) : (
               <View style={styles.videoPlaceholder}>
                 <View style={styles.playBtn}>
@@ -508,7 +529,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   featureLabel: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, marginTop: 6 },
-  featureDesc: { fontSize: 11, color: colors.textSecondary, lineHeight: 16 },
+  featureDesc: { fontSize: 12, color: colors.textSecondary, lineHeight: 21 },
 
   // Footer
   footerNote: { alignItems: 'center', paddingTop: 4 },

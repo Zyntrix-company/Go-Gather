@@ -38,12 +38,15 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       env:
         FIREBASE_SERVICE_ACCOUNT_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
+        BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+        BREVO_FROM_EMAIL: ${{ secrets.BREVO_FROM_EMAIL }}
+        BREVO_FROM_NAME: ${{ secrets.BREVO_FROM_NAME }}
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         request_pty: true
-        envs: FIREBASE_SERVICE_ACCOUNT_B64
+        envs: FIREBASE_SERVICE_ACCOUNT_B64,BREVO_API_KEY,BREVO_FROM_EMAIL,BREVO_FROM_NAME
         script: |
           set -e
 
@@ -75,6 +78,31 @@ jobs:
           else
             sed -i "s|^ALLOWED_ORIGINS=.*|ALLOWED_ORIGINS=${CURRENT_ORIGINS},https://admin.gatherrgo.com|" "$ENV_FILE"
             echo "admin.gatherrgo.com appended to ALLOWED_ORIGINS"
+          fi
+
+          # ── 2c. Google Drive OAuth redirect URI ───────────────────────────────
+          DRIVE_REDIRECT='https://api.gatherrgo.com/auth/drive/callback'
+          if grep -q '^GOOGLE_DRIVE_REDIRECT_URI=' "$ENV_FILE" 2>/dev/null; then
+            sed -i "s|^GOOGLE_DRIVE_REDIRECT_URI=.*|GOOGLE_DRIVE_REDIRECT_URI=${DRIVE_REDIRECT}|" "$ENV_FILE"
+            echo "GOOGLE_DRIVE_REDIRECT_URI updated"
+          else
+            echo "GOOGLE_DRIVE_REDIRECT_URI=${DRIVE_REDIRECT}" >> "$ENV_FILE"
+            echo "GOOGLE_DRIVE_REDIRECT_URI added"
+          fi
+
+          # ── 2d. Brevo transactional email (provider: src/config/emailProvider.js) ─
+          sed -i '/^BREVO_API_KEY=/d' "$ENV_FILE" || true
+          sed -i '/^BREVO_FROM_EMAIL=/d' "$ENV_FILE" || true
+          sed -i '/^BREVO_FROM_NAME=/d' "$ENV_FILE" || true
+          BREVO_FROM_EMAIL="${BREVO_FROM_EMAIL:-Hello@GatherrGo.com}"
+          BREVO_FROM_NAME="${BREVO_FROM_NAME:-Gatherrgo}"
+          if [ -n "$BREVO_API_KEY" ]; then
+            echo "BREVO_API_KEY=$BREVO_API_KEY" >> "$ENV_FILE"
+            echo "BREVO_FROM_EMAIL=$BREVO_FROM_EMAIL" >> "$ENV_FILE"
+            echo "BREVO_FROM_NAME=$BREVO_FROM_NAME" >> "$ENV_FILE"
+            echo "Brevo credentials injected into .env"
+          else
+            echo "WARNING: BREVO_API_KEY GitHub secret not set — transactional email via Brevo disabled"
           fi
 
           # ── 3. Free disk space — remove images not used by a running container ──

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import type { EmailProvider } from '../../api/trips.api';
 import colors from '../../theme/colors';
@@ -38,6 +38,16 @@ function ChevRight() {
   );
 }
 
+function DriveIcon({ size = 26 }: { size?: number }) {
+  return (
+    <Image
+      source={require('../../../assets/drive-icon.png')}
+      style={{ width: size, height: size }}
+      resizeMode="contain"
+    />
+  );
+}
+
 function EmailImportRow({
   provider,
   connected,
@@ -64,25 +74,52 @@ function EmailImportRow({
   );
 }
 
+function DriveImportRow({
+  connected,
+  onPress,
+}: {
+  connected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity style={styles.importRow} onPress={onPress} activeOpacity={0.75}>
+      <View style={styles.importIconWrap}>
+        <DriveIcon size={26} />
+      </View>
+      <View style={styles.importTextCol}>
+        <Text style={styles.importTitle}>Google Drive</Text>
+        <Text style={styles.importSub}>
+          {connected ? 'Connected · tap to import' : 'Connect Google Drive to import'}
+        </Text>
+      </View>
+      <ChevRight />
+    </TouchableOpacity>
+  );
+}
+
 /**
- * Upload actions for trip/event Documents modals — phone upload + Gmail/Outlook import rows.
+ * Upload actions for trip/event Documents modals — phone upload + Gmail/Outlook import rows + Drive row.
  */
 export default function DocumentsUploadSection({
   onUploadPhone,
   emailStatus,
   onGmail,
   onOutlook,
+  driveConnected,
+  onDrive,
 }: {
   onUploadPhone: () => void;
   emailStatus: EmailConnectionStatus;
   onGmail: () => void;
   onOutlook: () => void;
+  driveConnected: boolean;
+  onDrive: () => void;
 }) {
   return (
     <View style={styles.wrap}>
       <TouchableOpacity style={styles.phoneBtn} onPress={onUploadPhone} activeOpacity={0.85}>
         <UploadIcon />
-        <Text style={styles.phoneBtnText}>Upload from device</Text>
+        <Text style={styles.phoneBtnText}>Upload from device or Drive</Text>
       </TouchableOpacity>
 
       <View style={styles.dividerRow}>
@@ -102,6 +139,16 @@ export default function DocumentsUploadSection({
           connected={emailStatus.outlook.connected}
           onPress={onOutlook}
         />
+      </View>
+
+      <View style={styles.dividerRow}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>Import from cloud</Text>
+        <View style={styles.dividerLine} />
+      </View>
+
+      <View style={styles.importList}>
+        <DriveImportRow connected={driveConnected} onPress={onDrive} />
       </View>
     </View>
   );

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMe
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
-  TextInput, Animated, PanResponder, Image, Platform, Linking, NativeModules,
+  TextInput, Animated, PanResponder, Image, Platform, Linking,
   ActivityIndicator, FlatList, Dimensions, Easing, InteractionManager,
 } from 'react-native';
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -12,6 +12,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import SweeIcon from '../../components/common/SweeIcon';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { WebView } from 'react-native-webview';
 // DocumentPicker loaded dynamically to avoid crash if native module not yet linked
 import AppDatePicker from '../../components/common/AppDatePicker';
@@ -53,7 +54,11 @@ import {
   getEmailStatus,
   listEmailAttachments,
   importEmailAttachments,
+  getDriveStatus,
+  listDriveFiles,
+  importDriveFiles,
   type EmailAttachment,
+  type DriveFile,
   uploadTripPhotos,
   deleteTripPhoto,
   getNotes,
@@ -71,6 +76,7 @@ import {
 import type { TripMember, Debt } from '../../api/trips.api';
 import { markTripSectionViewed } from '../../api/trips.api';
 import ExpenseTotalsTab from '../../components/common/ExpenseTotalsTab';
+import { ExpenseListSkeleton, TotalTabSkeleton, BalanceTabSkeleton } from '../../components/common/ExpenseTabSkeleton';
 import {
   EXPENSE_CATS as EXPENSE_CATEGORY_OPTIONS,
   NOTE_CATS as NOTE_CATEGORY_OPTIONS,
@@ -81,6 +87,7 @@ import {
   resolveExpenseCategory,
 } from '../../components/common/CategoryIcons';
 import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
+import { SUPPORTED_CURRENCIES, formatCurrency, buildExpenseLabel } from '../../utils/currency';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -94,6 +101,7 @@ type DocItem = { id: string; name: string; uri: string; mimeType?: string };
 type PhotoItem = { id: string; uri: string; localUri?: string; name: string; uploadedBy?: string; activityId?: string | null; activityTitle?: string | null };
 type Expense = {
   id: string; description: string; amount: number; category: string;
+  currency: string;
   paidBy: string; splitType: 'equally' | 'amount' | 'percent';
   splitAmong: string[]; date: string;
   activityId?: string | null;
@@ -138,6 +146,7 @@ function mapApiExpenseToState(e: any, currentUserId: string, members: TripMember
     id: e.id,
     description: e.description,
     amount: parseFloat(String(e.amount)),
+    currency: (e.currency as string) || 'INR',
     category: e.category ?? 'general',
     paidBy: paidByStr,
     splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
@@ -160,36 +169,45 @@ function normalizeDebtArray(
   debts: any[],
   currentUid: string,
   membersList: { userId: string; fullName: string }[],
-): { from: string; to: string; fromName: string; toName: string; amount: number }[] {
+): Debt[] {
   return (debts ?? []).map((d: any) => ({
     from: d.from,
     to: d.to,
     fromName: d.fromName || (d.from === currentUid ? 'You' : (membersList.find(m => m.userId === d.from)?.fullName || 'Member')),
     toName: d.toName || (d.to === currentUid ? 'You' : (membersList.find(m => m.userId === d.to)?.fullName || 'Member')),
     amount: typeof d.amount === 'number' ? d.amount : parseFloat(d.amount ?? '0'),
+    currency: d.currency || 'INR',
   }));
 }
 
 /**
  * Parse getBalances response — handles both backend formats:
- * - NEW: { debts: [{from,to,fromName,toName,amount}], myBalance, totalExpenses }
- * - OLD: { summary: {netBalance, yoursTotal}, outstanding: [{userId,name,amount,direction}] }
+ * - NEW (multi-currency): { debts, myBalances: {INR:x, USD:y}, totalExpensesByCurrency: {INR:'x'} }
+ * - TRANSITIONAL: { debts, myBalance, totalExpenses }
+ * - OLD: { summary: {netBalance, yoursTotal}, outstanding: [...] }
  */
 function parseBalanceResponse(
   balRes: any,
   currentUid: string,
   membersList: { userId: string; fullName: string }[],
-) {
+): { debts: Debt[]; myBalances: Record<string, number>; totalExpensesByCurrency: Record<string, string> } {
   if (Array.isArray(balRes?.debts)) {
-    // New format
-    return {
-      debts: normalizeDebtArray(balRes.debts, currentUid, membersList),
-      myBalance: typeof balRes.myBalance === 'number' ? balRes.myBalance : 0,
-      totalExpenses: balRes.totalExpenses ?? '0',
-    };
+    const debts = normalizeDebtArray(balRes.debts, currentUid, membersList);
+    // New multi-currency format
+    if (balRes.myBalances && typeof balRes.myBalances === 'object') {
+      return {
+        debts,
+        myBalances: balRes.myBalances as Record<string, number>,
+        totalExpensesByCurrency: (balRes.totalExpensesByCurrency ?? {}) as Record<string, string>,
+      };
+    }
+    // Transitional: single myBalance/totalExpenses → wrap in INR bucket
+    const mb = typeof balRes.myBalance === 'number' ? balRes.myBalance : 0;
+    const te = balRes.totalExpenses ?? '0';
+    return { debts, myBalances: { INR: mb }, totalExpensesByCurrency: { INR: te } };
   }
   // Old format
-  const debts = (balRes?.outstanding ?? []).map((o: any) => {
+  const debts: Debt[] = (balRes?.outstanding ?? []).map((o: any) => {
     const otherId = o.userId;
     const otherName = o.name || membersList.find(m => m.userId === otherId)?.fullName || 'Member';
     const youOwe = o.direction === 'you_owe';
@@ -199,13 +217,12 @@ function parseBalanceResponse(
       fromName: youOwe ? 'You' : otherName,
       toName: youOwe ? otherName : 'You',
       amount: typeof o.amount === 'number' ? o.amount : parseFloat(o.amount ?? '0'),
+      currency: 'INR',
     };
   });
-  return {
-    debts,
-    myBalance: typeof balRes?.summary?.netBalance === 'number' ? balRes.summary.netBalance : 0,
-    totalExpenses: String(balRes?.summary?.yoursTotal ?? 0),
-  };
+  const mb = typeof balRes?.summary?.netBalance === 'number' ? balRes.summary.netBalance : 0;
+  const te = String(balRes?.summary?.yoursTotal ?? 0);
+  return { debts, myBalances: { INR: mb }, totalExpensesByCurrency: { INR: te } };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -593,6 +610,39 @@ function TripPhotoPreview({ photo }: { photo: PhotoItem }) {
   );
 }
 
+function TripAlbumHeroPhoto({ photo }: { photo: PhotoItem }) {
+  const [loading, setLoading] = useState(true);
+  const [localUriFailed, setLocalUriFailed] = useState(false);
+  const uri = (photo.localUri && !localUriFailed) ? photo.localUri : photo.uri;
+  const prevId = useRef(photo.id);
+  useEffect(() => {
+    if (prevId.current !== photo.id) {
+      prevId.current = photo.id;
+      setLocalUriFailed(false);
+      setLoading(true);
+    }
+  }, [photo.id]);
+  return (
+    <View style={{ flex: 1 }}>
+      <CachedImage
+        uri={uri}
+        style={{ width: '100%', height: '100%' }}
+        resizeMode="cover"
+        onLoad={() => setLoading(false)}
+        onError={() => {
+          if (photo.localUri && !localUriFailed) { setLocalUriFailed(true); setLoading(true); }
+          else setLoading(false);
+        }}
+      />
+      {loading && (
+        <View style={{ ...StyleSheet.absoluteFillObject as any, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+          <ActivityIndicator size="large" color="#5eead4" />
+        </View>
+      )}
+    </View>
+  );
+}
+
 function renderTextWithLinks(text: string, textStyle: any, linkStyle: any) {
   const parts = text.split(/(https?:\/\/[^\s]+)/g);
   return (
@@ -646,8 +696,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [members, setMembers] = useState<TripMember[]>([]);
   const [failedAvatarIds, setFailedAvatarIds] = useState<Set<string>>(new Set());
   const [balances, setBalances] = useState<Debt[]>([]);
-  const [myBalance, setMyBalance] = useState<number>(0);
-  const [totalExpenses, setTotalExpenses] = useState<string>('0.00');
+  const [myBalances, setMyBalances] = useState<Record<string, number>>({});
+  const [totalExpensesByCurrency, setTotalExpensesByCurrency] = useState<Record<string, string>>({});
   const [apiStats, setApiStats] = useState<{ memberCount: number; docCount: number; photoVideoCount: number; totalExpenseAmount: number } | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
@@ -655,7 +705,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [, setIsLoadingInit] = useState(true);
   const [, setIsLoadingDocs] = useState(false);
   const [, setIsLoadingPhotos] = useState(false);
-  const [, setIsLoadingExpenses] = useState(false);
+  const [isLoadingExpenses, setIsLoadingExpenses] = useState(false);
   const [, setIsLoadingNotes] = useState(false);
   const [, setIsLoadingPolls] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -687,6 +737,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [emailPickerLoading, setEmailPickerLoading] = useState(false);
   const [emailImporting, setEmailImporting] = useState(false);
   const [emailStatus, setEmailStatus] = useState({ gmail: { connected: false }, outlook: { connected: false } });
+  const [showDrivePicker, setShowDrivePicker] = useState(false);
+  const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
+  const [drivePickerLoading, setDrivePickerLoading] = useState(false);
+  const [selectedDriveFileIds, setSelectedDriveFileIds] = useState<Set<string>>(new Set());
+  const [driveImporting, setDriveImporting] = useState(false);
+  const [driveStatus, setDriveStatus] = useState({ connected: false });
   const [showMembers, setShowMembers] = useState(false);
   const [showPhotos, setShowPhotos] = useState(false);
   const [showExpenses, setShowExpenses] = useState(false);
@@ -695,6 +751,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [previewPhotoIndex, setPreviewPhotoIndex] = useState<number | null>(null);
   const photoListRef = useRef<any>(null);
   const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
+  const [albumHeroIndex, setAlbumHeroIndex] = useState(0);
+  const [albumDescExpanded, setAlbumDescExpanded] = useState(false);
+  const albumHeroRef = useRef<any>(null);
   const [actDateError, setActDateError] = useState<string>('');
 
   // ── Add Activity form ──
@@ -722,15 +781,17 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [actExpSplitDetails, setActExpSplitDetails] = useState<{ [k: string]: string }>({});
   const [showActExpCatDrop, setShowActExpCatDrop] = useState(false);
   const [showActExpPaidByDrop, setShowActExpPaidByDrop] = useState(false);
+  const [actExpCurrency, setActExpCurrency] = useState<string>('INR');
+  const [showActExpCurrencyDrop, setShowActExpCurrencyDrop] = useState(false);
   const [actExpConfirmed, setActExpConfirmed] = useState(false);
 
   // ── Members modal ──
-  const [memberTab, setMemberTab] = useState<'Members' | 'From Friends' | 'Invite New'>('Members');
+  const [memberTab, setMemberTab] = useState<'Members' | 'Invite from Friends' | 'Invite New'>('Members');
   const [memberSearch, setMemberSearch] = useState('');
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
 
   // ── Expenses modal ──
-  const [expTab, setExpTab] = useState<'All Expenses' | 'Totals' | 'Balances'>('All Expenses');
+  const [expTab, setExpTab] = useState<'Expense' | 'Total' | 'Balance'>('Expense');
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [expDesc, setExpDesc] = useState('');
   const [expAmount, setExpAmount] = useState('');
@@ -739,8 +800,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [expSplitType, setExpSplitType] = useState<'equally' | 'amount' | 'percent'>('equally');
   const [expSplitAmong, setExpSplitAmong] = useState<string[]>(['You']);
   const [expSplitDetails, setExpSplitDetails] = useState<{ [k: string]: string }>({});
+  const [expCurrency, setExpCurrency] = useState<string>('INR');
   const [showExpCatDrop, setShowExpCatDrop] = useState(false);
   const [showPaidByDrop, setShowPaidByDrop] = useState(false);
+  const [showExpCurrencyDrop, setShowExpCurrencyDrop] = useState(false);
 
   // ── Polls modal ──
   const [showPollForm, setShowPollForm] = useState(false);
@@ -795,8 +858,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
         // Balance — handles both old and new backend formats
         const balParsed = parseBalanceResponse(balRes, currentUserId, membersRes.members);
         setBalances(balParsed.debts);
-        setMyBalance(balParsed.myBalance);
-        setTotalExpenses(balParsed.totalExpenses);
+        setMyBalances(balParsed.myBalances);
+        setTotalExpensesByCurrency(balParsed.totalExpensesByCurrency);
         const mapActivity = (a: any, completed: boolean) => {
           const { hour, minute } = parseActivityTime(a.time);
           return { id: a.id, title: a.title, date: a.date ?? '', hour, minute, location: a.location, description: a.description, completed, createdBy: a.createdBy, linkedExpense: a.linkedExpense ?? null };
@@ -831,10 +894,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
         setExpenses(mapped);
         setUnreadCounts(prev => ({ ...prev, expenses: 0 }));
         markTripSectionViewed(tripId, 'expenses');
-        const { debts: parsedDebts, myBalance: parsedBal, totalExpenses: parsedTotal } = parseBalanceResponse(balRes, currentUserId, members);
+        const { debts: parsedDebts, myBalances: parsedMB, totalExpensesByCurrency: parsedTE } = parseBalanceResponse(balRes, currentUserId, members);
         setBalances(parsedDebts);
-        setMyBalance(parsedBal);
-        setTotalExpenses(parsedTotal);
+        setMyBalances(parsedMB);
+        setTotalExpensesByCurrency(parsedTE);
       } catch (err) {
         handleApiError(err);
       } finally {
@@ -869,6 +932,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
         outlook: { connected: Boolean(d?.outlook?.connected) },
       });
     }).catch(() => {});
+    getDriveStatus().then((d: any) => {
+      setDriveStatus({ connected: Boolean(d?.connected) });
+    }).catch(() => {});
   }, [showDocs]);
 
   // ── Load photos when photos modal opens ──
@@ -882,15 +948,17 @@ export default function TripDetailScreen({ route, navigation }: any) {
           // Preserve any localUri we already have for photos in this session
           const cache: Record<string, string> = {};
           prev.forEach(p => { if (p.localUri) cache[p.id] = p.localUri; });
-          return res.photos.map(p => ({
+          const mapped = res.photos.map(p => ({
             id: p.id,
             uri: p.url ?? p.fileUrl ?? '',
-            localUri: cache[p.id],   // prefer local for display; used as fallback when CDN fails
+            localUri: cache[p.id],
             name: p.id,
             uploadedBy: p.uploadedBy,
             activityId: p.activityId ?? null,
             activityTitle: p.activityTitle ?? null,
           }));
+          // Trip-level photos first, then activity photos
+          return [...mapped.filter(p => !p.activityId), ...mapped.filter(p => !!p.activityId)];
         });
         setUnreadCounts(prev => ({ ...prev, photos: 0 }));
         markTripSectionViewed(tripId, 'photos');
@@ -1001,7 +1069,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
     return ad.getTime() < _today;
   });
   const previewPhoto = previewPhotoIndex !== null ? photos[previewPhotoIndex] ?? null : null;
-  const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
   const expenseTotals = useMemo(
     () => buildGroupExpenseTotals(
       expenses,
@@ -1010,6 +1077,15 @@ export default function TripDetailScreen({ route, navigation }: any) {
     ),
     [expenses, members, currentUserId],
   );
+  const expenseLabel = useMemo(() => {
+    if (Object.keys(totalExpensesByCurrency).length > 0) {
+      return buildExpenseLabel(totalExpensesByCurrency);
+    }
+    if (apiStats?.totalExpenseAmount) {
+      return `₹${(apiStats.totalExpenseAmount as number).toLocaleString()}`;
+    }
+    return '0';
+  }, [totalExpensesByCurrency, apiStats]);
 
   const toggleActivityDate = useCallback((collapseKey: string) => {
     setCollapsedDates(prev => {
@@ -1040,7 +1116,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   function resetActForm() {
     setActTitle(''); setActDate(undefined); setActHour(''); setActMin(''); setActTime(undefined); setShowHourDrop(false); setShowMinDrop(false);
     setActLocation(''); setActDesc(''); setShowActExp(false); setActPhotos([]);
-    setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATEGORY_OPTIONS[0]);
+    setActExpDesc(''); setActExpAmount(''); setActExpCurrency('INR'); setActExpCategory(EXPENSE_CATEGORY_OPTIONS[0]);
     setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']);
     setActExpSplitDetails({}); setActExpConfirmed(false);
     setEditingActivityId(null);
@@ -1095,6 +1171,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         const expRes = await createExpense(tripId, {
           description: actExpDesc.trim(),
           amount: expAmount,
+          currency: actExpCurrency || 'INR',
           category: actExpCategory.slug,
           paidBy: payerId,
           splitType: apiSplitType as 'equal' | 'amount' | 'percentage',
@@ -1276,17 +1353,17 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   async function handleUploadDoc() {
     try {
-      const FilePicker = NativeModules.FilePicker;
-      if (!FilePicker) {
-        Toast.show({ type: 'error', text1: 'Not Available', text2: 'File picker requires a fresh build.' });
-        return;
-      }
-      const file: { uri: string; name: string; type: string } = await FilePicker.pick();
-      if (!file?.uri) return;
-      const data = await uploadDoc(tripId, { uri: file.uri, type: file.type ?? 'application/octet-stream', name: file.name ?? 'document' });
+      const [picked] = await pickDocument({ type: [docTypes.allFiles] });
+      const [localCopy] = await keepLocalCopy({
+        files: [{ uri: picked.uri, fileName: picked.name ?? 'document' }],
+        destination: 'cachesDirectory',
+      });
+      if (localCopy.status === 'error') throw new Error(localCopy.copyError);
+      const file = { uri: localCopy.localUri, name: picked.name ?? 'document', type: picked.type ?? 'application/octet-stream' };
+      const data = await uploadDoc(tripId, file);
       setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: (data.doc as any).downloadUrl ?? data.doc.fileUrl ?? '', uploadedBy: data.doc.uploadedBy, mimeType: data.doc.mimeType }]);
     } catch (err: any) {
-      if (err?.code === 'CANCELLED' || err?.message === 'User cancelled') return;
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
       handleApiError(err);
     }
   }
@@ -1344,6 +1421,47 @@ export default function TripDetailScreen({ route, navigation }: any) {
     }
   }
 
+  async function openDrivePicker() {
+    if (!driveStatus.connected) {
+      setShowDocs(false);
+      (navigation as any).navigate('ConnectedEmail');
+      return;
+    }
+    setDriveFiles([]);
+    setSelectedDriveFileIds(new Set());
+    setDrivePickerLoading(true);
+    setShowDrivePicker(true);
+    try {
+      const res = await listDriveFiles();
+      setDriveFiles(res.files);
+    } catch (err) {
+      handleApiError(err);
+      setShowDrivePicker(false);
+    } finally {
+      setDrivePickerLoading(false);
+    }
+  }
+
+  async function confirmDriveImport() {
+    if (selectedDriveFileIds.size === 0 || driveImporting) return;
+    setDriveImporting(true);
+    try {
+      const selected = driveFiles.filter(f => selectedDriveFileIds.has(f.fileId));
+      const res = await importDriveFiles('trip', tripId, selected);
+      setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl, uploadedBy: currentUserId }))]);
+      setShowDrivePicker(false);
+      if (res.failed?.length) {
+        Toast.show({ type: 'error', text1: `${res.failed.length} file(s) failed to import` });
+      } else {
+        Toast.show({ type: 'success', text1: `${res.imported.length} file(s) imported from Drive` });
+      }
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setDriveImporting(false);
+    }
+  }
+
   // ── Expense handlers (API-backed) ──
 
   async function handleAddExpense() {
@@ -1391,6 +1509,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       const body = {
         description: expDesc.trim(),
         amount,
+        currency: expCurrency || 'INR',
         category: expCategory.slug,
         paidBy: payerId,
         splitType: apiSplitType as 'equal' | 'amount' | 'percentage',
@@ -1411,11 +1530,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
       if (res.balances) {
         setBalances(normalizeDebtArray(res.balances, currentUserId, members));
       }
-      // Refresh myBalance after expense changes
+      // Refresh balances after expense changes
       const balData = await getBalances(tripId);
-      setMyBalance(balData.myBalance ?? 0);
-      setTotalExpenses(balData.totalExpenses ?? '0');
-      setExpDesc(''); setExpAmount(''); setExpCategory(EXPENSE_CATEGORY_OPTIONS[0]);
+      const parsedAfter = parseBalanceResponse(balData, currentUserId, members);
+      setMyBalances(parsedAfter.myBalances);
+      setTotalExpensesByCurrency(parsedAfter.totalExpensesByCurrency);
+      setExpDesc(''); setExpAmount(''); setExpCurrency('INR'); setExpCategory(EXPENSE_CATEGORY_OPTIONS[0]);
       setExpPaidBy('You'); setExpSplitType('equally'); setExpSplitAmong(['You']);
       setExpSplitDetails({}); setShowAddExpense(false);
     } catch (err) {
@@ -1436,6 +1556,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   function startEditExpense(exp: Expense) {
     setExpDesc(exp.description);
     setExpAmount(String(exp.amount));
+    setExpCurrency(exp.currency || 'INR');
     setExpCategory(resolveExpenseCategory(exp.category));
     setExpPaidBy(exp.paidBy);
     setExpSplitType(exp.splitType);
@@ -1475,14 +1596,15 @@ export default function TripDetailScreen({ route, navigation }: any) {
           setExpenses(p => p.filter(e => e.id !== eid));
           if (res.balances) setBalances(normalizeDebtArray(res.balances, currentUserId, members));
           const balData = await getBalances(tripId);
-          setMyBalance(balData.myBalance ?? 0);
-          setTotalExpenses(balData.totalExpenses ?? '0');
+          const parsedDel = parseBalanceResponse(balData, currentUserId, members);
+          setMyBalances(parsedDel.myBalances);
+          setTotalExpensesByCurrency(parsedDel.totalExpensesByCurrency);
         } catch (err) { handleApiError(err); }
       },
     });
   }
 
-  async function handleSettleDebt(withUserId: string, amount: number) {
+  async function handleSettleDebt(withUserId: string, amount: number, currency: string = 'INR') {
     const amt = typeof amount === 'number' && !Number.isNaN(amount) ? amount : parseFloat(String(amount));
     if (!amt || amt <= 0) {
       showAlert({ title: 'Invalid amount', message: 'Enter a valid settlement amount.' });
@@ -1490,19 +1612,18 @@ export default function TripDetailScreen({ route, navigation }: any) {
     }
     showConfirm({
       title: 'Record settlement',
-      message: `Record a payment of ₹${amt.toFixed(2)} to settle this balance? Balances will update for everyone on the trip.`,
+      message: `Record a payment of ${formatCurrency(amt, currency)} to settle this balance? Balances will update for everyone on the trip.`,
       confirmText: 'Settle',
       destructive: false,
       onConfirm: async () => {
         try {
-          const res = await settleDebt(tripId, { withUserId, amount: amt });
+          const res = await settleDebt(tripId, { withUserId, amount: amt, currency });
           setBalances(normalizeDebtArray(res.outstanding ?? [], currentUserId, members));
           const balData = await getBalances(tripId);
-          setMyBalance(balData.myBalance ?? 0);
-          setTotalExpenses(String(balData.totalExpenses ?? '0'));
-          if (Array.isArray(balData.debts)) {
-            setBalances(normalizeDebtArray(balData.debts, currentUserId, members));
-          }
+          const parsedSettle = parseBalanceResponse(balData, currentUserId, members);
+          setMyBalances(parsedSettle.myBalances);
+          setTotalExpensesByCurrency(parsedSettle.totalExpensesByCurrency);
+          setBalances(parsedSettle.debts);
           Toast.show({ type: 'success', text1: 'Settlement recorded' });
         } catch (err) {
           handleApiError(err);
@@ -1727,7 +1848,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
               .filter(m => m.uri)}
             docCount={docs.length > 0 ? docs.length : (apiStats?.docCount ?? 0)}
             photoCount={photos.length > 0 ? photos.length : (apiStats?.photoVideoCount ?? 0)}
-            totalExpenses={totalExp > 0 ? totalExp : (apiStats?.totalExpenseAmount ?? 0)}
+            totalExpenses={expenseLabel}
             onEdit={openEditTrip}
           />
           {role === 'admin' && (
@@ -1754,7 +1875,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 { label: 'Activity', bg: '#E7F8F2', ic: '#0D9488', p: 'plus', fn: () => setShowAddAct(true), count: 0 },
                 { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true), count: badgeCounts.docs },
                 { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true), count: badgeCounts.members },
-                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => setShowPhotos(true), count: badgeCounts.photos },
+                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => { setShowPhotos(true); setAlbumHeroIndex(0); setAlbumDescExpanded(false); }, count: badgeCounts.photos },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
                   <View style={{ position: 'relative' }}>
@@ -2051,11 +2172,23 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <View style={{ backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginTop: 4 }}>
                       <TextInput style={styles.fInput} placeholder="Description" placeholderTextColor="#94a3b8" value={actExpDesc} onChangeText={setActExpDesc} />
                       <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                        <TextInput style={[styles.fInput, { flex: 1 }]} placeholder="Amount (₹)" placeholderTextColor="#94a3b8" value={actExpAmount} onChangeText={setActExpAmount} keyboardType="numeric" />
+                        <TextInput style={[styles.fInput, { flex: 1 }]} placeholder="Amount" placeholderTextColor="#94a3b8" value={actExpAmount} onChangeText={setActExpAmount} keyboardType="numeric" />
+                        <TouchableOpacity style={[styles.fInputTouch, { minWidth: 56, justifyContent: 'center' }]} onPress={() => { setShowActExpCurrencyDrop(p => !p); setShowActExpCatDrop(false); setShowActExpPaidByDrop(false); }} activeOpacity={0.8}>
+                          <Text style={{ fontSize: 12, color: '#0f172a', fontWeight: '600' }}>{actExpCurrency}</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity style={[styles.fInputTouch, { flex: 1, justifyContent: 'center' }]} onPress={() => setShowActExpCatDrop(p => !p)} activeOpacity={0.8}>
                           <ExpenseCatRow cat={actExpCategory} size={14} fontSize={12} />
                         </TouchableOpacity>
                       </View>
+                      {showActExpCurrencyDrop && (
+                        <View style={styles.dropdown}>
+                          {SUPPORTED_CURRENCIES.map(c => (
+                            <TouchableOpacity key={c.code} style={styles.dropdownItem} onPress={() => { setActExpCurrency(c.code); setShowActExpCurrencyDrop(false); }} activeOpacity={0.7}>
+                              <Text style={{ fontSize: 13, color: '#0f172a' }}>{c.symbol} {c.code} — {c.name}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
                       {showActExpCatDrop && (
                         <View style={styles.dropdown}>
                           {EXPENSE_CATEGORY_OPTIONS.map(c => (
@@ -2092,7 +2225,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>You</Text>
                         {actExpSplitType !== 'equally' && (
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                            {actExpSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>₹</Text>}
+                            {actExpSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>{actExpCurrency}</Text>}
                             <TextInput style={[styles.fInput, { width: 60, marginBottom: 0, paddingVertical: 5, textAlign: 'right' }]} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" value={actExpSplitDetails['You'] || ''} onChangeText={v => setActExpSplitDetails(p => ({ ...p, You: v }))} />
                             {actExpSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
                           </View>
@@ -2104,7 +2237,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName}</Text>
                           {actExpSplitType !== 'equally' && (
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                              {actExpSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>₹</Text>}
+                              {actExpSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>{actExpCurrency}</Text>}
                               <TextInput style={[styles.fInput, { width: 60, marginBottom: 0, paddingVertical: 5, textAlign: 'right' }]} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" value={actExpSplitDetails[m.userId] || ''} onChangeText={v => setActExpSplitDetails(p => ({ ...p, [m.userId]: v }))} />
                               {actExpSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
                             </View>
@@ -2126,7 +2259,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdf9', borderRadius: 8, padding: 10, marginTop: 4, borderWidth: 1, borderColor: '#ccfbf1' }}>
                       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 }}>
                         <ExpenseCategoryIcon category={actExpCategory.slug} size={16} />
-                        <Text style={{ fontSize: 13, color: '#0f172a', flex: 1 }} numberOfLines={1}>{actExpDesc} · ₹{actExpAmount}</Text>
+                        <Text style={{ fontSize: 13, color: '#0f172a', flex: 1 }} numberOfLines={1}>{actExpDesc} · {actExpCurrency} {actExpAmount}</Text>
                       </View>
                       <TouchableOpacity onPress={() => setShowActExp(true)} activeOpacity={0.7} style={{ marginRight: 10 }}>
                         <Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text>
@@ -2205,6 +2338,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     emailStatus={emailStatus}
                     onGmail={() => openEmailPicker('gmail')}
                     onOutlook={() => openEmailPicker('outlook')}
+                    driveConnected={driveStatus.connected}
+                    onDrive={openDrivePicker}
                   />
                   {docs.length === 0 ? (
                     <View style={styles.emptyCenter}>
@@ -2308,13 +2443,77 @@ export default function TripDetailScreen({ route, navigation }: any) {
         </Modal>
 
         {/* ═══════════════════════════════════════════════════
+          MODAL 2c — Google Drive File Picker
+      ═══════════════════════════════════════════════════ */}
+        <Modal visible={showDrivePicker} transparent animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
+          <View style={styles.overlay}>
+            <View style={[styles.dialog, { maxHeight: '85%' }]}>
+              <DHeader
+                title="Import from Google Drive"
+                leading={<Image source={require('../../../assets/drive-icon.png')} style={{ width: 22, height: 22 }} resizeMode="contain" />}
+                onClose={() => setShowDrivePicker(false)}
+              />
+              {drivePickerLoading ? (
+                <View style={{ padding: 40, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#0d9488" />
+                  <Text style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>Loading files…</Text>
+                </View>
+              ) : driveFiles.length === 0 ? (
+                <View style={{ padding: 32, alignItems: 'center' }}>
+                  <Text style={{ color: '#64748b', fontSize: 14, textAlign: 'center' }}>No compatible files found in your Drive root.</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={driveFiles}
+                  keyExtractor={f => f.fileId}
+                  style={{ maxHeight: 380 }}
+                  renderItem={({ item }) => {
+                    const sel = selectedDriveFileIds.has(item.fileId);
+                    return (
+                      <TouchableOpacity
+                        style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderColor: '#e2e8f0' }}
+                        onPress={() => setSelectedDriveFileIds(prev => { const n = new Set(prev); sel ? n.delete(item.fileId) : n.add(item.fileId); return n; })}
+                        activeOpacity={0.7}>
+                        <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: sel ? '#0d9488' : '#cbd5e1', backgroundColor: sel ? '#0d9488' : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                          {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>✓</Text>}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }} numberOfLines={1}>{item.name}</Text>
+                          <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
+                            {item.sizeBytes ? `${Math.round(item.sizeBytes / 1024)} KB · ` : ''}
+                            {new Date(item.modifiedTime).toLocaleDateString()}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              )}
+              {!drivePickerLoading && driveFiles.length > 0 && (
+                <View style={{ padding: 16, borderTopWidth: 0.5, borderColor: '#e2e8f0' }}>
+                  <TouchableOpacity
+                    style={[styles.tealBtnFull, { opacity: selectedDriveFileIds.size === 0 ? 0.5 : 1 }]}
+                    onPress={confirmDriveImport}
+                    disabled={selectedDriveFileIds.size === 0 || driveImporting}
+                    activeOpacity={0.85}>
+                    {driveImporting
+                      ? <ActivityIndicator color="#fff" />
+                      : <Text style={styles.tealBtnTxt}>Import {selectedDriveFileIds.size > 0 ? `${selectedDriveFileIds.size} file${selectedDriveFileIds.size > 1 ? 's' : ''}` : 'Selected'}</Text>}
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+        </Modal>
+
+        {/* ═══════════════════════════════════════════════════
           MODAL 3 — Members
       ═══════════════════════════════════════════════════ */}
         <Modal visible={showMembers} transparent animationType="fade" onRequestClose={() => setShowMembers(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
               <DHeader title="Trip Members" subtitle={`Current members: ${memberCount}`} onClose={() => setShowMembers(false)} />
-              <TabBar tabs={['Members', 'From Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
+              <TabBar tabs={['Members', 'Invite from Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {memberTab === 'Members' && (
                   <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20 }}>
@@ -2355,9 +2554,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </View>
                 )}
 
-                {memberTab === 'From Friends' && (
+                {memberTab === 'Invite from Friends' && (
                   <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}>
-                    <Text style={styles.memberSectionLabelTitle}>Add From Friends</Text>
+                    <Text style={styles.memberSectionLabelTitle}>Invite from Friends</Text>
                     <View style={styles.searchBox}>
                       <Svg width={14} height={14} viewBox="0 0 24 24" fill="none"><Circle cx={11} cy={11} r={8} stroke="#94a3b8" strokeWidth={2} /><Path d="M21 21l-4.35-4.35" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
                       <TextInput style={styles.searchInput} placeholder="Search by name or email..." placeholderTextColor="#94a3b8" value={memberSearch} onChangeText={setMemberSearch} />
@@ -2402,95 +2601,283 @@ export default function TripDetailScreen({ route, navigation }: any) {
         </Modal>
 
         {/* ═══════════════════════════════════════════════════
-          MODAL 4 — Photos
+          MODAL 4 — Photos (Immersive Album View)
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showPhotos} transparent animationType="fade" onRequestClose={() => setShowPhotos(false)}>
-          <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '90%' }]}>
-              <DHeader title="Trip Photos" onClose={() => setShowPhotos(false)} />
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={styles.dBody}>
-                  {/* Upload / Camera buttons */}
-                  <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                    <TouchableOpacity style={styles.uploadPhotosBtn} onPress={() => handlePickPhoto(false)} activeOpacity={0.85}>
-                      <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                        <Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#be123c" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      </Svg>
-                      <Text style={styles.uploadPhotosTxt}>Upload Photos</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.takePhotoBtn} onPress={() => handlePickPhoto(true)} activeOpacity={0.85}>
-                      <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                        <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#0e7490" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                        <Circle cx={12} cy={13} r={4} stroke="#0e7490" strokeWidth={2} />
-                      </Svg>
-                      <Text style={styles.takePhotoTxt}>Take Photo</Text>
-                    </TouchableOpacity>
+        <Modal visible={showPhotos} transparent={false} animationType="slide" onRequestClose={() => setShowPhotos(false)}>
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+
+              {/* ── Hero Photo (swipeable FlatList pager) ── */}
+              <View style={{ height: 290, backgroundColor: '#0f172a', position: 'relative' }}>
+                {photos.length > 0 ? (
+                  <FlatList
+                    ref={albumHeroRef}
+                    data={photos}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    initialScrollIndex={albumHeroIndex}
+                    getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
+                    onMomentumScrollEnd={e => {
+                      const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
+                      setAlbumHeroIndex(idx);
+                    }}
+                    renderItem={({ item }) => (
+                      <View style={{ width: SCREEN_W, height: 290 }}>
+                        <TripAlbumHeroPhoto photo={item} />
+                      </View>
+                    )}
+                    keyExtractor={item => item.id}
+                  />
+                ) : (
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <Svg width={56} height={56} viewBox="0 0 24 24" fill="none">
+                      <Rect x={3} y={3} width={18} height={18} rx={2} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} />
+                      <Circle cx={8.5} cy={8.5} r={1.5} fill="rgba(255,255,255,0.25)" />
+                      <Path d="M21 15l-5-5L5 21" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                    <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 10 }}>No photos yet</Text>
                   </View>
+                )}
+                {/* Back button */}
+                <TouchableOpacity
+                  onPress={() => setShowPhotos(false)}
+                  style={{ position: 'absolute', top: 16, left: 16, zIndex: 10, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, elevation: 4 }}
+                  activeOpacity={0.8}
+                >
+                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                    <Path d="M19 12H5M12 5l-7 7 7 7" stroke="#0f172a" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                </TouchableOpacity>
+                {/* Photo count badge */}
+                {photos.length > 0 && (
+                  <View style={{ position: 'absolute', top: 16, right: 16, backgroundColor: 'rgba(0,0,0,0.52)', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, zIndex: 10 }}>
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{albumHeroIndex + 1} / {photos.length}</Text>
+                  </View>
+                )}
+              </View>
 
-                  {photos.length === 0 ? (
-                    <View style={styles.emptyCenter}>
-                      <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
-                        <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
-                        <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
-                        <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+              {/* ── Thumbnail Strip ── */}
+              {photos.length > 0 && (
+                <View style={{ backgroundColor: '#fff', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, flexDirection: 'row' }}>
+                    {photos.map((ph, idx) => {
+                      const thumbUri = (ph.localUri) ? ph.localUri : ph.uri;
+                      return (
+                        <TouchableOpacity
+                          key={ph.id}
+                          onPress={() => { setAlbumHeroIndex(idx); albumHeroRef.current?.scrollToIndex({ index: idx, animated: true }); }}
+                          activeOpacity={0.85}
+                          style={{
+                            width: 74, height: 60, borderRadius: 10, overflow: 'hidden',
+                            borderWidth: idx === albumHeroIndex ? 2.5 : 0,
+                            borderColor: '#0d9488',
+                            backgroundColor: '#e2e8f0',
+                          }}
+                        >
+                          <CachedImage uri={thumbUri} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* ── Trip/Activity Identity Card ── */}
+              <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 18 }}>
+                {/* Dynamic title: activity name if photo belongs to activity, else trip name */}
+                {(() => {
+                  const heroPhoto = photos.length > 0 ? photos[Math.min(albumHeroIndex, photos.length - 1)] : null;
+                  const isActivityPhoto = !!(heroPhoto?.activityTitle);
+                  return (
+                    <>
+                      {isActivityPhoto && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
+                          <Text style={{ fontSize: 12, fontWeight: '600', color: '#0d9488', letterSpacing: 0.3 }}>ACTIVITY</Text>
+                        </View>
+                      )}
+                      <Text style={{ fontSize: 26, fontWeight: '700', color: '#0f172a', letterSpacing: -0.4, marginBottom: 4 }} numberOfLines={2}>
+                        {isActivityPhoto ? heroPhoto!.activityTitle! : (trip?.name ?? 'Trip')}
+                      </Text>
+                      {isActivityPhoto && (
+                        <Text style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>
+                          from <Text style={{ fontWeight: '600', color: '#0f172a' }}>{trip?.name ?? 'Trip'}</Text>
+                        </Text>
+                      )}
+                    </>
+                  );
+                })()}
+
+                {/* Location + Dates row */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                  {!!(typeof trip?.location === 'string' ? trip.location : trip?.location?.name) && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                        <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#10b981" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                        <Circle cx={12} cy={10} r={3} stroke="#10b981" strokeWidth={2} />
                       </Svg>
-                      <Text style={styles.emptyTitle}>No photos yet</Text>
-                      <Text style={styles.emptySub}>Start capturing memories from your trip!</Text>
+                      <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '500' }}>
+                        {typeof trip?.location === 'string' ? trip.location : trip?.location?.name}
+                      </Text>
                     </View>
-                  ) : (() => {
-                    // Group photos: activity photos first (by activityTitle), then direct trip photos
-                    const activityGroups: Record<string, PhotoItem[]> = {};
-                    const directPhotos: PhotoItem[] = [];
-                    photos.forEach(ph => {
-                      if (ph.activityId && ph.activityTitle) {
-                        if (!activityGroups[ph.activityTitle]) activityGroups[ph.activityTitle] = [];
-                        activityGroups[ph.activityTitle].push(ph);
-                      } else {
-                        directPhotos.push(ph);
-                      }
-                    });
+                  )}
+                  {!!(trip?.startDateISO || trip?.startDate) && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+                        <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#64748b" strokeWidth={2} />
+                        <Path d="M16 2v4M8 2v4M3 10h18" stroke="#64748b" strokeWidth={2} strokeLinecap="round" />
+                      </Svg>
+                      <Text style={{ fontSize: 13, color: '#64748b' }}>
+                        {trip?.startDateISO ? new Date(trip.startDateISO).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : trip?.startDate}
+                        {(trip?.endDateISO || trip?.endDate) ? ` — ${trip?.endDateISO ? new Date(trip.endDateISO).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : trip?.endDate}` : ''}
+                      </Text>
+                    </View>
+                  )}
+                </View>
 
-                    const renderPhotoThumb = (ph: PhotoItem) => (
-                      <TripPhotoThumb key={ph.id} photo={ph} onPress={() => openPhotoPreview(ph.id)} />
-                    );
+                {/* Member Avatars */}
+                {members.length > 0 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+                    {members.slice(0, 5).map((m: TripMember, idx: number) => (
+                      <View key={m.userId} style={{ marginLeft: idx === 0 ? 0 : -10, zIndex: 5 - idx }}>
+                        <View style={{ width: 34, height: 34, borderRadius: 17, overflow: 'hidden', borderWidth: 2.5, borderColor: '#fff', backgroundColor: '#e2e8f0' }}>
+                          {m.avatarUrl ? (
+                            <CachedImage uri={m.avatarUrl} style={{ width: 30, height: 30, borderRadius: 15 }} resizeMode="cover" />
+                          ) : (
+                            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748b' }}>{(m.fullName ?? '?')[0]?.toUpperCase()}</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    ))}
+                    {members.length > 5 && (
+                      <View style={{ marginLeft: -10, width: 34, height: 34, borderRadius: 17, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', zIndex: 0 }}>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#475569' }}>+{members.length - 5}</Text>
+                      </View>
+                    )}
+                    <Text style={{ marginLeft: 10, fontSize: 13, color: '#64748b', fontWeight: '500' }}>
+                      {members.length} {members.length === 1 ? 'member' : 'members'}
+                    </Text>
+                  </View>
+                )}
 
-                    return (
-                      <View>
-                        {/* Activity photo groups */}
-                        {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
-                          <View key={actTitle} style={{ marginBottom: 16 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                              <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                              <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>{actTitle}</Text>
-                              <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
-                            </View>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                              {actPhotos.map(ph => renderPhotoThumb(ph))}
-                            </View>
-                          </View>
-                        ))}
-                        {/* Direct trip photos */}
-                        {directPhotos.length > 0 && (
-                          <View style={{ marginBottom: 8 }}>
-                            {Object.keys(activityGroups).length > 0 && (
-                              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 }}>
-                                <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
-                                <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }}>Trip Photos</Text>
-                                <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
-                              </View>
-                            )}
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                              {directPhotos.map(ph => renderPhotoThumb(ph))}
-                            </View>
+                {/* Photo count pill */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
+                    <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
+                    <Circle cx={8.5} cy={8.5} r={1.5} fill="#0d9488" />
+                    <Path d="M21 15l-5-5L5 21" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                  <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '600' }}>
+                    {photos.length === 0 ? 'No photos yet' : `${photos.length} ${photos.length === 1 ? 'Photo' : 'Photos'}`}
+                  </Text>
+                </View>
+              </View>
+
+              {/* ── Description ── */}
+              {!!(trip?.description) && (
+                <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 20 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#0f172a', marginBottom: 8 }}>Description</Text>
+                  <Text style={{ fontSize: 14, color: '#475569', lineHeight: 22 }} numberOfLines={albumDescExpanded ? undefined : 3}>
+                    {trip.description}
+                  </Text>
+                  {(trip.description ?? '').length > 130 && (
+                    <TouchableOpacity onPress={() => setAlbumDescExpanded(p => !p)} activeOpacity={0.7} style={{ marginTop: 5 }}>
+                      <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>
+                        {albumDescExpanded ? 'Show less' : '.....Read more'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {/* ── All Photos Grid (grouped by activity) ── */}
+              {photos.length > 0 && (() => {
+                const activityGroups: Record<string, { photos: PhotoItem[]; indices: number[] }> = {};
+                const directPhotos: { photo: PhotoItem; idx: number }[] = [];
+                photos.forEach((ph, idx) => {
+                  if (ph.activityId && ph.activityTitle) {
+                    if (!activityGroups[ph.activityTitle]) activityGroups[ph.activityTitle] = { photos: [], indices: [] };
+                    activityGroups[ph.activityTitle].photos.push(ph);
+                    activityGroups[ph.activityTitle].indices.push(idx);
+                  } else {
+                    directPhotos.push({ photo: ph, idx });
+                  }
+                });
+
+                return (
+                  <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 }}>
+                    {/* Direct trip photos — always first */}
+                    {directPhotos.length > 0 && (
+                      <View style={{ marginBottom: Object.keys(activityGroups).length > 0 ? 16 : 8 }}>
+                        {Object.keys(activityGroups).length > 0 && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
+                            <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 }}>Trip Photos</Text>
+                            <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
                           </View>
                         )}
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                          {directPhotos.map(({ photo: ph, idx }) => (
+                            <TouchableOpacity
+                              key={ph.id}
+                              onPress={() => { setAlbumHeroIndex(idx); albumHeroRef.current?.scrollToIndex({ index: idx, animated: true }); }}
+                              activeOpacity={0.85}
+                              style={{ width: (SCREEN_W - 32 - 12) / 3, height: (SCREEN_W - 32 - 12) / 3, borderRadius: 10, overflow: 'hidden', borderWidth: idx === albumHeroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0' }}
+                            >
+                              <TripAlbumHeroPhoto photo={ph} />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
                       </View>
-                    );
-                  })()}
-                </View>
-              </ScrollView>
-            </View>
-          </View>
+                    )}
+                    {/* Activity groups — after trip photos */}
+                    {Object.entries(activityGroups).map(([actTitle, group]) => (
+                      <View key={actTitle} style={{ marginBottom: 16 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
+                          <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 }}>{actTitle}</Text>
+                          <Text style={{ fontSize: 11, color: '#94a3b8' }}>({group.photos.length})</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                          {group.photos.map((ph, i) => (
+                            <TouchableOpacity
+                              key={ph.id}
+                              onPress={() => { setAlbumHeroIndex(group.indices[i]); albumHeroRef.current?.scrollToIndex({ index: group.indices[i], animated: true }); }}
+                              activeOpacity={0.85}
+                              style={{ width: (SCREEN_W - 32 - 12) / 3, height: (SCREEN_W - 32 - 12) / 3, borderRadius: 10, overflow: 'hidden', borderWidth: group.indices[i] === albumHeroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0' }}
+                            >
+                              <TripAlbumHeroPhoto photo={ph} />
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()}
+
+              {/* ── Upload / Camera Buttons ── */}
+              <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 36, flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity style={[styles.uploadPhotosBtn, { flex: 1 }]} onPress={() => handlePickPhoto(false)} activeOpacity={0.85}>
+                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
+                    <Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#be123c" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </Svg>
+                  <Text style={styles.uploadPhotosTxt}>Upload Photos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.takePhotoBtn, { flex: 1 }]} onPress={() => handlePickPhoto(true)} activeOpacity={0.85}>
+                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
+                    <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#0e7490" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    <Circle cx={12} cy={13} r={4} stroke="#0e7490" strokeWidth={2} />
+                  </Svg>
+                  <Text style={styles.takePhotoTxt}>Take Photo</Text>
+                </TouchableOpacity>
+              </View>
+
+            </ScrollView>
+          </SafeAreaView>
         </Modal>
 
         {/* ═══════════════════════════════════════════════════
@@ -2595,26 +2982,28 @@ export default function TripDetailScreen({ route, navigation }: any) {
         {/* ═══════════════════════════════════════════════════
           MODAL 5 — Expenses
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); }}>
+        <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); setShowExpCurrencyDrop(false); setShowActExpCurrencyDrop(false); }}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, styles.expensesDialog]}>
-              <DHeader title="Expenses" onClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); }} />
-              <TabBar tabs={['All Expenses', 'Totals', 'Balances']} active={expTab} onSelect={t => setExpTab(t as any)} />
+              <DHeader title="Expenses" onClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); setShowExpCurrencyDrop(false); setShowActExpCurrencyDrop(false); }} />
+              <TabBar tabs={['Expense', 'Total', 'Balance']} active={expTab} onSelect={t => setExpTab(t as any)} />
               <ScrollView
                 style={styles.expensesDialogScroll}
                 contentContainerStyle={styles.expensesDialogScrollContent}
                 showsVerticalScrollIndicator
                 keyboardShouldPersistTaps="handled">
 
-                {expTab === 'All Expenses' && (
+                {expTab === 'Expense' && (
                   <View>
-                    <TouchableOpacity style={styles.tealBtnFull} onPress={() => {
+                    {isLoadingExpenses ? <ExpenseListSkeleton /> : null}
+                    <TouchableOpacity style={[styles.tealBtnFull, isLoadingExpenses && { opacity: 0 }]} disabled={isLoadingExpenses} onPress={() => {
                       // Initialize split among with all trip members
                       const allIds = ['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.userId)];
                       setExpSplitAmong(allIds);
                       setExpPaidBy('You');
                       setExpDesc(''); setExpAmount(''); setExpSplitType('equally'); setExpSplitDetails({});
                       setEditingExpenseId(null);
+                      setShowExpCurrencyDrop(false);
                       setShowAddExpense(p => !p);
                     }} activeOpacity={0.85}>
                       <Text style={styles.tealBtnTxt}>+ Add Expense</Text>
@@ -2624,8 +3013,22 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       <View style={{ marginTop: 14 }}>
                         <Text style={styles.fLabel}>Description</Text>
                         <TextInput style={styles.fInput} placeholder="e.g., Dinner at restaurant" placeholderTextColor="#94a3b8" value={expDesc} onChangeText={setExpDesc} />
-                        <Text style={styles.fLabel}>Amount (₹)</Text>
-                        <TextInput style={styles.fInput} placeholder="0.00" placeholderTextColor="#94a3b8" value={expAmount} onChangeText={setExpAmount} keyboardType="numeric" />
+                        <Text style={styles.fLabel}>Amount</Text>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                          <TextInput style={[styles.fInput, { flex: 1 }]} placeholder="0.00" placeholderTextColor="#94a3b8" value={expAmount} onChangeText={setExpAmount} keyboardType="numeric" />
+                          <TouchableOpacity style={[styles.fInputTouch, { minWidth: 64, justifyContent: 'center' }]} onPress={() => { setShowExpCurrencyDrop(p => !p); setShowExpCatDrop(false); setShowPaidByDrop(false); }} activeOpacity={0.8}>
+                            <Text style={{ fontSize: 13, color: '#0f172a', fontWeight: '600' }}>{expCurrency}</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {showExpCurrencyDrop && (
+                          <View style={styles.dropdown}>
+                            {SUPPORTED_CURRENCIES.map(c => (
+                              <TouchableOpacity key={c.code} style={styles.dropdownItem} onPress={() => { setExpCurrency(c.code); setShowExpCurrencyDrop(false); }} activeOpacity={0.7}>
+                                <Text style={{ fontSize: 13, color: '#0f172a' }}>{c.symbol} {c.code} — {c.name}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
                         <Text style={styles.fLabel}>Category</Text>
                         <TouchableOpacity style={[styles.fInputTouch, { justifyContent: 'center' }]} onPress={() => setShowExpCatDrop(p => !p)} activeOpacity={0.8}>
                           <ExpenseCatRow cat={expCategory} />
@@ -2668,7 +3071,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>You</Text>
                           {expSplitType !== 'equally' && (
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                              {expSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>₹</Text>}
+                              {expSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>{expCurrency}</Text>}
                               <TextInput
                                 style={[styles.fInput, { width: 62, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]}
                                 placeholder="0"
@@ -2690,7 +3093,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName || (m as any).name || 'Member'}</Text>
                             {expSplitType !== 'equally' && (
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                                {expSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>₹</Text>}
+                                {expSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>{expCurrency}</Text>}
                                 <TextInput
                                   style={[styles.fInput, { width: 62, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]}
                                   placeholder="0"
@@ -2740,8 +3143,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           const renderExpRow = (exp: Expense) => {
                             const myAmt = exp.myAmount ?? 0;
                             const balText = exp.paidBy === 'You'
-                              ? `You lent ₹${(exp.amount - myAmt).toFixed(2)}`
-                              : `You owe ₹${myAmt.toFixed(2)}`;
+                              ? `You lent ${formatCurrency(exp.amount - myAmt, exp.currency)}`
+                              : `You owe ${formatCurrency(myAmt, exp.currency)}`;
                             const balColor = exp.paidBy === 'You' ? '#0d9488' : '#ef4444';
                             return (
                               <View key={exp.id} style={styles.expRow}>
@@ -2753,7 +3156,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                   <Text style={styles.expMeta}>Split {exp.splitType} • {exp.splitAmong.length} person</Text>
                                 </View>
                                 <View style={{ alignItems: 'flex-end' }}>
-                                  <Text style={styles.expAmt}>₹{exp.amount.toFixed(2)}</Text>
+                                  <Text style={styles.expAmt}>{formatCurrency(exp.amount, exp.currency)}</Text>
                                   <Text style={{ fontSize: 11, color: balColor, marginBottom: 6 }}>{balText}</Text>
                                   {(canEditExpense(exp) || role === 'admin' || exp.createdByUserId === currentUserId) && (
                                     <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -2800,61 +3203,78 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </View>
                 )}
 
-                {expTab === 'Totals' && (
+                {expTab === 'Total' && (
                   <View>
-                    <ExpenseTotalsTab
-                      totals={expenseTotals}
-                      styles={{
-                        emptyCenter: styles.emptyCenter,
-                        emptyTitle: styles.emptyTitle,
-                        emptySub: styles.emptySub,
-                        balCard: styles.balCard,
-                        balLabel: styles.balLabel,
-                        balValue: styles.balValue,
-                        expRow: styles.expRow,
-                        expName: styles.expName,
-                        expMeta: styles.expMeta,
-                        expAmt: styles.expAmt,
-                      }}
-                    />
+                    {isLoadingExpenses ? <TotalTabSkeleton /> : (
+                      <ExpenseTotalsTab
+                        totals={expenseTotals}
+                        styles={{
+                          emptyCenter: styles.emptyCenter,
+                          emptyTitle: styles.emptyTitle,
+                          emptySub: styles.emptySub,
+                          balCard: styles.balCard,
+                          balLabel: styles.balLabel,
+                          balValue: styles.balValue,
+                          expRow: styles.expRow,
+                          expName: styles.expName,
+                          expMeta: styles.expMeta,
+                          expAmt: styles.expAmt,
+                        }}
+                      />
+                    )}
                   </View>
                 )}
 
-                {expTab === 'Balances' && (
+                {expTab === 'Balance' && (
                   <View>
-                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                      <View style={[styles.balCard]}><Text style={styles.balLabel}>Total</Text><Text style={styles.balValue}>₹{parseFloat(totalExpenses || '0').toFixed(0)}</Text></View>
-                      <View style={[styles.balCard, { backgroundColor: myBalance >= 0 ? '#f0fdf4' : '#fff1f2' }]}>
-                        <Text style={styles.balLabel}>My Balance</Text>
-                        <Text style={[styles.balValue, { color: myBalance >= 0 ? '#16a34a' : '#e11d48' }]}>
-                          {myBalance >= 0 ? '+' : ''}₹{isNaN(myBalance) ? '0' : Math.abs(myBalance).toFixed(0)}
-                        </Text>
-                      </View>
-                    </View>
-                    {balances.length === 0 ? (
-                      <View style={styles.emptyCenter}>
-                        <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
-                          <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                        </Svg>
-                        <Text style={styles.emptyTitle}>All settled up!</Text>
-                        <Text style={styles.emptySub}>No outstanding balances</Text>
-                      </View>
-                    ) : balances.map((debt, i) => (
-                      <View key={i} style={[styles.expRow, { alignItems: 'center' }]}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.expName}>{debt.fromName || 'Someone'} owes {debt.toName || 'Someone'}</Text>
-                          <Text style={styles.expMeta}>₹{debt.amount.toFixed(2)}</Text>
-                        </View>
-                        {debt.from === currentUserId && (
-                          <TouchableOpacity
-                            style={[styles.tealBtnFull, { paddingHorizontal: 12, paddingVertical: 6 }]}
-                            onPress={() => handleSettleDebt(debt.to, debt.amount)}
-                            activeOpacity={0.85}>
-                            <Text style={[styles.tealBtnTxt, { fontSize: 12 }]}>Settle</Text>
-                          </TouchableOpacity>
+                    {isLoadingExpenses ? <BalanceTabSkeleton /> : (
+                      <>
+                        {Object.entries(totalExpensesByCurrency).filter(([, v]) => parseFloat(v) > 0).map(([cur, total]) => {
+                          const mb = myBalances[cur] ?? 0;
+                          return (
+                            <View key={cur} style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+                              <View style={[styles.balCard]}><Text style={styles.balLabel}>Total ({cur})</Text><Text style={styles.balValue}>{formatCurrency(parseFloat(total), cur)}</Text></View>
+                              <View style={[styles.balCard, { backgroundColor: mb >= 0 ? '#f0fdf4' : '#fff1f2' }]}>
+                                <Text style={styles.balLabel}>My Balance</Text>
+                                <Text style={[styles.balValue, { color: mb >= 0 ? '#16a34a' : '#e11d48' }]}>
+                                  {mb >= 0 ? '+' : ''}{formatCurrency(Math.abs(mb), cur)}
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                        {Object.keys(totalExpensesByCurrency).length === 0 && (
+                          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                            <View style={[styles.balCard]}><Text style={styles.balLabel}>Total</Text><Text style={styles.balValue}>₹0</Text></View>
+                            <View style={[styles.balCard]}><Text style={styles.balLabel}>My Balance</Text><Text style={styles.balValue}>₹0</Text></View>
+                          </View>
                         )}
-                      </View>
-                    ))}
+                        {balances.length === 0 ? (
+                          <View style={styles.emptyCenter}>
+                            <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
+                              <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                            </Svg>
+                            <Text style={styles.emptyTitle}>All settled up!</Text>
+                            <Text style={styles.emptySub}>No outstanding balances</Text>
+                          </View>
+                        ) : balances.map((debt, i) => (
+                          <View key={i} style={[styles.expRow, { alignItems: 'center' }]}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.expName}>{debt.fromName || 'Someone'} owes {debt.toName || 'Someone'}</Text>
+                              <Text style={styles.expMeta}>{formatCurrency(debt.amount, debt.currency)}</Text>
+                            </View>
+                            {debt.from === currentUserId && (
+                              <TouchableOpacity
+                                style={[styles.tealBtnFull, { paddingHorizontal: 12, paddingVertical: 6 }]}
+                                onPress={() => handleSettleDebt(debt.to, debt.amount, debt.currency)}
+                                activeOpacity={0.85}>
+                                <Text style={[styles.tealBtnTxt, { fontSize: 12 }]}>Settle</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        ))}
+                      </>
+                    )}
                   </View>
                 )}
               </ScrollView>

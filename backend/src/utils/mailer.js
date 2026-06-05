@@ -1,6 +1,8 @@
+const axios = require('axios');
 const { SendEmailCommand } = require('@aws-sdk/client-ses');
 const { sesClient } = require('../config/aws');
 const config = require('../config');
+const { EMAIL_PROVIDER } = require('../config/emailProvider');
 const logger = require('./logger');
 
 // ─── Logo URL ─────────────────────────────────────────────────────────────────
@@ -160,7 +162,7 @@ const wrapEmail = (innerHtml) => {
  * @param {string}  options.html    HTML body
  * @param {string} [options.text]   Plain-text fallback
  */
-const sendEmail = async ({ to, subject, html, text }) => {
+const sendEmailViaSes = async ({ to, subject, html, text }) => {
   const params = {
     Source: config.ses.fromEmail,
     Destination: { ToAddresses: [to] },
@@ -175,12 +177,62 @@ const sendEmail = async ({ to, subject, html, text }) => {
 
   try {
     const result = await sesClient.send(new SendEmailCommand(params));
-    logger.info('Email sent successfully', { to, messageId: result.MessageId });
+    logger.info('Email sent successfully via SES', { to, messageId: result.MessageId });
     return result;
   } catch (error) {
     logger.error('Failed to send email via SES', { to, error: error.message });
     throw error;
   }
+};
+
+/**
+ * Send an email via Brevo Transactional API.
+ * @param {object} options
+ * @param {string}  options.to      Recipient address
+ * @param {string}  options.subject Subject line
+ * @param {string}  options.html    HTML body
+ * @param {string} [options.text]   Plain-text fallback
+ */
+const sendEmailViaBrevo = async ({ to, subject, html, text }) => {
+  const { apiKey, fromEmail, fromName } = config.brevo;
+
+  if (!apiKey || !fromEmail) {
+    throw new Error('Brevo is not configured (BREVO_API_KEY and BREVO_FROM_EMAIL required)');
+  }
+
+  const payload = {
+    sender: { name: fromName, email: fromEmail },
+    to: [{ email: to }],
+    subject,
+    htmlContent: html,
+    ...(text && { textContent: text }),
+  };
+
+  try {
+    const { data } = await axios.post('https://api.brevo.com/v3/smtp/email', payload, {
+      headers: {
+        'api-key': apiKey,
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
+    });
+    logger.info('Email sent successfully via Brevo', { to, messageId: data.messageId });
+    return data;
+  } catch (error) {
+    const msg = error.response?.data?.message || error.message;
+    logger.error('Failed to send email via Brevo', { to, error: msg });
+    throw error;
+  }
+};
+
+/**
+ * Send a transactional email using the active provider (see config/emailProvider.js).
+ */
+const sendEmail = async (options) => {
+  if (EMAIL_PROVIDER === 'brevo') {
+    return sendEmailViaBrevo(options);
+  }
+  return sendEmailViaSes(options);
 };
 
 // ─── OTP emails ───────────────────────────────────────────────────────────────

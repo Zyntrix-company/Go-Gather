@@ -1,11 +1,10 @@
-import React from 'react';
-import { Text, View, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Text, View, StyleSheet, Animated } from 'react-native';
 
 type Segment = { type: 'bold' | 'italic' | 'bolditalic' | 'plain'; text: string };
 
 function parseInline(raw: string): Segment[] {
   const segments: Segment[] = [];
-  // matches ***text***, **text**, *text*
   const pattern = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*)/gs;
   let last = 0;
   let match: RegExpExecArray | null;
@@ -43,6 +42,101 @@ function InlineText({ segments, baseStyle }: { segments: Segment[]; baseStyle?: 
   );
 }
 
+// ─── Table rendering ──────────────────────────────────────────────────────────
+
+function isTableLine(line: string) {
+  return line.trim().startsWith('|') && line.trim().endsWith('|');
+}
+
+function isSeparatorLine(line: string) {
+  return /^\|[\s\-|:]+\|$/.test(line.trim());
+}
+
+function parseTableCells(line: string): string[] {
+  // Split on | and trim, discarding empty first/last from leading/trailing |
+  const parts = line.trim().split('|');
+  return parts.slice(1, parts.length - 1).map((c) => c.trim());
+}
+
+type TableData = { headers: string[]; rows: string[][] };
+
+function parseTable(lines: string[]): TableData {
+  const nonSep = lines.filter((l) => !isSeparatorLine(l));
+  const [headerLine, ...dataLines] = nonSep;
+  return {
+    headers: headerLine ? parseTableCells(headerLine) : [],
+    rows: dataLines.map(parseTableCells),
+  };
+}
+
+function MarkdownTable({ table, baseStyle }: { table: TableData; baseStyle?: any }) {
+  return (
+    <View style={tableStyles.wrapper}>
+      {/* Header row */}
+      <View style={tableStyles.headerRow}>
+        {table.headers.map((h, i) => (
+          <View key={i} style={[tableStyles.cell, i === 0 ? tableStyles.col0 : tableStyles.col1]}>
+            <Text style={tableStyles.headerText}>{h}</Text>
+          </View>
+        ))}
+      </View>
+      {/* Data rows */}
+      {table.rows.map((row, ri) => (
+        <View key={ri} style={[tableStyles.dataRow, ri % 2 === 0 ? tableStyles.rowEven : tableStyles.rowOdd]}>
+          {row.map((cell, ci) => (
+            <View key={ci} style={[tableStyles.cell, ci === 0 ? tableStyles.col0 : tableStyles.col1]}>
+              <InlineText
+                segments={parseInline(cell)}
+                baseStyle={[baseStyle, tableStyles.cellText, ci === 0 && tableStyles.cellTextLabel]}
+              />
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─── Skeleton shimmer (shown while streaming a response that will have a table) ──
+
+function SkeletonLine({ width, opacity }: { width: string | number; opacity: number }) {
+  const anim = useRef(new Animated.Value(0.4)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ]),
+    ).start();
+  }, []);
+  return (
+    <Animated.View
+      style={[skeletonStyles.line, { width, opacity: anim }]}
+    />
+  );
+}
+
+function TableSkeleton() {
+  return (
+    <View style={skeletonStyles.wrapper}>
+      {/* header */}
+      <View style={skeletonStyles.headerRow}>
+        <View style={skeletonStyles.headerCell}><SkeletonLine width="60%" opacity={0.6} /></View>
+        <View style={[skeletonStyles.headerCell, skeletonStyles.headerCellRight]}><SkeletonLine width="80%" opacity={0.6} /></View>
+      </View>
+      {/* 4 rows */}
+      {[1, 0.9, 0.8, 0.7].map((op, i) => (
+        <View key={i} style={[skeletonStyles.dataRow, i % 2 === 0 ? skeletonStyles.rowEven : skeletonStyles.rowOdd]}>
+          <View style={skeletonStyles.cell}><SkeletonLine width="45%" opacity={op} /></View>
+          <View style={[skeletonStyles.cell, skeletonStyles.cellRight]}><SkeletonLine width={`${55 + i * 8}%`} opacity={op} /></View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 type Props = {
   text: string;
   streaming?: boolean;
@@ -50,9 +144,20 @@ type Props = {
   userMessage?: boolean;
 };
 
-export default function MarkdownText({ text, streaming, baseStyle, userMessage }: Props) {
+// Returns true when streaming text already contains a partial or full table marker
+function looksLikeTable(text: string): boolean {
+  return /\|.+\|/.test(text);
+}
+
+export default function MarkdownText({ text, streaming, baseStyle }: Props) {
   const safeText = text ?? '';
+
   if (streaming) {
+    // If the accumulating text has table characters, show skeleton instead of raw pipes
+    if (looksLikeTable(safeText)) {
+      return <TableSkeleton />;
+    }
+    // Plain streaming text — render as-is
     return <Text style={baseStyle}>{safeText}</Text>;
   }
 
@@ -62,6 +167,22 @@ export default function MarkdownText({ text, streaming, baseStyle, userMessage }
 
   while (i < lines.length) {
     const line = lines[i];
+
+    // Table block — collect consecutive table lines
+    if (isTableLine(line)) {
+      const tableLines: string[] = [];
+      while (i < lines.length && isTableLine(lines[i])) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      const table = parseTable(tableLines);
+      if (table.headers.length > 0) {
+        elements.push(
+          <MarkdownTable key={`table_${i}`} table={table} baseStyle={baseStyle} />,
+        );
+      }
+      continue;
+    }
 
     // Headings
     const h3 = line.match(/^###\s+(.+)/);
@@ -80,7 +201,6 @@ export default function MarkdownText({ text, streaming, baseStyle, userMessage }
     // Bullet points (- or *)
     const bullet = line.match(/^[-*]\s+(.+)/);
     if (bullet) {
-      // Collect consecutive bullet lines
       const bulletItems: string[] = [];
       while (i < lines.length) {
         const b = lines[i].match(/^[-*]\s+(.+)/);
@@ -100,14 +220,14 @@ export default function MarkdownText({ text, streaming, baseStyle, userMessage }
       continue;
     }
 
-    // Blank line — small spacer
+    // Blank line
     if (line.trim() === '') {
       elements.push(<View key={i} style={styles.spacer} />);
       i++;
       continue;
     }
 
-    // Normal paragraph line
+    // Normal paragraph
     elements.push(
       <InlineText key={i} segments={parseInline(line)} baseStyle={baseStyle} />,
     );
@@ -116,6 +236,8 @@ export default function MarkdownText({ text, streaming, baseStyle, userMessage }
 
   return <View>{elements}</View>;
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   bold: { fontWeight: '700' },
@@ -129,4 +251,71 @@ const styles = StyleSheet.create({
   bulletDot: { lineHeight: 21 },
   bulletText: { flex: 1, lineHeight: 21 },
   spacer: { height: 6 },
+});
+
+const skeletonStyles = StyleSheet.create({
+  wrapper: {
+    marginVertical: 6,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#ccfbf1',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    backgroundColor: '#0d9488',
+    paddingVertical: 10,
+  },
+  headerCell: { flex: 4, paddingHorizontal: 12, justifyContent: 'center' },
+  headerCellRight: { flex: 6, borderLeftWidth: 1, borderLeftColor: 'rgba(255,255,255,0.2)' },
+  dataRow: { flexDirection: 'row', paddingVertical: 10 },
+  rowEven: { backgroundColor: '#f0fdfa' },
+  rowOdd: { backgroundColor: '#ffffff' },
+  cell: { flex: 4, paddingHorizontal: 12, justifyContent: 'center' },
+  cellRight: { flex: 6, paddingHorizontal: 12, borderLeftWidth: 1, borderLeftColor: '#ccfbf1' },
+  line: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#0d9488',
+  },
+});
+
+const tableStyles = StyleSheet.create({
+  wrapper: {
+    marginVertical: 6,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#ccfbf1',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    backgroundColor: '#0d9488',
+  },
+  dataRow: {
+    flexDirection: 'row',
+  },
+  rowEven: { backgroundColor: '#f0fdfa' },
+  rowOdd: { backgroundColor: '#ffffff' },
+  cell: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    justifyContent: 'center',
+  },
+  col0: { flex: 4 },
+  col1: { flex: 6, borderLeftWidth: 1, borderLeftColor: '#ccfbf1' },
+  headerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  cellText: {
+    fontSize: 13,
+    color: '#0f172a',
+    lineHeight: 18,
+  },
+  cellTextLabel: {
+    fontWeight: '600',
+    color: '#0f172a',
+  },
 });

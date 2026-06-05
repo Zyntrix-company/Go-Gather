@@ -14,18 +14,39 @@ export type TripContext = {
   contextType?: 'trip' | 'event';
 };
 
+// Structured action extracted from Swee's response after a recap is shown.
+// readyToCreate === true means the user just needs to say "Yes" for Swee to act.
+export type PendingAction = {
+  intent: 'create_trip' | 'create_event' | 'update_trip' | 'update_event' | 'add_note' | 'identify_update' | 'none';
+  readyToCreate: boolean;
+  draft?: Record<string, any>;
+  tripId?: string;
+  targetTripName?: string;
+  eventId?: string;
+  targetEventName?: string;
+  noteContent?: string;
+};
+
+export type ExecuteResult = {
+  reply: string;
+  created: { id: string; type: 'trip' | 'event'; name: string } | null;
+};
+
 /**
  * Send a message to Swee.
  * Uses the axios client (auto-refreshes expired tokens via interceptor).
  * Simulates word-by-word display locally so the UI still feels animated.
  * Returns an abort function to cancel both the request and the animation.
+ *
+ * onDone receives the pendingAction from the backend (non-null when Swee
+ * is showing a recap and waiting for explicit confirmation).
  */
 export function sendMessageStream(
   message: string,
   history: ConversationMessage[],
   tripContext: TripContext | null,
   onDelta: (delta: string) => void,
-  onDone: () => void,
+  onDone: (pendingAction: PendingAction | null) => void,
   onError: (err: string) => void,
 ): () => void {
   let aborted = false;
@@ -42,6 +63,7 @@ export function sendMessageStream(
       if (aborted) return;
 
       const reply: string = response.data?.reply ?? '';
+      const pendingAction: PendingAction | null = response.data?.pendingAction ?? null;
 
       if (!reply) {
         onError('Swee returned an empty response. Please try again.');
@@ -50,7 +72,7 @@ export function sendMessageStream(
 
       // Simulate word-by-word animation locally
       const words = reply.split(' ');
-      const WORD_DELAY_MS = 40; // ~25 words/sec — feels natural
+      const WORD_DELAY_MS = 40;
 
       words.forEach((word, i) => {
         const t = setTimeout(() => {
@@ -61,9 +83,8 @@ export function sendMessageStream(
         timers.push(t);
       });
 
-      // Call onDone after last word
       const doneTimer = setTimeout(() => {
-        if (!aborted) onDone();
+        if (!aborted) onDone(pendingAction);
       }, words.length * WORD_DELAY_MS + 50);
       timers.push(doneTimer);
 
@@ -79,6 +100,15 @@ export function sendMessageStream(
     aborted = true;
     timers.forEach(clearTimeout);
   };
+}
+
+/**
+ * Execute a confirmed Swee action (create/update trip or event).
+ * Called when the user taps the Yes/Confirm chip after a recap.
+ */
+export async function executeAction(pendingAction: PendingAction): Promise<ExecuteResult> {
+  const response = await client.post('/ai/execute', { pendingAction }, { timeout: 30000 });
+  return response.data as ExecuteResult;
 }
 
 /**

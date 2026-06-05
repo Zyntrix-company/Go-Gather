@@ -1,0 +1,58 @@
+# GatherGo — Local AWS secrets & live inventory (DO NOT COMMIT)
+
+Copy to `AWS-CONTEXT.local.md` and fill in. Add `AWS-CONTEXT.local.md` to `.gitignore` (already listed).
+
+## IAM (from `aws sts get-caller-identity`)
+
+| Field | Value |
+|-------|--------|
+| AccountId | |
+| Arn | |
+| UserId | |
+
+## AWS CLI profile
+
+| Setting | Value |
+|---------|--------|
+| Region | ap-south-1 |
+| Access key ID | (last 4 chars only in notes: ****) |
+| Secret | **never write here if committing; use ~/.aws/credentials only** |
+
+## RDS (production)
+
+| Variable | Value |
+|----------|--------|
+| AWS_RDS_HOST | |
+| AWS_RDS_PORT | 5432 |
+| AWS_RDS_DB | gathergo |
+| AWS_RDS_USER | |
+| AWS_RDS_PASSWORD | |
+
+## S3 & CloudFront
+
+| Variable | Value |
+|----------|--------|
+| AWS_S3_BUCKET | gogather |
+| AWS_CLOUDFRONT_DOMAIN | d1fgu9uehmaf8u.cloudfront.net |
+| CLOUDFRONT_FRONTEND_DISTRIBUTION_ID | EIMBDMQPBY8O |
+| CLOUDFRONT_ADMIN_DISTRIBUTION_ID | EPL3M8O13JCEI |
+
+## EC2 / deploy
+
+| Secret | Value |
+|--------|--------|
+| EC2_HOST | |
+| EC2_USER | ubuntu |
+| ECR registry | 092201262561.dkr.ecr.ap-south-1.amazonaws.com/backend-api |
+
+## SES
+
+| Variable | Value |
+|----------|--------|
+| AWS_SES_FROM_EMAIL | |
+| AWS_SES_ACCESS_KEY_ID | (optional; leave empty to use main AWS keys) |
+
+## Notes
+
+- Last verified: YYYY-MM-DD
+- Key rotation history:
