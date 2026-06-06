@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ActivityIndicator, FlatList, Dimensions, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, FlatList, Dimensions, StyleSheet, TouchableOpacity } from 'react-native';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -14,6 +14,7 @@ type AlbumPhotosHeroCarouselProps<T extends AlbumHeroPhoto> = {
   loading?: boolean;
   emptyLabel?: string;
   scrollEnabled?: boolean;
+  onPhotoPress?: (index: number) => void;
 };
 
 /** Flex-grow hero pager — height follows available space (no fixed % of screen). */
@@ -26,6 +27,7 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
   loading = false,
   emptyLabel = 'No photos yet',
   scrollEnabled = true,
+  onPhotoPress,
 }: AlbumPhotosHeroCarouselProps<T>) {
   const [heroH, setHeroH] = useState(0);
 
@@ -52,10 +54,15 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
           initialScrollIndex={Math.min(heroIndex, photos.length - 1)}
           getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
           onMomentumScrollEnd={(e) => onIndexChange(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
-          renderItem={({ item }) => (
-            <View style={{ width: SCREEN_W, height: heroH }}>
+          renderItem={({ item, index }) => (
+            <TouchableOpacity
+              style={{ width: SCREEN_W, height: heroH }}
+              activeOpacity={0.95}
+              onPress={() => onPhotoPress?.(index)}
+              disabled={!onPhotoPress}
+            >
               {renderPhoto(item)}
-            </View>
+            </TouchableOpacity>
           )}
           keyExtractor={(item) => item.id}
         />

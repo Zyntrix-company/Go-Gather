@@ -11,8 +11,8 @@ interface DetailStatsBarProps {
   memberCount: number;
   docCount: number;
   photoCount: number;
-  /** Pre-formatted expense label, e.g. '₹48K' or '₹48K | $320 | €180 | £50 +2' */
-  expenseLabel: string;
+  /** Pre-formatted expense label; hidden when null */
+  expenseLabel: string | null;
 }
 
 const ICON_COLOR = colors.accent;
@@ -114,11 +114,15 @@ export default function DetailStatsBar({
         icon={<PhotosIcon />}
         label={`${photoCount} photos`}
       />
-      <View style={styles.divider} />
-      <StatItem
-        label={expenseLabel || '0'}
-        shrink
-      />
+      {expenseLabel != null && (
+        <>
+          <View style={styles.divider} />
+          <StatItem
+            label={expenseLabel}
+            shrink
+          />
+        </>
+      )}
     </View>
   );
 }

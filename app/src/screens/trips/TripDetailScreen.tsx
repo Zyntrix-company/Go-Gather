@@ -19,7 +19,7 @@ import AppDatePicker from '../../components/common/AppDatePicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import LocationAutocomplete from '../../components/common/LocationAutocomplete';
 import LocationMultiPicker from '../../components/common/LocationMultiPicker';
-import { formatLocationsLabel, formatLocationsLabelFull, normalizeLocations, toLocationPayload, type LocationPoint } from '../../utils/locations';
+import { formatLocationsLabel, formatLocationsLabelFull, formatLocationsHeroLabel, normalizeLocations, toLocationPayload, type LocationPoint } from '../../utils/locations';
 import CachedImage from '../../components/common/CachedImage';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
@@ -1162,13 +1162,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
     [expenses, members, currentUserId],
   );
   const expenseLabel = useMemo(() => {
-    if (Object.keys(totalExpensesByCurrency).length > 0) {
-      return buildExpenseLabel(totalExpensesByCurrency);
+    const fromBalances = buildExpenseLabel(totalExpensesByCurrency);
+    if (fromBalances) return fromBalances;
+    const statTotal = apiStats?.totalExpenseAmount ?? 0;
+    if (statTotal > 0) {
+      return formatCurrencyCompact(statTotal as number, 'INR');
     }
-    if (apiStats?.totalExpenseAmount) {
-      return formatCurrencyCompact(apiStats.totalExpenseAmount as number, 'INR');
-    }
-    return '0';
+    return null;
   }, [totalExpensesByCurrency, apiStats]);
 
   const toggleActivityDate = useCallback((collapseKey: string) => {
@@ -1934,7 +1934,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
           <SharedDetailHeroCard
             name={trip?.name ?? 'Trip'}
             dateLine={`${trip?.startDateISO ? (days > 0 ? fmtDateNoYear(trip.startDateISO) : fmtFullDate(trip.startDateISO)) : (trip?.startDate ?? '')}${trip?.endDateISO ? ` — ${days > 0 ? fmtDateNoYear(trip.endDateISO) : fmtFullDate(trip.endDateISO)}` : (trip?.endDate ? ` - ${trip.endDate}` : '')}`}
-            location={typeof trip?.location === 'string' ? trip.location : formatLocationsLabel(trip ?? {})}
+            location={formatLocationsHeroLabel(trip ?? {})}
             dayCount={days < 0 && Math.abs(days) >= 365 ? Math.round(Math.abs(days) / 365) : Math.abs(days)}
             dayLabel={days > 0 ? 'Days to go' : days <= 0 ? 'Ongoing' : Math.abs(days) >= 365 ? (Math.round(Math.abs(days) / 365) === 1 ? 'Year ago' : 'Years ago') : 'Days ago'}
             statusOnly={days <= 0}
@@ -2724,6 +2724,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 heroIndex={albumHeroIndex}
                 onIndexChange={setAlbumHeroIndex}
                 heroRef={albumHeroRef}
+                onPhotoPress={(idx) => setPreviewPhotoIndex(idx)}
                 renderPhoto={(item) => <TripAlbumHeroPhoto photo={item} />}
               />
               <AlbumPhotosThumbStrip
@@ -2732,6 +2733,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 onSelect={(idx) => {
                   setAlbumHeroIndex(idx);
                   albumHeroRef.current?.scrollToIndex({ index: idx, animated: true });
+                  setPreviewPhotoIndex(idx);
                 }}
               />
               <View style={acs.metaCard}>

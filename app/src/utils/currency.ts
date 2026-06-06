@@ -115,12 +115,12 @@ const EXPENSE_LABEL_MAX_CURRENCIES = 4;
  * Build expense label for hero/stats — up to 4 currencies, then +N for the rest.
  * e.g. '₹48K' | '₹48K | $320 | €180' | '₹48K | $320 | €180 | £50 +2'
  */
-export function buildExpenseLabel(byCurrency: Record<string, string> | undefined): string {
-  if (!byCurrency) return '0';
+export function buildExpenseLabel(byCurrency: Record<string, string> | undefined): string | null {
+  if (!byCurrency) return null;
   const entries = Object.entries(byCurrency)
     .filter(([, v]) => parseFloat(v) > 0)
     .sort((a, b) => parseFloat(b[1]) - parseFloat(a[1]));
-  if (entries.length === 0) return '0';
+  if (entries.length === 0) return null;
   const visible = entries.slice(0, EXPENSE_LABEL_MAX_CURRENCIES);
   const label = visible
     .map(([code, amount]) => formatCurrencyCompact(parseFloat(amount), code))

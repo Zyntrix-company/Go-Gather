@@ -46,6 +46,20 @@ export function primaryLocationName(entity: EntityWithLocations): string {
   return locations[0]?.name ?? '';
 }
 
+/** Primary place label — first comma segment (city/locality). */
+export function shortLocationName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+  const first = trimmed.split(',')[0]?.trim();
+  return first || trimmed;
+}
+
+function shortNamesFromLocations(locations: LocationPoint[]): string[] {
+  return locations
+    .map((l) => shortLocationName(l.name))
+    .filter(Boolean);
+}
+
 export function formatLocationsLabel(
   entityOrLocations: EntityWithLocations | LocationPoint[],
   maxVisible = 2,
@@ -54,17 +68,37 @@ export function formatLocationsLabel(
     ? entityOrLocations
     : normalizeLocations(entityOrLocations);
 
-  if (locations.length === 0) return '';
-  if (locations.length === 1) return locations[0].name;
+  const shorts = shortNamesFromLocations(locations);
+  if (shorts.length === 0) return '';
+  if (shorts.length === 1) return shorts[0];
 
-  const visible = locations.slice(0, maxVisible).map((l) => l.name);
-  const remaining = locations.length - maxVisible;
+  const visible = shorts.slice(0, maxVisible);
+  const remaining = shorts.length - maxVisible;
+  if (remaining <= 0) return visible.join(' · ');
+  return `${visible.join(' · ')} +${remaining}`;
+}
+
+/** Detail hero: short city names for every stop (up to maxVisible). */
+export function formatLocationsHeroLabel(
+  entityOrLocations: EntityWithLocations | LocationPoint[],
+  maxVisible = 4,
+): string {
+  const locations = Array.isArray(entityOrLocations)
+    ? entityOrLocations
+    : normalizeLocations(entityOrLocations);
+
+  const shorts = shortNamesFromLocations(locations);
+  if (shorts.length === 0) return '';
+  if (shorts.length === 1) return shorts[0];
+
+  const visible = shorts.slice(0, maxVisible);
+  const remaining = shorts.length - maxVisible;
   if (remaining <= 0) return visible.join(' · ');
   return `${visible.join(' · ')} +${remaining}`;
 }
 
 export function formatLocationsLabelFull(entity: EntityWithLocations): string {
-  return normalizeLocations(entity).map((l) => l.name).join(' · ');
+  return shortNamesFromLocations(normalizeLocations(entity)).join(' · ');
 }
 
 export function toLocationPayload(locations: LocationPoint[]) {

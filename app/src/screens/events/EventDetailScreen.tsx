@@ -14,7 +14,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AppDatePicker from '../../components/common/AppDatePicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import LocationMultiPicker from '../../components/common/LocationMultiPicker';
-import { formatLocationsLabel, formatLocationsLabelFull, normalizeLocations, toLocationPayload, type LocationPoint } from '../../utils/locations';
+import { formatLocationsLabel, formatLocationsLabelFull, formatLocationsHeroLabel, normalizeLocations, toLocationPayload, type LocationPoint } from '../../utils/locations';
 import CachedImage from '../../components/common/CachedImage';
 import InviteViaChannels from '../../components/common/InviteViaChannels';
 import DetailDialogHeader from '../../components/details/DetailDialogHeader';
@@ -695,10 +695,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
     [expenses, members, currentUserId],
   );
   const expenseLabel = useMemo(() => {
-    if (Object.keys(totalExpensesByCurrency).length > 0) {
-      return buildExpenseLabel(totalExpensesByCurrency);
-    }
-    // Fallback: build per-currency map from local expenses
+    const fromBalances = buildExpenseLabel(totalExpensesByCurrency);
+    if (fromBalances) return fromBalances;
     const localByCurrency: Record<string, string> = {};
     for (const exp of expenses) {
       const cur = exp.currency || 'INR';
@@ -1287,7 +1285,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
           <SharedDetailHeroCard
             name={event.name}
             dateLine={event.dateLine}
-            location={event.location}
+            location={formatLocationsHeroLabel(event)}
             dayCount={Math.abs(event.dayCount)}
             dayLabel={dayLabel}
             statusOnly={statusOnly}
@@ -1833,6 +1831,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 heroIndex={albumHeroIndex}
                 onIndexChange={setAlbumHeroIndex}
                 heroRef={albumHeroRef}
+                onPhotoPress={(idx) => setPreviewPhotoIndex(idx)}
                 renderPhoto={(item) => <EventAlbumHeroPhoto photo={item} />}
               />
               <AlbumPhotosThumbStrip
@@ -1841,6 +1840,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 onSelect={(idx) => {
                   setAlbumHeroIndex(idx);
                   albumHeroRef.current?.scrollToIndex({ index: idx, animated: true });
+                  setPreviewPhotoIndex(idx);
                 }}
               />
               <View style={acs.metaCard}>
@@ -1852,7 +1852,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                         <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
                       </Svg>
-                      <Text style={acs.metaTextAccent} numberOfLines={1}>{event.location}</Text>
+                      <Text style={acs.metaTextAccent} numberOfLines={2}>{formatLocationsHeroLabel(event)}</Text>
                     </View>
                   )}
                   {!!event.dateLine && (
@@ -1926,7 +1926,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   if (!previewPhoto) return;
                   showConfirm({
                     title: 'Delete Photo',
-                    message: 'Remove this photo?',
+                    message: 'Remove this photo for everyone on this event?',
                     destructive: true,
                     onConfirm: async () => {
                       try {

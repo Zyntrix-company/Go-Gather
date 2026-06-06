@@ -30,8 +30,8 @@ export interface DetailHeroCardProps {
   memberAvatars?: { id: string; uri: string }[];
   docCount: number;
   photoCount: number;
-  /** Pre-formatted expense label, e.g. '₹48K' or '₹48K | $320 | €180 | £50 +2' */
-  totalExpenses: number | string;
+  /** Pre-formatted expense label; omit badge when null/empty/zero */
+  totalExpenses?: number | string | null;
   /** Optional tag badge text (e.g. event type) */
   typeBadge?: string;
   /** Background color for the type badge pill */
@@ -82,12 +82,21 @@ export default function DetailHeroCard({
   memberAvatars = [],
   docCount,
   photoCount,
-  totalExpenses,
+  totalExpenses = null,
   typeBadge,
   typeBadgeColor = '#fef3c7',
   onEdit,
   gradientColors = ['#ffffff', '#d1fef9'],
 }: DetailHeroCardProps) {
+  const expenseDisplay = (() => {
+    if (totalExpenses == null || totalExpenses === '') return null;
+    if (typeof totalExpenses === 'number') {
+      return totalExpenses > 0 ? totalExpenses.toFixed(0) : null;
+    }
+    if (totalExpenses === '0') return null;
+    return totalExpenses;
+  })();
+
   return (
     <LinearGradient
       colors={gradientColors}
@@ -107,7 +116,9 @@ export default function DetailHeroCard({
         <View style={{ flex: 1 }}>
           <Text style={styles.name} numberOfLines={2}>{name}</Text>
           <Text style={styles.dateLine}>{dateLine}</Text>
-          {!!location && <Text style={styles.location} numberOfLines={1}>{location}</Text>}
+          {!!location && (
+            <Text style={styles.location} numberOfLines={2}>{location}</Text>
+          )}
         </View>
 
         <View style={styles.daysArea}>
@@ -163,15 +174,17 @@ export default function DetailHeroCard({
           <PhotosIcon />
           <Text style={styles.statTxt}>{photoCount}</Text>
         </View>
-        <View style={[styles.statBadge, styles.expenseStatBadge]}>
-          <Text
-            style={styles.statTxt}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.75}>
-            {typeof totalExpenses === 'string' ? (totalExpenses || '0') : (totalExpenses > 0 ? (totalExpenses as number).toFixed(0) : '0')}
-          </Text>
-        </View>
+        {expenseDisplay != null && (
+          <View style={[styles.statBadge, styles.expenseStatBadge]}>
+            <Text
+              style={styles.statTxt}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}>
+              {expenseDisplay}
+            </Text>
+          </View>
+        )}
       </View>
     </LinearGradient>
   );
