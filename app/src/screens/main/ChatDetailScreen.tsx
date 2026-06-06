@@ -13,9 +13,9 @@ import {
   ActivityIndicator,
   Animated,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import BlobBackground from '../../components/common/BlobBackground';
+import AppScreenLayout, { TAB_BAR_SCROLL_PADDING, tabBarContentPadding } from '../../components/common/AppScreenLayout';
 import MarkdownText from '../../components/common/MarkdownText';
 import SweeIcon from '../../components/common/SweeIcon';
 import useAuthStore from '../../store/authStore';
@@ -73,13 +73,6 @@ function toApiHistory(messages: Message[]): ConversationMessage[] {
 }
 
 // ─── Icons ─────────────────────────────────────────────────────────────────
-
-const BackIcon = () => (
-  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-    <Path d="M19 12H5M12 19l-7-7 7-7" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
 
 const DotsIcon = () => (
   <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -455,15 +448,11 @@ export default function ChatDetailScreen({ route, navigation }: any) {
   }
 
   return (
-    <BlobBackground>
-      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <AppScreenLayout navigation={navigation} activeTab="chat" safeAreaStyle={{ flex: 1 }} onLogoPress={() => navigation.goBack()}>
+      <View style={styles.container}>
 
-        {/* ── Header ── */}
+        {/* ── Chat sub-header ── */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn} activeOpacity={0.7}>
-            <BackIcon />
-          </TouchableOpacity>
-
           <View style={styles.headerAvatarSwee}>
             <SweeIcon size={20} color="#fff" />
           </View>
@@ -525,13 +514,13 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
-          contentContainerStyle={styles.messageList}
+          contentContainerStyle={[styles.messageList, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}
         />
 
         {/* ── Input bar ── */}
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+          <View style={[styles.inputRow, { paddingBottom: tabBarContentPadding(insets.bottom, 10) }]}>
             <TextInput
               style={styles.input}
               placeholder="Ask Swee anything..."
@@ -554,7 +543,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           </View>
         </KeyboardAvoidingView>
 
-      </SafeAreaView>
+      </View>
 
       {/* ── Overflow Menu Modal ── */}
       <Modal visible={showOverflow} transparent animationType="fade" onRequestClose={() => setShowOverflow(false)}>
@@ -672,7 +661,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         </View>
       </Modal>
 
-    </BlobBackground>
+    </AppScreenLayout>
   );
 }
 

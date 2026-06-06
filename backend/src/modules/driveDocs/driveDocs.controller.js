@@ -64,8 +64,9 @@ const getStatus = async (req, res, next) => {
 // GET /drive-docs/files?folderId=...
 const listFiles = async (req, res, next) => {
   try {
-    const { folderId } = req.query;
-    const result = await service.listFiles(req.user.id, folderId || null);
+    const { folderId, kind } = req.query;
+    const photosOnly = kind === 'photos';
+    const result = await service.listFiles(req.user.id, folderId || null, { photosOnly });
     res.json(result);
   } catch (err) {
     handleError(err, res, next);
@@ -87,4 +88,18 @@ const importFiles = async (req, res, next) => {
   }
 };
 
-module.exports = { getConnectUrl, driveCallback, disconnect, getStatus, listFiles, importFiles };
+const importPhotos = async (req, res, next) => {
+  try {
+    const { files } = req.body;
+    if (!Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'files must be a non-empty array', statusCode: 400 });
+    }
+    const { parentType, parentId } = req.parent;
+    const result = await service.importPhotos(req.user.id, parentType, parentId, files);
+    res.json(result);
+  } catch (err) {
+    handleError(err, res, next);
+  }
+};
+
+module.exports = { getConnectUrl, driveCallback, disconnect, getStatus, listFiles, importFiles, importPhotos };

@@ -11,8 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
-import Logo from '../../components/common/Logo';
-import BlobBackground from '../../components/common/BlobBackground';
+import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import authApi from '../../api/auth.api';
 import { changePasswordSchema } from '../../utils/validators';
 import useAuthStore from '../../store/authStore';
@@ -150,7 +149,7 @@ export default function ChangePasswordScreen({ navigation }: { navigation: any }
 
   if (isDone) {
     return (
-      <BlobBackground>
+      <AppScreenLayout navigation={navigation}>
         <View style={styles.centered}>
           <View style={styles.successCircle}>
             <CheckCircleIcon />
@@ -167,25 +166,19 @@ export default function ChangePasswordScreen({ navigation }: { navigation: any }
             <Text style={styles.primaryBtnText}>Back to Settings</Text>
           </TouchableOpacity>
         </View>
-      </BlobBackground>
+      </AppScreenLayout>
     );
   }
 
   return (
-    <BlobBackground>
+    <AppScreenLayout navigation={navigation}>
       <KeyboardAvoidingView
         style={styles.kav}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-
-          <View style={styles.logoRow}>
-            <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8}>
-              <Logo size="small" />
-            </TouchableOpacity>
-          </View>
 
           <View style={styles.form}>
             <View style={styles.iconBadge}>
@@ -316,7 +309,7 @@ export default function ChangePasswordScreen({ navigation }: { navigation: any }
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </BlobBackground>
+    </AppScreenLayout>
   );
 }
 
@@ -325,10 +318,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 8,
     paddingBottom: 48,
   },
-  logoRow: { marginBottom: 40 },
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
 
   iconBadge: {

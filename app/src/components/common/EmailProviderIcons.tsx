@@ -1,8 +1,9 @@
 import React from 'react';
-import { Image, type ImageStyle, type StyleProp } from 'react-native';
+import { Image, View, type ImageStyle, type StyleProp } from 'react-native';
 import type { EmailProvider } from '../../api/trips.api';
+import { GmailBrandIcon } from './GoogleWorkspaceIcons';
 
-/** Brand assets in app/assets (exported from official SVGs). */
+/** Brand assets in app/assets (2026 Google Workspace refresh for Gmail). */
 export const EMAIL_PROVIDER_ASSETS = {
   gmail: require('../../../assets/gmail-icon.png'),
   outlook: require('../../../assets/outlook-icon.png'),
@@ -17,6 +18,14 @@ export function EmailProviderIcon({
   size?: number;
   style?: StyleProp<ImageStyle>;
 }) {
+  if (provider === 'gmail') {
+    return (
+      <View style={[{ width: size, height: size }, style]} accessibilityLabel={emailProviderLabel(provider)}>
+        <GmailBrandIcon size={size} />
+      </View>
+    );
+  }
+
   return (
     <Image
       source={EMAIL_PROVIDER_ASSETS[provider]}

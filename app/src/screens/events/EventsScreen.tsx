@@ -28,6 +28,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import { EmailProviderPickerRow } from '../../components/common/EmailProviderUI';
+import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
 import {
   requireEventFromResponse,
   runSafePostCreate,
@@ -804,7 +805,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
             <TouchableOpacity style={modal.ctRow} onPress={openDrivePicker} activeOpacity={0.8}>
               <View style={modal.ctRowLeft}>
                 <View style={modal.ctRowIcon}>
-                  <Image source={require('../../../assets/drive-icon.png')} style={{ width: 14, height: 14 }} resizeMode="contain" />
+                  <DriveBrandIcon size={14} />
                 </View>
                 <Text style={modal.ctRowText}>Import from Google Drive</Text>
               </View>
@@ -816,7 +817,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
             </TouchableOpacity>
             {driveSelectedDocs.map((doc, i) => (
               <View key={doc.fileId} style={modal.ctDocChip}>
-                <Image source={require('../../../assets/drive-icon.png')} style={{ width: 12, height: 12 }} resizeMode="contain" />
+                <DriveBrandIcon size={12} />
                 <Text style={modal.ctDocChipText} numberOfLines={1}>{doc.name}</Text>
                 <TouchableOpacity onPress={() => setDriveSelectedDocs(p => p.filter((_, j) => j !== i))}>
                   <View style={modal.ctDocRemove}>

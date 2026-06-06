@@ -9,9 +9,8 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
-import BlobBackground from '../../components/common/BlobBackground';
+import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import useNotificationStore from '../../store/notificationStore';
 
 // Notification types that live in the Requests tab
@@ -254,23 +253,13 @@ export default function NotificationsScreen({ navigation }: any) {
   };
 
   return (
-    <BlobBackground>
-      <SafeAreaView style={styles.container}>
+    <AppScreenLayout navigation={navigation}>
+      <View style={styles.pageHeader}>
+        <Text style={styles.headerTitle}>Notifications</Text>
+      </View>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-              <Path d="M19 12H5M12 19l-7-7 7-7" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
-          </TouchableOpacity>
-          <View style={styles.headerTitleWrap} pointerEvents="none">
-            <Text style={styles.headerTitle}>Notifications</Text>
-          </View>
-        </View>
-
-        {/* Tab bar */}
-        <View style={styles.tabBar}>
+      {/* Filter tabs */}
+      <View style={styles.filterTabs}>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'notifications' && styles.tabActive]}
             onPress={() => setActiveTab('notifications')}
@@ -310,9 +299,10 @@ export default function NotificationsScreen({ navigation }: any) {
 
         {/* Notification list */}
         <FlatList
+          style={{ flex: 1 }}
           data={displayed}
           keyExtractor={item => item.id}
-          contentContainerStyle={[styles.listContent, displayed.length === 0 && styles.listContentEmpty]}
+          contentContainerStyle={[styles.listContent, displayed.length === 0 && styles.listContentEmpty, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}
           onEndReached={onEndReached}
           onEndReachedThreshold={0.3}
@@ -404,35 +394,17 @@ export default function NotificationsScreen({ navigation }: any) {
             </TouchableOpacity>
           )}
         />
-      </SafeAreaView>
-    </BlobBackground>
+    </AppScreenLayout>
   );
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-
-  // Header
-  header: {
-    flexDirection: 'row',
+  pageHeader: {
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitleWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
+    paddingBottom: 8,
   },
   headerTitle: {
     fontSize: 17,
@@ -440,8 +412,8 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
 
-  // Tab bar
-  tabBar: {
+  // Filter tabs
+  filterTabs: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',

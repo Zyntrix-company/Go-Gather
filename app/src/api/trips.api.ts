@@ -520,6 +520,13 @@ export async function listDriveFiles(folderId?: string) {
   return res.data as { files: DriveFile[]; total: number };
 }
 
+export async function listDrivePhotoFiles(folderId?: string) {
+  const res = await client.get('/drive-docs/files', {
+    params: folderId ? { folderId, kind: 'photos' } : { kind: 'photos' },
+  });
+  return res.data as { files: DriveFile[]; total: number };
+}
+
 export async function importDriveFiles(
   parentType: 'trip' | 'event',
   parentId: string,
@@ -528,6 +535,18 @@ export async function importDriveFiles(
   const res = await client.post('/drive-docs/import', { parentType, parentId, files });
   return res.data as {
     imported: { docId: string; fileName: string; fileUrl: string }[];
+    failed:   { fileName: string; reason: string }[];
+  };
+}
+
+export async function importDrivePhotos(
+  parentType: 'trip' | 'event',
+  parentId: string,
+  files: Pick<DriveFile, 'fileId' | 'name' | 'mimeType'>[],
+) {
+  const res = await client.post('/drive-docs/import-photos', { parentType, parentId, files });
+  return res.data as {
+    imported: { id: string; fileName: string; url?: string; fileUrl?: string; mimeType?: string }[];
     failed:   { fileName: string; reason: string }[];
   };
 }

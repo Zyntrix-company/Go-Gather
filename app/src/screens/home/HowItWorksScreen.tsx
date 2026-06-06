@@ -10,11 +10,10 @@ import {
   ActivityIndicator,
   PanResponder,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Polygon, Rect } from 'react-native-svg';
 import { Plane, CalendarDays, Play, Pause, RotateCcw, Volume2, VolumeX } from 'lucide-react-native';
 import Video, { type OnLoadData, type OnProgressData, type VideoRef } from 'react-native-video';
-import BlobBackground from '../../components/common/BlobBackground';
+import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import SweeIcon from '../../components/common/SweeIcon';
 import colors from '../../theme/colors';
 import { GATHERGO_FAQS } from '../../content/faqs';
@@ -192,23 +191,15 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
   }, []);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <BlobBackground>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-            <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-              <Path d="M19 12H5M12 5l-7 7 7 7" stroke={colors.textPrimary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            </Svg>
-          </TouchableOpacity>
+    <AppScreenLayout navigation={navigation}>
+        <View style={styles.pageHeader}>
           <Text style={styles.headerTitle}>How it works?</Text>
-          <View style={{ width: 36 }} />
         </View>
 
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.scroll}>
+          contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}>
 
           {/* Promotional / demo video — transparent tap layer above Video (native view steals touches) */}
           <View style={styles.videoWrap}>
@@ -379,27 +370,17 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
           
 
         </ScrollView>
-      </BlobBackground>
-    </SafeAreaView>
+    </AppScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-
-  header: {
-    flexDirection: 'row',
+  pageHeader: {
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center', justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 16, fontWeight: '600', color: colors.textPrimary,

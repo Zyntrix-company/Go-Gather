@@ -3,13 +3,12 @@ import {
   View, Text, TouchableOpacity, ScrollView,
   Dimensions, StyleSheet, ActivityIndicator, Modal, Animated, FlatList,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { UserMinus } from 'lucide-react-native';
-import BlobBackground from '../../components/common/BlobBackground';
 import CachedImage from '../../components/common/CachedImage';
-import AppHeader from '../../components/common/AppHeader';
+import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import { getUserProfile, removeFriend, handleApiError } from '../../api/trips.api';
 import { showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
@@ -383,21 +382,9 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
     return () => { cancelled = true; };
   }, [visible, parentId, parentType, userId]);
 
-  const activityGroups: Record<string, PhotoItem[]> = {};
-  const directPhotos: PhotoItem[] = [];
-  photos.forEach((ph) => {
-    if (ph.activityId && ph.activityTitle) {
-      if (!activityGroups[ph.activityTitle]) activityGroups[ph.activityTitle] = [];
-      activityGroups[ph.activityTitle].push(ph);
-    } else {
-      directPhotos.push(ph);
-    }
-  });
-
   const heroPhoto = photos.length > 0 ? photos[Math.min(heroIndex, photos.length - 1)] : null;
   const isActivityPhoto = !!(heroPhoto?.activityTitle);
   const dynamicTitle = isActivityPhoto ? heroPhoto!.activityTitle! : title;
-  const CELL = (SCREEN_W - 32 - 12) / 3;
 
   return (
     <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
@@ -543,65 +530,7 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
             </View>
           </View>
 
-          {/* ── All Photos Grid ── */}
-          {!loading && photos.length > 0 && (
-            <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 36 }}>
-              {/* Direct photos first */}
-              {directPhotos.length > 0 && (
-                <View style={{ marginBottom: Object.keys(activityGroups).length > 0 ? 16 : 8 }}>
-                  {Object.keys(activityGroups).length > 0 && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
-                      <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 }}>
-                        {parentType === 'trip' ? 'Trip Photos' : 'Event Photos'}
-                      </Text>
-                      <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
-                    </View>
-                  )}
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                    {directPhotos.map(ph => {
-                      const idx = photos.findIndex(p => p.id === ph.id);
-                      return (
-                        <TouchableOpacity
-                          key={ph.id}
-                          onPress={() => { setHeroIndex(idx); heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); }}
-                          activeOpacity={0.85}
-                          style={{ width: CELL, height: CELL, borderRadius: 10, overflow: 'hidden', borderWidth: idx === heroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0' }}
-                        >
-                          <FriendHeroPhoto photo={ph} />
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-              {/* Activity groups after */}
-              {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
-                <View key={actTitle} style={{ marginBottom: 16 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
-                    <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 }}>{actTitle}</Text>
-                    <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                    {actPhotos.map(ph => {
-                      const idx = photos.findIndex(p => p.id === ph.id);
-                      return (
-                        <TouchableOpacity
-                          key={ph.id}
-                          onPress={() => { setHeroIndex(idx); heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); }}
-                          activeOpacity={0.85}
-                          style={{ width: CELL, height: CELL, borderRadius: 10, overflow: 'hidden', borderWidth: idx === heroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0' }}
-                        >
-                          <FriendHeroPhoto photo={ph} />
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
+          <View style={{ height: 36 }} />
 
         </ScrollView>
       </View>
@@ -675,21 +604,14 @@ export default function FriendProfileScreen() {
   }
 
   return (
-    <BlobBackground>
-      <SafeAreaView style={styles.container}>
-
-        <AppHeader
-          onLogoPress={() => navigation.goBack()}
-          onBellPress={() => navigation.navigate('Notifications' as any)}
-          onMenuPress={() => {}}
-        />
-
+    <>
+      <AppScreenLayout navigation={navigation} activeTab="friends">
         {loading ? (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}>
             <FriendProfileSkeleton />
           </ScrollView>
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}>
 
             {/* ── Profile card ── */}
             <View style={styles.profileCard}>
@@ -782,7 +704,7 @@ export default function FriendProfileScreen() {
 
           </ScrollView>
         )}
-      </SafeAreaView>
+      </AppScreenLayout>
 
       {photoModal && (
         <PhotosModal
@@ -805,7 +727,7 @@ export default function FriendProfileScreen() {
           onClose={() => setCustomAlbumModal(null)}
         />
       )}
-    </BlobBackground>
+    </>
   );
 }
 

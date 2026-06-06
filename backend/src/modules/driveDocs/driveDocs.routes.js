@@ -22,5 +22,6 @@ const injectParent = (req, _res, next) => {
 driveDocsRouter.get('/status',  authenticateJWT, controller.getStatus);
 driveDocsRouter.get('/files',   authenticateJWT, controller.listFiles);
 driveDocsRouter.post('/import', authenticateJWT, injectParent, verifyParentAccess(), controller.importFiles);
+driveDocsRouter.post('/import-photos', authenticateJWT, injectParent, verifyParentAccess(), controller.importPhotos);
 
 module.exports = { authRouter: authRouter, driveDocsRouter };

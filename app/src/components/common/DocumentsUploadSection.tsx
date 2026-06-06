@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import type { EmailProvider } from '../../api/trips.api';
 import colors from '../../theme/colors';
 import { EmailProviderIcon, emailProviderLabel } from './EmailProviderIcons';
+import { DriveBrandIcon } from './GoogleWorkspaceIcons';
 
 type EmailConnectionStatus = {
   gmail: { connected: boolean };
@@ -39,13 +40,7 @@ function ChevRight() {
 }
 
 function DriveIcon({ size = 26 }: { size?: number }) {
-  return (
-    <Image
-      source={require('../../../assets/drive-icon.png')}
-      style={{ width: size, height: size }}
-      resizeMode="contain"
-    />
-  );
+  return <DriveBrandIcon size={size} />;
 }
 
 function EmailImportRow({
@@ -119,7 +114,7 @@ export default function DocumentsUploadSection({
     <View style={styles.wrap}>
       <TouchableOpacity style={styles.phoneBtn} onPress={onUploadPhone} activeOpacity={0.85}>
         <UploadIcon />
-        <Text style={styles.phoneBtnText}>Upload from device or Drive</Text>
+        <Text style={styles.phoneBtnText}>Upload from device</Text>
       </TouchableOpacity>
 
       <View style={styles.dividerRow}>

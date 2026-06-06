@@ -14,9 +14,7 @@ import {
 } from 'react-native';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path } from 'react-native-svg';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Logo from '../../components/common/Logo';
-import BlobBackground from '../../components/common/BlobBackground';
+import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -240,7 +238,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const busy = isLoading || uploadingPhoto;
 
   return (
-    <BlobBackground>
+    <>
       <PickerModal
         visible={showGenderPicker} title="Select Gender" options={GENDERS} selected={gender}
         onSelect={(v) => { setGender(v); setValue('gender', v); setApiError(null); }}
@@ -252,7 +250,7 @@ export default function EditProfileScreen({ navigation }: any) {
         onClose={() => setShowCountryPicker(false)}
       />
 
-      <SafeAreaView style={styles.safe}>
+      <AppScreenLayout navigation={navigation}>
         <KeyboardAvoidingView
           style={styles.kav}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -260,16 +258,11 @@ export default function EditProfileScreen({ navigation }: any) {
 
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={styles.container}
+            contentContainerStyle={[styles.container, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}>
 
-
-            {/* ── Top block: logo + title + avatar ── */}
             <View style={styles.topBlock}>
-              <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8} style={styles.logoBtn}>
-                <Logo size="small" />
-              </TouchableOpacity>
               <Text style={styles.title}>Edit Profile</Text>
               <Text style={styles.subtitle}>Update your personal information</Text>
 
@@ -434,8 +427,8 @@ export default function EditProfileScreen({ navigation }: any) {
 
           </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
-    </BlobBackground>
+      </AppScreenLayout>
+    </>
   );
 }
 
@@ -454,7 +447,6 @@ const styles = StyleSheet.create({
 
   // ── Top block ──────────────────────────────────────────────────────────────
   topBlock: { },
-  logoBtn:  { alignSelf: 'flex-start' },
   title:    { fontSize: 20, fontWeight: '400', color: '#0F172B', textAlign: 'center', marginTop: 10, marginBottom: 6 },
   subtitle: { fontSize: 13, color: '#45556C', textAlign: 'center' },
 

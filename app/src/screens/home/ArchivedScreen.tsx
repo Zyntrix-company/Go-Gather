@@ -10,12 +10,10 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import Svg, { Path } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
-import BlobBackground from '../../components/common/BlobBackground';
-import { BackIcon } from '../../components/common/Icons';
+import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import {
   getArchivedTrips,
   unarchiveTrip,
@@ -327,31 +325,22 @@ export default function ArchivedScreen() {
 
   if (loading) {
     return (
-      <BlobBackground>
-        <SafeAreaView style={styles.container}>
-          <View style={styles.backRow}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-              <BackIcon />
-            </TouchableOpacity>
+      <AppScreenLayout navigation={navigation}>
+          <View style={styles.pageHeader}>
             <Text style={styles.title}>Archived</Text>
           </View>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <ActivityIndicator size="large" color="#0d9488" />
           </View>
-        </SafeAreaView>
-      </BlobBackground>
+      </AppScreenLayout>
     );
   }
 
   const isEmpty = trips.length === 0 && events.length === 0 && galleryItems.length === 0;
 
   return (
-    <BlobBackground>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.backRow}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <BackIcon />
-          </TouchableOpacity>
+    <AppScreenLayout navigation={navigation}>
+        <View style={styles.pageHeader}>
           <Text style={styles.title}>Archived</Text>
         </View>
 
@@ -372,7 +361,7 @@ export default function ArchivedScreen() {
         ) : (
           <ScrollView
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
             onScrollBeginDrag={() => setOpenMenuId(null)}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#0d9488']} />}
           >
@@ -474,18 +463,20 @@ export default function ArchivedScreen() {
             )}
           </ScrollView>
         )}
-      </SafeAreaView>
-    </BlobBackground>
+    </AppScreenLayout>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'transparent' },
-  backRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
-  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 17, fontWeight: '500', color: '#141414', marginLeft: 12 },
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  title: { fontSize: 17, fontWeight: '500', color: '#141414' },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 12 },
 
   section: { marginBottom: 24 },

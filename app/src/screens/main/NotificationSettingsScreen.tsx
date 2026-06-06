@@ -8,9 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import BlobBackground from '../../components/common/BlobBackground';
-import Logo from '../../components/common/Logo';
+import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import useNotificationSettingsStore from '../../store/notificationSettingsStore';
 import { NotificationSettings } from '../../api/notificationSettings.api';
 import colors from '../../theme/colors';
@@ -34,16 +32,11 @@ export default function NotificationSettingsScreen({ navigation }: any) {
   };
 
   return (
-    <BlobBackground>
-      <SafeAreaView style={styles.safe}>
+    <AppScreenLayout navigation={navigation}>
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}>
 
-          {/* Header */}
-          <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8} style={styles.logoBtn}>
-            <Logo size="small" />
-          </TouchableOpacity>
           <Text style={styles.title}>Notification Preferences</Text>
           <Text style={styles.subtitle}>Control how and when GatherrGo notifies you</Text>
           <Text style={styles.scopeNote}>
@@ -131,8 +124,7 @@ export default function NotificationSettingsScreen({ navigation }: any) {
             </>
           )}
         </ScrollView>
-      </SafeAreaView>
-    </BlobBackground>
+    </AppScreenLayout>
   );
 }
 
@@ -140,9 +132,8 @@ export default function NotificationSettingsScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   safe:       { flex: 1 },
-  scroll:     { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 },
+  scroll:     { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
 
-  logoBtn:    { alignSelf: 'flex-start', paddingTop: 8, marginBottom: 16 },
   title:      { fontSize: 20, fontWeight: '400', color: colors.textPrimary, textAlign: 'center', marginBottom: 4 },
   subtitle:   { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 10 },
   scopeNote: {

@@ -20,6 +20,17 @@ function getCurrencyAccent(code: string): string {
   return CURRENCY_COLORS[code] ?? '#64748b';
 }
 
+/** Softer bar fill — keeps hue, lowers visual weight on the track. */
+function softenBarColor(hex: string, opacity = 0.38): string {
+  const h = hex.replace('#', '');
+  if (h.length !== 6) return hex;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  if ([r, g, b].some(n => Number.isNaN(n))) return hex;
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
 type Props = {
   byCurrency: CurrencyExpenseTotals[];
 };
@@ -56,7 +67,7 @@ export default function ExpenseDistributionBar({ byCurrency }: Props) {
                       key={`${cur.currency}-${cat.slug}`}
                       style={[
                         styles.categorySegment,
-                        { flex: catFlex, backgroundColor: cat.color },
+                        { flex: catFlex, backgroundColor: softenBarColor(cat.color) },
                         isFirst && styles.barStart,
                         isLast && styles.barEnd,
                       ]}
@@ -103,6 +114,7 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
     overflow: 'hidden',
+    backgroundColor: '#f1f5f9',
   },
   categorySegment: {
     height: '100%',

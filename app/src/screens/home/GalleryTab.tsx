@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, ScrollView, Image,
   Dimensions, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, FlatList,
@@ -20,9 +21,10 @@ import { migrateLocalCustomGalleryAlbums } from '../../utils/migrateCustomGaller
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { PencilLine, Pen, Archive, Trash2 } from 'lucide-react-native';
+import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
 import { getUserGallery, getUserPhotos, upsertGallerySubtitle, archiveGalleryItem } from '../../api/ai.api';
-import { getTripPhotos, uploadTripPhotos, deleteTripPhoto, updateTrip } from '../../api/trips.api';
-import { getEventPhotos, uploadEventPhotos, deleteEventPhoto, updateEvent } from '../../api/events.api';
+import { getTripPhotos, uploadTripPhotos, updateTrip, getDriveStatus, listDrivePhotoFiles, importDrivePhotos, type DriveFile } from '../../api/trips.api';
+import { getEventPhotos, uploadEventPhotos, updateEvent } from '../../api/events.api';
 import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -375,12 +377,12 @@ function PhotosModal({
   onBannerSaved?: (uri: string) => void;
   onArchived?: () => void;
 }) {
+  const navigation = useNavigation<any>();
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
   const insets = useSafeAreaInsets();
   const [editMode, setEditMode] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
   const [descExpanded, setDescExpanded] = useState(false);
@@ -389,6 +391,19 @@ function PhotosModal({
   const [subtitleDraft, setSubtitleDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const localUriCache = useRef<Record<string, string>>({});
+  const [driveStatus, setDriveStatus] = useState({ connected: false });
+  const [showDrivePicker, setShowDrivePicker] = useState(false);
+  const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
+  const [drivePickerLoading, setDrivePickerLoading] = useState(false);
+  const [selectedDriveFileIds, setSelectedDriveFileIds] = useState<Set<string>>(new Set());
+  const [driveImporting, setDriveImporting] = useState(false);
+
+  useEffect(() => {
+    if (!visible || userId) return;
+    getDriveStatus()
+      .then((d) => setDriveStatus({ connected: Boolean(d?.connected) }))
+      .catch(() => setDriveStatus({ connected: false }));
+  }, [visible, userId]);
 
   useEffect(() => {
     if (visible) {
@@ -517,20 +532,53 @@ function PhotosModal({
     );
   };
 
-  const handleDeletePhoto = async (photo: PhotoItem) => {
-    setDeletingId(photo.id);
+  const openPhotoDrivePicker = async () => {
+    if (!driveStatus.connected) {
+      navigation.navigate('ConnectedEmail');
+      return;
+    }
+    setDriveFiles([]);
+    setSelectedDriveFileIds(new Set());
+    setDrivePickerLoading(true);
+    setShowDrivePicker(true);
     try {
-      if (parentType === 'trip') await deleteTripPhoto(parentId, photo.id);
-      else await deleteEventPhoto(parentId, photo.id);
-      setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
-    } catch (err: any) {
-      Toast.show({
-        type: 'error',
-        text1: 'Could not delete',
-        text2: err?.response?.data?.message ?? 'Please try again.',
-      });
+      const res = await listDrivePhotoFiles();
+      setDriveFiles(res.files);
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not load Drive photos', text2: 'Please try again.' });
+      setShowDrivePicker(false);
     } finally {
-      setDeletingId(null);
+      setDrivePickerLoading(false);
+    }
+  };
+
+  const confirmPhotoDriveImport = async () => {
+    if (selectedDriveFileIds.size === 0 || driveImporting) return;
+    setDriveImporting(true);
+    try {
+      const selected = driveFiles.filter((f) => selectedDriveFileIds.has(f.fileId));
+      const res = await importDrivePhotos(parentType, parentId, selected);
+      if (res.imported.length > 0) {
+        setPhotos((prev) => [
+          ...prev,
+          ...res.imported.map((ph) => ({
+            id: ph.id,
+            uri: ph.url ?? ph.fileUrl ?? '',
+            activityId: null,
+            activityTitle: null,
+          })),
+        ]);
+      }
+      setShowDrivePicker(false);
+      if (res.failed?.length) {
+        Toast.show({ type: 'error', text1: `${res.failed.length} photo(s) failed to import` });
+      } else if (res.imported.length > 0) {
+        Toast.show({ type: 'success', text1: `${res.imported.length} photo(s) added from Drive` });
+      }
+    } catch {
+      Toast.show({ type: 'error', text1: 'Import failed', text2: 'Please try again.' });
+    } finally {
+      setDriveImporting(false);
     }
   };
 
@@ -556,16 +604,6 @@ function PhotosModal({
       setSaving(false);
     }
     setEditMode(false);
-  };
-
-  const handleSetAsCover = async (uri: string) => {
-    try {
-      if (parentType === 'trip') await updateTrip(parentId, { bannerImageUrl: uri });
-      else await updateEvent(parentId, { bannerImageUrl: uri });
-      onBannerSaved?.(uri);
-    } catch {
-      Toast.show({ type: 'error', text1: 'Could not set cover', text2: 'Please try again.' });
-    }
   };
 
   const hideAlbumFromMyGallery = async () => {
@@ -604,63 +642,6 @@ function PhotosModal({
       destructive: true,
       onConfirm: hideAlbumFromMyGallery,
     });
-  };
-
-  const activityGroups: Record<string, PhotoItem[]> = {};
-  const directPhotos: PhotoItem[] = [];
-  photos.forEach((ph) => {
-    if (ph.activityId && ph.activityTitle) {
-      if (!activityGroups[ph.activityTitle]) activityGroups[ph.activityTitle] = [];
-      activityGroups[ph.activityTitle].push(ph);
-    } else {
-      directPhotos.push(ph);
-    }
-  });
-
-  const renderThumb = (ph: PhotoItem) => {
-    const isCover = !!bannerImageUrl && bannerImageUrl === ph.uri;
-    return (
-      <View key={ph.id} style={{ position: 'relative' }}>
-        <PhotoThumb photo={ph} onPress={() => !editMode && setPreviewIndex(photos.findIndex(p => p.id === ph.id))} />
-        {editMode && !userId && (
-          <TouchableOpacity
-            style={styles.thumbDeleteBtn}
-            onPress={() => {
-              showConfirm({
-                title: 'Delete photo?',
-                message: 'This photo will be removed from the gallery.',
-                destructive: true,
-                onConfirm: () => { handleDeletePhoto(ph); },
-              });
-            }}
-            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-            disabled={deletingId === ph.id}
-          >
-            {deletingId === ph.id
-              ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
-              : <Trash2 size={11} color="#fff" strokeWidth={2.5} />
-            }
-          </TouchableOpacity>
-        )}
-        {editMode && !userId && (
-          <TouchableOpacity
-            onPress={() => handleSetAsCover(ph.uri)}
-            style={[styles.thumbCoverBtn, isCover && styles.thumbCoverBtnActive]}
-            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-          >
-            <Svg width={9} height={9} viewBox="0 0 24 24" fill="none">
-              <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke={isCover ? '#0d9488' : '#fff'} strokeWidth={2} />
-              <Circle cx={12} cy={13} r={4} stroke={isCover ? '#0d9488' : '#fff'} strokeWidth={2} />
-            </Svg>
-          </TouchableOpacity>
-        )}
-        {isCover && !editMode && (
-          <View style={styles.coverBadge}>
-            <Text style={styles.coverBadgeText}>Cover</Text>
-          </View>
-        )}
-      </View>
-    );
   };
 
   const heroPhoto = photos.length > 0 ? photos[Math.min(heroIndex, photos.length - 1)] : null;
@@ -883,84 +864,6 @@ function PhotosModal({
               </View>
             )}
 
-            {/* ── All Photos Grid (grouped by activity) ── */}
-            {!loading && photos.length > 0 && (
-              <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 }}>
-                {directPhotos.length > 0 && (
-                  <View style={{ marginBottom: Object.keys(activityGroups).length > 0 ? 16 : 8 }}>
-                    {Object.keys(activityGroups).length > 0 && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
-                        <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 }}>
-                          {parentType === 'trip' ? 'Trip Photos' : 'Event Photos'}
-                        </Text>
-                        <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
-                      </View>
-                    )}
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                      {directPhotos.map(ph => {
-                        const idx = photos.findIndex(p => p.id === ph.id);
-                        return (
-                          <TouchableOpacity
-                            key={ph.id}
-                            onPress={() => { setHeroIndex(idx); heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); }}
-                            activeOpacity={0.85}
-                            style={{ width: (SCREEN_W - 32 - 12) / 3, height: (SCREEN_W - 32 - 12) / 3, borderRadius: 10, overflow: 'hidden', borderWidth: idx === heroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0', position: 'relative' }}
-                          >
-                            <GalleryHeroPhoto photo={ph} />
-                            {editMode && !userId && (
-                              <TouchableOpacity
-                                style={[styles.thumbDeleteBtn, { top: 4, right: 4 }]}
-                                onPress={() => showConfirm({ title: 'Delete photo?', message: 'This photo will be removed from the gallery.', destructive: true, onConfirm: () => handleDeletePhoto(ph) })}
-                                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                                disabled={deletingId === ph.id}
-                              >
-                                {deletingId === ph.id ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} /> : <Trash2 size={11} color="#fff" strokeWidth={2.5} />}
-                              </TouchableOpacity>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-                )}
-                {Object.entries(activityGroups).map(([actTitle, actPhotos]) => (
-                  <View key={actTitle} style={{ marginBottom: 16 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
-                      <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 }}>{actTitle}</Text>
-                      <Text style={{ fontSize: 11, color: '#94a3b8' }}>({actPhotos.length})</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                      {actPhotos.map(ph => {
-                        const idx = photos.findIndex(p => p.id === ph.id);
-                        return (
-                          <TouchableOpacity
-                            key={ph.id}
-                            onPress={() => { setHeroIndex(idx); heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); }}
-                            activeOpacity={0.85}
-                            style={{ width: (SCREEN_W - 32 - 12) / 3, height: (SCREEN_W - 32 - 12) / 3, borderRadius: 10, overflow: 'hidden', borderWidth: idx === heroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0', position: 'relative' }}
-                          >
-                            <GalleryHeroPhoto photo={ph} />
-                            {editMode && !userId && (
-                              <TouchableOpacity
-                                style={[styles.thumbDeleteBtn, { top: 4, right: 4 }]}
-                                onPress={() => showConfirm({ title: 'Delete photo?', message: 'This photo will be removed from the gallery.', destructive: true, onConfirm: () => handleDeletePhoto(ph) })}
-                                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                                disabled={deletingId === ph.id}
-                              >
-                                {deletingId === ph.id ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} /> : <Trash2 size={11} color="#fff" strokeWidth={2.5} />}
-                              </TouchableOpacity>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
-
             {/* ── Add Photos Button (edit mode) / empty state ── */}
             <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 36 }}>
               {!loading && photos.length === 0 && (
@@ -977,18 +880,109 @@ function PhotosModal({
                 </View>
               )}
               {!userId && (
-                <TouchableOpacity
-                  style={[styles.addPhotosBtn, uploading && { opacity: 0.6 }]}
-                  onPress={handleAddPhotos}
-                  disabled={uploading}
-                  activeOpacity={0.85}
-                >
-                  {uploading ? <ActivityIndicator color="#0d9488" /> : <Text style={styles.addPhotosBtnText}>Add photos</Text>}
-                </TouchableOpacity>
+                <View style={{ gap: 10 }}>
+                  <TouchableOpacity
+                    style={[styles.addPhotosBtn, uploading && { opacity: 0.6 }]}
+                    onPress={handleAddPhotos}
+                    disabled={uploading}
+                    activeOpacity={0.85}
+                  >
+                    {uploading ? <ActivityIndicator color="#0d9488" /> : <Text style={styles.addPhotosBtnText}>Add photos</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.addPhotosBtn, styles.drivePhotosBtn, (uploading || driveImporting) && { opacity: 0.6 }]}
+                    onPress={openPhotoDrivePicker}
+                    disabled={uploading || driveImporting}
+                    activeOpacity={0.85}
+                  >
+                    {driveImporting ? (
+                      <ActivityIndicator color="#0d9488" />
+                    ) : (
+                      <>
+                        <DriveBrandIcon size={16} />
+                        <Text style={styles.addPhotosBtnText}>Add from Drive</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
 
           </ScrollView>
+        </View>
+      </Modal>
+      <Modal visible={showDrivePicker} transparent animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
+        <View style={styles.overlay}>
+          <View style={[styles.dialog, { maxHeight: '85%' }]}>
+            <View style={styles.dialogHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                <DriveBrandIcon size={22} />
+                <Text style={styles.dialogTitle} numberOfLines={1}>Import photos from Drive</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowDrivePicker(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <CloseIcon />
+              </TouchableOpacity>
+            </View>
+            {drivePickerLoading ? (
+              <View style={styles.modalLoadingRow}>
+                <ActivityIndicator color="#0d9488" />
+                <Text style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>Loading photos…</Text>
+              </View>
+            ) : driveFiles.length === 0 ? (
+              <View style={{ padding: 32, alignItems: 'center' }}>
+                <Text style={{ color: '#64748b', fontSize: 14, textAlign: 'center' }}>No photos found in your Drive root.</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={driveFiles}
+                keyExtractor={(f) => f.fileId}
+                style={{ maxHeight: 380 }}
+                renderItem={({ item }) => {
+                  const sel = selectedDriveFileIds.has(item.fileId);
+                  return (
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderColor: '#e2e8f0' }}
+                      onPress={() => setSelectedDriveFileIds((prev) => {
+                        const n = new Set(prev);
+                        if (sel) n.delete(item.fileId); else n.add(item.fileId);
+                        return n;
+                      })}
+                      activeOpacity={0.7}
+                    >
+                      <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: sel ? '#0d9488' : '#cbd5e1', backgroundColor: sel ? '#0d9488' : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                        {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>✓</Text>}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }} numberOfLines={1}>{item.name}</Text>
+                        <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
+                          {item.sizeBytes ? `${Math.round(item.sizeBytes / 1024)} KB · ` : ''}
+                          {new Date(item.modifiedTime).toLocaleDateString()}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+            {!drivePickerLoading && driveFiles.length > 0 && (
+              <View style={{ padding: 16, borderTopWidth: 0.5, borderColor: '#e2e8f0' }}>
+                <TouchableOpacity
+                  style={[styles.addPhotosBtn, { opacity: selectedDriveFileIds.size === 0 ? 0.5 : 1 }]}
+                  onPress={confirmPhotoDriveImport}
+                  disabled={selectedDriveFileIds.size === 0 || driveImporting}
+                  activeOpacity={0.85}
+                >
+                  {driveImporting ? (
+                    <ActivityIndicator color="#0d9488" />
+                  ) : (
+                    <Text style={styles.addPhotosBtnText}>
+                      Import {selectedDriveFileIds.size > 0 ? `${selectedDriveFileIds.size} photo${selectedDriveFileIds.size > 1 ? 's' : ''}` : 'selected'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
       </Modal>
       <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
@@ -1946,7 +1940,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#0d9488',
     alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
+  drivePhotosBtn: { borderColor: '#cbd5e1' },
   addPhotosBtnText: { fontSize: 15, fontWeight: '400', color: '#0d9488' },
 
   fieldLabel: {

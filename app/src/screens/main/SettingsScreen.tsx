@@ -6,29 +6,13 @@ import {
   StyleSheet,
   ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import Svg, { Path } from 'react-native-svg';
-import BlobBackground from '../../components/common/BlobBackground';
+import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import LegalModal from '../../components/common/LegalModal';
 import CachedImage from '../../components/common/CachedImage';
 import colors from '../../theme/colors';
 import useAuthStore from '../../store/authStore';
 import useAuth from '../../hooks/useAuth';
-
-function BackArrow() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M19 12H5M12 19l-7-7 7-7"
-        stroke={colors.textPrimary}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
 
 function Chevron() {
   return (
@@ -71,17 +55,12 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
   const avatarUrl = user?.photoUrl || user?.avatarUrl || (user?.profile as any)?.avatarUrl || null;
 
   return (
-    <BlobBackground>
-      <SafeAreaView style={styles.safe}>
+    <AppScreenLayout navigation={navigation}>
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}>
 
-          {/* Header */}
           <View style={styles.headerRow}>
-            <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8} style={styles.backBtn}>
-              <BackArrow />
-            </TouchableOpacity>
             <View>
               <Text style={styles.headerTitle}>Settings</Text>
               <Text style={styles.headerSubtitle}>Profile, notifications, help</Text>
@@ -151,8 +130,7 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
 
         <LegalModal visible={legal === 'terms'} type="terms" onClose={() => setLegal(null)} />
         <LegalModal visible={legal === 'privacy'} type="privacy" onClose={() => setLegal(null)} />
-      </SafeAreaView>
-    </BlobBackground>
+    </AppScreenLayout>
   );
 }
 
@@ -161,11 +139,8 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20, paddingBottom: 40 },
 
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 10,
+    paddingTop: 4,
     marginBottom: 8,
-    gap: 12,
   },
   headerTitle: {
     fontSize: 18,
@@ -177,15 +152,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '400',
     color: colors.textSecondary,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-   
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
   },
 
   profileCard: {

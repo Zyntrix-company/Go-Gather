@@ -7,17 +7,15 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
-  Image,
   Linking,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import Svg, { Path } from 'react-native-svg';
-import BlobBackground from '../../components/common/BlobBackground';
+import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import colors from '../../theme/colors';
 import {
   EmailProviderGlassCard,
+  DriveProviderGlassCard,
   EmailProviderOutlineButton,
   emailProviderStyles,
 } from '../../components/common/EmailProviderUI';
@@ -30,20 +28,6 @@ import {
   disconnectDrive,
   type EmailProvider,
 } from '../../api/trips.api';
-
-function BackArrow() {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M19 12H5M12 19l-7-7 7-7"
-        stroke={colors.textPrimary}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
-  );
-}
 
 function normalizeStatus(data: unknown) {
   const d = data as Record<string, { connected?: boolean; email?: string | null }> | null | undefined;
@@ -193,17 +177,12 @@ export default function ConnectedEmailScreen({ navigation, route }: { navigation
   }
 
   return (
-    <BlobBackground>
-      <SafeAreaView style={styles.safe}>
+    <AppScreenLayout navigation={navigation}>
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
         >
-          <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8} style={styles.backBtn}>
-            <BackArrow />
-          </TouchableOpacity>
-
           <View style={styles.headerTextBlock}>
             <Text style={styles.headerTitle}>Connected Services</Text>
             <Text style={styles.headerSubtitle}>Link Gmail, Outlook or Google Drive to import travel docs</Text>
@@ -269,71 +248,40 @@ export default function ConnectedEmailScreen({ navigation, route }: { navigation
                 )}
               </EmailProviderGlassCard>
 
-              {/* Google Drive card */}
-              <View style={[emailProviderStyles.glassCard, { backgroundColor: 'rgba(66, 133, 244, 0.06)' }]}>
-                <View style={emailProviderStyles.glassCardContent}>
-                  <View style={emailProviderStyles.providerRowLabel}>
-                    <Image
-                      source={require('../../../assets/drive-icon.png')}
-                      style={{ width: 22, height: 22 }}
-                      resizeMode="contain"
-                    />
-                    <Text style={emailProviderStyles.providerLabelText}>Google Drive</Text>
+              <DriveProviderGlassCard connected={drive.connected}>
+                {drive.connected ? (
+                  <View style={styles.connectedRow}>
+                    <Text style={styles.connectedEmail} numberOfLines={1}>
+                      {drive.email || 'Connected'}
+                    </Text>
+                    <TouchableOpacity
+                      style={emailProviderStyles.glassSecondaryBtn}
+                      onPress={confirmDisconnectDrive}
+                      activeOpacity={0.8}>
+                      <Text style={styles.secondaryBtnText}>Disconnect</Text>
+                    </TouchableOpacity>
                   </View>
-                  {drive.connected ? (
-                    <>
-                      <View style={emailProviderStyles.connectedBadge}>
-                        <Text style={emailProviderStyles.connectedBadgeText}>Connected</Text>
-                      </View>
-                      <View style={styles.connectedRow}>
-                        <Text style={styles.connectedEmail} numberOfLines={1}>
-                          {drive.email || 'Connected'}
-                        </Text>
-                        <TouchableOpacity
-                          style={emailProviderStyles.glassSecondaryBtn}
-                          onPress={confirmDisconnectDrive}
-                          activeOpacity={0.8}>
-                          <Text style={styles.secondaryBtnText}>Disconnect</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  ) : (
-                    <EmailProviderOutlineButton
-                      label="Connect Google Drive"
-                      variant="glass"
-                      onPress={onConnectDrive}
-                      loading={connecting === 'drive'}
-                      disabled={connecting !== null && connecting !== 'drive'}
-                    />
-                  )}
-                </View>
-              </View>
-
-              <Text style={styles.hint}>
-                After tapping Connect, sign in via your browser. Status refreshes when you return to this screen.
-              </Text>
+                ) : (
+                  <EmailProviderOutlineButton
+                    label="Connect Google Drive"
+                    variant="glass"
+                    onPress={onConnectDrive}
+                    loading={connecting === 'drive'}
+                    disabled={connecting !== null && connecting !== 'drive'}
+                  />
+                )}
+              </DriveProviderGlassCard>
             </>
           )}
         </ScrollView>
-      </SafeAreaView>
-    </BlobBackground>
+    </AppScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  scroll: { paddingHorizontal: 20, paddingBottom: 40 },
+  scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
 
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-    marginBottom: 14,
-  },
   headerTextBlock: {
     marginBottom: 24,
   },
@@ -366,5 +314,4 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   secondaryBtnText: { fontSize: 13, color: colors.textPrimary, fontWeight: '500' },
-  hint: { fontSize: 12, color: colors.textMuted, lineHeight: 18, marginTop: 4 },
 });

@@ -4,10 +4,12 @@ import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import SweeIcon from './SweeIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type TabType = 'trips' | 'events' | 'friends' | 'chat' | 'gallery';
+export type TabType = 'trips' | 'events' | 'friends' | 'chat' | 'gallery';
+
+export const TAB_BAR_BASE_HEIGHT = 58;
 
 interface FloatingTabBarProps {
-  activeTab: TabType;
+  activeTab?: TabType | null;
   navigation: any;
 }
 
@@ -57,7 +59,7 @@ export default function FloatingTabBar({ activeTab, navigation }: FloatingTabBar
   const tabs: TabType[] = ['trips', 'events', 'friends', 'chat', 'gallery'];
 
   const handleTabPress = (tabName: TabType) => {
-    if (tabName === activeTab) {
+    if (activeTab != null && tabName === activeTab) {
       navigation.goBack();
     } else {
       navigation.navigate('Home', { initialTab: tabName });
@@ -70,7 +72,7 @@ export default function FloatingTabBar({ activeTab, navigation }: FloatingTabBar
         <NavIcon
           key={tab}
           name={tab}
-          active={activeTab === tab}
+          active={activeTab != null && activeTab === tab}
           onPress={() => handleTabPress(tab)}
         />
       ))}

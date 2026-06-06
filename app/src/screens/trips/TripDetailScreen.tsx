@@ -25,6 +25,7 @@ import AppHeader from '../../components/common/AppHeader';
 import DocumentsUploadSection from '../../components/common/DocumentsUploadSection';
 import InviteViaChannels from '../../components/common/InviteViaChannels';
 import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
+import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
 import useAuthStore from '../../store/authStore';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
@@ -56,7 +57,9 @@ import {
   importEmailAttachments,
   getDriveStatus,
   listDriveFiles,
+  listDrivePhotoFiles,
   importDriveFiles,
+  importDrivePhotos,
   type EmailAttachment,
   type DriveFile,
   uploadTripPhotos,
@@ -92,6 +95,7 @@ import { formatCurrencyCompact, buildExpenseLabel } from '../../utils/currency';
 import { getExpenseRowBalanceLabel } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
 import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
+import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -698,6 +702,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── API-driven state ──
   const [role, setRole] = useState<'admin' | 'member'>('member');
   const [members, setMembers] = useState<TripMember[]>([]);
+  const membersRef = useRef(members);
+  membersRef.current = members;
   const [failedAvatarIds, setFailedAvatarIds] = useState<Set<string>>(new Set());
   const [balances, setBalances] = useState<Debt[]>([]);
   const [myBalances, setMyBalances] = useState<Record<string, number>>({});
@@ -710,6 +716,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [, setIsLoadingDocs] = useState(false);
   const [, setIsLoadingPhotos] = useState(false);
   const [isLoadingExpenses, setIsLoadingExpenses] = useState(false);
+  const [isRefreshingExpenses, setIsRefreshingExpenses] = useState(false);
+  const [settlingDebtKey, setSettlingDebtKey] = useState<string | null>(null);
   const [, setIsLoadingNotes] = useState(false);
   const [, setIsLoadingPolls] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -746,10 +754,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [drivePickerLoading, setDrivePickerLoading] = useState(false);
   const [selectedDriveFileIds, setSelectedDriveFileIds] = useState<Set<string>>(new Set());
   const [driveImporting, setDriveImporting] = useState(false);
+  const [drivePickerTarget, setDrivePickerTarget] = useState<'docs' | 'photos'>('docs');
   const [driveStatus, setDriveStatus] = useState({ connected: false });
   const [showMembers, setShowMembers] = useState(false);
   const [showPhotos, setShowPhotos] = useState(false);
   const [showExpenses, setShowExpenses] = useState(false);
+  const showExpensesRef = useRef(showExpenses);
+  showExpensesRef.current = showExpenses;
   const [showPolls, setShowPolls] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [previewPhotoIndex, setPreviewPhotoIndex] = useState<number | null>(null);
@@ -790,7 +801,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [actExpConfirmed, setActExpConfirmed] = useState(false);
 
   // ── Members modal ──
-  const [memberTab, setMemberTab] = useState<'Members' | 'Invite from Friends' | 'Invite New'>('Members');
+  const [memberTab, setMemberTab] = useState<'Members' | 'Invite Friends' | 'Invite New'>('Members');
   const [memberSearch, setMemberSearch] = useState('');
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
 
@@ -836,6 +847,55 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [editEndDate, setEditEndDate] = useState<Date>(new Date());
   const [editStartDateError, setEditStartDateError] = useState<string | null>(null);
   const [editEndDateError, setEditEndDateError] = useState<string | null>(null);
+
+  const dismissExpenseOverlays = useCallback(() => {
+    closeExpenseOverlays({
+      setShowAddExpense,
+      setEditingExpenseId,
+      setShowExpCurrencyDrop,
+      setShowExpCatDrop,
+      setShowPaidByDrop,
+    });
+  }, []);
+
+  const refreshExpenseData = useCallback(async () => {
+    if (!tripId) return;
+    const membersList = membersRef.current;
+    setIsRefreshingExpenses(true);
+    try {
+      const [expRes, balRes] = await Promise.all([
+        getExpenses(tripId),
+        getBalances(tripId),
+      ]);
+      const mapped = (expRes.expenses ?? []).map(e => mapApiExpenseToState(e, currentUserId, membersList));
+      setExpenses(mapped);
+      const parsed = parseBalanceResponse(balRes, currentUserId, membersList);
+      setBalances(parsed.debts);
+      setMyBalances(parsed.myBalances);
+      setTotalExpensesByCurrency(parsed.totalExpensesByCurrency);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setIsRefreshingExpenses(false);
+      setIsLoadingExpenses(false);
+    }
+  }, [tripId, currentUserId]);
+
+  const handleExpenseTabSelect = useCallback((tab: 'Expense' | 'Total' | 'Balance') => {
+    dismissExpenseOverlays();
+    if (tab !== expTab) {
+      setExpTab(tab);
+      void refreshExpenseData();
+    }
+  }, [dismissExpenseOverlays, expTab, refreshExpenseData]);
+
+  const closeExpensesModal = useCallback(() => {
+    setShowExpenses(false);
+    dismissExpenseOverlays();
+    setShowActExpCurrencyDrop(false);
+  }, [dismissExpenseOverlays]);
+
+  const expenseTabBusy = isLoadingExpenses || isRefreshingExpenses;
 
   // ── Initial fetch: trip detail + members + activities ──
   useFocusEffect(useCallback(() => {
@@ -887,28 +947,21 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── Load expenses + balances when expenses modal opens ──
   useEffect(() => {
     if (!showExpenses || !tripId) return;
-    (async () => {
-      setIsLoadingExpenses(true);
-      try {
-        const [expRes, balRes] = await Promise.all([
-          getExpenses(tripId),
-          getBalances(tripId),
-        ]);
-        const mapped = (expRes.expenses ?? []).map(e => mapApiExpenseToState(e, currentUserId, members));
-        setExpenses(mapped);
-        setUnreadCounts(prev => ({ ...prev, expenses: 0 }));
-        markTripSectionViewed(tripId, 'expenses');
-        const { debts: parsedDebts, myBalances: parsedMB, totalExpensesByCurrency: parsedTE } = parseBalanceResponse(balRes, currentUserId, members);
-        setBalances(parsedDebts);
-        setMyBalances(parsedMB);
-        setTotalExpensesByCurrency(parsedTE);
-      } catch (err) {
-        handleApiError(err);
-      } finally {
-        setIsLoadingExpenses(false);
+    setIsLoadingExpenses(true);
+    setUnreadCounts(prev => ({ ...prev, expenses: 0 }));
+    markTripSectionViewed(tripId, 'expenses');
+    void refreshExpenseData();
+  }, [showExpenses, tripId, refreshExpenseData]);
+
+  useFocusEffect(useCallback(() => {
+    return () => {
+      if (showExpensesRef.current) {
+        setShowExpenses(false);
+        dismissExpenseOverlays();
+        setShowActExpCurrencyDrop(false);
       }
-    })();
-  }, [showExpenses, tripId, currentUserId, members]);
+    };
+  }, [dismissExpenseOverlays]));
 
   // ── Load docs when docs modal opens ──
   useEffect(() => {
@@ -1430,18 +1483,20 @@ export default function TripDetailScreen({ route, navigation }: any) {
     }
   }
 
-  async function openDrivePicker() {
+  async function openDrivePicker(target: 'docs' | 'photos' = 'docs') {
     if (!driveStatus.connected) {
-      setShowDocs(false);
+      if (target === 'docs') setShowDocs(false);
+      else setShowPhotos(false);
       (navigation as any).navigate('ConnectedEmail');
       return;
     }
+    setDrivePickerTarget(target);
     setDriveFiles([]);
     setSelectedDriveFileIds(new Set());
     setDrivePickerLoading(true);
     setShowDrivePicker(true);
     try {
-      const res = await listDriveFiles();
+      const res = target === 'photos' ? await listDrivePhotoFiles() : await listDriveFiles();
       setDriveFiles(res.files);
     } catch (err) {
       handleApiError(err);
@@ -1456,13 +1511,35 @@ export default function TripDetailScreen({ route, navigation }: any) {
     setDriveImporting(true);
     try {
       const selected = driveFiles.filter(f => selectedDriveFileIds.has(f.fileId));
-      const res = await importDriveFiles('trip', tripId, selected);
-      setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl, uploadedBy: currentUserId }))]);
+      let res: { imported: unknown[]; failed?: { fileName: string; reason: string }[] };
+      if (drivePickerTarget === 'photos') {
+        res = await importDrivePhotos('trip', tripId, selected);
+        setPhotos(p => [
+          ...p,
+          ...res.imported.map((ph: any) => ({
+            id: ph.id,
+            uri: ph.url ?? ph.fileUrl ?? '',
+            localUri: undefined,
+            name: ph.fileName,
+            uploadedBy: currentUserId,
+            activityId: null,
+            activityTitle: null,
+          })),
+        ]);
+      } else {
+        res = await importDriveFiles('trip', tripId, selected);
+        setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl, uploadedBy: currentUserId }))]);
+      }
       setShowDrivePicker(false);
       if (res.failed?.length) {
         Toast.show({ type: 'error', text1: `${res.failed.length} file(s) failed to import` });
       } else {
-        Toast.show({ type: 'success', text1: `${res.imported.length} file(s) imported from Drive` });
+        Toast.show({
+          type: 'success',
+          text1: drivePickerTarget === 'photos'
+            ? `${res.imported.length} photo(s) added from Drive`
+            : `${res.imported.length} file(s) imported from Drive`,
+        });
       }
     } catch (err) {
       handleApiError(err);
@@ -1533,28 +1610,16 @@ export default function TripDetailScreen({ route, navigation }: any) {
         splitAmong: splitAmong.length ? splitAmong : [{ userId: currentUserId }],
       };
 
-      let res: any;
       if (editingExpenseId) {
-        res = await updateExpense(tripId, editingExpenseId, body);
-        const mapped = mapApiExpenseToState(res.expense, currentUserId, members);
-        setExpenses(p => p.map(e => e.id === editingExpenseId ? { ...mapped, activityId: e.activityId ?? mapped.activityId } : e));
-        setEditingExpenseId(null);
+        await updateExpense(tripId, editingExpenseId, body);
       } else {
-        res = await createExpense(tripId, body);
-        const mapped = mapApiExpenseToState(res.expense, currentUserId, members);
-        setExpenses(p => [...p, mapped]);
+        await createExpense(tripId, body);
       }
-      if (res.balances) {
-        setBalances(normalizeDebtArray(res.balances, currentUserId, members));
-      }
-      // Refresh balances after expense changes
-      const balData = await getBalances(tripId);
-      const parsedAfter = parseBalanceResponse(balData, currentUserId, members);
-      setMyBalances(parsedAfter.myBalances);
-      setTotalExpensesByCurrency(parsedAfter.totalExpensesByCurrency);
       setExpDesc(''); setExpAmount(''); setExpCurrency('INR'); setExpCategory(EXPENSE_CATEGORY_OPTIONS[0]);
       setExpPaidBy('You'); setExpSplitType('equally'); setExpSplitAmong(['You']);
-      setExpSplitDetails({}); setShowAddExpense(false);
+      setExpSplitDetails({});
+      dismissExpenseOverlays();
+      await refreshExpenseData();
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -1587,6 +1652,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
     }
     setExpSplitDetails(details);
     setEditingExpenseId(exp.id);
+    setShowExpCurrencyDrop(false);
+    setShowExpCatDrop(false);
+    setShowPaidByDrop(false);
     setShowAddExpense(true);
   }
 
@@ -1597,13 +1665,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
       destructive: true,
       onConfirm: async () => {
         try {
-          const res = await deleteExpense(tripId, eid);
-          setExpenses(p => p.filter(e => e.id !== eid));
-          if (res.balances) setBalances(normalizeDebtArray(res.balances, currentUserId, members));
-          const balData = await getBalances(tripId);
-          const parsedDel = parseBalanceResponse(balData, currentUserId, members);
-          setMyBalances(parsedDel.myBalances);
-          setTotalExpensesByCurrency(parsedDel.totalExpensesByCurrency);
+          await deleteExpense(tripId, eid);
+          await refreshExpenseData();
         } catch (err) { handleApiError(err); }
       },
     });
@@ -1621,17 +1684,16 @@ export default function TripDetailScreen({ route, navigation }: any) {
       confirmText: 'Settle',
       destructive: false,
       onConfirm: async () => {
+        const key = settleDebtKey(currentUserId, withUserId, currency);
+        setSettlingDebtKey(key);
         try {
-          const res = await settleDebt(tripId, { withUserId, amount: amt, currency });
-          setBalances(normalizeDebtArray(res.outstanding ?? [], currentUserId, members));
-          const balData = await getBalances(tripId);
-          const parsedSettle = parseBalanceResponse(balData, currentUserId, members);
-          setMyBalances(parsedSettle.myBalances);
-          setTotalExpensesByCurrency(parsedSettle.totalExpensesByCurrency);
-          setBalances(parsedSettle.debts);
+          await settleDebt(tripId, { withUserId, amount: amt, currency });
+          await refreshExpenseData();
           Toast.show({ type: 'success', text1: 'Settlement recorded' });
         } catch (err) {
           handleApiError(err);
+        } finally {
+          setSettlingDebtKey(null);
         }
       },
     });
@@ -2342,7 +2404,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     onGmail={() => openEmailPicker('gmail')}
                     onOutlook={() => openEmailPicker('outlook')}
                     driveConnected={driveStatus.connected}
-                    onDrive={openDrivePicker}
+                    onDrive={() => openDrivePicker('docs')}
                   />
                   {docs.length === 0 ? (
                     <View style={styles.emptyCenter}>
@@ -2452,8 +2514,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '85%' }]}>
               <DHeader
-                title="Import from Google Drive"
-                leading={<Image source={require('../../../assets/drive-icon.png')} style={{ width: 22, height: 22 }} resizeMode="contain" />}
+                title={drivePickerTarget === 'photos' ? 'Import photos from Google Drive' : 'Import from Google Drive'}
+                leading={<DriveBrandIcon size={22} />}
                 onClose={() => setShowDrivePicker(false)}
               />
               {drivePickerLoading ? (
@@ -2463,7 +2525,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 </View>
               ) : driveFiles.length === 0 ? (
                 <View style={{ padding: 32, alignItems: 'center' }}>
-                  <Text style={{ color: '#64748b', fontSize: 14, textAlign: 'center' }}>No compatible files found in your Drive root.</Text>
+                  <Text style={{ color: '#64748b', fontSize: 14, textAlign: 'center' }}>
+                    {drivePickerTarget === 'photos'
+                      ? 'No photos found in your Drive root.'
+                      : 'No compatible files found in your Drive root.'}
+                  </Text>
                 </View>
               ) : (
                 <FlatList
@@ -2516,7 +2582,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
               <DHeader title="Trip Members" subtitle={`Current members: ${memberCount}`} onClose={() => setShowMembers(false)} />
-              <TabBar tabs={['Members', 'Invite from Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
+              <TabBar tabs={['Members', 'Invite Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {memberTab === 'Members' && (
                   <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20 }}>
@@ -2557,9 +2623,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </View>
                 )}
 
-                {memberTab === 'Invite from Friends' && (
+                {memberTab === 'Invite Friends' && (
                   <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 20 }}>
-                    <Text style={styles.memberSectionLabelTitle}>Invite from Friends</Text>
+                    <Text style={styles.memberSectionLabelTitle}>Invite Friends</Text>
                     <View style={styles.searchBox}>
                       <Svg width={14} height={14} viewBox="0 0 24 24" fill="none"><Circle cx={11} cy={11} r={8} stroke="#94a3b8" strokeWidth={2} /><Path d="M21 21l-4.35-4.35" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
                       <TextInput style={styles.searchInput} placeholder="Search by name or email..." placeholderTextColor="#94a3b8" value={memberSearch} onChangeText={setMemberSearch} />
@@ -2796,86 +2862,31 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 </View>
               )}
 
-              {/* ── All Photos Grid (grouped by activity) ── */}
-              {photos.length > 0 && (() => {
-                const activityGroups: Record<string, { photos: PhotoItem[]; indices: number[] }> = {};
-                const directPhotos: { photo: PhotoItem; idx: number }[] = [];
-                photos.forEach((ph, idx) => {
-                  if (ph.activityId && ph.activityTitle) {
-                    if (!activityGroups[ph.activityTitle]) activityGroups[ph.activityTitle] = { photos: [], indices: [] };
-                    activityGroups[ph.activityTitle].photos.push(ph);
-                    activityGroups[ph.activityTitle].indices.push(idx);
-                  } else {
-                    directPhotos.push({ photo: ph, idx });
-                  }
-                });
-
-                return (
-                  <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 16 }}>
-                    {/* Direct trip photos — always first */}
-                    {directPhotos.length > 0 && (
-                      <View style={{ marginBottom: Object.keys(activityGroups).length > 0 ? 16 : 8 }}>
-                        {Object.keys(activityGroups).length > 0 && (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
-                            <View style={{ width: 3, height: 14, backgroundColor: '#64748b', borderRadius: 2 }} />
-                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 }}>Trip Photos</Text>
-                            <Text style={{ fontSize: 11, color: '#94a3b8' }}>({directPhotos.length})</Text>
-                          </View>
-                        )}
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                          {directPhotos.map(({ photo: ph, idx }) => (
-                            <TouchableOpacity
-                              key={ph.id}
-                              onPress={() => { setAlbumHeroIndex(idx); albumHeroRef.current?.scrollToIndex({ index: idx, animated: true }); }}
-                              activeOpacity={0.85}
-                              style={{ width: (SCREEN_W - 32 - 12) / 3, height: (SCREEN_W - 32 - 12) / 3, borderRadius: 10, overflow: 'hidden', borderWidth: idx === albumHeroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0' }}
-                            >
-                              <TripAlbumHeroPhoto photo={ph} />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-                    )}
-                    {/* Activity groups — after trip photos */}
-                    {Object.entries(activityGroups).map(([actTitle, group]) => (
-                      <View key={actTitle} style={{ marginBottom: 16 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 6 }}>
-                          <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0f172a', flex: 1 }}>{actTitle}</Text>
-                          <Text style={{ fontSize: 11, color: '#94a3b8' }}>({group.photos.length})</Text>
-                        </View>
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                          {group.photos.map((ph, i) => (
-                            <TouchableOpacity
-                              key={ph.id}
-                              onPress={() => { setAlbumHeroIndex(group.indices[i]); albumHeroRef.current?.scrollToIndex({ index: group.indices[i], animated: true }); }}
-                              activeOpacity={0.85}
-                              style={{ width: (SCREEN_W - 32 - 12) / 3, height: (SCREEN_W - 32 - 12) / 3, borderRadius: 10, overflow: 'hidden', borderWidth: group.indices[i] === albumHeroIndex ? 2.5 : 0, borderColor: '#0d9488', backgroundColor: '#e2e8f0' }}
-                            >
-                              <TripAlbumHeroPhoto photo={ph} />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                );
-              })()}
-
-              {/* ── Upload / Camera Buttons ── */}
-              <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 36, flexDirection: 'row', gap: 10 }}>
-                <TouchableOpacity style={[styles.uploadPhotosBtn, { flex: 1 }]} onPress={() => handlePickPhoto(false)} activeOpacity={0.85}>
-                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                    <Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#be123c" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                  <Text style={styles.uploadPhotosTxt}>Upload Photos</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.takePhotoBtn, { flex: 1 }]} onPress={() => handlePickPhoto(true)} activeOpacity={0.85}>
-                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                    <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#0e7490" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    <Circle cx={12} cy={13} r={4} stroke="#0e7490" strokeWidth={2} />
-                  </Svg>
-                  <Text style={styles.takePhotoTxt}>Take Photo</Text>
+              {/* ── Upload / Camera / Drive Buttons ── */}
+              <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 36, gap: 10 }}>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TouchableOpacity style={[styles.uploadPhotosBtn, { flex: 1 }]} onPress={() => handlePickPhoto(false)} activeOpacity={0.85}>
+                    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
+                      <Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#be123c" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </Svg>
+                    <Text style={styles.uploadPhotosTxt}>Upload Photos</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.takePhotoBtn, { flex: 1 }]} onPress={() => handlePickPhoto(true)} activeOpacity={0.85}>
+                    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
+                      <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#0e7490" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      <Circle cx={12} cy={13} r={4} stroke="#0e7490" strokeWidth={2} />
+                    </Svg>
+                    <Text style={styles.takePhotoTxt}>Take Photo</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={[styles.uploadPhotosBtn, { borderColor: '#cbd5e1' }]}
+                  onPress={() => openDrivePicker('photos')}
+                  activeOpacity={0.85}
+                  disabled={driveImporting}
+                >
+                  <DriveBrandIcon size={16} />
+                  <Text style={[styles.uploadPhotosTxt, { color: '#0f172a', marginLeft: 6 }]}>Add from Drive</Text>
                 </TouchableOpacity>
               </View>
 
@@ -2985,11 +2996,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
         {/* ═══════════════════════════════════════════════════
           MODAL 5 — Expenses
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); setShowExpCurrencyDrop(false); setShowActExpCurrencyDrop(false); }}>
+        <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={closeExpensesModal}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, styles.expensesDialog]}>
-              <DHeader title="Expenses" onClose={() => { setShowExpenses(false); setShowAddExpense(false); setEditingExpenseId(null); setShowExpCurrencyDrop(false); setShowActExpCurrencyDrop(false); }} />
-              <TabBar tabs={['Expense', 'Total', 'Balance']} active={expTab} onSelect={t => setExpTab(t as any)} />
+              <DHeader title="Expenses" onClose={closeExpensesModal} />
+              <TabBar tabs={['Expense', 'Total', 'Balance']} active={expTab} onSelect={t => handleExpenseTabSelect(t as 'Expense' | 'Total' | 'Balance')} />
               <ScrollView
                 style={styles.expensesDialogScroll}
                 contentContainerStyle={styles.expensesDialogScrollContent}
@@ -2998,16 +3009,23 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
                 {expTab === 'Expense' && (
                   <View>
-                    {isLoadingExpenses ? <ExpenseListSkeleton /> : null}
-                    <TouchableOpacity style={[styles.tealBtnFull, isLoadingExpenses && { opacity: 0 }]} disabled={isLoadingExpenses} onPress={() => {
-                      // Initialize split among with all trip members
+                    {expenseTabBusy ? (
+                      <ExpenseListSkeleton />
+                    ) : (
+                      <>
+                    <TouchableOpacity style={styles.tealBtnFull} disabled={isSubmitting} onPress={() => {
+                      if (showAddExpense) {
+                        dismissExpenseOverlays();
+                        return;
+                      }
                       const allIds = ['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.userId)];
                       setExpSplitAmong(allIds);
                       setExpPaidBy('You');
                       setExpDesc(''); setExpAmount(''); setExpSplitType('equally'); setExpSplitDetails({});
-                      setEditingExpenseId(null);
                       setShowExpCurrencyDrop(false);
-                      setShowAddExpense(p => !p);
+                      setShowExpCatDrop(false);
+                      setShowPaidByDrop(false);
+                      setShowAddExpense(true);
                     }} activeOpacity={0.85}>
                       <Text style={styles.tealBtnTxt}>+ Add Expense</Text>
                     </TouchableOpacity>
@@ -3031,7 +3049,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           itemStyle={styles.dropdownItem}
                         />
                         <Text style={styles.fLabel}>Category</Text>
-                        <TouchableOpacity style={[styles.fInputTouch, { justifyContent: 'center' }]} onPress={() => setShowExpCatDrop(p => !p)} activeOpacity={0.8}>
+                        <TouchableOpacity style={[styles.fInputTouch, { justifyContent: 'center' }]} onPress={() => { setShowExpCatDrop(p => !p); setShowExpCurrencyDrop(false); setShowPaidByDrop(false); }} activeOpacity={0.8}>
                           <ExpenseCatRow cat={expCategory} />
                         </TouchableOpacity>
                         {showExpCatDrop && (
@@ -3044,7 +3062,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           </View>
                         )}
                         <Text style={styles.fLabel}>Paid by</Text>
-                        <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowPaidByDrop(p => !p)} activeOpacity={0.8}>
+                        <TouchableOpacity style={styles.fInputTouch} onPress={() => { setShowPaidByDrop(p => !p); setShowExpCurrencyDrop(false); setShowExpCatDrop(false); }} activeOpacity={0.8}>
                           <Text style={{ fontSize: 13, color: '#0f172a' }}>{expPaidBy}</Text>
                         </TouchableOpacity>
                         {showPaidByDrop && (
@@ -3109,8 +3127,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           </TouchableOpacity>
                         ))}
                         <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                          <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowAddExpense(false); setEditingExpenseId(null); }} activeOpacity={0.7}><Text style={styles.cancelTxt}>Cancel</Text></TouchableOpacity>
-                          <TouchableOpacity style={[styles.tealBtnFull, { flex: 1 }]} onPress={handleAddExpense} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>{editingExpenseId ? 'Update Expense' : 'Add Expense'}</Text></TouchableOpacity>
+                          <TouchableOpacity style={styles.cancelBtn} onPress={dismissExpenseOverlays} activeOpacity={0.7} disabled={isSubmitting}><Text style={styles.cancelTxt}>Cancel</Text></TouchableOpacity>
+                          <TouchableOpacity style={[styles.tealBtnFull, { flex: 1, opacity: isSubmitting ? 0.6 : 1 }]} onPress={handleAddExpense} disabled={isSubmitting} activeOpacity={0.85}>
+                            <Text style={styles.tealBtnTxt}>
+                              {isSubmitting ? (editingExpenseId ? 'Updating…' : 'Adding…') : (editingExpenseId ? 'Update Expense' : 'Add Expense')}
+                            </Text>
+                          </TouchableOpacity>
                         </View>
                       </View>
                     )}
@@ -3193,12 +3215,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         })()}
                       </View>
                     )}
+                      </>
+                    )}
                   </View>
                 )}
 
                 {expTab === 'Total' && (
                   <View>
-                    {isLoadingExpenses ? <TotalTabSkeleton /> : (
+                    {expenseTabBusy ? <TotalTabSkeleton /> : (
                       <ExpenseTotalsTab
                         totals={expenseTotals}
                         styles={{
@@ -3220,7 +3244,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
                 {expTab === 'Balance' && (
                   <View>
-                    {isLoadingExpenses ? <BalanceTabSkeleton /> : (
+                    {expenseTabBusy ? <BalanceTabSkeleton /> : (
                       <>
                         <ExpenseBalanceSummary
                           totalExpensesByCurrency={totalExpensesByCurrency}
@@ -3239,6 +3263,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             debts={balances}
                             currentUserId={currentUserId}
                             onSettle={handleSettleDebt}
+                            settlingDebtKey={settlingDebtKey}
                             styles={{
                               expRow: styles.expRow,
                               expName: styles.expName,

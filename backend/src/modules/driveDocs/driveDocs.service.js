@@ -9,7 +9,10 @@ const driveProvider              = require('../emailDocs/providers/drive.provide
 // Re-use state helpers from emailDocs service (generateState, validateState, getValidAccessToken)
 const emailDocsService = require('../emailDocs/emailDocs.service');
 
+const config = require('../../config');
+
 const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const MAX_PHOTO_BYTES = 50 * 1024 * 1024;
 const MAX_DOCS       = 50;
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -22,6 +25,13 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/plain',
   'text/csv',
+]);
+
+const PHOTO_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/heic',
+  'image/heif',
 ]);
 
 // ── Public exports ──────────────────────────────────────────────────────────
@@ -69,8 +79,7 @@ async function getStatus(userId) {
   return { connected: true, email: result.rows[0].email };
 }
 
-async function listFiles(userId, folderId) {
-  // getValidAccessToken is not exported from emailDocs — replicate the lookup here
+async function resolveDriveAccessToken(userId) {
   const result = await db(
     'SELECT * FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2',
     [userId, 'drive'],
@@ -82,30 +91,31 @@ async function listFiles(userId, folderId) {
 
   const row      = result.rows[0];
   const bufferMs = 5 * 60 * 1000;
-  let accessToken;
 
   if (new Date(row.token_expiry) > new Date(Date.now() + bufferMs)) {
-    accessToken = decrypt(row.access_token);
-  } else {
-    const plainRefresh = decrypt(row.refresh_token);
-    let newTokens;
-    try {
-      newTokens = await driveProvider.refreshAccessToken(plainRefresh);
-    } catch {
-      await db('DELETE FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2', [userId, 'drive']);
-      const e = new Error('Drive authorization expired — please reconnect');
-      e.statusCode = 401; e.error = 'REAUTH_REQUIRED'; throw e;
-    }
+    return decrypt(row.access_token);
+  }
+
+  const plainRefresh = decrypt(row.refresh_token);
+  try {
+    const newTokens = await driveProvider.refreshAccessToken(plainRefresh);
     const newEncAccess  = encrypt(newTokens.accessToken);
     const newEncRefresh = newTokens.refreshToken ? encrypt(newTokens.refreshToken) : row.refresh_token;
     await db(
       'UPDATE email_oauth_tokens SET access_token=$1, refresh_token=$2, token_expiry=$3, updated_at=NOW() WHERE user_id=$4 AND provider=$5',
       [newEncAccess, newEncRefresh, newTokens.expiresAt, userId, 'drive'],
     );
-    accessToken = newTokens.accessToken;
+    return newTokens.accessToken;
+  } catch {
+    await db('DELETE FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2', [userId, 'drive']);
+    const e = new Error('Drive authorization expired — please reconnect');
+    e.statusCode = 401; e.error = 'REAUTH_REQUIRED'; throw e;
   }
+}
 
-  const files = await driveProvider.listFiles(accessToken, folderId);
+async function listFiles(userId, folderId, { photosOnly = false } = {}) {
+  const accessToken = await resolveDriveAccessToken(userId);
+  const files = await driveProvider.listFiles(accessToken, folderId, { photosOnly });
   return { files, total: files.length };
 }
 
@@ -121,37 +131,7 @@ async function importFiles(userId, parentType, parentId, files) {
     e.statusCode = 422; e.error = 'LIMIT_EXCEEDED'; throw e;
   }
 
-  // Resolve access token once for the whole batch
-  const tokenRes = await db(
-    'SELECT * FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2',
-    [userId, 'drive'],
-  );
-  if (tokenRes.rowCount === 0) {
-    const e = new Error('Google Drive not connected');
-    e.statusCode = 401; e.error = 'NOT_CONNECTED'; throw e;
-  }
-  const row      = tokenRes.rows[0];
-  const bufferMs = 5 * 60 * 1000;
-  let accessToken;
-  if (new Date(row.token_expiry) > new Date(Date.now() + bufferMs)) {
-    accessToken = decrypt(row.access_token);
-  } else {
-    const plainRefresh = decrypt(row.refresh_token);
-    try {
-      const newTokens = await driveProvider.refreshAccessToken(plainRefresh);
-      accessToken = newTokens.accessToken;
-      const newEncAccess  = encrypt(newTokens.accessToken);
-      const newEncRefresh = newTokens.refreshToken ? encrypt(newTokens.refreshToken) : row.refresh_token;
-      await db(
-        'UPDATE email_oauth_tokens SET access_token=$1, refresh_token=$2, token_expiry=$3, updated_at=NOW() WHERE user_id=$4 AND provider=$5',
-        [newEncAccess, newEncRefresh, newTokens.expiresAt, userId, 'drive'],
-      );
-    } catch {
-      await db('DELETE FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2', [userId, 'drive']);
-      const e = new Error('Drive authorization expired — please reconnect');
-      e.statusCode = 401; e.error = 'REAUTH_REQUIRED'; throw e;
-    }
-  }
+  const accessToken = await resolveDriveAccessToken(userId);
 
   const imported = [];
   const failed   = [];
@@ -200,6 +180,67 @@ async function importFiles(userId, parentType, parentId, files) {
   return { imported, failed };
 }
 
+async function importPhotos(userId, parentType, parentId, files) {
+  const { getPresignedDownloadUrl } = require('../../utils/s3.util');
+  const accessToken = await resolveDriveAccessToken(userId);
+
+  const imported = [];
+  const failed   = [];
+
+  for (const { fileId, name, mimeType } of files) {
+    const fileName = name || 'photo.jpg';
+    try {
+      const buffer = await driveProvider.downloadFile(accessToken, fileId);
+
+      if (buffer.length > MAX_PHOTO_BYTES) {
+        failed.push({ fileName, reason: 'FILE_TOO_LARGE' });
+        continue;
+      }
+
+      let resolvedMime = PHOTO_MIME_TYPES.has(mimeType) ? mimeType : null;
+      if (!resolvedMime) {
+        for (const allowed of PHOTO_MIME_TYPES) {
+          if (validateMimeFromBuffer(buffer, allowed)) { resolvedMime = allowed; break; }
+        }
+      }
+      if (!resolvedMime) {
+        failed.push({ fileName, reason: 'INVALID_FILE_TYPE' });
+        continue;
+      }
+
+      const s3Key = `${parentType}s/${parentId}/photos/${uuidv4()}-${sanitiseFilename(fileName)}`;
+      await uploadToS3(buffer, s3Key, resolvedMime);
+
+      const fileUrl = config.s3.cloudfrontDomain
+        ? `https://${config.s3.cloudfrontDomain}/${s3Key}`
+        : `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${s3Key}`;
+
+      const photoRes = await db(
+        `INSERT INTO photos (parent_type, parent_id, uploaded_by, file_url, s3_key, mime_type, activity_id)
+         VALUES ($1, $2, $3, $4, $5, $6, NULL)
+         RETURNING id, file_url, s3_key, mime_type, created_at`,
+        [parentType, parentId, userId, fileUrl, s3Key, resolvedMime],
+      );
+
+      const row = photoRes.rows[0];
+      const presignedUrl = config.s3.cloudfrontDomain ? null : await getPresignedDownloadUrl(row.s3_key);
+      imported.push({
+        id:       row.id,
+        fileName,
+        fileUrl:  row.file_url,
+        url:      presignedUrl || row.file_url,
+        mimeType: row.mime_type,
+        createdAt: row.created_at,
+      });
+    } catch (err) {
+      if (err.error === 'NOT_CONNECTED' || err.error === 'REAUTH_REQUIRED') throw err;
+      failed.push({ fileName, reason: err.error || 'UNKNOWN_ERROR' });
+    }
+  }
+
+  return { imported, failed };
+}
+
 async function disconnect(userId) {
   const result = await db(
     'SELECT access_token FROM email_oauth_tokens WHERE user_id = $1 AND provider = $2',
@@ -222,5 +263,6 @@ module.exports = {
   getStatus,
   listFiles,
   importFiles,
+  importPhotos,
   disconnect,
 };

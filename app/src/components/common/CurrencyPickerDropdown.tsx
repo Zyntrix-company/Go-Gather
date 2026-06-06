@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -50,6 +50,10 @@ export default function CurrencyPickerDropdown({
   itemStyle,
 }: Props) {
   const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (!visible) setQuery('');
+  }, [visible]);
 
   const sections = useMemo(() => {
     const { popular, others } = filterCurrencies(query);

@@ -14,11 +14,14 @@ import Svg, { Path } from 'react-native-svg';
 import type { EmailProvider } from '../../api/trips.api';
 import colors from '../../theme/colors';
 import { EmailProviderIcon, EMAIL_PROVIDER_ASSETS, emailProviderLabel } from './EmailProviderIcons';
+import { DriveBrandIcon } from './GoogleWorkspaceIcons';
 
 const GLASS_TINT: Record<EmailProvider, string> = {
   gmail: 'rgba(234, 67, 53, 0.14)',
   outlook: 'rgba(0, 120, 212, 0.14)',
 };
+
+const DRIVE_GLASS_TINT = 'rgba(66, 133, 244, 0.14)';
 
 const BORDER = colors.border;
 
@@ -159,6 +162,39 @@ export const emailProviderStyles = StyleSheet.create({
     color: colors.accent,
   },
 });
+
+/** Frosted card with blurred Drive watermark — Connected Services screen. */
+export function DriveProviderGlassCard({
+  connected,
+  children,
+}: {
+  connected?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={emailProviderStyles.glassCard}>
+      <View style={emailProviderStyles.glassCardBg} pointerEvents="none">
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: DRIVE_GLASS_TINT }]} />
+        <View style={emailProviderStyles.glassCardBgIcon}>
+          <DriveBrandIcon size={140} />
+        </View>
+        <View style={emailProviderStyles.glassCardFrost} />
+      </View>
+      <View style={emailProviderStyles.glassCardContent}>
+        <View style={emailProviderStyles.providerRowLabel}>
+          <DriveBrandIcon size={22} />
+          <Text style={emailProviderStyles.providerLabelText}>Google Drive</Text>
+        </View>
+        {connected ? (
+          <View style={emailProviderStyles.connectedBadge}>
+            <Text style={emailProviderStyles.connectedBadgeText}>Connected</Text>
+          </View>
+        ) : null}
+        {children}
+      </View>
+    </View>
+  );
+}
 
 /** Frosted card with blurred brand watermark — Connect mail screen. */
 export function EmailProviderGlassCard({

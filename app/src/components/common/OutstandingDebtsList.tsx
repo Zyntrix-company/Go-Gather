@@ -7,6 +7,8 @@ type Props = {
   debts: Debt[];
   currentUserId: string;
   onSettle: (toUserId: string, amount: number, currency: string) => void;
+  /** Disables settle for the active debt while a settlement is in flight. */
+  settlingDebtKey?: string | null;
   styles: {
     expRow: object;
     expName: object;
@@ -16,7 +18,7 @@ type Props = {
   };
 };
 
-export default function OutstandingDebtsList({ debts, currentUserId, onSettle, styles: s }: Props) {
+export default function OutstandingDebtsList({ debts, currentUserId, onSettle, settlingDebtKey, styles: s }: Props) {
   const sortedDebts = useMemo(() => {
     const pending: Debt[] = [];
     const rest: Debt[] = [];
@@ -32,6 +34,8 @@ export default function OutstandingDebtsList({ debts, currentUserId, onSettle, s
       <Text style={local.sectionTitle}>Outstanding</Text>
       {sortedDebts.map((debt, i) => {
         const showSettle = debt.from === currentUserId;
+        const debtKey = `${debt.from}|${debt.to}|${debt.currency}`;
+        const isSettling = settlingDebtKey === debtKey;
         return (
           <View key={i} style={[s.expRow, { alignItems: 'center' }]}>
             <View style={{ flex: 1 }}>
@@ -44,10 +48,15 @@ export default function OutstandingDebtsList({ debts, currentUserId, onSettle, s
             </View>
             {showSettle && (
               <TouchableOpacity
-                style={[s.tealBtnFull, { paddingHorizontal: 12, paddingVertical: 6 }]}
+                style={[
+                  s.tealBtnFull,
+                  { paddingHorizontal: 12, paddingVertical: 6 },
+                  (settlingDebtKey != null) && { opacity: isSettling ? 0.6 : 0.4 },
+                ]}
                 onPress={() => onSettle(debt.to, debt.amount, debt.currency)}
+                disabled={settlingDebtKey != null}
                 activeOpacity={0.85}>
-                <Text style={[s.tealBtnTxt, { fontSize: 12 }]}>Settle</Text>
+                <Text style={[s.tealBtnTxt, { fontSize: 12 }]}>{isSettling ? 'Settling…' : 'Settle'}</Text>
               </TouchableOpacity>
             )}
           </View>

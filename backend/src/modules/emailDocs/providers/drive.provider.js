@@ -6,6 +6,14 @@ const TOKEN_URL  = 'https://oauth2.googleapis.com/token';
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
 
+// Images importable as trip/event photos
+const PHOTO_DRIVE_MIMES = [
+  'image/jpeg',
+  'image/png',
+  'image/heic',
+  'image/heif',
+];
+
 // File types the app accepts from Drive (matches emailDocs ALLOWED_MIME_TYPES + common doc formats)
 const ALLOWED_DRIVE_MIMES = [
   'application/pdf',
@@ -75,11 +83,12 @@ async function refreshAccessToken(plainRefreshToken) {
   };
 }
 
-async function listFiles(accessToken, folderId) {
+async function listFiles(accessToken, folderId, { photosOnly = false } = {}) {
   const parent = folderId || 'root';
   // Exclude Google Workspace documents (Docs, Sheets, Slides) — they can't be downloaded directly.
   // Only list real files whose MIME type the app supports.
-  const mimeFilter = ALLOWED_DRIVE_MIMES.map(m => `mimeType='${m}'`).join(' or ');
+  const mimeList = photosOnly ? PHOTO_DRIVE_MIMES : ALLOWED_DRIVE_MIMES;
+  const mimeFilter = mimeList.map(m => `mimeType='${m}'`).join(' or ');
   const q = `'${parent}' in parents and trashed=false and (${mimeFilter})`;
 
   const res = await axios.get(`${DRIVE_BASE}/files`, {
