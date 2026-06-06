@@ -33,6 +33,7 @@
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const path = require('path');
+const { normalizeAuthEmail } = require('./src/utils/email.util');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
 const pool = new Pool({
@@ -425,13 +426,17 @@ async function seed() {
     ];
     for (const [id, email, phone, username] of users) {
       const passwordHash = ALPHA_USER_IDS.has(id) ? alphaHash : hash;
+      const emailNormalized = normalizeAuthEmail(email);
       await client.query(
-        `INSERT INTO users (id, email, phone, password_hash, is_verified, is_profile_complete, username)
-         VALUES ($1, $2, $3, $4, true, true, $5)
+        `INSERT INTO users (id, email, email_normalized, phone, password_hash, is_verified, is_profile_complete, username)
+         VALUES ($1, $2, $3, $4, $5, true, true, $6)
          ON CONFLICT (id) DO UPDATE SET
-           email = EXCLUDED.email, phone = EXCLUDED.phone,
-           password_hash = EXCLUDED.password_hash, username = EXCLUDED.username`,
-        [id, email, phone, passwordHash, username],
+           email = EXCLUDED.email,
+           email_normalized = EXCLUDED.email_normalized,
+           phone = EXCLUDED.phone,
+           password_hash = EXCLUDED.password_hash,
+           username = EXCLUDED.username`,
+        [id, email, emailNormalized, phone, passwordHash, username],
       );
     }
 

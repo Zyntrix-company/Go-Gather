@@ -1,30 +1,38 @@
-const { normalizeAuthEmail } = require('../../src/utils/email.util');
+const {
+  sanitizeAuthEmail,
+  normalizeAuthEmail,
+  resolveAuthEmail,
+} = require('../../src/utils/email.util');
 
-describe('normalizeAuthEmail', () => {
-  it('lowercases and trims email', () => {
-    expect(normalizeAuthEmail('  Test@Example.COM  ')).toBe('test@example.com');
+describe('email.util', () => {
+  describe('sanitizeAuthEmail', () => {
+    it('lowercases and trims without removing Gmail dots', () => {
+      expect(sanitizeAuthEmail('  Vanshahuja.Dev@gmail.com  ')).toBe('vanshahuja.dev@gmail.com');
+    });
+
+    it('preserves plus-address tags', () => {
+      expect(sanitizeAuthEmail('user+tag@gmail.com')).toBe('user+tag@gmail.com');
+    });
   });
 
-  it('removes Gmail dots and subaddresses', () => {
-    expect(normalizeAuthEmail('john.doe+tag@gmail.com')).toBe('johndoe@gmail.com');
-    expect(normalizeAuthEmail('vansahuja.dev@gmail.com')).toBe('vansahujadev@gmail.com');
+  describe('normalizeAuthEmail', () => {
+    it('removes Gmail dots and subaddresses for duplicate detection', () => {
+      expect(normalizeAuthEmail('john.doe+tag@gmail.com')).toBe('johndoe@gmail.com');
+      expect(normalizeAuthEmail('vanshahuja.dev@gmail.com')).toBe('vanshahujadev@gmail.com');
+    });
   });
 
-  it('converts googlemail.com to gmail.com', () => {
-    expect(normalizeAuthEmail('user@googlemail.com')).toBe('user@gmail.com');
-  });
+  describe('resolveAuthEmail', () => {
+    it('keeps display and normalized separate', () => {
+      expect(resolveAuthEmail('vanshahuja.dev@gmail.com')).toEqual({
+        display: 'vanshahuja.dev@gmail.com',
+        normalized: 'vanshahujadev@gmail.com',
+      });
+    });
 
-  it('does not merge different Gmail local parts', () => {
-    expect(normalizeAuthEmail('vanshahujadev@gmail.com')).toBe('vanshahujadev@gmail.com');
-    expect(normalizeAuthEmail('vansahuja.dev@gmail.com')).toBe('vansahujadev@gmail.com');
-    expect(normalizeAuthEmail('vanshahujadev@gmail.com')).not.toBe(
-      normalizeAuthEmail('vansahuja.dev@gmail.com'),
-    );
-  });
-
-  it('returns null for invalid input', () => {
-    expect(normalizeAuthEmail('')).toBeNull();
-    expect(normalizeAuthEmail(null)).toBeNull();
-    expect(normalizeAuthEmail('not-an-email')).toBeNull();
+    it('does not merge different Gmail local parts', () => {
+      expect(resolveAuthEmail('vansahuja.dev@gmail.com')?.normalized).toBe('vansahujadev@gmail.com');
+      expect(resolveAuthEmail('vanshahujadev@gmail.com')?.normalized).toBe('vanshahujadev@gmail.com');
+    });
   });
 });

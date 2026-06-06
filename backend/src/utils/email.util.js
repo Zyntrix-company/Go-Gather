@@ -1,8 +1,7 @@
 const { normalizeEmail, isEmail } = require('validator');
 
 /**
- * Canonical normalization for auth (signup, login, OAuth lookup, OTP flows).
- * Aligns Gmail dot/subaddress aliases, Outlook/Yahoo subaddresses, etc.
+ * Canonical normalization for duplicate detection (Gmail dots, +tags, etc.).
  */
 const AUTH_EMAIL_OPTIONS = {
   all_lowercase: true,
@@ -19,8 +18,22 @@ const AUTH_EMAIL_OPTIONS = {
 };
 
 /**
+ * Lowercase + trim only — preserves dots/subaddresses as the user typed them.
+ * Used for storage and outbound email delivery.
  * @param {string | null | undefined} email
- * @returns {string | null} Canonical email, or null if input is not a valid address.
+ * @returns {string | null}
+ */
+const sanitizeAuthEmail = (email) => {
+  if (email == null || typeof email !== 'string') return null;
+  const trimmed = email.trim().toLowerCase();
+  if (!trimmed || !isEmail(trimmed)) return null;
+  return trimmed;
+};
+
+/**
+ * Canonical form for duplicate detection and login lookup.
+ * @param {string | null | undefined} email
+ * @returns {string | null}
  */
 const normalizeAuthEmail = (email) => {
   if (email == null || typeof email !== 'string') return null;
@@ -29,7 +42,20 @@ const normalizeAuthEmail = (email) => {
   return normalizeEmail(trimmed, AUTH_EMAIL_OPTIONS) || null;
 };
 
+/**
+ * @param {string | null | undefined} email
+ * @returns {{ display: string, normalized: string } | null}
+ */
+const resolveAuthEmail = (email) => {
+  const display = sanitizeAuthEmail(email);
+  const normalized = normalizeAuthEmail(email);
+  if (!display || !normalized) return null;
+  return { display, normalized };
+};
+
 module.exports = {
   AUTH_EMAIL_OPTIONS,
+  sanitizeAuthEmail,
   normalizeAuthEmail,
+  resolveAuthEmail,
 };

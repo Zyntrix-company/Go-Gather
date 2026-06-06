@@ -74,6 +74,7 @@ import {
 } from '../../components/common/CategoryIcons';
 import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
 import { formatCurrency, buildExpenseLabel } from '../../utils/currency';
+import { getExpenseRowBalanceLabel } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -843,6 +844,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
   async function handleAddExpense() {
     if (!expDesc.trim() || !expAmount) { showAlert({ title: 'Error', message: 'Please fill description and amount' }); return; }
     const amount = parseFloat(expAmount) || 0;
+    if (amount <= 0) {
+      showAlert({ title: 'Error', message: 'Amount must be greater than zero.' });
+      return;
+    }
 
     const resolveId = (id: string) => id === 'You' ? currentUserId : id;
     const splitAmongIds = expSplitAmong.map(resolveId);
@@ -875,6 +880,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
         showAlert({ title: 'Validation Error', message: 'Percentages must sum to 100.' });
         return;
       }
+    }
+    if (splitAmong.length === 0) {
+      showAlert({ title: 'Error', message: 'Select at least one person to split with.' });
+      return;
     }
 
     const categorySlug = expCategory.slug;
@@ -2118,11 +2127,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     ) : (
                       <View style={{ marginTop: 12 }}>
                         {expenses.map(exp => {
-                          const myAmt = exp.myAmount ?? 0;
-                          const balText = exp.paidBy === 'You'
-                            ? `You lent ${formatCurrency(exp.amount - myAmt, exp.currency)}`
-                            : `You owe ${formatCurrency(myAmt, exp.currency)}`;
-                          const balColor = exp.paidBy === 'You' ? '#0d9488' : '#ef4444';
+                          const balanceLabel = getExpenseRowBalanceLabel(exp);
                           return (
                             <View key={exp.id} style={styles.expRow}>
                               <View style={styles.expIconBox}><ExpenseCategoryIcon category={exp.category} size={20} /></View>
@@ -2133,8 +2138,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
                               </View>
                               <View style={{ alignItems: 'flex-end' }}>
                                 <Text style={styles.expAmt}>{formatCurrency(exp.amount, exp.currency)}</Text>
-                                <Text style={{ fontSize: 11, color: balColor, marginBottom: 6 }}>{balText}</Text>
-                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                {balanceLabel && (
+                                  <Text style={{ fontSize: 11, color: balanceLabel.color, marginBottom: 6 }}>{balanceLabel.text}</Text>
+                                )}
+                                <View style={{ flexDirection: 'row', gap: 12, marginTop: balanceLabel ? 0 : 6 }}>
                                   <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text></TouchableOpacity>
                                   <TouchableOpacity onPress={() => handleDeleteExpense(exp.id)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
                                 </View>

@@ -89,6 +89,7 @@ import {
 } from '../../components/common/CategoryIcons';
 import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
 import { formatCurrency, buildExpenseLabel } from '../../utils/currency';
+import { getExpenseRowBalanceLabel } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
 
 
@@ -1157,6 +1158,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
       if (actExpConfirmed && actExpDesc.trim() && actExpAmount) {
         const apiSplitType = actExpSplitType === 'equally' ? 'equal' : actExpSplitType === 'percent' ? 'percentage' : 'amount';
         const expAmount = parseFloat(actExpAmount) || 0;
+        if (expAmount <= 0) {
+          showAlert({ title: 'Error', message: 'Linked expense amount must be greater than zero.' });
+          setIsSubmitting(false);
+          return;
+        }
         const payerId = actExpPaidBy === 'You' ? currentUserId : (members.find(m => m.fullName === actExpPaidBy)?.userId ?? currentUserId);
         const memberIdsForSplit = actExpSplitAmong.map(id => id === 'You' ? currentUserId : id).filter(Boolean);
         const splitAmong = apiSplitType === 'equal'
@@ -1471,6 +1477,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
     if (isSubmitting) return;
 
     const amount = parseFloat(expAmount) || 0;
+    if (amount <= 0) {
+      showAlert({ title: 'Error', message: 'Amount must be greater than zero.' });
+      return;
+    }
     // Build splitAmong — map 'You' → currentUserId, use only selected members
     const apiSplitType = expSplitType === 'equally' ? 'equal' : expSplitType === 'percent' ? 'percentage' : 'amount';
     const memberIds = expSplitAmong.map(id => id === 'You' ? currentUserId : id).filter(Boolean);
@@ -1503,6 +1513,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
         showAlert({ title: 'Validation Error', message: 'Percentages must sum to 100.' });
         return;
       }
+    }
+    if (splitAmong.length === 0) {
+      showAlert({ title: 'Error', message: 'Select at least one person to split with.' });
+      return;
     }
 
     setIsSubmitting(true);
@@ -3127,11 +3141,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           const hasGroups = Object.keys(actExpGroups).length > 0;
 
                           const renderExpRow = (exp: Expense) => {
-                            const myAmt = exp.myAmount ?? 0;
-                            const balText = exp.paidBy === 'You'
-                              ? `You lent ${formatCurrency(exp.amount - myAmt, exp.currency)}`
-                              : `You owe ${formatCurrency(myAmt, exp.currency)}`;
-                            const balColor = exp.paidBy === 'You' ? '#0d9488' : '#ef4444';
+                            const balanceLabel = getExpenseRowBalanceLabel(exp);
                             return (
                               <View key={exp.id} style={styles.expRow}>
                                 <View style={styles.expIconBox}><ExpenseCategoryIcon category={exp.category} size={20} /></View>
@@ -3143,8 +3153,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                 </View>
                                 <View style={{ alignItems: 'flex-end' }}>
                                   <Text style={styles.expAmt}>{formatCurrency(exp.amount, exp.currency)}</Text>
-                                  <Text style={{ fontSize: 11, color: balColor, marginBottom: 6 }}>{balText}</Text>
-                                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                                  {balanceLabel && (
+                                    <Text style={{ fontSize: 11, color: balanceLabel.color, marginBottom: 6 }}>{balanceLabel.text}</Text>
+                                  )}
+                                  <View style={{ flexDirection: 'row', gap: 12, marginTop: balanceLabel ? 0 : 6 }}>
                                     <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text></TouchableOpacity>
                                     <TouchableOpacity onPress={() => handleDeleteExpense(exp.id)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
                                   </View>

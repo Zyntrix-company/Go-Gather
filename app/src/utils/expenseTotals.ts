@@ -46,6 +46,7 @@ export function buildGroupExpenseTotals(
   // Group expenses by currency
   const currencyMap = new Map<string, ExpenseLike[]>();
   for (const exp of expenses) {
+    if (!Number.isFinite(exp.amount) || exp.amount <= 0) continue;
     const cur = exp.currency || 'INR';
     if (!currencyMap.has(cur)) currencyMap.set(cur, []);
     currencyMap.get(cur)!.push(exp);

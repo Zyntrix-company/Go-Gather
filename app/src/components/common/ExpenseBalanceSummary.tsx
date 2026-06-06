@@ -2,13 +2,15 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { formatCurrency } from '../../utils/currency';
 
+const EPS = 0.005;
+
 type CurrencyRow = {
   code: string;
   total: number;
   balance: number;
 };
 
-function buildCurrencyRows(
+function buildRows(
   totalExpensesByCurrency: Record<string, string>,
   myBalances: Record<string, number>,
 ): CurrencyRow[] {
@@ -23,7 +25,6 @@ function buildCurrencyRows(
       total: parseFloat(totalExpensesByCurrency[code] ?? '0') || 0,
       balance: myBalances[code] ?? 0,
     }))
-    .filter(row => row.total > 0 || Math.abs(row.balance) > 0.005)
     .sort((a, b) => b.total - a.total || a.code.localeCompare(b.code));
 }
 
@@ -33,79 +34,68 @@ type Props = {
 };
 
 export default function ExpenseBalanceSummary({ totalExpensesByCurrency, myBalances }: Props) {
-  const rows = buildCurrencyRows(totalExpensesByCurrency, myBalances);
+  const allRows = buildRows(totalExpensesByCurrency, myBalances);
+  const totalRows = allRows.filter(row => row.total > EPS);
+  const balanceRows = allRows.filter(row => Math.abs(row.balance) > EPS);
+  const hasBalanceBlocks = balanceRows.length > 0;
 
-  if (rows.length === 0) {
+  if (totalRows.length === 0 && !hasBalanceBlocks) {
     return (
-      <View style={styles.row}>
-        <View style={[styles.totalCard, { flex: 1 }]}>
-          <Text style={styles.cardTitle}>Total</Text>
-          <Text style={styles.emptyLine}>No expenses yet</Text>
-        </View>
-        <View style={[styles.balanceCol, { flex: 1 }]}>
-          <View style={[styles.balanceBlock, styles.balanceSettled]}>
-            <Text style={styles.balanceSign}>±</Text>
-            <Text style={styles.balanceAmount}>0</Text>
-            <Text style={styles.balanceCode}>—</Text>
-          </View>
-        </View>
+      <View style={styles.emptyWrap}>
+        <Text style={styles.cardTitle}>Total</Text>
+        <Text style={styles.emptyLine}>No expenses yet</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.row}>
-      {/* Left — one total card, all currencies stacked */}
-      <View style={styles.totalCard}>
+    <View style={[styles.row, !hasBalanceBlocks && styles.rowSingle]}>
+      <View style={[styles.totalCard, !hasBalanceBlocks && styles.totalCardFull]}>
         <Text style={styles.cardTitle}>Total</Text>
-        <View style={styles.totalLines}>
-          {rows.map((row, idx) => (
-            <View
-              key={row.code}
-              style={[styles.totalLine, idx < rows.length - 1 && styles.totalLineBorder]}>
-              <Text style={styles.totalCode}>{row.code}</Text>
-              <Text style={styles.totalAmount}>
-                {row.total > 0 ? formatCurrency(row.total, row.code) : '—'}
-              </Text>
-            </View>
-          ))}
-        </View>
+        {totalRows.length > 0 ? (
+          <View style={styles.totalLines}>
+            {totalRows.map((row, idx) => (
+              <View
+                key={row.code}
+                style={[styles.totalLine, idx < totalRows.length - 1 && styles.totalLineBorder]}>
+                <Text style={styles.totalCode}>{row.code}</Text>
+                <Text style={styles.totalAmount}>{formatCurrency(row.total, row.code)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.emptyLine}>No group spend recorded</Text>
+        )}
       </View>
 
-      {/* Right — one balance block per currency */}
-      <View style={styles.balanceCol}>
-        {rows.map(row => {
-          const isPositive = row.balance > 0.005;
-          const isNegative = row.balance < -0.005;
-          const blockStyle = isPositive
-            ? styles.balancePositive
-            : isNegative
-              ? styles.balanceNegative
-              : styles.balanceSettled;
-          const textStyle = isPositive
-            ? styles.balanceTextPositive
-            : isNegative
-              ? styles.balanceTextNegative
-              : styles.balanceTextSettled;
-
-          return (
-            <View key={row.code} style={[styles.balanceBlock, blockStyle]}>
-              <Text style={styles.balanceLabel}>You</Text>
-              <View style={styles.balanceValueRow}>
-                <Text style={[styles.balanceSign, textStyle]}>
-                  {isPositive ? '+' : isNegative ? '−' : '±'}
-                </Text>
-                <Text style={[styles.balanceAmount, textStyle]}>
-                  {Math.abs(row.balance) > 0.005
-                    ? formatCurrency(Math.abs(row.balance), row.code)
-                    : '0'}
+      {hasBalanceBlocks && (
+        <View style={styles.balanceCol}>
+          {balanceRows.map(row => {
+            const isPositive = row.balance > EPS;
+            return (
+              <View
+                key={row.code}
+                style={[
+                  styles.balanceBlock,
+                  isPositive ? styles.balancePositive : styles.balanceNegative,
+                ]}>
+                <Text style={styles.balanceLabel}>You</Text>
+                <View style={styles.balanceValueRow}>
+                  <Text style={[styles.balanceSign, isPositive ? styles.balanceTextPositive : styles.balanceTextNegative]}>
+                    {isPositive ? '+' : '−'}
+                  </Text>
+                  <Text style={[styles.balanceAmount, isPositive ? styles.balanceTextPositive : styles.balanceTextNegative]}>
+                    {formatCurrency(Math.abs(row.balance), row.code)}
+                  </Text>
+                </View>
+                <Text style={[styles.balanceCode, isPositive ? styles.balanceTextPositive : styles.balanceTextNegative]}>
+                  {row.code}
                 </Text>
               </View>
-              <Text style={[styles.balanceCode, textStyle]}>{row.code}</Text>
-            </View>
-          );
-        })}
-      </View>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 }
@@ -117,6 +107,13 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     alignItems: 'stretch',
   },
+  rowSingle: {
+    marginBottom: 18,
+  },
+  emptyWrap: {
+    marginBottom: 18,
+    padding: 12,
+  },
   totalCard: {
     flex: 1,
     backgroundColor: '#f8fafc',
@@ -124,6 +121,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
     padding: 12,
+  },
+  totalCardFull: {
+    flex: 1,
   },
   cardTitle: {
     fontSize: 11,
@@ -186,10 +186,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff1f2',
     borderColor: '#fda4af',
   },
-  balanceSettled: {
-    backgroundColor: '#f8fafc',
-    borderColor: '#e2e8f0',
-  },
   balanceLabel: {
     fontSize: 10,
     fontWeight: '600',
@@ -222,8 +218,5 @@ const styles = StyleSheet.create({
   },
   balanceTextNegative: {
     color: '#e11d48',
-  },
-  balanceTextSettled: {
-    color: '#64748b',
   },
 });

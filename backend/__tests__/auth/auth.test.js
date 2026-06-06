@@ -113,7 +113,7 @@ describe('Auth Routes', () => {
       expect(res.statusCode).toBe(409);
       expect(res.body.error).toBe('EmailExists');
       expect(db.query).toHaveBeenCalledWith(
-        'SELECT id FROM users WHERE email = $1',
+        'SELECT id FROM users WHERE email_normalized = $1',
         ['johndoe@gmail.com'],
       );
     });
@@ -183,8 +183,8 @@ describe('Auth Routes', () => {
 
     it('returns 401 when OTP is invalid', async () => {
       db.query
-        .mockResolvedValueOnce({ rows: [{ id: VALID_USER_ID }] })  // find user
-        .mockResolvedValueOnce({ rows: [] });                       // OTP not found
+        .mockResolvedValueOnce({ rows: [{ id: VALID_USER_ID, email: 'test@test.com' }] })
+        .mockResolvedValueOnce({ rows: [] });
 
       const res = await request(app)
         .post('/auth/verify-email')
@@ -195,11 +195,11 @@ describe('Auth Routes', () => {
 
     it('returns 200 with tokens after valid OTP', async () => {
       db.query
-        .mockResolvedValueOnce({ rows: [{ id: VALID_USER_ID }] })              // find user
-        .mockResolvedValueOnce({ rows: [{ id: 'otp-row-id' }] })               // OTP found
-        .mockResolvedValueOnce({ rows: [] })                                    // UPDATE is_verified
-        .mockResolvedValueOnce({ rows: [] })                                    // DELETE otp
-        .mockResolvedValueOnce({ rows: [] });                                   // INSERT refresh token
+        .mockResolvedValueOnce({ rows: [{ id: VALID_USER_ID, email: 'test@test.com' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'otp-row-id' }] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
 
       const res = await request(app)
         .post('/auth/verify-email')

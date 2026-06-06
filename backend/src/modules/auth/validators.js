@@ -1,11 +1,11 @@
 const { body } = require('express-validator');
-const { normalizeAuthEmail } = require('../../utils/email.util');
+const { sanitizeAuthEmail } = require('../../utils/email.util');
 
 const authEmailField = (message = 'A valid email address is required') =>
   body('email')
     .isEmail()
     .withMessage(message)
-    .customSanitizer(normalizeAuthEmail);
+    .customSanitizer(sanitizeAuthEmail);
 
 const signupValidation = [
   authEmailField(),
@@ -88,7 +88,7 @@ const forgotPasswordValidation = [
     .optional()
     .isEmail()
     .withMessage('Invalid email address')
-    .customSanitizer(normalizeAuthEmail),
+    .customSanitizer(sanitizeAuthEmail),
   body('phone')
     .optional()
     .isMobilePhone()

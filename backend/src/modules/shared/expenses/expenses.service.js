@@ -4,6 +4,35 @@ const { createAndSendNotifications } = require('../../../utils/fcm.util');
 
 const VALID_CATEGORIES = ['general', 'transportation', 'accommodation', 'entertainment', 'shopping', 'food', 'other'];
 
+const validationError = (message) => {
+  const e = new Error(message);
+  e.statusCode = 400;
+  e.error = 'VALIDATION_ERROR';
+  return e;
+};
+
+const validateExpenseBody = (body, { requireAll = false } = {}) => {
+  if (requireAll || body.description !== undefined) {
+    if (!body.description || !String(body.description).trim()) {
+      throw validationError('Description is required');
+    }
+  }
+  if (requireAll || body.amount !== undefined) {
+    const amount = parseFloat(body.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw validationError('Amount must be greater than zero');
+    }
+  }
+  if (requireAll || body.splitAmong !== undefined) {
+    if (!Array.isArray(body.splitAmong) || body.splitAmong.length === 0) {
+      throw validationError('At least one member must be included in the split');
+    }
+  }
+  if (body.paidBy !== undefined) {
+    if (!body.paidBy) throw validationError('Payer is required');
+  }
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const assertParentMember = async (parentType, parentId, userId, label = 'User') => {
@@ -122,6 +151,8 @@ const enrichSimplifiedDebts = async (simplified, currentUserId = null) => {
 // ─── Add Expense ──────────────────────────────────────────────────────────────
 
 const addExpense = async ({ parentType, parentId }, createdBy, body) => {
+  validateExpenseBody(body, { requireAll: true });
+
   const { description, amount, category, paidBy, splitType, splitAmong, currency = 'INR' } = body;
   const resolvedCurrency = (typeof currency === 'string' ? currency.toUpperCase() : 'INR') || 'INR';
 
@@ -287,6 +318,8 @@ const updateExpense = async ({ parentType, parentId }, expId, requesterId, reque
     const e = new Error('Expense not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
   }
   const existing = expResult.rows[0];
+
+  validateExpenseBody(body);
 
   const amount   = body.amount    !== undefined ? body.amount    : parseFloat(existing.amount);
   const splitType = body.splitType !== undefined ? body.splitType : existing.split_type;

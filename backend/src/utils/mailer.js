@@ -195,6 +195,8 @@ const sendEmailViaSes = async ({ to, subject, html, text }) => {
  */
 const sendEmailViaBrevo = async ({ to, subject, html, text }) => {
   const { apiKey, fromEmail, fromName } = config.brevo;
+  const supportEmail =
+    config.ses.supportEmail || config.ses.fromEmail || config.brevo.fromEmail;
 
   if (!apiKey || !fromEmail) {
     throw new Error('Brevo is not configured (BREVO_API_KEY and BREVO_FROM_EMAIL required)');
@@ -212,6 +214,10 @@ const sendEmailViaBrevo = async ({ to, subject, html, text }) => {
     subject,
     htmlContent: html,
     ...(text && { textContent: text }),
+    ...(supportEmail && {
+      replyTo: { email: supportEmail, name: fromName || 'Gatherrgo Support' },
+    }),
+    tags: ['transactional', 'auth'],
   };
 
   try {
@@ -222,11 +228,15 @@ const sendEmailViaBrevo = async ({ to, subject, html, text }) => {
         accept: 'application/json',
       },
     });
-    logger.info('Email sent successfully via Brevo', { to, messageId: data.messageId });
+    logger.info('Email sent successfully via Brevo', {
+      to,
+      from: fromEmail,
+      messageId: data.messageId,
+    });
     return data;
   } catch (error) {
     const msg = error.response?.data?.message || error.message;
-    logger.error('Failed to send email via Brevo', { to, error: msg });
+    logger.error('Failed to send email via Brevo', { to, from: fromEmail, error: msg });
     throw error;
   }
 };

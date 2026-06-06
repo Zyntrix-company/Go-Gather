@@ -16,7 +16,7 @@ const {
 } = require('../../utils/mailer');
 const logger = require('../../utils/logger');
 const { syncUserLegalAckFromCurrent } = require('../legal/legal.service');
-const { normalizeAuthEmail } = require('../../utils/email.util');
+const { resolveAuthEmail, normalizeAuthEmail, sanitizeAuthEmail } = require('../../utils/email.util');
 
 const { getPresignedDownloadUrl } = require('../../utils/s3.util');
 
@@ -90,23 +90,38 @@ const rollbackFailedSignup = async (userId) => {
   }
 };
 
-/* ───────────────────────────────────────────
- * Service methods
- * ─────────────────────────────────────────── */
+/**
+ * Look up a user by any email alias the user may type at login/OTP flows.
+ */
+const findUserByAuthEmail = async (email, client = db) => {
+  const normalized = normalizeAuthEmail(email);
+  if (!normalized) return null;
+
+  const result = await client.query(
+    'SELECT * FROM users WHERE email_normalized = $1',
+    [normalized],
+  );
+  return result.rows[0] || null;
+};
 
 /**
  * POST /auth/signup — Email / password registration.
  */
 const signup = async ({ email, phone, password }) => {
-  const canonicalEmail = normalizeAuthEmail(email);
-  if (!canonicalEmail) {
+  const resolved = resolveAuthEmail(email);
+  if (!resolved) {
     const err = new Error('A valid email address is required');
     err.statusCode = 422;
     err.error = 'ValidationError';
     throw err;
   }
 
-  const existing = await db.query('SELECT id FROM users WHERE email = $1', [canonicalEmail]);
+  const { display: displayEmail, normalized } = resolved;
+
+  const existing = await db.query(
+    'SELECT id FROM users WHERE email_normalized = $1',
+    [normalized],
+  );
   if (existing.rows.length > 0) {
     const err = new Error('An account with this email already exists');
     err.statusCode = 409;
@@ -124,10 +139,10 @@ const signup = async ({ email, phone, password }) => {
     await client.query('BEGIN');
 
     const result = await client.query(
-      `INSERT INTO users (email, phone, password_hash)
-       VALUES ($1, $2, $3)
+      `INSERT INTO users (email, email_normalized, phone, password_hash)
+       VALUES ($1, $2, $3, $4)
        RETURNING id, email, phone, is_profile_complete, is_verified, created_at`,
-      [canonicalEmail, phone || null, passwordHash],
+      [displayEmail, normalized, phone || null, passwordHash],
     );
 
     user = result.rows[0];
@@ -170,19 +185,14 @@ const signup = async ({ email, phone, password }) => {
  * POST /auth/login — Email / password login.
  */
 const login = async ({ email, password, deviceToken, platform }) => {
-  const result = await db.query(
-    'SELECT id, email, password_hash, is_profile_complete FROM users WHERE email = $1',
-    [email],
-  );
+  const user = await findUserByAuthEmail(email);
 
-  if (result.rows.length === 0) {
+  if (!user) {
     const err = new Error('Invalid email or password');
     err.statusCode = 401;
     err.error = 'InvalidCredentials';
     throw err;
   }
-
-  const user = result.rows[0];
 
   if (!user.password_hash) {
     const err = new Error('This account uses Google sign-in. Please login with Google.');
@@ -230,17 +240,18 @@ const googleAuth = async ({ idToken, deviceToken, platform }) => {
   });
   const payload = ticket.getPayload();
   const { sub: googleId, email: rawEmail, name, picture } = payload;
-  const email = normalizeAuthEmail(rawEmail);
+  const resolved = resolveAuthEmail(rawEmail);
 
-  if (!email) {
+  if (!resolved) {
     const err = new Error('Google account must have a valid email associated.');
     err.statusCode = 400;
     err.error = 'NoEmail';
     throw err;
   }
 
-  // Check for existing user by canonical email
-  let result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+  const { display: displayEmail, normalized } = resolved;
+
+  let result = await db.query('SELECT * FROM users WHERE email_normalized = $1', [normalized]);
   let isNewUser = false;
 
   if (result.rows.length > 0) {
@@ -255,10 +266,10 @@ const googleAuth = async ({ idToken, deviceToken, platform }) => {
   } else {
     // Create new user (Auto-verifying email since Google verified it)
     result = await db.query(
-      `INSERT INTO users (email, google_id, is_profile_complete, is_verified)
-       VALUES ($1, $2, false, true)
+      `INSERT INTO users (email, email_normalized, google_id, is_profile_complete, is_verified)
+       VALUES ($1, $2, $3, false, true)
        RETURNING *`,
-      [email, googleId],
+      [displayEmail, normalized, googleId],
     );
     isNewUser = true;
 
@@ -299,17 +310,18 @@ const facebookAuth = async ({ accessToken, deviceToken, platform }) => {
 
   const response = await axios.get(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`);
   const { id: facebookId, email: rawEmail, name, picture } = response.data;
-  const email = normalizeAuthEmail(rawEmail);
+  const resolved = resolveAuthEmail(rawEmail);
 
-  if (!email) {
+  if (!resolved) {
     const err = new Error('Facebook account must have an email associated.');
     err.statusCode = 400;
     err.error = 'NoEmail';
     throw err;
   }
 
-  // Check for existing user by canonical email
-  let result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+  const { display: displayEmail, normalized } = resolved;
+
+  let result = await db.query('SELECT * FROM users WHERE email_normalized = $1', [normalized]);
   let isNewUser = false;
 
   if (result.rows.length > 0) {
@@ -324,10 +336,10 @@ const facebookAuth = async ({ accessToken, deviceToken, platform }) => {
   } else {
     // Create new user (Auto-verifying email since Facebook verified it)
     result = await db.query(
-      `INSERT INTO users (email, facebook_id, is_profile_complete, is_verified)
-       VALUES ($1, $2, false, true)
+      `INSERT INTO users (email, email_normalized, facebook_id, is_profile_complete, is_verified)
+       VALUES ($1, $2, $3, false, true)
        RETURNING *`,
-      [email, facebookId],
+      [displayEmail, normalized, facebookId],
     );
     isNewUser = true;
 
@@ -424,21 +436,18 @@ const logout = async ({ refreshToken: rawToken }) => {
  * POST /auth/forgot-password — Send reset email via SES.
  */
 const forgotPassword = async ({ email, phone }) => {
-  // Lookup by email or phone
-  const identifier = email || phone;
-  const column = email ? 'email' : 'phone';
+  let user = null;
 
-  const result = await db.query(
-    `SELECT id, email FROM users WHERE ${column} = $1`,
-    [identifier],
-  );
-
-  if (result.rows.length === 0) {
-    // Return silently to avoid enumeration
-    return { message: 'If an account exists, a reset email has been sent.' };
+  if (email) {
+    user = await findUserByAuthEmail(email);
+  } else if (phone) {
+    const result = await db.query('SELECT id, email FROM users WHERE phone = $1', [phone]);
+    user = result.rows[0] || null;
   }
 
-  const user = result.rows[0];
+  if (!user) {
+    return { message: 'If an account exists, a reset email has been sent.' };
+  }
 
   const otp = generateOTP();
   await storeOTP(user.id, otp, 'password-reset');
@@ -451,13 +460,13 @@ const forgotPassword = async ({ email, phone }) => {
  * POST /auth/verify-email — Verify OTP for signup.
  */
 const verifyEmail = async ({ email, otp, deviceToken, platform }) => {
-  const result = await db.query('SELECT id FROM users WHERE email = $1', [email]);
-  if (result.rows.length === 0) {
+  const userRow = await findUserByAuthEmail(email);
+  if (!userRow) {
     const err = new Error('User not found');
     err.statusCode = 404;
     throw err;
   }
-  const userId = result.rows[0].id;
+  const userId = userRow.id;
 
   const otpHash = hashToken(otp);
   const otpResult = await db.query(
@@ -474,15 +483,14 @@ const verifyEmail = async ({ email, otp, deviceToken, platform }) => {
   await db.query('UPDATE users SET is_verified = true WHERE id = $1', [userId]);
   await db.query('DELETE FROM otps WHERE id = $1', [otpResult.rows[0].id]);
 
-  // Register device token now that the user is verified (optional field)
   await registerDeviceToken(userId, deviceToken, platform);
 
-  const user = { id: userId, email };
+  const user = { id: userId, email: userRow.email };
   const tokens = await issueTokenPair(user);
 
   return {
     message: 'Email verified successfully',
-    user: { id: userId, email, isVerified: true },
+    user: { id: userId, email: userRow.email, isVerified: true },
     ...tokens,
   };
 };
@@ -491,13 +499,13 @@ const verifyEmail = async ({ email, otp, deviceToken, platform }) => {
  * POST /auth/reset-password — Reset password using OTP.
  */
 const resetPassword = async ({ email, otp, password }) => {
-  const result = await db.query('SELECT id FROM users WHERE email = $1', [email]);
-  if (result.rows.length === 0) {
+  const userRow = await findUserByAuthEmail(email);
+  if (!userRow) {
     const err = new Error('User not found');
     err.statusCode = 404;
     throw err;
   }
-  const userId = result.rows[0].id;
+  const userId = userRow.id;
 
   const otpHash = hashToken(otp);
   const otpResult = await db.query(
@@ -556,10 +564,9 @@ const changePassword = async ({ userId, currentPassword, newPassword }) => {
  * POST /auth/resend-otp
  */
 const resendOTP = async ({ email, purpose }) => {
-  const result = await db.query('SELECT id, email, is_verified FROM users WHERE email = $1', [email]);
-  if (result.rows.length === 0) return { message: 'If an account exists, a code has been sent.' };
+  const user = await findUserByAuthEmail(email);
+  if (!user) return { message: 'If an account exists, a code has been sent.' };
 
-  const user = result.rows[0];
   if (purpose === 'email-verification' && user.is_verified) {
     return { message: 'Email is already verified.' };
   }
