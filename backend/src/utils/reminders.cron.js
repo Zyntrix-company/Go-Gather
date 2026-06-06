@@ -22,16 +22,25 @@ const EVENT_NOTIF_MAP = {
 // ── Trip reminders ────────────────────────────────────────────────────────────
 
 const processTripReminders = async () => {
-  const pendingResult = await db(
-    `SELECT tr.id, tr.trip_id, tr.reminder_type, t.name AS trip_name
-     FROM trip_reminders tr
-     JOIN trips t ON t.id = tr.trip_id
-     WHERE tr.scheduled_at <= NOW() AND tr.sent_at IS NULL
-     LIMIT 50`,
+  const claimResult = await db(
+    `WITH due AS (
+       SELECT tr.id, tr.trip_id, tr.reminder_type, t.name AS trip_name
+       FROM trip_reminders tr
+       JOIN trips t ON t.id = tr.trip_id
+       WHERE tr.scheduled_at <= NOW() AND tr.sent_at IS NULL
+       ORDER BY tr.scheduled_at
+       FOR UPDATE OF tr SKIP LOCKED
+       LIMIT 50
+     )
+     UPDATE trip_reminders tr
+     SET sent_at = NOW()
+     FROM due
+     WHERE tr.id = due.id
+     RETURNING tr.id, tr.trip_id, tr.reminder_type, due.trip_name`,
     [],
   );
 
-  for (const reminder of pendingResult.rows) {
+  for (const reminder of claimResult.rows) {
     try {
       const membersResult = await db(
         `SELECT u.id, u.fcm_token FROM trip_members tm
@@ -52,29 +61,37 @@ const processTripReminders = async () => {
         { reminderType: reminder.reminder_type, tripId: reminder.trip_id },
       );
 
-      await db('UPDATE trip_reminders SET sent_at = NOW() WHERE id = $1', [reminder.id]);
       logger.info('Trip reminder sent', { reminderId: reminder.id, type: reminder.reminder_type, tokens: membersResult.rowCount });
     } catch (err) {
       logger.error('Failed to process trip reminder', { reminderId: reminder.id, error: err.message });
     }
   }
 
-  return pendingResult.rowCount;
+  return claimResult.rowCount;
 };
 
 // ── Event reminders ───────────────────────────────────────────────────────────
 
 const processEventReminders = async () => {
-  const pendingResult = await db(
-    `SELECT er.id, er.event_id, er.reminder_type, e.name AS event_name
-     FROM event_reminders er
-     JOIN events e ON e.id = er.event_id
-     WHERE er.scheduled_at <= NOW() AND er.sent_at IS NULL
-     LIMIT 50`,
+  const claimResult = await db(
+    `WITH due AS (
+       SELECT er.id, er.event_id, er.reminder_type, e.name AS event_name
+       FROM event_reminders er
+       JOIN events e ON e.id = er.event_id
+       WHERE er.scheduled_at <= NOW() AND er.sent_at IS NULL
+       ORDER BY er.scheduled_at
+       FOR UPDATE OF er SKIP LOCKED
+       LIMIT 50
+     )
+     UPDATE event_reminders er
+     SET sent_at = NOW()
+     FROM due
+     WHERE er.id = due.id
+     RETURNING er.id, er.event_id, er.reminder_type, due.event_name`,
     [],
   );
 
-  for (const reminder of pendingResult.rows) {
+  for (const reminder of claimResult.rows) {
     try {
       const membersResult = await db(
         `SELECT u.id, u.fcm_token FROM event_members em
@@ -95,14 +112,13 @@ const processEventReminders = async () => {
         { reminderType: reminder.reminder_type, eventId: reminder.event_id },
       );
 
-      await db('UPDATE event_reminders SET sent_at = NOW() WHERE id = $1', [reminder.id]);
       logger.info('Event reminder sent', { reminderId: reminder.id, type: reminder.reminder_type, tokens: membersResult.rowCount });
     } catch (err) {
       logger.error('Failed to process event reminder', { reminderId: reminder.id, error: err.message });
     }
   }
 
-  return pendingResult.rowCount;
+  return claimResult.rowCount;
 };
 
 // ── Activity reminders ────────────────────────────────────────────────────────
@@ -169,20 +185,30 @@ const scheduleActivityReminders = async (activityId, tripId, activityDate, activ
 };
 
 const processActivityReminders = async () => {
-  const result = await db(
-    `SELECT ar.id, ar.user_id, ar.trip_id, ar.activity_id, ar.reminder_minutes,
-            a.title AS activity_name, t.name AS trip_name,
-            u.fcm_token, u.notification_settings, u.timezone
-     FROM activity_reminders ar
-     JOIN trip_activities a ON a.id = ar.activity_id
-     JOIN trips t ON t.id = ar.trip_id
-     JOIN users u ON u.id = ar.user_id
-     WHERE ar.remind_at <= NOW() AND ar.sent_at IS NULL
-     LIMIT 100`,
+  const claimResult = await db(
+    `WITH due AS (
+       SELECT ar.id, ar.user_id, ar.trip_id, ar.activity_id, ar.reminder_minutes,
+              a.title AS activity_name, t.name AS trip_name,
+              u.fcm_token, u.notification_settings, u.timezone
+       FROM activity_reminders ar
+       JOIN trip_activities a ON a.id = ar.activity_id
+       JOIN trips t ON t.id = ar.trip_id
+       JOIN users u ON u.id = ar.user_id
+       WHERE ar.remind_at <= NOW() AND ar.sent_at IS NULL
+       ORDER BY ar.remind_at
+       FOR UPDATE OF ar SKIP LOCKED
+       LIMIT 100
+     )
+     UPDATE activity_reminders ar
+     SET sent_at = NOW()
+     FROM due
+     WHERE ar.id = due.id
+     RETURNING due.id, due.user_id, due.trip_id, due.activity_id, due.reminder_minutes,
+               due.activity_name, due.trip_name, due.fcm_token, due.notification_settings, due.timezone`,
     [],
   );
 
-  for (const row of result.rows) {
+  for (const row of claimResult.rows) {
     try {
       if (row.fcm_token) {
         if (isInQuietHours(row.notification_settings, row.timezone)) {
@@ -200,13 +226,12 @@ const processActivityReminders = async () => {
           );
         }
       }
-      await db('UPDATE activity_reminders SET sent_at = NOW() WHERE id = $1', [row.id]);
     } catch (err) {
       logger.error('Failed to process activity reminder', { id: row.id, error: err.message });
     }
   }
 
-  return result.rowCount;
+  return claimResult.rowCount;
 };
 
 // ── Main cron entry point ─────────────────────────────────────────────────────

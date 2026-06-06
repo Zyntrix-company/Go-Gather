@@ -17,6 +17,7 @@
     "db:seed:blogs": "node scripts/seed-blogs.js",
     "db:seed:deals": "node scripts/seed-deals.js",
     "db:seed:full": "npm run db:truncate && npm run db:seed && npm run db:seed:blogs && npm run db:seed:deals",
+    "test:brevo": "node scripts/test-brevo-email.js",
     "docker:build": "docker build -t gathergo-api .",
     "docker:dev": "docker-compose up --build",
     "docker:prod": "docker-compose -f docker-compose.prod.yml --env-file .env.prod up -d --build"

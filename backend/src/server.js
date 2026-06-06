@@ -16,11 +16,16 @@ const startServer = async () => {
     logger.info('Database connection verified');
     client.release();
 
-    // Start background jobs
-    startRemindersCron();
-    startBatchingCron();
-    startDigestCron();
-    if (config.nodeEnv !== 'test') startLegalNotificationCron();
+    // Start background jobs (single instance only — see README)
+    if (config.cronEnabled) {
+      startRemindersCron();
+      startBatchingCron();
+      startDigestCron();
+      if (config.nodeEnv !== 'test') startLegalNotificationCron();
+      logger.info('Background cron jobs started');
+    } else {
+      logger.info('Background cron jobs disabled (set CRON_ENABLED=true to enable in dev)');
+    }
 
     const server = app.listen(PORT, () => {
       logger.info(`GatherGo API running on port ${PORT}`, {

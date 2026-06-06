@@ -41,7 +41,7 @@ src/
 │   ├── s3.util.js              S3 upload / CDN URL / presigned URLs
 │   ├── mailer.js               AWS SES emails
 │   ├── debtSimplifier.util.js  Greedy minimum-transaction settlement
-│   └── reminders.cron.js       Hourly cron — FCM trip + event reminders (`TRIP_REMINDER` / `EVENT_REMINDER`)
+│   └── reminders.cron.js       Every-5-min cron — FCM trip + event reminders (`TRIP_REMINDER` / `EVENT_REMINDER`)
 ├── middleware/
 │   ├── authenticate.js             JWT verification
 │   ├── parentAccess.middleware.js  Membership gate for trips AND events (sets req.parent + req.tripMember)
@@ -197,10 +197,12 @@ DELETE /trips/:id/activities/:actId/photos/:photoId
 
 #### 5. Trip Reminders (Automated)
 
-An hourly cron (`reminders.cron.js`) queries `trip_reminders` for rows where `scheduled_at <= NOW AND sent_at IS NULL`. For each due reminder, it:
+An every-5-minutes cron (`reminders.cron.js`, IST) queries `trip_reminders` for rows where `scheduled_at <= NOW AND sent_at IS NULL`. Rows are atomically claimed with `FOR UPDATE SKIP LOCKED` before send. For each due reminder, it:
 1. Fetches all trip members' FCM tokens
-2. Fires push notification with type `trip_start`, `1_day_before`, or `1_week_before`
-3. Sets `sent_at = NOW()` to prevent re-sending
+2. Fires push notification with type `trip_start`, `1_day_before`, `3_days_before`, or `1_week_before`
+3. Sets `sent_at = NOW()` at claim time to prevent duplicate sends
+
+**Ops:** Only one backend instance should run crons against a given database (production EC2 container is fine). Local dev has crons **disabled** by default; set `CRON_ENABLED=true` in `.env` only if you intend to process reminders locally. Never run local dev and production against the same RDS with both crons enabled.
 
 ---
 
@@ -430,6 +432,7 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 |---|---|---|
 | `PORT` | No | Server port (default 3000) |
 | `NODE_ENV` | No | `development` or `production` |
+| `CRON_ENABLED` | No | Background crons: enabled in production by default; disabled in dev unless set to `true`. Set `false` on prod to disable all crons. |
 | `JWT_SECRET` | Yes | Access token signing key |
 | `JWT_REFRESH_SECRET` | Yes | Refresh token signing key |
 | `AWS_RDS_HOST` | Yes | PostgreSQL host |
@@ -722,5 +725,5 @@ After running `node seed.js`, the following data is available for immediate test
 | Smart Links | Branch.io |
 | Auth | JWT + Google/Facebook OAuth |
 | AI (Swee) | **Google Gemini 2.5 Flash** via `@google/generative-ai` (`GEMINI_API_KEY` — not OpenAI) |
-| Cron | node-cron (hourly reminders) |
+| Cron | node-cron (reminders every 5 min; batch flush every 30 min; digest daily 08:00 IST) |
 | Logging | Winston + Morgan |

@@ -9,6 +9,11 @@ module.exports = {
   port: parseInt(process.env.PORT, 10) || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
 
+  // Background crons: on in production unless CRON_ENABLED=false; off in dev unless CRON_ENABLED=true
+  cronEnabled:
+    process.env.CRON_ENABLED === 'true'
+    || (process.env.NODE_ENV === 'production' && process.env.CRON_ENABLED !== 'false'),
+
   // ─── JWT ─────────────────────────────────────
   jwt: {
     secret: process.env.JWT_SECRET,

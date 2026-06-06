@@ -157,7 +157,10 @@ const createTrip = async (userId, body) => {
       for (const r of remindersToCreate) {
         if (r.date > new Date()) {
           await client.query(
-            'INSERT INTO trip_reminders (trip_id, reminder_type, scheduled_at) VALUES ($1, $2, $3)',
+            `INSERT INTO trip_reminders (trip_id, reminder_type, scheduled_at)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (trip_id, reminder_type) WHERE sent_at IS NULL
+             DO UPDATE SET scheduled_at = EXCLUDED.scheduled_at`,
             [trip.id, r.type, r.date.toISOString()],
           );
         }
@@ -452,7 +455,6 @@ const updateTrip = async (tripId, updates) => {
     const client = await getClient();
     try {
       await client.query('BEGIN');
-      await client.query('DELETE FROM trip_reminders WHERE trip_id = $1 AND sent_at IS NULL', [tripId]);
       const HOUR = parseInt(process.env.REMINDER_HOUR_UTC ?? '3');
       const MIN  = parseInt(process.env.REMINDER_MIN_UTC  ?? '30');
       const start = new Date(updates.startDate);
@@ -466,7 +468,10 @@ const updateTrip = async (tripId, updates) => {
       for (const r of remindersToCreate) {
         if (r.date > new Date()) {
           await client.query(
-            'INSERT INTO trip_reminders (trip_id, reminder_type, scheduled_at) VALUES ($1, $2, $3)',
+            `INSERT INTO trip_reminders (trip_id, reminder_type, scheduled_at)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (trip_id, reminder_type) WHERE sent_at IS NULL
+             DO UPDATE SET scheduled_at = EXCLUDED.scheduled_at`,
             [trip.id, r.type, r.date.toISOString()],
           );
         }
