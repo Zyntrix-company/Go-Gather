@@ -62,6 +62,7 @@ import { showAlert, showConfirm } from '../../store/alertStore';
 import { markEventSectionViewed } from '../../api/events.api';
 import ExpenseTotalsTab from '../../components/common/ExpenseTotalsTab';
 import { ExpenseListSkeleton, TotalTabSkeleton, BalanceTabSkeleton } from '../../components/common/ExpenseTabSkeleton';
+import ExpenseBalanceSummary from '../../components/common/ExpenseBalanceSummary';
 import {
   EXPENSE_CATS,
   NOTE_CATS,
@@ -72,7 +73,8 @@ import {
   resolveExpenseCategory,
 } from '../../components/common/CategoryIcons';
 import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
-import { SUPPORTED_CURRENCIES, formatCurrency, buildExpenseLabel } from '../../utils/currency';
+import { formatCurrency, buildExpenseLabel } from '../../utils/currency';
+import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -923,14 +925,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
     setShowAddExpense(false);
   }
 
-  /** A user can edit an expense if they are an admin, the creator, or have a share in the split. */
-  function canEditExpense(exp: ExpenseLocal): boolean {
-    if (myMemberRole === 'admin') return true;
-    if (exp.createdByUserId === currentUserId) return true;
-    if (exp.splitAmong?.includes(currentUserId)) return true;
-    return false;
-  }
-
   function startEditExpense(exp: ExpenseLocal) {
     setExpDesc(exp.description);
     setExpAmount(String(exp.amount));
@@ -959,11 +953,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
     setShowAddExpense(true);
   }
 
-  function handleDeleteExpense(eid: string, createdByUserId: string) {
-    if (myMemberRole !== 'admin' && createdByUserId !== currentUserId) {
-      Toast.show({ type: 'error', text1: 'Permission denied', text2: 'You can only delete your own expenses.' });
-      return;
-    }
+  function handleDeleteExpense(eid: string) {
     showConfirm({
       title: 'Delete Expense',
       message: 'This will permanently remove this expense. This action cannot be undone.',
@@ -2040,15 +2030,13 @@ export default function EventDetailScreen({ route, navigation }: any) {
                             <Text style={{ fontSize: 13, color: '#0f172a', fontWeight: '600' }}>{expCurrency}</Text>
                           </TouchableOpacity>
                         </View>
-                        {showExpCurrencyDrop && (
-                          <View style={styles.dropdown}>
-                            {SUPPORTED_CURRENCIES.map(c => (
-                              <TouchableOpacity key={c.code} style={styles.dropdownItem} onPress={() => { setExpCurrency(c.code); setShowExpCurrencyDrop(false); }} activeOpacity={0.7}>
-                                <Text style={{ fontSize: 13, color: '#0f172a' }}>{c.symbol} {c.code} — {c.name}</Text>
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
+                        <CurrencyPickerDropdown
+                          visible={showExpCurrencyDrop}
+                          selectedCode={expCurrency}
+                          onSelect={code => { setExpCurrency(code); setShowExpCurrencyDrop(false); }}
+                          style={styles.dropdown}
+                          itemStyle={styles.dropdownItem}
+                        />
                         <Text style={styles.fLabel}>Category</Text>
                         <TouchableOpacity style={[styles.fInputTouch, { justifyContent: 'center' }]} onPress={() => setShowExpCatDrop(p => !p)} activeOpacity={0.8}>
                           <ExpenseCatRow cat={expCategory} />
@@ -2146,16 +2134,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
                               <View style={{ alignItems: 'flex-end' }}>
                                 <Text style={styles.expAmt}>{formatCurrency(exp.amount, exp.currency)}</Text>
                                 <Text style={{ fontSize: 11, color: balColor, marginBottom: 6 }}>{balText}</Text>
-                                {(canEditExpense(exp) || myMemberRole === 'admin' || exp.createdByUserId === currentUserId) && (
-                                  <View style={{ flexDirection: 'row', gap: 12 }}>
-                                    {canEditExpense(exp) && (
-                                      <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text></TouchableOpacity>
-                                    )}
-                                    {(myMemberRole === 'admin' || exp.createdByUserId === currentUserId) && (
-                                      <TouchableOpacity onPress={() => handleDeleteExpense(exp.id, exp.createdByUserId ?? '')} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
-                                    )}
-                                  </View>
-                                )}
+                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                  <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text></TouchableOpacity>
+                                  <TouchableOpacity onPress={() => handleDeleteExpense(exp.id)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
+                                </View>
                               </View>
                             </View>
                           );
@@ -2191,26 +2173,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   <View>
                     {isLoadingExpenses ? <BalanceTabSkeleton /> : (
                       <>
-                        {Object.entries(totalExpensesByCurrency).filter(([, v]) => parseFloat(v) > 0).map(([cur, total]) => {
-                          const mb = myBalances[cur] ?? 0;
-                          return (
-                            <View key={cur} style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-                              <View style={styles.balCard}><Text style={styles.balLabel}>Total ({cur})</Text><Text style={styles.balValue}>{formatCurrency(parseFloat(total), cur)}</Text></View>
-                              <View style={[styles.balCard, { backgroundColor: mb >= 0 ? '#f0fdf4' : '#fff1f2' }]}>
-                                <Text style={styles.balLabel}>My Balance</Text>
-                                <Text style={[styles.balValue, { color: mb >= 0 ? '#16a34a' : '#e11d48' }]}>
-                                  {mb >= 0 ? '+' : ''}{formatCurrency(Math.abs(mb), cur)}
-                                </Text>
-                              </View>
-                            </View>
-                          );
-                        })}
-                        {Object.keys(totalExpensesByCurrency).length === 0 && (
-                          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                            <View style={styles.balCard}><Text style={styles.balLabel}>Total</Text><Text style={styles.balValue}>₹0</Text></View>
-                            <View style={styles.balCard}><Text style={styles.balLabel}>My Balance</Text><Text style={styles.balValue}>₹0</Text></View>
-                          </View>
-                        )}
+                        <ExpenseBalanceSummary
+                          totalExpensesByCurrency={totalExpensesByCurrency}
+                          myBalances={myBalances}
+                        />
                         {balances.length === 0 ? (
                           <View style={styles.emptyCenter}>
                             <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
@@ -2219,21 +2185,26 @@ export default function EventDetailScreen({ route, navigation }: any) {
                             <Text style={styles.emptyTitle}>All settled up!</Text>
                             <Text style={styles.emptySub}>No outstanding balances</Text>
                           </View>
-                        ) : balances.map((debt, i) => (
-                          <View key={i} style={[styles.expRow, { alignItems: 'center' }]}>
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.expName}>{debt.fromName} owes {debt.toName}</Text>
-                              <Text style={styles.expMeta}>{formatCurrency(debt.amount, debt.currency)}</Text>
-                            </View>
-                            {debt.from === currentUserId && (
-                              <TouchableOpacity style={[styles.tealBtnFull, { paddingHorizontal: 12, paddingVertical: 6 }]}
-                                onPress={() => handleSettleEventDebt(debt.to, debt.amount, debt.currency)}
-                                activeOpacity={0.85}>
-                                <Text style={[styles.tealBtnTxt, { fontSize: 12 }]}>Settle</Text>
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        ))}
+                        ) : (
+                          <>
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: '#0f172a', marginBottom: 10 }}>Outstanding</Text>
+                            {balances.map((debt, i) => (
+                              <View key={i} style={[styles.expRow, { alignItems: 'center' }]}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={styles.expName}>{debt.fromName} owes {debt.toName}</Text>
+                                  <Text style={styles.expMeta}>{formatCurrency(debt.amount, debt.currency)}</Text>
+                                </View>
+                                {debt.from === currentUserId && (
+                                  <TouchableOpacity style={[styles.tealBtnFull, { paddingHorizontal: 12, paddingVertical: 6 }]}
+                                    onPress={() => handleSettleEventDebt(debt.to, debt.amount, debt.currency)}
+                                    activeOpacity={0.85}>
+                                    <Text style={[styles.tealBtnTxt, { fontSize: 12 }]}>Settle</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            ))}
+                          </>
+                        )}
                       </>
                     )}
                   </View>

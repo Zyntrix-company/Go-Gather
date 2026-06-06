@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import type { GroupExpenseTotals } from '../../utils/expenseTotals';
 import { formatCurrency } from '../../utils/currency';
+import ExpenseDistributionBar from './ExpenseDistributionBar';
 
 type Props = {
   totals: GroupExpenseTotals;
@@ -45,23 +46,10 @@ export default function ExpenseTotalsTab({ totals, styles: s }: Props) {
     );
   }
 
-  // Single combined total string: "₹1,200 + $50 + €30"
-  const totalSummary = byCurrency
-    .filter(c => c.groupTotal > 0)
-    .map(c => formatCurrency(c.groupTotal, c.currency))
-    .join('  +  ');
-
-  const memberCount = byCurrency[0]?.members.length ?? 0;
-
   return (
     <View>
-      {/* One group total card showing all currencies inline */}
-      <View style={[local.groupCard, s.balCard]}>
-        <Text style={s.balLabel}>Group total expenditure</Text>
-        <Text style={[s.balValue, { fontSize: byCurrency.length > 1 ? 18 : 22 }]}>{totalSummary}</Text>
-        <Text style={local.groupHint}>
-          {memberCount} member{memberCount !== 1 ? 's' : ''}
-        </Text>
+      <View style={local.groupCard}>
+        <ExpenseDistributionBar byCurrency={byCurrency} />
       </View>
 
       <Text style={local.sectionLabel}>Individual breakdown</Text>
@@ -89,12 +77,6 @@ const local = StyleSheet.create({
   groupCard: {
     width: '100%',
     marginBottom: 16,
-    paddingVertical: 14,
-  },
-  groupHint: {
-    fontSize: 11,
-    color: '#64748b',
-    marginTop: 4,
   },
   sectionLabel: {
     fontSize: 13,

@@ -288,22 +288,6 @@ const updateExpense = async ({ parentType, parentId }, expId, requesterId, reque
   }
   const existing = expResult.rows[0];
 
-  // Edit allowed for: admins, the creator, the payer, or any user with a share in the expense.
-  let canEdit = requesterRole === 'admin'
-    || existing.created_by === requesterId
-    || existing.paid_by === requesterId;
-  if (!canEdit) {
-    const splitCheck = await db(
-      'SELECT 1 FROM expense_splits WHERE expense_id = $1 AND user_id = $2 LIMIT 1',
-      [expId, requesterId],
-    );
-    canEdit = splitCheck.rowCount > 0;
-  }
-  if (!canEdit) {
-    const e = new Error('Only members involved in this expense can edit it');
-    e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
-  }
-
   const amount   = body.amount    !== undefined ? body.amount    : parseFloat(existing.amount);
   const splitType = body.splitType !== undefined ? body.splitType : existing.split_type;
   const paidBy   = body.paidBy    !== undefined ? body.paidBy    : existing.paid_by;
@@ -376,13 +360,6 @@ const deleteExpense = async ({ parentType, parentId }, expId, requesterId, reque
   if (expResult.rowCount === 0) {
     const e = new Error('Expense not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
   }
-  const exp = expResult.rows[0];
-
-  if (exp.created_by !== requesterId && requesterRole !== 'admin') {
-    const e = new Error('Only the creator or an admin can delete this expense');
-    e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
-  }
-
   await db('DELETE FROM expenses WHERE id = $1', [expId]);
   const simplified = await computeSimplifiedDebts(parentType, parentId);
   return enrichSimplifiedDebts(simplified, requesterId);

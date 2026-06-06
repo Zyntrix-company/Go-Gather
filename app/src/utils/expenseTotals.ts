@@ -1,4 +1,13 @@
+import { resolveExpenseCategory } from '../components/common/CategoryIcons';
+
 export type MemberRosterEntry = { userId: string; name: string };
+
+export type CategoryExpenseTotals = {
+  slug: string;
+  label: string;
+  amount: number;
+  color: string;
+};
 
 export type MemberExpenseTotals = {
   userId: string;
@@ -11,6 +20,7 @@ export type CurrencyExpenseTotals = {
   currency: string;
   groupTotal: number;
   members: MemberExpenseTotals[];
+  categories: CategoryExpenseTotals[];
 };
 
 export type GroupExpenseTotals = {
@@ -23,6 +33,7 @@ type ExpenseLike = {
   splitAmong: string[];
   splitType: 'equally' | 'amount' | 'percent';
   currency: string;
+  category?: string;
   splitBreakdown?: { userId: string; amount: number }[];
 };
 
@@ -51,9 +62,23 @@ export function buildGroupExpenseTotals(
     const nameToUserId = new Map<string, string>();
     for (const r of roster) nameToUserId.set(r.name, r.userId);
 
+    const categoryTotals = new Map<string, CategoryExpenseTotals>();
     let groupTotal = 0;
     for (const exp of curExpenses) {
       groupTotal += exp.amount;
+
+      const catDef = resolveExpenseCategory(exp.category ?? 'general');
+      const existing = categoryTotals.get(catDef.slug);
+      if (existing) {
+        existing.amount += exp.amount;
+      } else {
+        categoryTotals.set(catDef.slug, {
+          slug: catDef.slug,
+          label: catDef.label,
+          amount: exp.amount,
+          color: catDef.color,
+        });
+      }
 
       const payerId = nameToUserId.get(exp.paidBy);
       if (payerId && byId.has(payerId)) {
@@ -80,8 +105,14 @@ export function buildGroupExpenseTotals(
       .map(r => byId.get(r.userId)!)
       .sort((a, b) => b.shareTotal - a.shareTotal);
 
-    byCurrency.push({ currency, groupTotal, members });
+    const categories = [...categoryTotals.values()]
+      .filter(c => c.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+
+    byCurrency.push({ currency, groupTotal, members, categories });
   }
+
+  byCurrency.sort((a, b) => b.groupTotal - a.groupTotal);
 
   return { byCurrency };
 }

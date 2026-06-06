@@ -16,6 +16,7 @@ const {
 } = require('../../utils/mailer');
 const logger = require('../../utils/logger');
 const { syncUserLegalAckFromCurrent } = require('../legal/legal.service');
+const { normalizeAuthEmail } = require('../../utils/email.util');
 
 const { getPresignedDownloadUrl } = require('../../utils/s3.util');
 
@@ -61,18 +62,32 @@ const generateOTP = () => {
 /**
  * Store an OTP in the DB.
  */
-const storeOTP = async (userId, otp, purpose) => {
+const storeOTP = async (userId, otp, purpose, client = db) => {
   const otpHash = hashToken(otp); // Reuse hashToken (SHA-256)
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
   // Delete previous OTPs for this user and purpose
-  await db.query('DELETE FROM otps WHERE user_id = $1 AND purpose = $2', [userId, purpose]);
+  await client.query('DELETE FROM otps WHERE user_id = $1 AND purpose = $2', [userId, purpose]);
 
-  await db.query(
+  await client.query(
     `INSERT INTO otps (user_id, otp_hash, purpose, expires_at)
      VALUES ($1, $2, $3, $4)`,
     [userId, otpHash, purpose, expiresAt],
   );
+};
+
+/**
+ * Roll back a signup when verification email delivery fails after DB commit.
+ */
+const rollbackFailedSignup = async (userId) => {
+  try {
+    await db.query('DELETE FROM users WHERE id = $1', [userId]);
+  } catch (cleanupErr) {
+    logger.error('Failed to roll back signup after email delivery error', {
+      userId,
+      error: cleanupErr.message,
+    });
+  }
 };
 
 /* ───────────────────────────────────────────
@@ -83,8 +98,15 @@ const storeOTP = async (userId, otp, purpose) => {
  * POST /auth/signup — Email / password registration.
  */
 const signup = async ({ email, phone, password }) => {
-  // Check for existing user
-  const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+  const canonicalEmail = normalizeAuthEmail(email);
+  if (!canonicalEmail) {
+    const err = new Error('A valid email address is required');
+    err.statusCode = 422;
+    err.error = 'ValidationError';
+    throw err;
+  }
+
+  const existing = await db.query('SELECT id FROM users WHERE email = $1', [canonicalEmail]);
   if (existing.rows.length > 0) {
     const err = new Error('An account with this email already exists');
     err.statusCode = 409;
@@ -93,22 +115,44 @@ const signup = async ({ email, phone, password }) => {
   }
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-
-  const result = await db.query(
-    `INSERT INTO users (email, phone, password_hash)
-     VALUES ($1, $2, $3)
-     RETURNING id, email, phone, is_profile_complete, created_at`,
-    [email, phone || null, passwordHash],
-  );
-
-  const user = result.rows[0];
-
-  await syncUserLegalAckFromCurrent(user.id);
-
-  // Generate and send verification OTP
   const otp = generateOTP();
-  await storeOTP(user.id, otp, 'email-verification');
-  await sendVerificationOTPEmail(user.email, otp);
+
+  const client = await db.getClient();
+  let user;
+
+  try {
+    await client.query('BEGIN');
+
+    const result = await client.query(
+      `INSERT INTO users (email, phone, password_hash)
+       VALUES ($1, $2, $3)
+       RETURNING id, email, phone, is_profile_complete, is_verified, created_at`,
+      [canonicalEmail, phone || null, passwordHash],
+    );
+
+    user = result.rows[0];
+
+    await syncUserLegalAckFromCurrent(user.id, client);
+    await storeOTP(user.id, otp, 'email-verification', client);
+
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  try {
+    await sendVerificationOTPEmail(user.email, otp);
+  } catch (error) {
+    await rollbackFailedSignup(user.id);
+    logger.error('Signup verification email failed', { email: user.email, error: error.message });
+    const err = new Error('Could not send verification email. Please try again.');
+    err.statusCode = 503;
+    err.error = 'EmailDeliveryFailed';
+    throw err;
+  }
 
   return {
     user: {
@@ -185,9 +229,17 @@ const googleAuth = async ({ idToken, deviceToken, platform }) => {
     audience: config.google.clientId,
   });
   const payload = ticket.getPayload();
-  const { sub: googleId, email, name, picture } = payload;
+  const { sub: googleId, email: rawEmail, name, picture } = payload;
+  const email = normalizeAuthEmail(rawEmail);
 
-  // Check for existing user by email
+  if (!email) {
+    const err = new Error('Google account must have a valid email associated.');
+    err.statusCode = 400;
+    err.error = 'NoEmail';
+    throw err;
+  }
+
+  // Check for existing user by canonical email
   let result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
   let isNewUser = false;
 
@@ -246,7 +298,8 @@ const facebookAuth = async ({ accessToken, deviceToken, platform }) => {
   // Let's assume axios is added.
 
   const response = await axios.get(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`);
-  const { id: facebookId, email, name, picture } = response.data;
+  const { id: facebookId, email: rawEmail, name, picture } = response.data;
+  const email = normalizeAuthEmail(rawEmail);
 
   if (!email) {
     const err = new Error('Facebook account must have an email associated.');
@@ -255,7 +308,7 @@ const facebookAuth = async ({ accessToken, deviceToken, platform }) => {
     throw err;
   }
 
-  // Check for existing user by email
+  // Check for existing user by canonical email
   let result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
   let isNewUser = false;
 

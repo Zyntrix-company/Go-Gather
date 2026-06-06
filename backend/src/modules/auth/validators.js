@@ -1,10 +1,14 @@
 const { body } = require('express-validator');
+const { normalizeAuthEmail } = require('../../utils/email.util');
 
-const signupValidation = [
+const authEmailField = (message = 'A valid email address is required') =>
   body('email')
     .isEmail()
-    .withMessage('A valid email address is required')
-    .normalizeEmail(),
+    .withMessage(message)
+    .customSanitizer(normalizeAuthEmail);
+
+const signupValidation = [
+  authEmailField(),
   body('password')
     .isLength({ min: 8 })
     .withMessage('Password must be at least 8 characters')
@@ -17,10 +21,7 @@ const signupValidation = [
 ];
 
 const loginValidation = [
-  body('email')
-    .isEmail()
-    .withMessage('A valid email address is required')
-    .normalizeEmail(),
+  authEmailField(),
   body('password')
     .notEmpty()
     .withMessage('Password is required'),
@@ -87,7 +88,7 @@ const forgotPasswordValidation = [
     .optional()
     .isEmail()
     .withMessage('Invalid email address')
-    .normalizeEmail(),
+    .customSanitizer(normalizeAuthEmail),
   body('phone')
     .optional()
     .isMobilePhone()
@@ -95,20 +96,14 @@ const forgotPasswordValidation = [
 ];
 
 const verifyEmailValidation = [
-  body('email')
-    .isEmail()
-    .withMessage('Invalid email address')
-    .normalizeEmail(),
+  authEmailField('Invalid email address'),
   body('otp')
     .isLength({ min: 6, max: 6 })
     .withMessage('OTP must be 6 digits'),
 ];
 
 const resetPasswordValidation = [
-  body('email')
-    .isEmail()
-    .withMessage('Invalid email address')
-    .normalizeEmail(),
+  authEmailField('Invalid email address'),
   body('otp')
     .isLength({ min: 6, max: 6 })
     .withMessage('OTP must be 6 digits'),
@@ -131,10 +126,7 @@ const changePasswordValidation = [
 ];
 
 const resendOTPValidation = [
-  body('email')
-    .isEmail()
-    .withMessage('Invalid email address')
-    .normalizeEmail(),
+  authEmailField('Invalid email address'),
   body('purpose')
     .isIn(['email-verification', 'password-reset'])
     .withMessage('Purpose must be email-verification or password-reset'),

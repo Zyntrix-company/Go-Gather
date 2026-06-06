@@ -200,6 +200,12 @@ const sendEmailViaBrevo = async ({ to, subject, html, text }) => {
     throw new Error('Brevo is not configured (BREVO_API_KEY and BREVO_FROM_EMAIL required)');
   }
 
+  if (apiKey.startsWith('xsmtpsib-')) {
+    throw new Error(
+      'BREVO_API_KEY looks like an SMTP key (xsmtpsib-). Use a v3 API key (xkeysib-) from Brevo → SMTP & API → API keys'
+    );
+  }
+
   const payload = {
     sender: { name: fromName, email: fromEmail },
     to: [{ email: to }],

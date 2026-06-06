@@ -14,10 +14,10 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { query, pool } = require('../src/config/database');
+const { normalizeAuthEmail } = require('../src/utils/email.util');
 
 async function main() {
-  // Normalize to lowercase so it matches what the login validator does (normalizeEmail)
-  const email = (process.env.PLATFORM_ADMIN_EMAIL || '').toLowerCase().trim();
+  const email = normalizeAuthEmail(process.env.PLATFORM_ADMIN_EMAIL || '');
   if (!email) {
     console.error('ERROR: PLATFORM_ADMIN_EMAIL env var is required.');
     process.exit(1);

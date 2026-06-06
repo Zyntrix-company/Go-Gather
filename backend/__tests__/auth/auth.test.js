@@ -69,9 +69,16 @@ describe('Auth Routes', () => {
     });
 
     it('returns 201 and sends OTP — does NOT issue tokens yet', async () => {
-      db.query
-        .mockResolvedValueOnce({ rows: [] })                        // check existing user
-        .mockResolvedValueOnce({                                     // insert user
+      const mockClient = {
+        query: jest.fn(),
+        release: jest.fn(),
+      };
+
+      db.query.mockResolvedValueOnce({ rows: [] }); // check existing user
+      db.getClient.mockResolvedValueOnce(mockClient);
+      mockClient.query
+        .mockResolvedValueOnce(undefined) // BEGIN
+        .mockResolvedValueOnce({
           rows: [{
             id: VALID_USER_ID,
             email: 'test@test.com',
@@ -80,8 +87,9 @@ describe('Auth Routes', () => {
             is_verified: false,
           }],
         })
-        .mockResolvedValueOnce({ rows: [] })                        // DELETE FROM otps
-        .mockResolvedValueOnce({ rows: [] });                       // INSERT INTO otps
+        .mockResolvedValueOnce({ rows: [] }) // DELETE FROM otps
+        .mockResolvedValueOnce({ rows: [] }) // INSERT INTO otps
+        .mockResolvedValueOnce(undefined); // COMMIT
 
       const res = await request(app)
         .post('/auth/signup')
@@ -91,9 +99,63 @@ describe('Auth Routes', () => {
       expect(res.body.user).toHaveProperty('id');
       expect(res.body.user.email).toBe('test@test.com');
       expect(res.body.user.isVerified).toBe(false);
-      // Tokens must NOT be present — user must verify email first
       expect(res.body.accessToken).toBeUndefined();
       expect(res.body.refreshToken).toBeUndefined();
+    });
+
+    it('returns 409 when a Gmail alias of an existing email is used', async () => {
+      db.query.mockResolvedValueOnce({ rows: [{ id: 'existing-id' }] });
+
+      const res = await request(app)
+        .post('/auth/signup')
+        .send({ email: 'john.doe@gmail.com', password: 'ValidPass1' });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.body.error).toBe('EmailExists');
+      expect(db.query).toHaveBeenCalledWith(
+        'SELECT id FROM users WHERE email = $1',
+        ['johndoe@gmail.com'],
+      );
+    });
+
+    it('returns 503 and rolls back user when verification email fails', async () => {
+      const { sendVerificationOTPEmail } = require('../../src/utils/mailer');
+      sendVerificationOTPEmail.mockRejectedValueOnce(new Error('SES down'));
+
+      const mockClient = {
+        query: jest.fn(),
+        release: jest.fn(),
+      };
+
+      db.query
+        .mockResolvedValueOnce({ rows: [] }) // check existing user
+        .mockResolvedValueOnce({ rows: [] }); // rollback delete
+      db.getClient.mockResolvedValueOnce(mockClient);
+      mockClient.query
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({
+          rows: [{
+            id: VALID_USER_ID,
+            email: 'test@test.com',
+            phone: null,
+            is_profile_complete: false,
+            is_verified: false,
+          }],
+        })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce(undefined);
+
+      const res = await request(app)
+        .post('/auth/signup')
+        .send({ email: 'test@test.com', password: 'ValidPass1' });
+
+      expect(res.statusCode).toBe(503);
+      expect(res.body.error).toBe('EmailDeliveryFailed');
+      expect(db.query).toHaveBeenCalledWith(
+        'DELETE FROM users WHERE id = $1',
+        [VALID_USER_ID],
+      );
     });
 
     it('returns 409 when email already exists', async () => {

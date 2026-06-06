@@ -53,11 +53,17 @@ export function ExpenseListSkeleton() {
 export function TotalTabSkeleton() {
   return (
     <View style={{ marginTop: 4 }}>
-      {/* Group total card */}
-      <View style={sk.card}>
-        <SkeletonBox height={11} width="45%" />
-        <SkeletonBox height={24} width="60%" style={{ marginTop: 10 }} />
-        <SkeletonBox height={10} width="30%" style={{ marginTop: 8 }} />
+      {/* Per-currency distribution bars */}
+      <View style={{ marginBottom: 16 }}>
+        {[0, 1].map(i => (
+          <View key={i} style={{ marginTop: i === 0 ? 0 : 18, gap: 8 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <SkeletonBox height={12} width="28%" />
+              <SkeletonBox height={12} width="22%" />
+            </View>
+            <SkeletonBox height={16} width="100%" style={{ borderRadius: 8 }} />
+          </View>
+        ))}
       </View>
 
       {/* Section label */}
@@ -84,14 +90,17 @@ export function TotalTabSkeleton() {
 export function BalanceTabSkeleton() {
   return (
     <View style={{ marginTop: 4 }}>
-      {/* Two stat cards side-by-side */}
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-        {[0, 1].map(i => (
-          <View key={i} style={[sk.card, { flex: 1 }]}>
-            <SkeletonBox height={11} width="60%" />
-            <SkeletonBox height={22} width="75%" style={{ marginTop: 10 }} />
-          </View>
-        ))}
+      {/* Total card + balance blocks */}
+      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 18 }}>
+        <View style={{ flex: 1, gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' }}>
+          <SkeletonBox height={10} width="40%" />
+          <SkeletonBox height={14} width="90%" />
+          <SkeletonBox height={14} width="75%" />
+        </View>
+        <View style={{ flex: 1, gap: 8 }}>
+          <SkeletonBox height={72} width="100%" style={{ borderRadius: 12 }} />
+          <SkeletonBox height={72} width="100%" style={{ borderRadius: 12 }} />
+        </View>
       </View>
 
       {/* Debt rows */}
