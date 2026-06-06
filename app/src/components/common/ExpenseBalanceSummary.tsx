@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { formatCurrency } from '../../utils/currency';
+import { formatCurrencyCompact, formatSignedCurrencyCompact } from '../../utils/currency';
 
 const EPS = 0.005;
 
@@ -49,17 +49,19 @@ export default function ExpenseBalanceSummary({ totalExpensesByCurrency, myBalan
   }
 
   return (
-    <View style={[styles.row, !hasBalanceBlocks && styles.rowSingle]}>
-      <View style={[styles.totalCard, !hasBalanceBlocks && styles.totalCardFull]}>
+    <View style={styles.row}>
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>Total</Text>
         {totalRows.length > 0 ? (
-          <View style={styles.totalLines}>
+          <View>
             {totalRows.map((row, idx) => (
               <View
                 key={row.code}
-                style={[styles.totalLine, idx < totalRows.length - 1 && styles.totalLineBorder]}>
-                <Text style={styles.totalCode}>{row.code}</Text>
-                <Text style={styles.totalAmount}>{formatCurrency(row.total, row.code)}</Text>
+                style={[styles.line, idx < totalRows.length - 1 && styles.lineBorder]}>
+                <Text style={styles.lineCode}>{row.code}</Text>
+                <Text style={styles.lineAmount} numberOfLines={1}>
+                  {formatCurrencyCompact(row.total, row.code)}
+                </Text>
               </View>
             ))}
           </View>
@@ -69,31 +71,33 @@ export default function ExpenseBalanceSummary({ totalExpensesByCurrency, myBalan
       </View>
 
       {hasBalanceBlocks && (
-        <View style={styles.balanceCol}>
-          {balanceRows.map(row => {
-            const isPositive = row.balance > EPS;
-            return (
-              <View
-                key={row.code}
-                style={[
-                  styles.balanceBlock,
-                  isPositive ? styles.balancePositive : styles.balanceNegative,
-                ]}>
-                <Text style={styles.balanceLabel}>You</Text>
-                <View style={styles.balanceValueRow}>
-                  <Text style={[styles.balanceSign, isPositive ? styles.balanceTextPositive : styles.balanceTextNegative]}>
-                    {isPositive ? '+' : '−'}
-                  </Text>
-                  <Text style={[styles.balanceAmount, isPositive ? styles.balanceTextPositive : styles.balanceTextNegative]}>
-                    {formatCurrency(Math.abs(row.balance), row.code)}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>You</Text>
+          <View>
+            {balanceRows.map((row, idx) => {
+              const isPositive = row.balance > EPS;
+              const textColor = isPositive ? styles.textPositive : styles.textNegative;
+              const bgStyle = isPositive ? styles.linePositive : styles.lineNegative;
+              return (
+                <View
+                  key={row.code}
+                  style={[
+                    styles.line,
+                    bgStyle,
+                    idx < balanceRows.length - 1 && styles.lineBorder,
+                  ]}>
+                  <Text style={[styles.lineCode, textColor]}>{row.code}</Text>
+                  <Text
+                    style={[styles.lineAmount, textColor]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.85}>
+                    {formatSignedCurrencyCompact(row.balance, row.code)}
                   </Text>
                 </View>
-                <Text style={[styles.balanceCode, isPositive ? styles.balanceTextPositive : styles.balanceTextNegative]}>
-                  {row.code}
-                </Text>
-              </View>
-            );
-          })}
+              );
+            })}
+          </View>
         </View>
       )}
     </View>
@@ -105,25 +109,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginBottom: 18,
-    alignItems: 'stretch',
-  },
-  rowSingle: {
-    marginBottom: 18,
+    alignItems: 'flex-start',
   },
   emptyWrap: {
     marginBottom: 18,
     padding: 12,
   },
-  totalCard: {
+  card: {
     flex: 1,
+    minWidth: 0,
     backgroundColor: '#f8fafc',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
     padding: 12,
-  },
-  totalCardFull: {
-    flex: 1,
   },
   cardTitle: {
     fontSize: 11,
@@ -133,30 +132,37 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     marginBottom: 10,
   },
-  totalLines: {
-    gap: 0,
-  },
-  totalLine: {
+  line: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 6,
+    gap: 6,
   },
-  totalLineBorder: {
+  lineBorder: {
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
   },
-  totalCode: {
+  linePositive: {
+    backgroundColor: '#f0fdf4',
+  },
+  lineNegative: {
+    backgroundColor: '#fff1f2',
+  },
+  lineCode: {
     fontSize: 12,
     fontWeight: '700',
     color: '#475569',
-    width: 36,
+    width: 32,
+    flexShrink: 0,
   },
-  totalAmount: {
-    fontSize: 14,
+  lineAmount: {
+    fontSize: 13,
     fontWeight: '600',
     color: '#0f172a',
     flex: 1,
+    minWidth: 0,
     textAlign: 'right',
   },
   emptyLine: {
@@ -164,59 +170,10 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginTop: 4,
   },
-  balanceCol: {
-    flex: 1,
-    gap: 8,
-    justifyContent: 'flex-start',
-  },
-  balanceBlock: {
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    minHeight: 72,
-    justifyContent: 'center',
-  },
-  balancePositive: {
-    backgroundColor: '#f0fdf4',
-    borderColor: '#86efac',
-  },
-  balanceNegative: {
-    backgroundColor: '#fff1f2',
-    borderColor: '#fda4af',
-  },
-  balanceLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#94a3b8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-    marginBottom: 4,
-  },
-  balanceValueRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 2,
-  },
-  balanceSign: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  balanceAmount: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  balanceCode: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 4,
-    opacity: 0.85,
-  },
-  balanceTextPositive: {
+  textPositive: {
     color: '#16a34a',
   },
-  balanceTextNegative: {
+  textNegative: {
     color: '#e11d48',
   },
 });

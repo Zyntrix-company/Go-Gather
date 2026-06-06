@@ -62,11 +62,11 @@ const getBalances = async (req, res, next) => {
 
 const settle = async (req, res, next) => {
   try {
-    const { withUserId, amount } = req.body;
+    const { withUserId, amount, currency } = req.body;
     if (!withUserId || !amount) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'withUserId and amount are required', statusCode: 400 });
     }
-    const outstanding = await service.settle(req.tripMember.tripId, req.user.id, { withUserId, amount });
+    const outstanding = await service.settle(req.tripMember.tripId, req.user.id, { withUserId, amount, currency });
     res.status(200).json({ outstanding });
   } catch (e) { next(e); }
 };

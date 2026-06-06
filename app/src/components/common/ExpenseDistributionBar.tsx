@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { CurrencyExpenseTotals } from '../../utils/expenseTotals';
-import { formatCurrency } from '../../utils/currency';
+import { formatCurrencyCompact } from '../../utils/currency';
 
 const CURRENCY_COLORS: Record<string, string> = {
   INR: '#0d9488',
@@ -42,7 +42,7 @@ export default function ExpenseDistributionBar({ byCurrency }: Props) {
               {/* Currency label + total */}
               <View style={styles.currencyHeader}>
                 <Text style={styles.currencyCode}>{cur.currency}</Text>
-                <Text style={styles.currencyTotal}>{formatCurrency(cur.groupTotal, cur.currency)}</Text>
+                <Text style={styles.currencyTotal}>{formatCurrencyCompact(cur.groupTotal, cur.currency)}</Text>
               </View>
 
               {/* Per-currency category bar (full width = 100% of this currency) */}

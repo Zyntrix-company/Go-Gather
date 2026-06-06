@@ -97,9 +97,10 @@ export function BalanceTabSkeleton() {
           <SkeletonBox height={14} width="90%" />
           <SkeletonBox height={14} width="75%" />
         </View>
-        <View style={{ flex: 1, gap: 8 }}>
-          <SkeletonBox height={72} width="100%" style={{ borderRadius: 12 }} />
-          <SkeletonBox height={72} width="100%" style={{ borderRadius: 12 }} />
+        <View style={{ flex: 1, gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0' }}>
+          <SkeletonBox height={10} width="30%" />
+          <SkeletonBox height={14} width="90%" />
+          <SkeletonBox height={14} width="75%" />
         </View>
       </View>
 

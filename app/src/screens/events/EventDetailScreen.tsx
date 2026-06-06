@@ -73,9 +73,10 @@ import {
   resolveExpenseCategory,
 } from '../../components/common/CategoryIcons';
 import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
-import { formatCurrency, buildExpenseLabel } from '../../utils/currency';
+import { formatCurrencyCompact, buildExpenseLabel } from '../../utils/currency';
 import { getExpenseRowBalanceLabel } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
+import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -988,7 +989,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
     }
     showConfirm({
       title: 'Record settlement',
-      message: `Record a payment of ${formatCurrency(amt, currency)} to settle this balance? Balances will update for everyone on this event.`,
+      message: `Record a payment of ${formatCurrencyCompact(amt, currency)} to settle this balance? Balances will update for everyone on this event.`,
       confirmText: 'Settle',
       destructive: false,
       onConfirm: async () => {
@@ -2137,7 +2138,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                                 <Text style={styles.expMeta}>{exp.date}</Text>
                               </View>
                               <View style={{ alignItems: 'flex-end' }}>
-                                <Text style={styles.expAmt}>{formatCurrency(exp.amount, exp.currency)}</Text>
+                                <Text style={styles.expAmt}>{formatCurrencyCompact(exp.amount, exp.currency)}</Text>
                                 {balanceLabel && (
                                   <Text style={{ fontSize: 11, color: balanceLabel.color, marginBottom: 6 }}>{balanceLabel.text}</Text>
                                 )}
@@ -2193,24 +2194,18 @@ export default function EventDetailScreen({ route, navigation }: any) {
                             <Text style={styles.emptySub}>No outstanding balances</Text>
                           </View>
                         ) : (
-                          <>
-                            <Text style={{ fontSize: 13, fontWeight: '600', color: '#0f172a', marginBottom: 10 }}>Outstanding</Text>
-                            {balances.map((debt, i) => (
-                              <View key={i} style={[styles.expRow, { alignItems: 'center' }]}>
-                                <View style={{ flex: 1 }}>
-                                  <Text style={styles.expName}>{debt.fromName} owes {debt.toName}</Text>
-                                  <Text style={styles.expMeta}>{formatCurrency(debt.amount, debt.currency)}</Text>
-                                </View>
-                                {debt.from === currentUserId && (
-                                  <TouchableOpacity style={[styles.tealBtnFull, { paddingHorizontal: 12, paddingVertical: 6 }]}
-                                    onPress={() => handleSettleEventDebt(debt.to, debt.amount, debt.currency)}
-                                    activeOpacity={0.85}>
-                                    <Text style={[styles.tealBtnTxt, { fontSize: 12 }]}>Settle</Text>
-                                  </TouchableOpacity>
-                                )}
-                              </View>
-                            ))}
-                          </>
+                          <OutstandingDebtsList
+                            debts={balances}
+                            currentUserId={currentUserId}
+                            onSettle={handleSettleEventDebt}
+                            styles={{
+                              expRow: styles.expRow,
+                              expName: styles.expName,
+                              expMeta: styles.expMeta,
+                              tealBtnFull: styles.tealBtnFull,
+                              tealBtnTxt: styles.tealBtnTxt,
+                            }}
+                          />
                         )}
                       </>
                     )}

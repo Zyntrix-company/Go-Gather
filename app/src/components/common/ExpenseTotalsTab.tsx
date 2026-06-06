@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import type { GroupExpenseTotals } from '../../utils/expenseTotals';
-import { formatCurrency } from '../../utils/currency';
+import { formatCurrencyCompact } from '../../utils/currency';
 import ExpenseDistributionBar from './ExpenseDistributionBar';
 
 type Props = {
@@ -60,11 +60,11 @@ export default function ExpenseTotalsTab({ totals, styles: s }: Props) {
           <View key={`${m.userId}-${currency}`} style={[s.expRow, { alignItems: 'flex-start' }]}>
             <View style={{ flex: 1 }}>
               <Text style={s.expName}>{m.name}</Text>
-              <Text style={[s.expAmt, { marginTop: 4 }]}>{formatCurrency(m.shareTotal, currency)}</Text>
+              <Text style={[s.expAmt, { marginTop: 4 }]}>{formatCurrencyCompact(m.shareTotal, currency)}</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={s.expMeta}>Paid out</Text>
-              <Text style={[s.expAmt, { color: '#0d9488' }]}>{formatCurrency(m.paidTotal, currency)}</Text>
+              <Text style={[s.expAmt, { color: '#0d9488' }]}>{formatCurrencyCompact(m.paidTotal, currency)}</Text>
             </View>
           </View>
         )),

@@ -82,6 +82,34 @@ export function formatCurrency(amount: number, currency: string): string {
 }
 
 /**
+ * Compact display: ₹24400 → ₹24.4k, $500 → $500 (drops .00 when whole).
+ */
+export function formatCurrencyCompact(amount: number, currency: string): string {
+  const symbol = getCurrencySymbol(currency);
+  const abs = Math.abs(amount);
+  const decimals = getCurrencyDecimals(currency);
+
+  if (abs >= 1000) {
+    const k = abs / 1000;
+    const kStr = k >= 100 ? `${Math.round(k)}k` : `${parseFloat(k.toFixed(1))}k`;
+    return `${symbol}${kStr}`;
+  }
+
+  if (decimals === 0) return `${symbol}${Math.round(abs)}`;
+
+  const rounded = Math.round(abs * 100) / 100;
+  if (rounded % 1 === 0) return `${symbol}${rounded.toFixed(0)}`;
+  return `${symbol}${rounded.toFixed(decimals)}`;
+}
+
+/** e.g. +₹11.9k or −€220 */
+export function formatSignedCurrencyCompact(amount: number, currency: string): string {
+  if (Math.abs(amount) < 0.005) return formatCurrencyCompact(0, currency);
+  const sign = amount > 0 ? '+' : '−';
+  return `${sign}${formatCurrencyCompact(Math.abs(amount), currency)}`;
+}
+
+/**
  * Build a compact expense label for summary stats bars.
  * Shows the largest currency total; appends "+N" if multiple currencies are present.
  */
@@ -91,7 +119,6 @@ export function buildExpenseLabel(byCurrency: Record<string, string> | undefined
   if (entries.length === 0) return '0';
   const sorted = [...entries].sort((a, b) => parseFloat(b[1]) - parseFloat(a[1]));
   const [primaryCode, primaryAmount] = sorted[0];
-  const sym = getCurrencySymbol(primaryCode);
-  const formatted = `${sym}${parseFloat(primaryAmount).toLocaleString()}`;
+  const formatted = formatCurrencyCompact(parseFloat(primaryAmount), primaryCode);
   return sorted.length > 1 ? `${formatted} +${sorted.length - 1}` : formatted;
 }
