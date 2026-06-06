@@ -180,8 +180,9 @@ async function importFiles(userId, parentType, parentId, files) {
   return { imported, failed };
 }
 
-async function importPhotos(userId, parentType, parentId, files) {
+async function importPhotos(userId, parentType, parentId, files, { target } = {}) {
   const { getPresignedDownloadUrl } = require('../../utils/s3.util');
+  const galleryOverlay = require('../users/galleryOverlay.service');
   const accessToken = await resolveDriveAccessToken(userId);
 
   const imported = [];
@@ -205,6 +206,26 @@ async function importPhotos(userId, parentType, parentId, files) {
       }
       if (!resolvedMime) {
         failed.push({ fileName, reason: 'INVALID_FILE_TYPE' });
+        continue;
+      }
+
+      if (target === 'gallery') {
+        const photo = await galleryOverlay.importExtraPhotoFromBuffer(
+          userId,
+          parentType,
+          parentId,
+          buffer,
+          resolvedMime,
+          fileName,
+        );
+        imported.push({
+          id: photo.id,
+          fileName,
+          fileUrl: photo.fileUrl,
+          url: photo.url,
+          mimeType: photo.mimeType,
+          source: 'extra',
+        });
         continue;
       }
 

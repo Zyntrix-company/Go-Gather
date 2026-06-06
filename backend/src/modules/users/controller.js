@@ -1,5 +1,6 @@
 const usersService = require('./service');
 const galleryAlbumsService = require('./galleryAlbums.service');
+const galleryOverlayService = require('./galleryOverlay.service');
 const logger = require('../../utils/logger');
 
 /**
@@ -316,6 +317,83 @@ const deleteGalleryAlbumPhoto = async (req, res, next) => {
   }
 };
 
+const getMyGalleryItemPhotos = async (req, res, next) => {
+  try {
+    const { parentType, parentId } = req.params;
+    const result = await galleryOverlayService.getCuratedAlbumPhotos(
+      req.user.id,
+      parentType,
+      parentId,
+      req.user.id,
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const getUserGalleryItemPhotos = async (req, res, next) => {
+  try {
+    const { parentType, parentId } = req.params;
+    const result = await galleryOverlayService.getCuratedAlbumPhotos(
+      req.params.id,
+      parentType,
+      parentId,
+      req.user.id,
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const uploadGalleryItemPhotos = async (req, res, next) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'At least one photo is required' });
+    }
+    const { parentType, parentId } = req.params;
+    const result = await galleryOverlayService.uploadExtraPhotos(
+      req.user.id,
+      parentType,
+      parentId,
+      req.files,
+    );
+    return res.status(201).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const hideGallerySharedPhoto = async (req, res, next) => {
+  try {
+    const { parentType, parentId, photoId } = req.params;
+    const result = await galleryOverlayService.hideSharedPhoto(
+      req.user.id,
+      parentType,
+      parentId,
+      photoId,
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const deleteGalleryExtraPhoto = async (req, res, next) => {
+  try {
+    const result = await galleryOverlayService.deleteExtraPhoto(req.user.id, req.params.photoId);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
 /**
  * PATCH /users/device
  */
@@ -355,5 +433,10 @@ module.exports = {
   getUserGalleryAlbumPhotos,
   uploadGalleryAlbumPhotos,
   deleteGalleryAlbumPhoto,
+  getMyGalleryItemPhotos,
+  getUserGalleryItemPhotos,
+  uploadGalleryItemPhotos,
+  hideGallerySharedPhoto,
+  deleteGalleryExtraPhoto,
   updateDeviceToken,
 };

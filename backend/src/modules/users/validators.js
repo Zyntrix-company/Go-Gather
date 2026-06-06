@@ -92,6 +92,27 @@ const updateGalleryAlbumValidation = [
   body('bannerImageUrl').optional().isString(),
 ];
 
+const galleryItemParams = [
+  param('parentType')
+    .isIn(['trip', 'event'])
+    .withMessage('parentType must be trip or event'),
+  param('parentId')
+    .isUUID()
+    .withMessage('parentId must be a valid UUID'),
+];
+
+const galleryPhotoIdParam = [
+  param('photoId')
+    .isUUID()
+    .withMessage('photoId must be a valid UUID'),
+];
+
+const extraPhotoIdParam = [
+  param('photoId')
+    .isUUID()
+    .withMessage('photoId must be a valid UUID'),
+];
+
 module.exports = {
   saveProfileValidation,
   getPublicProfileValidation,
@@ -100,4 +121,7 @@ module.exports = {
   albumIdParam,
   createGalleryAlbumValidation,
   updateGalleryAlbumValidation,
+  galleryItemParams,
+  galleryPhotoIdParam,
+  extraPhotoIdParam,
 };

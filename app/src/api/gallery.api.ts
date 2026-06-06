@@ -25,6 +25,9 @@ export type GalleryPhoto = {
   url?: string;
   fileUrl?: string;
   uri?: string;
+  source?: 'shared' | 'extra';
+  activityId?: string | null;
+  activityTitle?: string | null;
 };
 
 function uploadMultipart(path: string, formData: FormData): Promise<any> {
@@ -131,6 +134,70 @@ export async function uploadGalleryAlbumPhotos(
 
 export async function deleteGalleryAlbumPhoto(albumId: string, photoId: string) {
   await client.delete(`/users/me/gallery/albums/${albumId}/photos/${photoId}`);
+}
+
+function mapGalleryItemPhoto(ph: any): GalleryPhoto {
+  return {
+    id: ph.id,
+    uri: ph.url ?? ph.fileUrl ?? '',
+    fileUrl: ph.fileUrl,
+    url: ph.url,
+    source: ph.source,
+    activityId: ph.activityId ?? null,
+    activityTitle: ph.activityTitle ?? null,
+  };
+}
+
+export async function getMyGalleryItemPhotos(
+  parentType: 'trip' | 'event',
+  parentId: string,
+): Promise<{ photos: GalleryPhoto[]; total: number }> {
+  const { data } = await client.get(`/users/me/gallery-items/${parentType}/${parentId}/photos`);
+  const photos = (data.photos ?? []).map(mapGalleryItemPhoto);
+  return { photos, total: data.total ?? photos.length };
+}
+
+export async function getUserGalleryItemPhotos(
+  userId: string,
+  parentType: 'trip' | 'event',
+  parentId: string,
+): Promise<{ photos: GalleryPhoto[]; total: number }> {
+  const { data } = await client.get(`/users/${userId}/gallery-items/${parentType}/${parentId}/photos`);
+  const photos = (data.photos ?? []).map(mapGalleryItemPhoto);
+  return { photos, total: data.total ?? photos.length };
+}
+
+export async function uploadGalleryItemPhotos(
+  parentType: 'trip' | 'event',
+  parentId: string,
+  assets: Array<{ uri: string; type?: string; name?: string }>,
+): Promise<{ photos: GalleryPhoto[] }> {
+  const formData = new FormData();
+  assets.forEach((asset) => {
+    formData.append('photos', {
+      uri: asset.uri,
+      type: asset.type ?? 'image/jpeg',
+      name: asset.name ?? 'photo.jpg',
+    } as any);
+  });
+  const data = await uploadMultipart(
+    `/users/me/gallery-items/${parentType}/${parentId}/photos`,
+    formData,
+  );
+  const photos = (data.photos ?? []).map(mapGalleryItemPhoto);
+  return { photos };
+}
+
+export async function hideGallerySharedPhoto(
+  parentType: 'trip' | 'event',
+  parentId: string,
+  photoId: string,
+) {
+  await client.post(`/users/me/gallery-items/${parentType}/${parentId}/photos/hide/${photoId}`);
+}
+
+export async function deleteGalleryExtraPhoto(photoId: string) {
+  await client.delete(`/users/me/gallery-items/extra-photos/${photoId}`);
 }
 
 export function emptyCustomAlbums(): GalleryAlbumsBySection {

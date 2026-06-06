@@ -110,17 +110,18 @@ describe('Photos Routes', () => {
   // ── DELETE /trips/:id/photos/:photoId ──────────────────────────────────────
 
   describe('DELETE /trips/:id/photos/:photoId', () => {
-    it('returns 403 when non-uploader non-admin tries to delete', async () => {
+    it('returns 200 when any member deletes a photo', async () => {
       mockTripMember();
-      db.query.mockResolvedValueOnce({
-        rows: [{ ...photoRow, uploaded_by: USER2_ID }],
-      });
+      db.query
+        .mockResolvedValueOnce({ rows: [{ ...photoRow, uploaded_by: USER2_ID }] })
+        .mockResolvedValueOnce({ rows: [{ id: PHOTO_ID }] });
 
       const res = await request(app)
         .delete(`/trips/${TRIP_ID}/photos/${PHOTO_ID}`)
         .set('Authorization', `Bearer ${token}`);
 
-      expect(res.statusCode).toBe(403);
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
     });
 
     it('returns 404 when photo not found', async () => {

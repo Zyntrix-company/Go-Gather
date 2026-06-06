@@ -554,6 +554,23 @@ export async function importDrivePhotos(
   };
 }
 
+export async function importDrivePhotosToGallery(
+  parentType: 'trip' | 'event',
+  parentId: string,
+  files: Pick<DriveFile, 'fileId' | 'name' | 'mimeType'>[],
+) {
+  const res = await client.post('/drive-docs/import-photos', {
+    parentType,
+    parentId,
+    files,
+    target: 'gallery',
+  });
+  return res.data as {
+    imported: { id: string; fileName: string; url?: string; fileUrl?: string; mimeType?: string; source?: string }[];
+    failed:   { fileName: string; reason: string }[];
+  };
+}
+
 export async function disconnectDrive() {
   const res = await client.delete('/auth/drive/disconnect');
   return res.data as { success: boolean };

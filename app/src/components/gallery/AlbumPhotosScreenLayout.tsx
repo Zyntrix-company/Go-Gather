@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import AppScreenLayout from '../common/AppScreenLayout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AppScreenLayout, { TAB_BAR_BASE_HEIGHT } from '../common/AppScreenLayout';
 import type { TabType } from '../common/FloatingTabBar';
 import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
 
@@ -26,9 +27,12 @@ export default function AlbumPhotosScreenLayout({
   footer,
   children,
 }: AlbumPhotosScreenLayoutProps) {
+  const insets = useSafeAreaInsets();
+  const tabBarPad = TAB_BAR_BASE_HEIGHT + insets.bottom + 6;
+
   return (
     <AppScreenLayout navigation={navigation} activeTab={activeTab} onLogoPress={onClose}>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingBottom: tabBarPad }}>
         <View style={acs.albumSubHeader}>
           <View style={acs.albumSubHeaderSide} />
           <View style={acs.headerCenter}>
@@ -39,7 +43,7 @@ export default function AlbumPhotosScreenLayout({
           </View>
           <View style={acs.albumSubHeaderSide}>{headerRight}</View>
         </View>
-        <View style={{ flex: 1 }}>{children}</View>
+        <View style={{ flex: 1, overflow: 'hidden' }}>{children}</View>
         {footer}
       </View>
     </AppScreenLayout>

@@ -2,11 +2,11 @@ import { Dimensions, StyleSheet } from 'react-native';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
-/** Hero area — photos should dominate the screen */
+/** @deprecated Use flex hero (AlbumPhotosHeroCarousel) — kept for previews only */
 export const ALBUM_HERO_H = Math.round(SCREEN_H * 0.46);
 
-export const ALBUM_THUMB_W = 64;
-export const ALBUM_THUMB_H = 52;
+export const ALBUM_THUMB_W = 52;
+export const ALBUM_THUMB_H = 42;
 
 export const albumChromeStyles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#f8fafc' },
@@ -34,27 +34,29 @@ export const albumChromeStyles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#e2e8f0',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 8,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    gap: 6,
+    flexShrink: 0,
   },
   metaCard: {
     backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#f1f5f9',
+    flexShrink: 0,
   },
-  metaTitle: { fontSize: 17, fontWeight: '600', color: '#0f172a', letterSpacing: -0.2, marginBottom: 6 },
-  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
+  metaTitle: { fontSize: 15, fontWeight: '600', color: '#0f172a', letterSpacing: -0.2, marginBottom: 4 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 2 },
   metaText: { fontSize: 12, color: '#64748b', fontWeight: '500' },
   metaTextAccent: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
-  metaMembers: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  metaMembers: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
   metaAvatar: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: '#fff',
@@ -67,8 +69,8 @@ export const albumChromeStyles = StyleSheet.create({
     backgroundColor: '#f0fdfa',
     borderWidth: 1.5,
     borderColor: '#99f6e4',
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingVertical: 9,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
@@ -79,8 +81,8 @@ export const albumChromeStyles = StyleSheet.create({
     backgroundColor: '#fff',
     borderWidth: 1.5,
     borderColor: '#0d9488',
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingVertical: 9,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
@@ -90,28 +92,30 @@ export const albumChromeStyles = StyleSheet.create({
     backgroundColor: '#f0fdfa',
     borderWidth: 1.5,
     borderColor: '#99f6e4',
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingVertical: 9,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
-  actionBtnText: { fontSize: 13, fontWeight: '600', color: '#0d9488' },
+  actionBtnText: { fontSize: 12, fontWeight: '600', color: '#0d9488' },
   thumbStrip: {
     backgroundColor: '#fff',
-    paddingVertical: 8,
+    paddingVertical: 5,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#f1f5f9',
+    flexShrink: 0,
   },
   albumSubHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
     backgroundColor: '#fff',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#e2e8f0',
+    flexShrink: 0,
   },
   albumSubHeaderSide: { width: 88, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
 });

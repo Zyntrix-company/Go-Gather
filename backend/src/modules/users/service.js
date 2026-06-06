@@ -473,6 +473,7 @@ const getUserProfile = async (viewerId, targetId) => {
  * Banner images are presigned so they're viewable on the client.
  */
 const getUserGallery = async (targetId) => {
+  const galleryOverlay = require('./galleryOverlay.service');
   const { getPresignedDownloadUrl } = require('../../utils/s3.util');
   const cloudfrontDomain = config.s3?.cloudfrontDomain;
 
@@ -507,7 +508,6 @@ const getUserGallery = async (targetId) => {
          t.location_name   AS location,
          t.end_date        AS "endDate",
          (SELECT COUNT(*)::int FROM trip_members WHERE trip_id = t.id)                        AS "memberCount",
-         (SELECT COUNT(*)::int FROM photos       WHERE parent_type = 'trip' AND parent_id = t.id) AS "photoCount",
          m.subtitle        AS "gallerySubtitle"
        FROM trips t
        JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = $1
@@ -527,7 +527,6 @@ const getUserGallery = async (targetId) => {
          e.location_name                           AS location,
          e.event_date                              AS "endDate",
          (SELECT COUNT(*)::int FROM event_members  WHERE event_id = e.id)                         AS "memberCount",
-         (SELECT COUNT(*)::int FROM photos         WHERE parent_type = 'event' AND parent_id = e.id) AS "photoCount",
          m.subtitle        AS "gallerySubtitle"
        FROM events e
        JOIN event_members em ON em.event_id = e.id AND em.user_id = $1
@@ -541,14 +540,16 @@ const getUserGallery = async (targetId) => {
     ),
   ]);
 
-  // Presign all banner URLs in parallel
+  // Presign all banner URLs and attach curated photo counts in parallel
   const [trips, events] = await Promise.all([
     Promise.all(tripsResult.rows.map(async (row) => ({
       ...row,
+      photoCount: await galleryOverlay.getCuratedPhotoCount(targetId, 'trip', row.id),
       bannerImageUrl: await presignBanner(row.bannerImageUrl),
     }))),
     Promise.all(eventsResult.rows.map(async (row) => ({
       ...row,
+      photoCount: await galleryOverlay.getCuratedPhotoCount(targetId, 'event', row.id),
       bannerImageUrl: await presignBanner(row.bannerImageUrl),
     }))),
   ]);
@@ -853,6 +854,7 @@ const upsertGallerySubtitle = async (userId, parentType, parentId, subtitle) => 
  * GET /users/me/gallery/archived — Trips/events hidden from the user's gallery only.
  */
 const getArchivedUserGallery = async (userId) => {
+  const galleryOverlay = require('./galleryOverlay.service');
   const { getPresignedDownloadUrl } = require('../../utils/s3.util');
   const cloudfrontDomain = config.s3?.cloudfrontDomain;
 
@@ -880,7 +882,6 @@ const getArchivedUserGallery = async (userId) => {
          t.location_name   AS location,
          t.end_date        AS "endDate",
          (SELECT COUNT(*)::int FROM trip_members WHERE trip_id = t.id)                        AS "memberCount",
-         (SELECT COUNT(*)::int FROM photos       WHERE parent_type = 'trip' AND parent_id = t.id) AS "photoCount",
          m.subtitle        AS "gallerySubtitle",
          m.archived_at     AS "galleryArchivedAt"
        FROM user_gallery_item_meta m
@@ -902,7 +903,6 @@ const getArchivedUserGallery = async (userId) => {
          e.location_name                           AS location,
          e.event_date                              AS "endDate",
          (SELECT COUNT(*)::int FROM event_members  WHERE event_id = e.id)                         AS "memberCount",
-         (SELECT COUNT(*)::int FROM photos         WHERE parent_type = 'event' AND parent_id = e.id) AS "photoCount",
          m.subtitle        AS "gallerySubtitle",
          m.archived_at     AS "galleryArchivedAt"
        FROM user_gallery_item_meta m
@@ -921,10 +921,12 @@ const getArchivedUserGallery = async (userId) => {
   const [trips, events] = await Promise.all([
     Promise.all(tripsResult.rows.map(async (row) => ({
       ...row,
+      photoCount: await galleryOverlay.getCuratedPhotoCount(userId, 'trip', row.id),
       bannerImageUrl: await presignBanner(row.bannerImageUrl),
     }))),
     Promise.all(eventsResult.rows.map(async (row) => ({
       ...row,
+      photoCount: await galleryOverlay.getCuratedPhotoCount(userId, 'event', row.id),
       bannerImageUrl: await presignBanner(row.bannerImageUrl),
     }))),
   ]);

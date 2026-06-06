@@ -90,12 +90,12 @@ const importFiles = async (req, res, next) => {
 
 const importPhotos = async (req, res, next) => {
   try {
-    const { files } = req.body;
+    const { files, target } = req.body;
     if (!Array.isArray(files) || files.length === 0) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'files must be a non-empty array', statusCode: 400 });
     }
     const { parentType, parentId } = req.parent;
-    const result = await service.importPhotos(req.user.id, parentType, parentId, files);
+    const result = await service.importPhotos(req.user.id, parentType, parentId, files, { target });
     res.json(result);
   } catch (err) {
     handleError(err, res, next);

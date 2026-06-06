@@ -151,6 +151,40 @@ router.delete(
   controller.deleteGalleryAlbumPhoto,
 );
 
+router.get(
+  '/me/gallery-items/:parentType/:parentId/photos',
+  authenticateJWT,
+  validators.galleryItemParams,
+  validate,
+  controller.getMyGalleryItemPhotos,
+);
+
+router.post(
+  '/me/gallery-items/:parentType/:parentId/photos',
+  authenticateJWT,
+  validators.galleryItemParams,
+  validate,
+  photoUpload.array('photos', 20),
+  handleMulterError,
+  controller.uploadGalleryItemPhotos,
+);
+
+router.post(
+  '/me/gallery-items/:parentType/:parentId/photos/hide/:photoId',
+  authenticateJWT,
+  [...validators.galleryItemParams, ...validators.galleryPhotoIdParam],
+  validate,
+  controller.hideGallerySharedPhoto,
+);
+
+router.delete(
+  '/me/gallery-items/extra-photos/:photoId',
+  authenticateJWT,
+  validators.extraPhotoIdParam,
+  validate,
+  controller.deleteGalleryExtraPhoto,
+);
+
 // ── Per-user routes ────────────────────────────────────────────────────────────
 
 // GET /users/:id/profile — Enhanced profile with friendship status + stats (requires auth)
@@ -178,6 +212,15 @@ router.get(
   validators.albumIdParam,
   validate,
   controller.getUserGalleryAlbumPhotos,
+);
+
+router.get(
+  '/:id/gallery-items/:parentType/:parentId/photos',
+  authenticateJWT,
+  validators.getPublicProfileValidation,
+  validators.galleryItemParams,
+  validate,
+  controller.getUserGalleryItemPhotos,
 );
 
 // GET /users/:id/photos — All photos uploaded by user, grouped by trip/event + activity (requires auth)

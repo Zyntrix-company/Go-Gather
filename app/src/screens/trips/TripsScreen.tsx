@@ -47,14 +47,10 @@ import {
   getEmailStatus,
   listEmailAttachments,
   importEmailAttachments,
-  getDriveStatus,
-  listDriveFiles,
   type EmailAttachment,
-  type DriveFile,
 } from '../../api/trips.api';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import { EmailProviderPickerRow } from '../../components/common/EmailProviderUI';
-import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
 import {
   requireTripFromResponse,
   runSafePostCreate,
@@ -455,12 +451,6 @@ export function CreateTripModal({
   const [emailPickerLoading, setEmailPickerLoading] = useState(false);
   const [emailStatus, setEmailStatus] = useState({ gmail: { connected: false }, outlook: { connected: false } });
   const [emailSelectedDocs, setEmailSelectedDocs] = useState<{ attachmentId: string; messageId: string; fileName: string; provider: 'gmail' | 'outlook' }[]>([]);
-  const [driveSelectedDocs, setDriveSelectedDocs] = useState<Pick<DriveFile, 'fileId' | 'name' | 'mimeType'>[]>([]);
-  const [showDrivePicker, setShowDrivePicker] = useState(false);
-  const [driveFiles, setDriveFiles] = useState<DriveFile[]>([]);
-  const [selectedDriveFileIds, setSelectedDriveFileIds] = useState<Set<string>>(new Set());
-  const [drivePickerLoading, setDrivePickerLoading] = useState(false);
-  const [driveStatus, setDriveStatus] = useState({ connected: false });
   const [memberTab, setMemberTab] = useState<'friends' | 'new'>('friends');
   const [friendSearch, setFriendSearch] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -581,9 +571,6 @@ export function CreateTripModal({
         outlook: { connected: Boolean(d?.outlook?.connected) },
       });
     }).catch(() => {});
-    getDriveStatus().then((d: any) => {
-      setDriveStatus({ connected: Boolean(d?.connected) });
-    }).catch(() => {});
   }, [visible]);
 
   async function openEmailPicker(provider: 'gmail' | 'outlook') {
@@ -618,44 +605,12 @@ export function CreateTripModal({
     setShowEmailPicker(false);
   }
 
-  async function openDrivePicker() {
-    if (!driveStatus.connected) {
-      onClose();
-      navigation.navigate('ConnectedEmail');
-      return;
-    }
-    setDriveFiles([]);
-    setSelectedDriveFileIds(new Set());
-    setDrivePickerLoading(true);
-    setShowDrivePicker(true);
-    try {
-      const res = await listDriveFiles();
-      setDriveFiles(res.files);
-    } catch (err) {
-      handleApiError(err);
-      setShowDrivePicker(false);
-    } finally {
-      setDrivePickerLoading(false);
-    }
-  }
-
-  function confirmDriveSelection() {
-    const selected = driveFiles.filter(f => selectedDriveFileIds.has(f.fileId));
-    const newDocs = selected.map(f => ({ fileId: f.fileId, name: f.name, mimeType: f.mimeType }));
-    setDriveSelectedDocs(prev => {
-      const existing = new Set(prev.map(d => d.fileId));
-      return [...prev, ...newDocs.filter(d => !existing.has(d.fileId))];
-    });
-    setShowDrivePicker(false);
-  }
-
   function reset() {
     setName(''); setLocations([]);
     setStartDateObj(undefined); setEndDateObj(undefined);
     setStartDateError(null); setEndDateError(null);
     setReminders(false); setUploadedDocs([]); setSelectedFriendIds([]);
     setEmailSelectedDocs([]);
-    setDriveSelectedDocs([]);
     setFriendSearch(''); setInviteEmail(''); setInvitePhone(''); setInviteWhatsapp('');
     // Banner state lives in the parent — do NOT reset it here so it
     // survives the user tapping Cancel and re-opening the modal.
@@ -683,7 +638,6 @@ export function CreateTripModal({
         bannerCropFraction: bannerCropFraction,
         uploadedDocs,
         emailDocs: emailSelectedDocs,
-        driveDocs: driveSelectedDocs,
         reminders,
       });
       reset();
@@ -906,34 +860,6 @@ export function CreateTripModal({
                 </Svg>
                 <Text style={styles.ctDocChipText} numberOfLines={1}>{doc.fileName}</Text>
                 <TouchableOpacity onPress={() => setEmailSelectedDocs(p => p.filter((_, j) => j !== i))}>
-                  <View style={styles.ctDocRemove}>
-                    <Svg width={9} height={9} viewBox="0 0 24 24" fill="none">
-                      <Path d="M18 6L6 18M6 6l12 12" stroke="#ef4444" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                  </View>
-                </TouchableOpacity>
-              </View>
-            ))}
-
-            {/* Import from Google Drive */}
-            <TouchableOpacity style={styles.ctRow} onPress={openDrivePicker} activeOpacity={0.8}>
-              <View style={styles.ctRowLeft}>
-                <View style={styles.ctRowIcon}>
-                  <DriveBrandIcon size={14} />
-                </View>
-                <Text style={styles.ctRowText}>Import from Google Drive</Text>
-              </View>
-              {driveSelectedDocs.length > 0 && (
-                <View style={styles.ctCountBadge}>
-                  <Text style={styles.ctCountBadgeText}>{driveSelectedDocs.length} file{driveSelectedDocs.length > 1 ? 's' : ''}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            {driveSelectedDocs.map((doc, i) => (
-              <View key={doc.fileId} style={styles.ctDocChip}>
-                <DriveBrandIcon size={12} />
-                <Text style={styles.ctDocChipText} numberOfLines={1}>{doc.name}</Text>
-                <TouchableOpacity onPress={() => setDriveSelectedDocs(p => p.filter((_, j) => j !== i))}>
                   <View style={styles.ctDocRemove}>
                     <Svg width={9} height={9} viewBox="0 0 24 24" fill="none">
                       <Path d="M18 6L6 18M6 6l12 12" stroke="#ef4444" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
@@ -1241,72 +1167,6 @@ export function CreateTripModal({
                     disabled={selectedAttachIds.size === 0}
                     activeOpacity={0.85}>
                     <Text style={styles.ctCreateBtnText}>Add {selectedAttachIds.size > 0 ? `${selectedAttachIds.size} file${selectedAttachIds.size > 1 ? 's' : ''}` : 'Selected'}</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </View>
-        </Modal>
-
-        {/* Drive File Picker */}
-        <Modal visible={showDrivePicker} transparent animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalDialog, { maxHeight: '85%' }]}>
-              <View style={styles.ctHeader}>
-                <Text style={styles.ctTitle}>Import from Google Drive</Text>
-                <TouchableOpacity onPress={() => setShowDrivePicker(false)} style={styles.ctCloseBtn} activeOpacity={0.7}>
-                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-                    <Path d="M18 6L6 18M6 6l12 12" stroke="#64748b" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                </TouchableOpacity>
-              </View>
-              {drivePickerLoading ? (
-                <View style={{ padding: 40, alignItems: 'center' }}>
-                  <ActivityIndicator size="large" color="#0d9488" />
-                  <Text style={{ marginTop: 12, color: '#64748b', fontSize: 13 }}>Loading files…</Text>
-                </View>
-              ) : driveFiles.length === 0 ? (
-                <View style={{ padding: 32, alignItems: 'center' }}>
-                  <Text style={{ color: '#64748b', fontSize: 14, textAlign: 'center' }}>No compatible files found in your Drive root.</Text>
-                </View>
-              ) : (
-                <FlatList
-                  data={driveFiles}
-                  keyExtractor={f => f.fileId}
-                  style={{ maxHeight: 360 }}
-                  renderItem={({ item }) => {
-                    const sel = selectedDriveFileIds.has(item.fileId);
-                    return (
-                      <TouchableOpacity
-                        style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderColor: '#e2e8f0' }}
-                        onPress={() => setSelectedDriveFileIds(prev => { const n = new Set(prev); sel ? n.delete(item.fileId) : n.add(item.fileId); return n; })}
-                        activeOpacity={0.7}>
-                        <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: sel ? '#0d9488' : '#cbd5e1', backgroundColor: sel ? '#0d9488' : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                          {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>✓</Text>}
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }} numberOfLines={1}>{item.name}</Text>
-                          <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
-                            {item.sizeBytes ? `${Math.round(item.sizeBytes / 1024)} KB · ` : ''}
-                            {new Date(item.modifiedTime).toLocaleDateString()}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  }}
-                />
-              )}
-              {!drivePickerLoading && driveFiles.length > 0 && (
-                <View style={[styles.ctFooter, { gap: 10 }]}>
-                  <TouchableOpacity style={[styles.ctCreateBtn, { flex: 1, backgroundColor: '#f1f5f9' }]} onPress={() => setShowDrivePicker(false)} activeOpacity={0.85}>
-                    <Text style={[styles.ctCreateBtnText, { color: '#0f172a' }]}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.ctCreateBtn, { flex: 1, opacity: selectedDriveFileIds.size === 0 ? 0.5 : 1 }]}
-                    onPress={confirmDriveSelection}
-                    disabled={selectedDriveFileIds.size === 0}
-                    activeOpacity={0.85}>
-                    <Text style={styles.ctCreateBtnText}>Add {selectedDriveFileIds.size > 0 ? `${selectedDriveFileIds.size} file${selectedDriveFileIds.size > 1 ? 's' : ''}` : 'Selected'}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -1782,13 +1642,6 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
                 await importEmailAttachments('trip', newTrip.id, provider as 'gmail' | 'outlook', pdocs);
               });
             }
-          }
-          const driveDocs = (data.driveDocs as { fileId: string; name: string; mimeType: string }[] | undefined) ?? [];
-          if (driveDocs.length > 0) {
-            const { importDriveFiles } = require('../../api/trips.api');
-            await runSafePostCreate('Drive import', async () => {
-              await importDriveFiles('trip', newTrip.id, driveDocs);
-            });
           }
           const extMime: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif', mp4: 'video/mp4', mov: 'video/quicktime', pdf: 'application/pdf', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', txt: 'text/plain', csv: 'text/csv' };
           const docs = (data.uploadedDocs as { uri: string; name: string; type: string }[] | undefined) ?? [];

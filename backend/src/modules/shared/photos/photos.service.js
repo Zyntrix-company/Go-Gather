@@ -72,11 +72,6 @@ const deletePhoto = async ({ photoId, parentType, parentId, requesterId, request
   }
   const photo = photoResult.rows[0];
 
-  if (photo.uploaded_by !== requesterId && requesterRole !== 'admin') {
-    const e = new Error('Only the uploader or an admin can delete this photo');
-    e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
-  }
-
   await deleteFromS3(photo.s3_key);
   await db('DELETE FROM photos WHERE id = $1', [photoId]);
 };

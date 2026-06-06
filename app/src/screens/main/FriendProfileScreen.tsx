@@ -3,9 +3,11 @@ import {
   View, Text, TouchableOpacity, ScrollView,
   Dimensions, StyleSheet, ActivityIndicator, Modal, Animated, FlatList,
 } from 'react-native';
-import { ALBUM_HERO_H, ALBUM_THUMB_H, ALBUM_THUMB_W, albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
+import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
 import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
+import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
+import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { UserMinus } from 'lucide-react-native';
@@ -14,10 +16,8 @@ import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common
 import { getUserProfile, removeFriend, handleApiError } from '../../api/trips.api';
 import { showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
-import { getUserGallery, getUserPhotos } from '../../api/ai.api';
-import { getUserGalleryAlbumPhotos } from '../../api/gallery.api';
-import { getTripPhotos } from '../../api/trips.api';
-import { getEventPhotos } from '../../api/events.api';
+import { getUserGallery } from '../../api/ai.api';
+import { getUserGalleryAlbumPhotos, getUserGalleryItemPhotos } from '../../api/gallery.api';
 import type { MainStackParamList } from '../../navigation/MainStack';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -271,71 +271,34 @@ function CustomAlbumPhotosModal({
           photoTotal={photos.length}
           footer={<AlbumPhotosFooter viewOnly aboveTabBar />}
         >
-          <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={{ flex: 1 }}>
+          <AlbumPhotosBody>
             <TouchableOpacity
+              style={{ flex: 1 }}
               activeOpacity={photos.length > 0 ? 0.95 : 1}
               onPress={() => { if (photos.length > 0) setPreviewIndex(heroIndex); }}
             >
-              <View style={{ height: ALBUM_HERO_H, backgroundColor: '#0f172a' }}>
-                {loading ? (
-                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <ActivityIndicator size="large" color="#5eead4" />
-                  </View>
-                ) : photos.length > 0 ? (
-                  <FlatList
-                    ref={heroFlatListRef}
-                    data={photos}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    initialScrollIndex={heroIndex}
-                    getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
-                    onMomentumScrollEnd={e => setHeroIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
-                    renderItem={({ item }) => (
-                      <View style={{ width: SCREEN_W, height: ALBUM_HERO_H }}>
-                        <FriendHeroPhoto photo={item} />
-                      </View>
-                    )}
-                    keyExtractor={item => item.id}
-                  />
-                ) : (
-                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>No photos yet</Text>
-                  </View>
-                )}
-              </View>
+              <AlbumPhotosHeroCarousel
+                photos={photos}
+                heroIndex={heroIndex}
+                onIndexChange={setHeroIndex}
+                heroRef={heroFlatListRef}
+                loading={loading}
+                renderPhoto={(item) => <FriendHeroPhoto photo={item} />}
+              />
             </TouchableOpacity>
-
-            {photos.length > 0 && (
-              <View style={acs.thumbStrip}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 6, flexDirection: 'row' }}>
-                  {photos.map((ph, idx) => (
-                    <TouchableOpacity
-                      key={ph.id}
-                      onPress={() => {
-                        setHeroIndex(idx);
-                        heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
-                        setPreviewIndex(idx);
-                      }}
-                      activeOpacity={0.85}
-                      style={{
-                        width: ALBUM_THUMB_W, height: ALBUM_THUMB_H, borderRadius: 8, overflow: 'hidden',
-                        borderWidth: idx === heroIndex ? 2 : 0,
-                        borderColor: '#0d9488',
-                        backgroundColor: '#e2e8f0',
-                      }}
-                    >
-                      <CachedImage uri={ph.uri} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-
+            <AlbumPhotosThumbStrip
+              photos={photos}
+              heroIndex={heroIndex}
+              onSelect={(idx) => {
+                setHeroIndex(idx);
+                heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
+                setPreviewIndex(idx);
+              }}
+            />
             <View style={acs.metaCard}>
-              <Text style={acs.metaTitle} numberOfLines={2}>{title}</Text>
+              <Text style={acs.metaTitle} numberOfLines={1}>{title}</Text>
               <View style={acs.metaRow}>
-                <View style={{ backgroundColor: '#f0fdf4', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 }}>
+                <View style={{ backgroundColor: '#f0fdf4', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
                   <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488' }}>Custom album</Text>
                 </View>
                 <Text style={acs.metaCount}>
@@ -343,7 +306,7 @@ function CustomAlbumPhotosModal({
                 </Text>
               </View>
             </View>
-          </ScrollView>
+          </AlbumPhotosBody>
         </AlbumPhotosScreenLayout>
       </Modal>
       <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
@@ -411,17 +374,9 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
 
     let fetcher: Promise<{ photos?: any[] }>;
     if (userId) {
-      fetcher = getUserPhotos(userId, { parentType, parentId }).then((data) => {
-        const parentList: any[] = parentType === 'trip' ? (data.trips ?? []) : (data.events ?? []);
-        const match = parentList.find((p: any) => p.id === parentId);
-        const allPhotos = [
-          ...(match?.photos ?? []),
-          ...(match?.activities?.flatMap((a: any) => a.photos ?? []) ?? []),
-        ];
-        return { photos: allPhotos };
-      });
+      fetcher = getUserGalleryItemPhotos(userId, parentType, parentId);
     } else {
-      fetcher = parentType === 'trip' ? getTripPhotos(parentId) : getEventPhotos(parentId);
+      fetcher = Promise.resolve({ photos: [] });
     }
 
     fetcher
@@ -434,7 +389,6 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
           activityId: ph.activityId ?? null,
           activityTitle: ph.activityTitle ?? null,
         }));
-        // Direct photos first, then activity photos
         setPhotos([...mapped.filter(p => !p.activityId), ...mapped.filter(p => !!p.activityId)]);
       })
       .catch(() => {})
@@ -456,88 +410,38 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
         photoTotal={photos.length}
         footer={<AlbumPhotosFooter viewOnly aboveTabBar />}
       >
-        <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={{ flex: 1 }}>
-          <View style={{ height: ALBUM_HERO_H, backgroundColor: '#0f172a' }}>
-            {loading ? (
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                <ActivityIndicator size="large" color="#5eead4" />
-              </View>
-            ) : photos.length > 0 ? (
-              <FlatList
-                ref={heroFlatListRef}
-                data={photos}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                initialScrollIndex={heroIndex}
-                getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
-                onMomentumScrollEnd={e => setHeroIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
-                renderItem={({ item }) => (
-                  <View style={{ width: SCREEN_W, height: ALBUM_HERO_H }}>
-                    <FriendHeroPhoto photo={item} />
-                  </View>
-                )}
-                keyExtractor={item => item.id}
-              />
-            ) : (
-              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
-                  <Rect x={3} y={3} width={18} height={18} rx={2} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} />
-                  <Circle cx={8.5} cy={8.5} r={1.5} fill="rgba(255,255,255,0.25)" />
-                  <Path d="M21 15l-5-5L5 21" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                </Svg>
-                <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 8 }}>No photos yet</Text>
-              </View>
-            )}
-          </View>
-
-          {photos.length > 0 && (
-            <View style={acs.thumbStrip}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 6, flexDirection: 'row' }}>
-                {photos.map((ph, idx) => {
-                  const thumbUri = ph.localUri ?? ph.uri;
-                  return (
-                    <TouchableOpacity
-                      key={ph.id}
-                      onPress={() => { setHeroIndex(idx); heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); }}
-                      activeOpacity={0.85}
-                      style={{
-                        width: ALBUM_THUMB_W, height: ALBUM_THUMB_H, borderRadius: 8, overflow: 'hidden',
-                        borderWidth: idx === heroIndex ? 2 : 0,
-                        borderColor: '#0d9488',
-                        backgroundColor: '#e2e8f0',
-                      }}
-                    >
-                      <CachedImage uri={thumbUri} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          )}
-
+        <AlbumPhotosBody>
+          <AlbumPhotosHeroCarousel
+            photos={photos}
+            heroIndex={heroIndex}
+            onIndexChange={setHeroIndex}
+            heroRef={heroFlatListRef}
+            loading={loading}
+            renderPhoto={(item) => <FriendHeroPhoto photo={item} />}
+          />
+          <AlbumPhotosThumbStrip
+            photos={photos}
+            heroIndex={heroIndex}
+            onSelect={(idx) => {
+              setHeroIndex(idx);
+              heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
+            }}
+          />
           <View style={acs.metaCard}>
             {isActivityPhoto && (
-              <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488', letterSpacing: 0.4, marginBottom: 4 }}>ACTIVITY</Text>
+              <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488', letterSpacing: 0.4, marginBottom: 2 }}>ACTIVITY</Text>
             )}
-            <Text style={acs.metaTitle} numberOfLines={2}>{dynamicTitle}</Text>
+            <Text style={acs.metaTitle} numberOfLines={1}>{dynamicTitle}</Text>
             {isActivityPhoto && (
-              <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>from {title}</Text>
+              <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }} numberOfLines={1}>from {title}</Text>
             )}
             {gallerySubtitle?.trim() ? (
-              <>
-                <Text style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }} numberOfLines={descExpanded ? undefined : 2}>
-                  {gallerySubtitle}
-                </Text>
-                {gallerySubtitle.length > 80 && (
-                  <TouchableOpacity onPress={() => setDescExpanded(v => !v)} activeOpacity={0.7}>
-                    <Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '600' }}>{descExpanded ? 'Show less' : 'Read more'}</Text>
-                  </TouchableOpacity>
-                )}
-              </>
+              <Text style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }} numberOfLines={1}>
+                {gallerySubtitle}
+              </Text>
             ) : null}
             <View style={acs.metaRow}>
-              <View style={{ backgroundColor: parentType === 'trip' ? '#f0fdf4' : '#fdf2f8', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 }}>
+              <View style={{ backgroundColor: parentType === 'trip' ? '#f0fdf4' : '#fdf2f8', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
                 <Text style={{ fontSize: 10, fontWeight: '600', color: parentType === 'trip' ? '#0d9488' : '#db2777' }}>
                   {parentType === 'trip' ? 'Trip' : 'Event'}
                 </Text>
@@ -547,7 +451,7 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
               </Text>
             </View>
           </View>
-        </ScrollView>
+        </AlbumPhotosBody>
       </AlbumPhotosScreenLayout>
     </Modal>
   );

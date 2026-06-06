@@ -57,7 +57,7 @@ import {
   deleteEventPoll,
   handleApiError,
 } from '../../api/events.api';
-import { getFriends, getEmailStatus, listEmailAttachments, importEmailAttachments, getDriveStatus, listDriveFiles, listDrivePhotoFiles, importDriveFiles, importDrivePhotos, type EmailAttachment, type DriveFile } from '../../api/trips.api';
+import { getFriends, getEmailStatus, listEmailAttachments, importEmailAttachments, listDriveFiles, listDrivePhotoFiles, importDriveFiles, importDrivePhotos, type EmailAttachment, type DriveFile } from '../../api/trips.api';
 import useAuthStore from '../../store/authStore';
 import { authUserId } from '../../utils/avatarUri';
 import { showAlert, showConfirm } from '../../store/alertStore';
@@ -80,9 +80,12 @@ import { getExpenseRowBalanceLabel } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
 import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
 import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
-import { ALBUM_HERO_H, ALBUM_THUMB_H, ALBUM_THUMB_W, albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
+import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
 import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
+import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
+import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
+import { checkDriveConnected, promptConnectDrive, watchDriveConnect } from '../../utils/drivePickerFlow';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -457,6 +460,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [albumHeroIndex, setAlbumHeroIndex] = useState(0);
   const [albumDescExpanded, setAlbumDescExpanded] = useState(false);
   const albumHeroRef = useRef<any>(null);
+  const pendingDrivePickerRef = useRef<'docs' | 'photos' | null>(null);
 
   // ── Data state ──
   const [loadingDetail, setLoadingDetail] = useState(true);
@@ -584,17 +588,30 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   // Load friends when Members modal opens
   useEffect(() => {
-    if (!showDocs) return;
+    if (!showDocs && !showPhotos) return;
     getEmailStatus().then((d: any) => {
       setEmailStatus({
         gmail:   { connected: Boolean(d?.gmail?.connected) },
         outlook: { connected: Boolean(d?.outlook?.connected) },
       });
     }).catch(() => {});
-    getDriveStatus().then((d: any) => {
-      setDriveStatus({ connected: Boolean(d?.connected) });
-    }).catch(() => {});
-  }, [showDocs]);
+    checkDriveConnected().then((connected) => {
+      setDriveStatus({ connected });
+    });
+
+    return watchDriveConnect(() => {
+      setDriveStatus({ connected: true });
+      const target = pendingDrivePickerRef.current;
+      if (!target) return;
+      if (target === 'photos' && showPhotos) {
+        pendingDrivePickerRef.current = null;
+        openDrivePicker('photos');
+      } else if (target === 'docs' && showDocs) {
+        pendingDrivePickerRef.current = null;
+        openDrivePicker('docs');
+      }
+    });
+  }, [showDocs, showPhotos]);
 
   useEffect(() => {
     if (!showMembers) return;
@@ -828,12 +845,16 @@ export default function EventDetailScreen({ route, navigation }: any) {
   }
 
   async function openDrivePicker(target: 'docs' | 'photos' = 'docs') {
-    if (!driveStatus.connected) {
-      if (target === 'docs') setShowDocs(false);
-      else setShowPhotos(false);
-      (navigation as any).navigate('ConnectedEmail');
+    const connected = await checkDriveConnected();
+    setDriveStatus({ connected });
+
+    if (!connected) {
+      pendingDrivePickerRef.current = target;
+      promptConnectDrive();
       return;
     }
+
+    pendingDrivePickerRef.current = null;
     setDrivePickerTarget(target);
     setDriveFiles([]);
     setSelectedDriveFileIds(new Set());
@@ -1806,70 +1827,27 @@ export default function EventDetailScreen({ route, navigation }: any) {
               />
             }
           >
-            <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={{ flex: 1 }}>
-              <View style={{ height: ALBUM_HERO_H, backgroundColor: '#0f172a' }}>
-                {photos.length > 0 ? (
-                  <FlatList
-                    ref={albumHeroRef}
-                    data={photos}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    initialScrollIndex={albumHeroIndex}
-                    getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
-                    onMomentumScrollEnd={e => {
-                      const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
-                      setAlbumHeroIndex(idx);
-                    }}
-                    renderItem={({ item }) => (
-                      <View style={{ width: SCREEN_W, height: ALBUM_HERO_H }}>
-                        <EventAlbumHeroPhoto photo={item} />
-                      </View>
-                    )}
-                    keyExtractor={item => item.id}
-                  />
-                ) : (
-                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
-                      <Rect x={3} y={3} width={18} height={18} rx={2} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} />
-                      <Circle cx={8.5} cy={8.5} r={1.5} fill="rgba(255,255,255,0.25)" />
-                      <Path d="M21 15l-5-5L5 21" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                    <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 8 }}>No photos yet</Text>
-                  </View>
-                )}
-              </View>
-
-              {photos.length > 0 && (
-                <View style={acs.thumbStrip}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 6, flexDirection: 'row' }}>
-                    {photos.map((ph, idx) => {
-                      const thumbUri = (ph as any).localUri ?? ph.uri;
-                      return (
-                        <TouchableOpacity
-                          key={ph.id}
-                          onPress={() => { setAlbumHeroIndex(idx); albumHeroRef.current?.scrollToIndex({ index: idx, animated: true }); }}
-                          activeOpacity={0.85}
-                          style={{
-                            width: ALBUM_THUMB_W, height: ALBUM_THUMB_H, borderRadius: 8, overflow: 'hidden',
-                            borderWidth: idx === albumHeroIndex ? 2 : 0,
-                            borderColor: '#0d9488',
-                            backgroundColor: '#e2e8f0',
-                          }}
-                        >
-                          <CachedImage uri={thumbUri} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              )}
-
+            <AlbumPhotosBody>
+              <AlbumPhotosHeroCarousel
+                photos={photos}
+                heroIndex={albumHeroIndex}
+                onIndexChange={setAlbumHeroIndex}
+                heroRef={albumHeroRef}
+                renderPhoto={(item) => <EventAlbumHeroPhoto photo={item} />}
+              />
+              <AlbumPhotosThumbStrip
+                photos={photos}
+                heroIndex={albumHeroIndex}
+                onSelect={(idx) => {
+                  setAlbumHeroIndex(idx);
+                  albumHeroRef.current?.scrollToIndex({ index: idx, animated: true });
+                }}
+              />
               <View style={acs.metaCard}>
-                <Text style={acs.metaTitle} numberOfLines={2}>{event.name}</Text>
+                <Text style={acs.metaTitle} numberOfLines={1}>{event.name}</Text>
                 <View style={acs.metaRow}>
                   {!!event.location && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '42%' }}>
                       <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
                         <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                         <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
@@ -1883,7 +1861,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#64748b" strokeWidth={2} />
                         <Path d="M16 2v4M8 2v4M3 10h18" stroke="#64748b" strokeWidth={2} strokeLinecap="round" />
                       </Svg>
-                      <Text style={acs.metaText}>{event.dateLine}</Text>
+                      <Text style={acs.metaText} numberOfLines={1}>{event.dateLine}</Text>
                     </View>
                   )}
                   <Text style={acs.metaCount}>
@@ -1897,37 +1875,22 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         <EventFriendAvatar
                           uri={m.avatarUrl || ''}
                           name={m.fullName}
-                          style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: '#fff' }}
+                          style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#fff' }}
                         />
                       </View>
                     ))}
                     {members.length > 4 && (
                       <View style={[acs.metaAvatar, { marginLeft: -8, alignItems: 'center', justifyContent: 'center' }]}>
-                        <Text style={{ fontSize: 9, fontWeight: '700', color: '#475569' }}>+{members.length - 4}</Text>
+                        <Text style={{ fontSize: 8, fontWeight: '700', color: '#475569' }}>+{members.length - 4}</Text>
                       </View>
                     )}
-                    <Text style={{ marginLeft: 8, fontSize: 11, color: '#94a3b8' }}>
+                    <Text style={{ marginLeft: 6, fontSize: 10, color: '#94a3b8' }} numberOfLines={1}>
                       {members.length} {members.length === 1 ? 'member' : 'members'}
                     </Text>
                   </View>
                 )}
               </View>
-
-              {!!event.description && (
-                <View style={{ backgroundColor: '#fff', marginTop: 6, paddingHorizontal: 16, paddingVertical: 12 }}>
-                  <Text style={{ fontSize: 12, color: '#475569', lineHeight: 18 }} numberOfLines={albumDescExpanded ? undefined : 2}>
-                    {event.description}
-                  </Text>
-                  {event.description.length > 100 && (
-                    <TouchableOpacity onPress={() => setAlbumDescExpanded(p => !p)} activeOpacity={0.7} style={{ marginTop: 4 }}>
-                      <Text style={{ color: '#0d9488', fontSize: 11, fontWeight: '600' }}>
-                        {albumDescExpanded ? 'Show less' : 'Read more'}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-            </ScrollView>
+            </AlbumPhotosBody>
           </AlbumPhotosScreenLayout>
         </Modal>
 

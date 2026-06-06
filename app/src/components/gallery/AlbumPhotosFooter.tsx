@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
 import { DriveBrandIcon } from '../common/GoogleWorkspaceIcons';
-import { tabBarContentPadding } from '../common/AppScreenLayout';
 
 const UploadIcon = () => (
   <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
@@ -46,7 +45,7 @@ export default function AlbumPhotosFooter({
 }: AlbumPhotosFooterProps) {
   const insets = useSafeAreaInsets();
   const busy = uploading || driveImporting || disabled;
-  const bottomPad = aboveTabBar ? tabBarContentPadding(insets.bottom, 10) : Math.max(insets.bottom, 12);
+  const bottomPad = aboveTabBar ? 8 : Math.max(insets.bottom, 12);
 
   const wrap = (content: React.ReactNode) => (
     <View style={{ backgroundColor: '#fff' }}>
