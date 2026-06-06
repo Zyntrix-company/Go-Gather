@@ -7,29 +7,38 @@ const { createInviteSmartLink } = require('../../utils/branch.util');
 const { generateInviteShareText } = require('../../utils/shareText.util');
 const config = require('../../config');
 const logger = require('../../utils/logger');
+const {
+  normalizeLocationInput,
+  primaryFromLocations,
+  insertLocations,
+  replaceLocations,
+  loadEventLocations,
+  loadEventLocationsBatch,
+  attachLocationsToEvent,
+} = require('../../utils/locations.util');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const toDateStr = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
 
-const formatEvent = (e) => ({
-  id: e.id,
-  name: e.name,
-  eventDate: toDateStr(e.event_date),
-  eventType: e.event_type || null,
-  description: e.description || null,
-  bannerImageUrl: e.banner_image_url || null,
-  bannerCropFraction: e.banner_crop_fraction || null,
-  location: {
-    name: e.location_name || null,
-    lat: e.location_lat ? parseFloat(e.location_lat) : null,
-    lng: e.location_lng ? parseFloat(e.location_lng) : null,
-  },
-  archivedAt: e.archived_at || null,
-  createdBy: e.created_by,
-  createdAt: e.created_at,
-  updatedAt: e.updated_at,
-});
+const formatEvent = (e, locations = null) => {
+  const attached = attachLocationsToEvent(e, locations);
+  return {
+    id: e.id,
+    name: e.name,
+    eventDate: toDateStr(e.event_date),
+    eventType: e.event_type || null,
+    description: e.description || null,
+    bannerImageUrl: e.banner_image_url || null,
+    bannerCropFraction: e.banner_crop_fraction || null,
+    location: attached.location,
+    locations: attached.locations,
+    archivedAt: e.archived_at || null,
+    createdBy: e.created_by,
+    createdAt: e.created_at,
+    updatedAt: e.updated_at,
+  };
+};
 
 // Returns true only for URLs stored in our own S3 bucket / CloudFront distribution
 const isOwnS3Url = (url) => {
@@ -58,9 +67,14 @@ const resolvePresignedBannerUrl = async (rawUrl) => {
 };
 
 // Async wrapper — resolves presigned banner URL then merges into formatted event
-const enrichEvent = async (e) => {
+const enrichEvent = async (e, locations = null) => {
   const bannerImageUrl = await resolvePresignedBannerUrl(e.banner_image_url);
-  return { ...formatEvent(e), bannerImageUrl };
+  return { ...formatEvent(e, locations), bannerImageUrl };
+};
+
+const enrichEventWithLocations = async (e) => {
+  const locations = await loadEventLocations(db, e.id);
+  return enrichEvent(e, locations);
 };
 
 const sanitizeAvatarUrl = (rawUrl, updatedAt, userId) => {
@@ -84,9 +98,19 @@ const sanitizeAvatarUrl = (rawUrl, updatedAt, userId) => {
 
 const createEvent = async (userId, body) => {
   const {
-    name, eventDate, eventType, description, location = {}, reminders,
+    name, eventDate, eventType, description, reminders,
     friendIds = [], emails = [], bannerImageUrl, bannerCropFraction = null,
   } = body;
+
+  const normalizedLocations = normalizeLocationInput(body);
+  if (normalizedLocations.length === 0) {
+    const err = new Error('At least one location is required');
+    err.statusCode = 422;
+    err.error = 'VALIDATION_ERROR';
+    throw err;
+  }
+
+  const primary = primaryFromLocations(normalizedLocations);
 
   const client = await getClient();
   try {
@@ -96,9 +120,11 @@ const createEvent = async (userId, body) => {
       `INSERT INTO events (name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url, banner_crop_fraction)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [name, eventDate, eventType || null, description || null, location.name || null, location.lat || null, location.lng || null, userId, bannerImageUrl || null, bannerCropFraction ? JSON.stringify(bannerCropFraction) : null],
+      [name, eventDate, eventType || null, description || null, primary.name, primary.lat, primary.lng, userId, bannerImageUrl || null, bannerCropFraction ? JSON.stringify(bannerCropFraction) : null],
     );
     const event = eventResult.rows[0];
+
+    await insertLocations(client, 'event_locations', 'event_id', event.id, normalizedLocations);
 
     // Add creator as admin
     await client.query(
@@ -202,7 +228,7 @@ const createEvent = async (userId, body) => {
     const countResult = await db('SELECT COUNT(*) FROM event_members WHERE event_id = $1', [event.id]);
 
     return {
-      ...(await enrichEvent(event)),
+      ...(await enrichEvent(event, normalizedLocations)),
       memberCount: parseInt(countResult.rows[0].count, 10),
     };
   } catch (error) {
@@ -282,9 +308,12 @@ const getEvents = async (userId, { status, page = 1, limit = 20 } = {}) => {
   );
 
   const total = result.rows[0]?.total_count || 0;
+  const eventIds = result.rows.map((e) => e.id);
+  const locationsMap = await loadEventLocationsBatch(db, eventIds);
+
   const events = await Promise.all(
     result.rows.map(async (e) => ({
-      ...(await enrichEvent(e)),
+      ...(await enrichEvent(e, locationsMap.get(e.id) || [])),
       memberCount: e.member_count,
       memberAvatars: e.member_avatars || [],
     })),
@@ -365,8 +394,10 @@ const getEventById = async (eventId, currentUserId) => {
     [eventId],
   );
 
+  const locations = await loadEventLocations(db, eventId);
+
   return {
-    event: await enrichEvent(e),
+    event: await enrichEvent(e, locations),
     members: membersResult.rows.map((m) => ({
       userId: m.user_id,
       name: m.name,
@@ -397,6 +428,12 @@ const getEventById = async (eventId, currentUserId) => {
 // ─── Update Event ─────────────────────────────────────────────────────────────
 
 const updateEvent = async (eventId, updates) => {
+  const hasLocationsArray = Array.isArray(updates.locations);
+  const hasLegacyLocation = updates.location && typeof updates.location === 'object';
+  const normalizedLocations = (hasLocationsArray || hasLegacyLocation)
+    ? normalizeLocationInput(updates)
+    : null;
+
   const fields = [];
   const values = [];
   let idx = 1;
@@ -407,22 +444,57 @@ const updateEvent = async (eventId, updates) => {
   if (updates.description !== undefined)      { fields.push(`description = $${idx++}`);       values.push(updates.description); }
   if (updates.bannerImageUrl !== undefined)   { fields.push(`banner_image_url = $${idx++}`);  values.push(updates.bannerImageUrl); }
   if (updates.bannerCropFraction !== undefined) { fields.push(`banner_crop_fraction = $${idx++}`); values.push(updates.bannerCropFraction ? JSON.stringify(updates.bannerCropFraction) : null); }
-  if (updates.location?.name !== undefined)   { fields.push(`location_name = $${idx++}`);     values.push(updates.location.name); }
-  if (updates.location?.lat !== undefined)    { fields.push(`location_lat = $${idx++}`);       values.push(updates.location.lat); }
-  if (updates.location?.lng !== undefined)    { fields.push(`location_lng = $${idx++}`);       values.push(updates.location.lng); }
 
-  if (fields.length === 0) {
-    const existing = await db('SELECT * FROM events WHERE id = $1', [eventId]);
-    return enrichEvent(existing.rows[0]);
+  if (normalizedLocations) {
+    if (normalizedLocations.length === 0) {
+      const err = new Error('At least one location is required');
+      err.statusCode = 422;
+      err.error = 'VALIDATION_ERROR';
+      throw err;
+    }
+    const primary = primaryFromLocations(normalizedLocations);
+    fields.push(`location_name = $${idx++}`); values.push(primary.name);
+    fields.push(`location_lat = $${idx++}`); values.push(primary.lat);
+    fields.push(`location_lng = $${idx++}`); values.push(primary.lng);
+  } else {
+    if (updates.location?.name !== undefined)   { fields.push(`location_name = $${idx++}`);     values.push(updates.location.name); }
+    if (updates.location?.lat !== undefined)    { fields.push(`location_lat = $${idx++}`);       values.push(updates.location.lat); }
+    if (updates.location?.lng !== undefined)    { fields.push(`location_lng = $${idx++}`);       values.push(updates.location.lng); }
   }
 
-  values.push(eventId);
-  const result = await db(
-    `UPDATE events SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`,
-    values,
-  );
+  if (fields.length === 0 && !normalizedLocations) {
+    const existing = await db('SELECT * FROM events WHERE id = $1', [eventId]);
+    return enrichEventWithLocations(existing.rows[0]);
+  }
 
-  const event = result.rows[0];
+  const client = await getClient();
+  let event;
+  try {
+    await client.query('BEGIN');
+
+    if (fields.length > 0) {
+      values.push(eventId);
+      const result = await client.query(
+        `UPDATE events SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`,
+        values,
+      );
+      event = result.rows[0];
+    } else {
+      const existing = await client.query('SELECT * FROM events WHERE id = $1', [eventId]);
+      event = existing.rows[0];
+    }
+
+    if (normalizedLocations) {
+      await replaceLocations(client, 'event_locations', 'event_id', eventId, normalizedLocations);
+    }
+
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 
   // Reschedule reminders if eventDate changed
   if (updates.eventDate) {
@@ -459,7 +531,8 @@ const updateEvent = async (eventId, updates) => {
     }
   }
 
-  return enrichEvent(event);
+  const locations = await loadEventLocations(db, eventId);
+  return enrichEvent(event, locations);
 };
 
 // ─── Delete Event ─────────────────────────────────────────────────────────────
@@ -778,7 +851,7 @@ const setEventDescription = async (eventId, description) => {
   if (result.rowCount === 0) {
     const e = new Error('Event not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
   }
-  return formatEvent(result.rows[0]);
+  return enrichEventWithLocations(result.rows[0]);
 };
 
 // ─── Archive ──────────────────────────────────────────────────────────────────
@@ -795,7 +868,7 @@ const archiveEvent = async (eventId) => {
     }
     const e = new Error('Event is already archived'); e.statusCode = 409; e.error = 'CONFLICT'; throw e;
   }
-  return formatEvent(result.rows[0]);
+  return enrichEventWithLocations(result.rows[0]);
 };
 
 const unarchiveEvent = async (eventId) => {
@@ -810,7 +883,7 @@ const unarchiveEvent = async (eventId) => {
     }
     const e = new Error('Event is not archived'); e.statusCode = 409; e.error = 'CONFLICT'; throw e;
   }
-  return formatEvent(result.rows[0]);
+  return enrichEventWithLocations(result.rows[0]);
 };
 
 // ─── Email template ───────────────────────────────────────────────────────────

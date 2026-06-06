@@ -624,6 +624,35 @@ async function seed() {
       [IDS.coorgTrip, IDS.vansh, PH.coorgTea],
     );
 
+    // Multi-location examples (migration 047)
+    console.log('  Seeding trip/event locations…');
+    await client.query(
+      `INSERT INTO trip_locations (trip_id, name, lat, lng, sort_order)
+       SELECT $1, 'Udaipur, Rajasthan', 24.5854452, 73.7124790, 0
+       WHERE NOT EXISTS (SELECT 1 FROM trip_locations WHERE trip_id = $1 AND sort_order = 0)`,
+      [IDS.udaipurTrip],
+    );
+    await client.query(
+      `INSERT INTO trip_locations (trip_id, name, lat, lng, sort_order)
+       SELECT $1, 'Jaipur, Rajasthan', 26.9124336, 75.7872709, 1
+       WHERE NOT EXISTS (SELECT 1 FROM trip_locations WHERE trip_id = $1 AND sort_order = 1)`,
+      [IDS.udaipurTrip],
+    );
+    await client.query(
+      `INSERT INTO trip_locations (trip_id, name, lat, lng, sort_order)
+       SELECT id, location_name, location_lat, location_lng, 0
+       FROM trips
+       WHERE id NOT IN (SELECT DISTINCT trip_id FROM trip_locations)
+         AND location_name IS NOT NULL`,
+    );
+    await client.query(
+      `INSERT INTO event_locations (event_id, name, lat, lng, sort_order)
+       SELECT id, location_name, location_lat, location_lng, 0
+       FROM events
+       WHERE location_name IS NOT NULL
+         AND id NOT IN (SELECT DISTINCT event_id FROM event_locations)`,
+    );
+
     // ── 7. Trip members ───────────────────────────────────────────────────────
     console.log('  Seeding trip members…');
     const tripMembers = [

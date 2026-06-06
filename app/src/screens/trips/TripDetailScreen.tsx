@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const EXPENSES_MODAL_HEIGHT = Math.round(SCREEN_H * 0.78);
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import SweeIcon from '../../components/common/SweeIcon';
@@ -18,6 +18,8 @@ import { WebView } from 'react-native-webview';
 import AppDatePicker from '../../components/common/AppDatePicker';
 import BlobBackground from '../../components/common/BlobBackground';
 import LocationAutocomplete from '../../components/common/LocationAutocomplete';
+import LocationMultiPicker from '../../components/common/LocationMultiPicker';
+import { formatLocationsLabel, formatLocationsLabelFull, normalizeLocations, toLocationPayload, type LocationPoint } from '../../utils/locations';
 import CachedImage from '../../components/common/CachedImage';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
@@ -96,6 +98,9 @@ import { getExpenseRowBalanceLabel } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
 import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
 import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
+import { ALBUM_HERO_H, ALBUM_THUMB_H, ALBUM_THUMB_W, albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
+import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
+import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -694,6 +699,7 @@ function FriendAvatar({ uri, name, style }: { uri: string; name: string; style: 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function TripDetailScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
   const [trip, setTrip] = useState(route?.params?.trip);
   const rawUser = useAuthStore(s => s.user) as any;
   const currentUserId: string = rawUser?.id ?? rawUser?.sub ?? '';
@@ -842,7 +848,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   // ── Edit Trip form ──
   const [editName, setEditName] = useState('');
-  const [editLocation, setEditLocation] = useState('');
+  const [editLocations, setEditLocations] = useState<LocationPoint[]>([]);
   const [editStartDate, setEditStartDate] = useState<Date>(new Date());
   const [editEndDate, setEditEndDate] = useState<Date>(new Date());
   const [editStartDateError, setEditStartDateError] = useState<string | null>(null);
@@ -909,9 +915,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
           getActivities(tripId),
           getBalances(tripId),
         ]);
-        const loc = detailRes.trip.location;
-        const locStr = typeof loc === 'string' ? loc : (loc?.name ?? '');
-        setTrip((prev: any) => ({ ...prev, ...detailRes.trip, location: locStr }));
+        const locStr = formatLocationsLabel(detailRes.trip);
+        setTrip((prev: any) => ({
+          ...prev,
+          ...detailRes.trip,
+          location: locStr,
+          locations: detailRes.trip.locations ?? normalizeLocations(detailRes.trip),
+        }));
         setRole(detailRes.role);
         if ((detailRes as any).stats) setApiStats((detailRes as any).stats);
         if ((detailRes as any).unreadCounts) setUnreadCounts((detailRes as any).unreadCounts);
@@ -1808,8 +1818,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   function openEditTrip() {
     setEditName(trip?.name || '');
-    const rawLoc = trip?.location;
-    setEditLocation(typeof rawLoc === 'string' ? rawLoc : (rawLoc?.name ?? ''));
+    setEditLocations(normalizeLocations(trip ?? {}));
     // Use ISO dates from trip (startDateISO / endDateISO) to build a real Date object
     const parseISO = (iso: string) => {
       if (!iso) return new Date();
@@ -1831,20 +1840,23 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   async function handleSaveTrip() {
     if (!editName.trim()) { showAlert({ title: 'Error', message: 'Trip name is required' }); return; }
+    if (editLocations.length === 0) { showAlert({ title: 'Error', message: 'Add at least one location' }); return; }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
       await apiUpdateTrip(tripId, {
         name: editName.trim(),
-        location: editLocation ? { name: editLocation } : undefined,
+        locations: toLocationPayload(editLocations),
         startDate: toISODate(editStartDate),
         endDate: toISODate(editEndDate),
       });
+      const locationLabel = formatLocationsLabel(editLocations);
       // Refresh local trip state so header/UI reflects changes immediately
       setTrip((prev: any) => ({
         ...prev,
         name: editName.trim(),
-        location: editLocation,
+        location: locationLabel,
+        locations: editLocations,
         startDateISO: toISODate(editStartDate),
         endDateISO: toISODate(editEndDate),
         startDate: editStartDate.toLocaleString('default', { month: 'short', day: 'numeric' }),
@@ -1905,7 +1917,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
           <SharedDetailHeroCard
             name={trip?.name ?? 'Trip'}
             dateLine={`${trip?.startDateISO ? (days > 0 ? fmtDateNoYear(trip.startDateISO) : fmtFullDate(trip.startDateISO)) : (trip?.startDate ?? '')}${trip?.endDateISO ? ` — ${days > 0 ? fmtDateNoYear(trip.endDateISO) : fmtFullDate(trip.endDateISO)}` : (trip?.endDate ? ` - ${trip.endDate}` : '')}`}
-            location={typeof trip?.location === 'string' ? trip.location : trip?.location?.name ?? ''}
+            location={typeof trip?.location === 'string' ? trip.location : formatLocationsLabel(trip ?? {})}
             dayCount={days < 0 && Math.abs(days) >= 365 ? Math.round(Math.abs(days) / 365) : Math.abs(days)}
             dayLabel={days > 0 ? 'Days to go' : days <= 0 ? 'Ongoing' : Math.abs(days) >= 365 ? (Math.round(Math.abs(days) / 365) === 1 ? 'Year ago' : 'Years ago') : 'Days ago'}
             statusOnly={days <= 0}
@@ -2087,7 +2099,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
             chat: { id: 'swee', name: 'Swee', isSwee: true, subtitle: 'Always active · AI Assistant' },
             tripContext: {
               name: trip?.name,
-              destination: typeof trip?.location === 'string' ? trip.location : trip?.location?.name ?? '',
+              destination: formatLocationsLabelFull(trip ?? {}),
               startDate: trip?.start_date ? new Date(trip.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : undefined,
               endDate: trip?.end_date ? new Date(trip.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : undefined,
               memberCount: members?.length,
@@ -2673,11 +2685,26 @@ export default function TripDetailScreen({ route, navigation }: any) {
           MODAL 4 — Photos (Immersive Album View)
       ═══════════════════════════════════════════════════ */}
         <Modal visible={showPhotos} transparent={false} animationType="slide" onRequestClose={() => setShowPhotos(false)}>
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
-            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+          <AlbumPhotosScreenLayout
+            navigation={navigation}
+            activeTab="trips"
+            onClose={() => setShowPhotos(false)}
+            photoIndex={albumHeroIndex}
+            photoTotal={photos.length}
+            footer={
+              <AlbumPhotosFooter
+                aboveTabBar
+                onUpload={() => handlePickPhoto(false)}
+                onCamera={() => handlePickPhoto(true)}
+                onDrive={() => openDrivePicker('photos')}
+                driveImporting={driveImporting}
+              />
+            }
+          >
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={{ flex: 1 }}>
 
-              {/* ── Hero Photo (swipeable FlatList pager) ── */}
-              <View style={{ height: 290, backgroundColor: '#0f172a', position: 'relative' }}>
+              {/* ── Hero Photo ── */}
+              <View style={{ height: ALBUM_HERO_H, backgroundColor: '#0f172a' }}>
                 {photos.length > 0 ? (
                   <FlatList
                     ref={albumHeroRef}
@@ -2692,7 +2719,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       setAlbumHeroIndex(idx);
                     }}
                     renderItem={({ item }) => (
-                      <View style={{ width: SCREEN_W, height: 290 }}>
+                      <View style={{ width: SCREEN_W, height: ALBUM_HERO_H }}>
                         <TripAlbumHeroPhoto photo={item} />
                       </View>
                     )}
@@ -2700,46 +2727,30 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   />
                 ) : (
                   <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <Svg width={56} height={56} viewBox="0 0 24 24" fill="none">
+                    <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
                       <Rect x={3} y={3} width={18} height={18} rx={2} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} />
                       <Circle cx={8.5} cy={8.5} r={1.5} fill="rgba(255,255,255,0.25)" />
                       <Path d="M21 15l-5-5L5 21" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                     </Svg>
-                    <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 10 }}>No photos yet</Text>
-                  </View>
-                )}
-                {/* Back button */}
-                <TouchableOpacity
-                  onPress={() => setShowPhotos(false)}
-                  style={{ position: 'absolute', top: 16, left: 16, zIndex: 10, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 4, elevation: 4 }}
-                  activeOpacity={0.8}
-                >
-                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                    <Path d="M19 12H5M12 5l-7 7 7 7" stroke="#0f172a" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                </TouchableOpacity>
-                {/* Photo count badge */}
-                {photos.length > 0 && (
-                  <View style={{ position: 'absolute', top: 16, right: 16, backgroundColor: 'rgba(0,0,0,0.52)', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, zIndex: 10 }}>
-                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{albumHeroIndex + 1} / {photos.length}</Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 8 }}>No photos yet</Text>
                   </View>
                 )}
               </View>
 
               {/* ── Thumbnail Strip ── */}
               {photos.length > 0 && (
-                <View style={{ backgroundColor: '#fff', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, flexDirection: 'row' }}>
+                <View style={acs.thumbStrip}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 6, flexDirection: 'row' }}>
                     {photos.map((ph, idx) => {
-                      const thumbUri = (ph.localUri) ? ph.localUri : ph.uri;
+                      const thumbUri = ph.localUri ? ph.localUri : ph.uri;
                       return (
                         <TouchableOpacity
                           key={ph.id}
                           onPress={() => { setAlbumHeroIndex(idx); albumHeroRef.current?.scrollToIndex({ index: idx, animated: true }); }}
                           activeOpacity={0.85}
                           style={{
-                            width: 74, height: 60, borderRadius: 10, overflow: 'hidden',
-                            borderWidth: idx === albumHeroIndex ? 2.5 : 0,
+                            width: ALBUM_THUMB_W, height: ALBUM_THUMB_H, borderRadius: 8, overflow: 'hidden',
+                            borderWidth: idx === albumHeroIndex ? 2 : 0,
                             borderColor: '#0d9488',
                             backgroundColor: '#e2e8f0',
                           }}
@@ -2752,146 +2763,101 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 </View>
               )}
 
-              {/* ── Trip/Activity Identity Card ── */}
-              <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 18 }}>
-                {/* Dynamic title: activity name if photo belongs to activity, else trip name */}
+              {/* ── Compact metadata ── */}
+              <View style={acs.metaCard}>
                 {(() => {
                   const heroPhoto = photos.length > 0 ? photos[Math.min(albumHeroIndex, photos.length - 1)] : null;
                   const isActivityPhoto = !!(heroPhoto?.activityTitle);
                   return (
                     <>
                       {isActivityPhoto && (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                          <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                          <Text style={{ fontSize: 12, fontWeight: '600', color: '#0d9488', letterSpacing: 0.3 }}>ACTIVITY</Text>
-                        </View>
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488', letterSpacing: 0.4, marginBottom: 4 }}>ACTIVITY</Text>
                       )}
-                      <Text style={{ fontSize: 26, fontWeight: '700', color: '#0f172a', letterSpacing: -0.4, marginBottom: 4 }} numberOfLines={2}>
+                      <Text style={acs.metaTitle} numberOfLines={2}>
                         {isActivityPhoto ? heroPhoto!.activityTitle! : (trip?.name ?? 'Trip')}
                       </Text>
                       {isActivityPhoto && (
-                        <Text style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>
-                          from <Text style={{ fontWeight: '600', color: '#0f172a' }}>{trip?.name ?? 'Trip'}</Text>
+                        <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>
+                          from {trip?.name ?? 'Trip'}
                         </Text>
                       )}
                     </>
                   );
                 })()}
 
-                {/* Location + Dates row */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-                  {!!(typeof trip?.location === 'string' ? trip.location : trip?.location?.name) && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-                        <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#10b981" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                        <Circle cx={12} cy={10} r={3} stroke="#10b981" strokeWidth={2} />
+                <View style={acs.metaRow}>
+                  {!!formatLocationsLabelFull(trip ?? {}) && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+                        <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                        <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
                       </Svg>
-                      <Text style={{ color: '#10b981', fontSize: 14, fontWeight: '500' }}>
-                        {typeof trip?.location === 'string' ? trip.location : trip?.location?.name}
+                      <Text style={acs.metaTextAccent} numberOfLines={1}>
+                        {formatLocationsLabelFull(trip ?? {})}
                       </Text>
                     </View>
                   )}
                   {!!(trip?.startDateISO || trip?.startDate) && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
                         <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#64748b" strokeWidth={2} />
                         <Path d="M16 2v4M8 2v4M3 10h18" stroke="#64748b" strokeWidth={2} strokeLinecap="round" />
                       </Svg>
-                      <Text style={{ fontSize: 13, color: '#64748b' }}>
+                      <Text style={acs.metaText}>
                         {trip?.startDateISO ? new Date(trip.startDateISO).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : trip?.startDate}
                         {(trip?.endDateISO || trip?.endDate) ? ` — ${trip?.endDateISO ? new Date(trip.endDateISO).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : trip?.endDate}` : ''}
                       </Text>
                     </View>
                   )}
+                  <Text style={acs.metaCount}>
+                    {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
+                  </Text>
                 </View>
 
-                {/* Member Avatars */}
                 {members.length > 0 && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
-                    {members.slice(0, 5).map((m: TripMember, idx: number) => (
-                      <View key={m.userId} style={{ marginLeft: idx === 0 ? 0 : -10, zIndex: 5 - idx }}>
-                        <View style={{ width: 34, height: 34, borderRadius: 17, overflow: 'hidden', borderWidth: 2.5, borderColor: '#fff', backgroundColor: '#e2e8f0' }}>
+                  <View style={acs.metaMembers}>
+                    {members.slice(0, 4).map((m: TripMember, idx: number) => (
+                      <View key={m.userId} style={{ marginLeft: idx === 0 ? 0 : -8, zIndex: 4 - idx }}>
+                        <View style={acs.metaAvatar}>
                           {m.avatarUrl ? (
-                            <CachedImage uri={m.avatarUrl} style={{ width: 30, height: 30, borderRadius: 15 }} resizeMode="cover" />
+                            <CachedImage uri={m.avatarUrl} style={{ width: 22, height: 22, borderRadius: 11 }} resizeMode="cover" />
                           ) : (
                             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                              <Text style={{ fontSize: 13, fontWeight: '600', color: '#64748b' }}>{(m.fullName ?? '?')[0]?.toUpperCase()}</Text>
+                              <Text style={{ fontSize: 10, fontWeight: '600', color: '#64748b' }}>{(m.fullName ?? '?')[0]?.toUpperCase()}</Text>
                             </View>
                           )}
                         </View>
                       </View>
                     ))}
-                    {members.length > 5 && (
-                      <View style={{ marginLeft: -10, width: 34, height: 34, borderRadius: 17, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', borderWidth: 2.5, borderColor: '#fff', zIndex: 0 }}>
-                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#475569' }}>+{members.length - 5}</Text>
+                    {members.length > 4 && (
+                      <View style={[acs.metaAvatar, { marginLeft: -8, alignItems: 'center', justifyContent: 'center' }]}>
+                        <Text style={{ fontSize: 9, fontWeight: '700', color: '#475569' }}>+{members.length - 4}</Text>
                       </View>
                     )}
-                    <Text style={{ marginLeft: 10, fontSize: 13, color: '#64748b', fontWeight: '500' }}>
+                    <Text style={{ marginLeft: 8, fontSize: 11, color: '#94a3b8' }}>
                       {members.length} {members.length === 1 ? 'member' : 'members'}
                     </Text>
                   </View>
                 )}
-
-                {/* Photo count pill */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
-                    <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
-                    <Circle cx={8.5} cy={8.5} r={1.5} fill="#0d9488" />
-                    <Path d="M21 15l-5-5L5 21" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                  <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '600' }}>
-                    {photos.length === 0 ? 'No photos yet' : `${photos.length} ${photos.length === 1 ? 'Photo' : 'Photos'}`}
-                  </Text>
-                </View>
               </View>
 
-              {/* ── Description ── */}
               {!!(trip?.description) && (
-                <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 20 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#0f172a', marginBottom: 8 }}>Description</Text>
-                  <Text style={{ fontSize: 14, color: '#475569', lineHeight: 22 }} numberOfLines={albumDescExpanded ? undefined : 3}>
+                <View style={{ backgroundColor: '#fff', marginTop: 6, paddingHorizontal: 16, paddingVertical: 12 }}>
+                  <Text style={{ fontSize: 12, color: '#475569', lineHeight: 18 }} numberOfLines={albumDescExpanded ? undefined : 2}>
                     {trip.description}
                   </Text>
-                  {(trip.description ?? '').length > 130 && (
-                    <TouchableOpacity onPress={() => setAlbumDescExpanded(p => !p)} activeOpacity={0.7} style={{ marginTop: 5 }}>
-                      <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>
-                        {albumDescExpanded ? 'Show less' : '.....Read more'}
+                  {(trip.description ?? '').length > 100 && (
+                    <TouchableOpacity onPress={() => setAlbumDescExpanded(p => !p)} activeOpacity={0.7} style={{ marginTop: 4 }}>
+                      <Text style={{ color: '#0d9488', fontSize: 11, fontWeight: '600' }}>
+                        {albumDescExpanded ? 'Show less' : 'Read more'}
                       </Text>
                     </TouchableOpacity>
                   )}
                 </View>
               )}
 
-              {/* ── Upload / Camera / Drive Buttons ── */}
-              <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 36, gap: 10 }}>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity style={[styles.uploadPhotosBtn, { flex: 1 }]} onPress={() => handlePickPhoto(false)} activeOpacity={0.85}>
-                    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                      <Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#be123c" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                    <Text style={styles.uploadPhotosTxt}>Upload Photos</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.takePhotoBtn, { flex: 1 }]} onPress={() => handlePickPhoto(true)} activeOpacity={0.85}>
-                    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                      <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#0e7490" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      <Circle cx={12} cy={13} r={4} stroke="#0e7490" strokeWidth={2} />
-                    </Svg>
-                    <Text style={styles.takePhotoTxt}>Take Photo</Text>
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity
-                  style={[styles.uploadPhotosBtn, { borderColor: '#cbd5e1' }]}
-                  onPress={() => openDrivePicker('photos')}
-                  activeOpacity={0.85}
-                  disabled={driveImporting}
-                >
-                  <DriveBrandIcon size={16} />
-                  <Text style={[styles.uploadPhotosTxt, { color: '#0f172a', marginLeft: 6 }]}>Add from Drive</Text>
-                </TouchableOpacity>
-              </View>
-
             </ScrollView>
-          </SafeAreaView>
+          </AlbumPhotosScreenLayout>
         </Modal>
 
         {/* ═══════════════════════════════════════════════════
@@ -3575,12 +3541,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     error={editEndDateError}
                     title="Edit end date"
                   />
-                  <Text style={styles.fLabel}>Location</Text>
+                  <Text style={styles.fLabel}>Locations</Text>
                   <View style={{ zIndex: 10 }}>
-                    <LocationAutocomplete
-                      initialValue={editLocation}
-                      onChangeText={setEditLocation}
-                      placeholder="e.g., Paris, France"
+                    <LocationMultiPicker
+                      value={editLocations}
+                      onChange={setEditLocations}
+                      placeholder="Search and add destination..."
                       variant="edit"
                     />
                   </View>
@@ -3730,12 +3696,6 @@ const styles = StyleSheet.create({
   inviteIconBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtnActive: { borderColor: '#0d9488', backgroundColor: '#0d9488' },
   sendBtn: { backgroundColor: '#0d9488', borderRadius: 10, paddingHorizontal: 18, paddingVertical: 10, alignItems: 'center', justifyContent: 'center' },
-
-  // Photos
-  uploadPhotosBtn: { flex: 1, flexDirection: 'row', backgroundColor: '#fff1f2', borderWidth: 1.5, borderColor: '#fecdd3', borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
-  uploadPhotosTxt: { fontSize: 13, fontWeight: '500', color: '#be123c' },
-  takePhotoBtn: { flex: 1, flexDirection: 'row', backgroundColor: '#ecfeff', borderWidth: 1.5, borderColor: '#a5f3fc', borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
-  takePhotoTxt: { fontSize: 13, fontWeight: '500', color: '#0e7490' },
 
   // Expenses
   expRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },

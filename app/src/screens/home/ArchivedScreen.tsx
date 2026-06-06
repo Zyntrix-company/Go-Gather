@@ -24,7 +24,7 @@ import { getArchivedEvents, unarchiveEvent, deleteEvent } from '../../api/events
 import { getArchivedUserGallery, unarchiveGalleryItem } from '../../api/ai.api';
 import { unarchiveGalleryAlbum, deleteGalleryAlbum } from '../../api/gallery.api';
 import { showConfirm } from '../../store/alertStore';
-import { UnifiedCard } from '../../components/common/Cards';
+import { formatLocationsLabel } from '../../utils/locations';
 import useAuthStore from '../../store/authStore';
 import { authFreshAvatarUrl, authUserId, resolveMemberAvatarUri } from '../../utils/avatarUri';
 
@@ -125,7 +125,7 @@ export default function ArchivedScreen() {
         return {
           id: t.id,
           name: t.name,
-          location: t.location?.name ?? '',
+          location: formatLocationsLabel(t),
           startDate: fmtDateTrip(t.startDate),
           endDate: fmtDateTrip(t.endDate),
           bannerImageUrl: t.bannerImageUrl,
@@ -139,7 +139,7 @@ export default function ArchivedScreen() {
         return {
           id: e.id,
           name: e.name,
-          location: e.location?.name ?? '',
+          location: formatLocationsLabel(e),
           fullDate: e.eventDate
             ? new Date(e.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
             : '',

@@ -4,7 +4,7 @@
  */
 import client, { API_BASE } from './client';
 import storage from '../utils/storage';
-import { parseError, handleApiError, ApiError, Doc, Photo, Expense, SplitUser, Debt, Note, Poll, TripMember } from './trips.api';
+import { parseError, handleApiError, ApiError, Doc, Photo, Expense, SplitUser, Debt, Note, Poll, TripMember, LocationPoint } from './trips.api';
 import useAuthStore from '../store/authStore';
 
 // ─── Multipart upload helper ──────────────────────────────────────────────────
@@ -40,7 +40,7 @@ export type { ApiError };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type EventLocation = { name: string | null; lat: number | null; lng: number | null };
+export type EventLocation = LocationPoint;
 
 export type Event = {
   id: string;
@@ -51,6 +51,7 @@ export type Event = {
   bannerImageUrl: string | null;
   bannerCropFraction?: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null;
   location: EventLocation;
+  locations?: LocationPoint[];
   archivedAt: string | null;
   createdBy: string;
   createdAt: string;
@@ -101,6 +102,7 @@ export async function createEvent(body: {
   bannerImageUrl?: string;
   bannerCropFraction?: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null;
   location?: { name?: string; lat?: number; lng?: number };
+  locations?: LocationPoint[];
   reminders?: boolean;
   friendIds?: string[];
   emails?: string[];
@@ -126,6 +128,7 @@ export async function updateEvent(eventId: string, body: Partial<{
   bannerImageUrl: string;
   bannerCropFraction: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null;
   location: { name?: string; lat?: number; lng?: number };
+  locations?: LocationPoint[];
 }>) {
   const res = await client.put(`/events/${eventId}`, body);
   return res.data as { event: Event };

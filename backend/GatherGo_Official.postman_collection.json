@@ -638,7 +638,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Goa Beach Getaway\",\n    \"startDate\": \"2027-06-01\",\n    \"endDate\": \"2027-06-05\",\n    \"location\": {\n        \"name\": \"Goa, Beach, Coastal\",\n        \"lat\": 15.2993,\n        \"lng\": 74.1240\n    },\n    \"reminders\": true\n}",
+							"raw": "{\n    \"name\": \"Goa Beach Getaway\",\n    \"startDate\": \"2027-06-01\",\n    \"endDate\": \"2027-06-05\",\n    \"locations\": [\n        { \"name\": \"Goa, India\", \"lat\": 15.2993, \"lng\": 74.1240, \"sortOrder\": 0 },\n        { \"name\": \"Panaji, Goa\", \"sortOrder\": 1 }\n    ],\n    \"reminders\": true\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -3378,7 +3378,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Diwali Night 2027\",\n    \"eventDate\": \"2027-10-20\",\n    \"eventType\": \"Festival\",\n    \"description\": \"Annual Diwali celebration with fireworks and dinner.\",\n    \"location\": {\n        \"name\": \"Mumbai, India\",\n        \"lat\": 19.076,\n        \"lng\": 72.8777\n    },\n    \"reminders\": true,\n    \"friendIds\": [\n        \"a0000000-0000-4000-8000-000000000002\"\n    ],\n    \"emails\": []\n}",
+							"raw": "{\n    \"name\": \"Diwali Night 2027\",\n    \"eventDate\": \"2027-10-20\",\n    \"eventType\": \"Festival\",\n    \"description\": \"Annual Diwali celebration with fireworks and dinner.\",\n    \"locations\": [\n        { \"name\": \"Mumbai, India\", \"lat\": 19.076, \"lng\": 72.8777, \"sortOrder\": 0 },\n        { \"name\": \"Bandra West, Mumbai\", \"sortOrder\": 1 }\n    ],\n    \"reminders\": true,\n    \"friendIds\": [\n        \"a0000000-0000-4000-8000-000000000002\"\n    ],\n    \"emails\": []\n}",
 							"options": {
 								"raw": {
 									"language": "json"

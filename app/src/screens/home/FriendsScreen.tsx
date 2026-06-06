@@ -21,6 +21,7 @@ import { showAlert } from '../../store/alertStore';
 import { CreateTripModal, BannerCropFraction } from '../trips/TripsScreen';
 import { CreateEventModal } from '../events/EventsScreen';
 import { requireTripFromResponse, runSafePostCreate } from '../../utils/createEntityFlow';
+import { toLocationPayload, type LocationPoint } from '../../utils/locations';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -421,11 +422,12 @@ export default function FriendsScreen() {
         setBannerCropFraction={setBannerCropFraction}
         onSave={async (data) => {
           const cropFraction = data.bannerCropFraction as BannerCropFraction | null;
+          const tripLocations = (data.locations as LocationPoint[] | undefined) ?? [];
           const res = await createTrip({
             name: data.name as string,
             startDate: (data.startDateISO ?? data.startDate ?? '') as string,
             endDate: (data.endDateISO ?? data.endDate ?? '') as string,
-            location: { name: (data.location as string) || 'TBD' },
+            locations: toLocationPayload(tripLocations.length > 0 ? tripLocations : [{ name: 'TBD' }]),
             friendIds: (data.friendIds as string[] | undefined)?.length ? data.friendIds as string[] : undefined,
             emails: data.inviteEmail ? [data.inviteEmail as string] : undefined,
             reminders: data.reminders as boolean | undefined,

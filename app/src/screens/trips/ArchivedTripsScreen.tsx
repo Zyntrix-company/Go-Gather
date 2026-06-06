@@ -9,7 +9,7 @@ import { useNavigation } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 import { getArchivedTrips, unarchiveTrip, deleteTrip, handleApiError } from '../../api/trips.api';
 import { showConfirm } from '../../store/alertStore';
-import { UnifiedCard } from '../../components/common/Cards';
+import { formatLocationsLabel } from '../../utils/locations';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -43,7 +43,7 @@ function mapTrip(t: any): ArchivedTrip {
   return {
     id: t.id,
     name: t.name,
-    location: typeof t.location === 'string' ? t.location : (t.location?.name ?? ''),
+    location: formatLocationsLabel(t),
     startDate: fmtDate(s),
     endDate: fmtDate(e),
     bannerImageUrl: t.bannerImageUrl ?? null,

@@ -98,7 +98,8 @@ export function handleApiError(err: any): ApiError {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type TripLocation = { name: string; lat?: number; lng?: number };
+export type LocationPoint = { id?: string; name: string; lat?: number | null; lng?: number | null; sortOrder?: number };
+export type TripLocation = LocationPoint;
 
 export type Trip = {
   id: string;
@@ -106,6 +107,7 @@ export type Trip = {
   startDate: string;
   endDate: string;
   location: TripLocation | string;
+  locations?: LocationPoint[];
   coverPhotoUrl: string | null;
   bannerImageUrl?: string | null;
   bannerCropFraction?: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null;
@@ -232,7 +234,8 @@ export async function createTrip(body: {
   name: string;
   startDate: string;
   endDate: string;
-  location: TripLocation;
+  location?: TripLocation;
+  locations?: LocationPoint[];
   bannerImageUrl?: string;
   bannerCropFraction?: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null;
   reminders?: boolean;
@@ -252,7 +255,7 @@ export async function markTripSectionViewed(tripId: string, section: string) {
   await client.post(`/trips/${tripId}/sections/${section}/view`).catch(() => { /* non-critical */ });
 }
 
-export async function updateTrip(tripId: string, body: Partial<{ name: string; startDate: string; endDate: string; location: TripLocation; bannerImageUrl: string; bannerCropFraction: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null }>) {
+export async function updateTrip(tripId: string, body: Partial<{ name: string; startDate: string; endDate: string; location: TripLocation; locations: LocationPoint[]; bannerImageUrl: string; bannerCropFraction: { imgFracX: number; imgFracY: number; imgFracW: number; imgFracH: number } | null }>) {
   const res = await client.put(`/trips/${tripId}`, body);
   return res.data as { trip: Trip };
 }

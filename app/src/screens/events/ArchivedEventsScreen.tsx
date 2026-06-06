@@ -14,7 +14,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 import { getArchivedEvents, unarchiveEvent, deleteEvent, handleApiError } from '../../api/events.api';
 import { showConfirm } from '../../store/alertStore';
-import { UnifiedCard } from '../../components/common/Cards';
+import { formatLocationsLabel } from '../../utils/locations';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,7 +42,7 @@ export default function ArchivedEventsScreen() {
       setEvents(res.events.map(e => ({
         id: e.id,
         name: e.name,
-        location: e.location?.name ?? '',
+        location: formatLocationsLabel(e),
         fullDate: e.eventDate
           ? new Date(e.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
           : '',

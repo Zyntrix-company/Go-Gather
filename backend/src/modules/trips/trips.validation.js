@@ -1,4 +1,5 @@
 const { body, param, query } = require('express-validator');
+const { MAX_LOCATIONS } = require('../../utils/locations.util');
 
 // ── Helpers ───────────────────────────────────────────────────
 const isUUID = (value) =>
@@ -26,14 +27,28 @@ const createTripValidation = [
       }
       return true;
     }),
-  body('location').notEmpty().withMessage('location is required').isObject().withMessage('location must be an object'),
-  body('location.name').notEmpty().withMessage('location.name is required').isString().isLength({ max: 500 }),
+  body('location').optional().isObject().withMessage('location must be an object'),
+  body('location.name').optional().isString().isLength({ max: 500 }),
   body('location.lat')
     .optional()
     .isFloat({ min: -90, max: 90 }).withMessage('location.lat must be a valid latitude'),
   body('location.lng')
     .optional()
     .isFloat({ min: -180, max: 180 }).withMessage('location.lng must be a valid longitude'),
+  body('locations').optional().isArray({ min: 1, max: MAX_LOCATIONS }).withMessage(`locations must be an array with 1-${MAX_LOCATIONS} items`),
+  body('locations.*.name').optional().notEmpty().isString().isLength({ max: 500 }),
+  body('locations.*.lat').optional().isFloat({ min: -90, max: 90 }),
+  body('locations.*.lng').optional().isFloat({ min: -180, max: 180 }),
+  body('locations.*.sortOrder').optional().isInt({ min: 0 }),
+  body().custom((_, { req }) => {
+    const hasLocation = req.body.location && req.body.location.name;
+    const hasLocations = Array.isArray(req.body.locations) && req.body.locations.length > 0
+      && req.body.locations.some((l) => l?.name);
+    if (!hasLocation && !hasLocations) {
+      throw new Error('location or locations is required');
+    }
+    return true;
+  }),
   body('bannerImageUrl').optional({ nullable: true }).isURL().withMessage('bannerImageUrl must be a valid URL'),
   body('reminders').optional().isBoolean(),
   body('friendIds').optional().isArray(),
@@ -66,6 +81,11 @@ const updateTripValidation = [
   body('location.name').optional().isString().isLength({ max: 500 }),
   body('location.lat').optional().isFloat({ min: -90, max: 90 }),
   body('location.lng').optional().isFloat({ min: -180, max: 180 }),
+  body('locations').optional().isArray({ min: 1, max: MAX_LOCATIONS }),
+  body('locations.*.name').optional().notEmpty().isString().isLength({ max: 500 }),
+  body('locations.*.lat').optional().isFloat({ min: -90, max: 90 }),
+  body('locations.*.lng').optional().isFloat({ min: -180, max: 180 }),
+  body('locations.*.sortOrder').optional().isInt({ min: 0 }),
   body('bannerImageUrl').optional({ nullable: true }).isURL().withMessage('bannerImageUrl must be a valid URL'),
 ];
 

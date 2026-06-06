@@ -1,0 +1,117 @@
+import { Dimensions, StyleSheet } from 'react-native';
+
+const { height: SCREEN_H } = Dimensions.get('window');
+
+/** Hero area — photos should dominate the screen */
+export const ALBUM_HERO_H = Math.round(SCREEN_H * 0.46);
+
+export const ALBUM_THUMB_W = 64;
+export const ALBUM_THUMB_H = 52;
+
+export const albumChromeStyles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#f8fafc' },
+  header: {
+    backgroundColor: '#fff',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e2e8f0',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerBack: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCenter: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  headerTitle: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
+  headerSub: { fontSize: 11, color: '#94a3b8', marginTop: 1 },
+  footer: {
+    backgroundColor: '#fff',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e2e8f0',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 8,
+  },
+  metaCard: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#f1f5f9',
+  },
+  metaTitle: { fontSize: 17, fontWeight: '600', color: '#0f172a', letterSpacing: -0.2, marginBottom: 6 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
+  metaText: { fontSize: 12, color: '#64748b', fontWeight: '500' },
+  metaTextAccent: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
+  metaMembers: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  metaAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#fff',
+    backgroundColor: '#e2e8f0',
+  },
+  metaCount: { fontSize: 11, color: '#0d9488', fontWeight: '600' },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#f0fdfa',
+    borderWidth: 1.5,
+    borderColor: '#99f6e4',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  actionBtnOutline: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#0d9488',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  actionBtnFull: {
+    flexDirection: 'row',
+    backgroundColor: '#f0fdfa',
+    borderWidth: 1.5,
+    borderColor: '#99f6e4',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  actionBtnText: { fontSize: 13, fontWeight: '600', color: '#0d9488' },
+  thumbStrip: {
+    backgroundColor: '#fff',
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#f1f5f9',
+  },
+  albumSubHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e2e8f0',
+  },
+  albumSubHeaderSide: { width: 88, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
+});

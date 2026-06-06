@@ -21,7 +21,8 @@ import {
   SafeAreaView,
   Pressable,
 } from 'react-native';
-import LocationAutocomplete from '../../components/common/LocationAutocomplete';
+import LocationMultiPicker from '../../components/common/LocationMultiPicker';
+import { formatLocationsLabel, normalizeLocations, toLocationPayload, type LocationPoint } from '../../utils/locations';
 import AppDatePicker from '../../components/common/AppDatePicker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
@@ -232,9 +233,7 @@ function fmtDateNoYear(iso: string): string {
 }
 
 function mapApiTrip(t: any): Trip {
-  const locName = typeof t.location === 'string'
-    ? t.location
-    : (t.location?.name ?? '');
+  const locName = formatLocationsLabel(t);
   const rawS: string = t.startDate ?? '';
   const rawE: string = t.endDate ?? '';
   const s = rawS.includes('T') ? rawS.split('T')[0] : rawS;
@@ -438,7 +437,7 @@ export function CreateTripModal({
   initialFriendIds,
 }: CreateTripModalProps) {
   const [name, setName] = useState('');
-  const [location, setLocation] = useState('');
+  const [locations, setLocations] = useState<LocationPoint[]>([]);
   const [startDateObj, setStartDateObj] = useState<Date | undefined>(undefined);
   const [endDateObj, setEndDateObj] = useState<Date | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -651,7 +650,7 @@ export function CreateTripModal({
   }
 
   function reset() {
-    setName(''); setLocation('');
+    setName(''); setLocations([]);
     setStartDateObj(undefined); setEndDateObj(undefined);
     setStartDateError(null); setEndDateError(null);
     setReminders(false); setUploadedDocs([]); setSelectedFriendIds([]);
@@ -666,12 +665,13 @@ export function CreateTripModal({
 
   async function handleSave() {
     if (!name.trim()) { showAlert({ title: 'Error', message: 'Please enter a trip name' }); return; }
+    if (locations.length === 0) { showAlert({ title: 'Error', message: 'Please add at least one location' }); return; }
     setSubmitError(null);
     setIsSubmitting(true);
     try {
       await onSave({
         name: name.trim(),
-        location: location.trim(),
+        locations,
         startDate: formatDate(startDateObj),
         endDate: formatDate(endDateObj),
         startDateISO: startDateObj ? dateToISO(startDateObj) : undefined,
@@ -836,12 +836,12 @@ export function CreateTripModal({
             </View>
 
             {/* Location */}
-            <Text style={styles.ctLabel}>Location</Text>
+            <Text style={styles.ctLabel}>Locations</Text>
             <View style={{ zIndex: 10 }}>
-              <LocationAutocomplete
-                initialValue={location}
-                onChangeText={setLocation}
-                placeholder="Search location..."
+              <LocationMultiPicker
+                value={locations}
+                onChange={setLocations}
+                placeholder="Search and add destination..."
                 variant="create"
               />
             </View>
@@ -1735,11 +1735,12 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
         setBannerCropFraction={setBannerCropFraction}
         onSave={async (data) => {
           const cropFraction = data.bannerCropFraction as any;
+          const tripLocations = (data.locations as LocationPoint[] | undefined) ?? [];
           const res = await apiCreateTrip({
             name: data.name as string,
             startDate: (data.startDateISO ?? data.startDate ?? '') as string,
             endDate: (data.endDateISO ?? data.endDate ?? '') as string,
-            location: { name: (data.location as string) || 'TBD' },
+            locations: toLocationPayload(tripLocations.length > 0 ? tripLocations : [{ name: 'TBD' }]),
             friendIds: (data.friendIds as string[] | undefined)?.length ? data.friendIds as string[] : undefined,
             emails: data.inviteEmail ? [data.inviteEmail as string] : undefined,
             reminders: data.reminders as boolean | undefined,

@@ -87,7 +87,8 @@ POST /trips
 Body:
 {
   name, startDate, endDate,
-  location: { name, lat, lng },   ← required
+  location: { name, lat, lng },   ← legacy single location (still supported)
+  locations: [{ name, lat?, lng?, sortOrder? }],  ← preferred, 1–10 items
   bannerImageUrl: "https://...",   ← optional banner image URL
   reminders: true,                 ← schedules 3 FCM reminders
   friendIds: ["uuid"],            ← directly added, must be accepted friends
@@ -570,10 +571,10 @@ Events mirror trips in structure but have **no activities submodule**. All share
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/events` | Yes | Create event. Optional `bannerImageUrl`, `friendIds`, `emails`. |
+| POST | `/events` | Yes | Create event. Requires `location` or `locations[]` (1–10). Optional `bannerImageUrl`, `friendIds`, `emails`. |
 | GET | `/events` | Yes | List events. `?status=upcoming\|ongoing\|past`. |
 | GET | `/events/:id` | Yes | Event detail with aggregated stats. Returns `bannerImageUrl`. |
-| PUT | `/events/:id` | Admin | Update metadata (`name`, `startDate`, `endDate`, `location`, `bannerImageUrl`). |
+| PUT | `/events/:id` | Admin | Update metadata (`name`, `eventDate`, `eventType`, `location` or `locations[]`, `bannerImageUrl`). |
 | DELETE | `/events/:id` | Admin | Delete event + S3 cleanup. |
 
 ### Events — Invites & Members

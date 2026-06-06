@@ -7,6 +7,16 @@ const { createInviteSmartLink } = require('../../utils/branch.util');
 const { generateInviteShareText } = require('../../utils/shareText.util');
 const config = require('../../config');
 const logger = require('../../utils/logger');
+const {
+  normalizeLocationInput,
+  locationKeywordsFromList,
+  primaryFromLocations,
+  insertLocations,
+  replaceLocations,
+  loadTripLocations,
+  loadTripLocationsBatch,
+  attachLocationsToTrip,
+} = require('../../utils/locations.util');
 
 // ─── Banner Auto-Assignment ────────────────────────────────────────────────────
 
@@ -85,42 +95,58 @@ const resolvePresignedBannerUrl = async (rawUrl) => {
   }
 };
 
-const formatTrip = (t) => ({
-  id: t.id,
-  name: t.name,
-  startDate: toDateStr(t.start_date),
-  endDate: toDateStr(t.end_date),
-  location: {
-    name: t.location_name,
-    lat: t.location_lat ? parseFloat(t.location_lat) : null,
-    lng: t.location_lng ? parseFloat(t.location_lng) : null,
-  },
-  coverPhotoUrl: t.cover_photo_url,
-  bannerImageUrl: t.banner_image_url || null,
-  bannerCropFraction: t.banner_crop_fraction || null,
-  archivedAt: t.archived_at || null,
-  createdBy: t.created_by,
-  createdAt: t.created_at,
-  updatedAt: t.updated_at,
-});
+const formatTrip = (t, locations = null) => {
+  const attached = attachLocationsToTrip(t, locations);
+  return {
+    id: t.id,
+    name: t.name,
+    startDate: toDateStr(t.start_date),
+    endDate: toDateStr(t.end_date),
+    location: attached.location,
+    locations: attached.locations,
+    coverPhotoUrl: t.cover_photo_url,
+    bannerImageUrl: t.banner_image_url || null,
+    bannerCropFraction: t.banner_crop_fraction || null,
+    archivedAt: t.archived_at || null,
+    createdBy: t.created_by,
+    createdAt: t.created_at,
+    updatedAt: t.updated_at,
+  };
+};
 
 // Async wrapper — resolves presigned banner URL then merges into formatted trip
-const enrichTrip = async (t) => {
+const enrichTrip = async (t, locations = null) => {
   const bannerImageUrl = await resolvePresignedBannerUrl(t.banner_image_url);
-  return { ...formatTrip(t), bannerImageUrl };
+  return { ...formatTrip(t, locations), bannerImageUrl };
+};
+
+const enrichTripWithLocations = async (t) => {
+  const locations = await loadTripLocations(db, t.id);
+  return enrichTrip(t, locations);
 };
 
 // ─── Create Trip ──────────────────────────────────────────────────────────────
 
 const createTrip = async (userId, body) => {
   const {
-    name, startDate, endDate, location = {}, reminders,
+    name, startDate, endDate, reminders,
     friendIds = [], emails = [], bannerImageUrl = null, bannerCropFraction = null,
   } = body;
 
+  const normalizedLocations = normalizeLocationInput(body);
+  if (normalizedLocations.length === 0) {
+    const err = new Error('At least one location is required');
+    err.statusCode = 422;
+    err.error = 'VALIDATION_ERROR';
+    throw err;
+  }
+
+  const primary = primaryFromLocations(normalizedLocations);
+  const locationKeywords = locationKeywordsFromList(normalizedLocations);
+
   // Fallback chain: user upload → keyword match → generic travel photo
   const resolvedBanner = bannerImageUrl
-    || await resolveBannerUrl([location.name, name].filter(Boolean).join(' '));
+    || await resolveBannerUrl([locationKeywords, name].filter(Boolean).join(' '));
 
   const client = await getClient();
   try {
@@ -131,9 +157,11 @@ const createTrip = async (userId, body) => {
       `INSERT INTO trips (name, start_date, end_date, location_name, location_lat, location_lng, created_by, banner_image_url, banner_crop_fraction)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [name, startDate, endDate, location.name || null, location.lat || null, location.lng || null, userId, resolvedBanner, bannerCropFraction ? JSON.stringify(bannerCropFraction) : null],
+      [name, startDate, endDate, primary.name, primary.lat, primary.lng, userId, resolvedBanner, bannerCropFraction ? JSON.stringify(bannerCropFraction) : null],
     );
     const trip = tripResult.rows[0];
+
+    await insertLocations(client, 'trip_locations', 'trip_id', trip.id, normalizedLocations);
 
     // Add creator as admin
     await client.query(
@@ -237,7 +265,7 @@ const createTrip = async (userId, body) => {
     const countResult = await db('SELECT COUNT(*) FROM trip_members WHERE trip_id = $1', [trip.id]);
 
     return {
-      ...await enrichTrip(trip),
+      ...await enrichTrip(trip, normalizedLocations),
       memberCount: parseInt(countResult.rows[0].count, 10),
     };
   } catch (error) {
@@ -309,8 +337,11 @@ const getTrips = async (userId, { status, page = 1, limit = 20 } = {}) => {
   );
 
   const total = result.rows[0]?.total_count || 0;
+  const tripIds = result.rows.map((t) => t.id);
+  const locationsMap = await loadTripLocationsBatch(db, tripIds);
+
   const trips = await Promise.all(result.rows.map(async (t) => ({
-    ...await enrichTrip(t),
+    ...await enrichTrip(t, locationsMap.get(t.id) || []),
     memberCount: t.member_count,
     memberAvatars: t.member_avatars || [],
   })));
@@ -388,9 +419,11 @@ const getTripById = async (tripId, currentUserId) => {
     [tripId],
   );
 
+  const locations = await loadTripLocations(db, tripId);
+
   return {
     trip: {
-      ...await enrichTrip(t),
+      ...await enrichTrip(t, locations),
       daysToGo: calcDaysToGo(t.start_date),
     },
     members: membersResult.rows.map((m) => ({
@@ -425,6 +458,12 @@ const getTripById = async (tripId, currentUserId) => {
 // ─── Update Trip ──────────────────────────────────────────────────────────────
 
 const updateTrip = async (tripId, updates) => {
+  const hasLocationsArray = Array.isArray(updates.locations);
+  const hasLegacyLocation = updates.location && typeof updates.location === 'object';
+  const normalizedLocations = (hasLocationsArray || hasLegacyLocation)
+    ? normalizeLocationInput(updates)
+    : null;
+
   const fields = [];
   const values = [];
   let idx = 1;
@@ -432,24 +471,105 @@ const updateTrip = async (tripId, updates) => {
   if (updates.name !== undefined) { fields.push(`name = $${idx++}`); values.push(updates.name); }
   if (updates.startDate !== undefined) { fields.push(`start_date = $${idx++}`); values.push(updates.startDate); }
   if (updates.endDate !== undefined) { fields.push(`end_date = $${idx++}`); values.push(updates.endDate); }
-  if (updates.location?.name !== undefined) { fields.push(`location_name = $${idx++}`); values.push(updates.location.name); }
-  if (updates.location?.lat !== undefined) { fields.push(`location_lat = $${idx++}`); values.push(updates.location.lat); }
-  if (updates.location?.lng !== undefined) { fields.push(`location_lng = $${idx++}`); values.push(updates.location.lng); }
+
+  if (normalizedLocations) {
+    if (normalizedLocations.length === 0) {
+      const err = new Error('At least one location is required');
+      err.statusCode = 422;
+      err.error = 'VALIDATION_ERROR';
+      throw err;
+    }
+    const primary = primaryFromLocations(normalizedLocations);
+    fields.push(`location_name = $${idx++}`); values.push(primary.name);
+    fields.push(`location_lat = $${idx++}`); values.push(primary.lat);
+    fields.push(`location_lng = $${idx++}`); values.push(primary.lng);
+  } else {
+    if (updates.location?.name !== undefined) { fields.push(`location_name = $${idx++}`); values.push(updates.location.name); }
+    if (updates.location?.lat !== undefined) { fields.push(`location_lat = $${idx++}`); values.push(updates.location.lat); }
+    if (updates.location?.lng !== undefined) { fields.push(`location_lng = $${idx++}`); values.push(updates.location.lng); }
+  }
+
   if (updates.bannerImageUrl !== undefined) { fields.push(`banner_image_url = $${idx++}`); values.push(updates.bannerImageUrl); }
   if (updates.bannerCropFraction !== undefined) { fields.push(`banner_crop_fraction = $${idx++}`); values.push(updates.bannerCropFraction ? JSON.stringify(updates.bannerCropFraction) : null); }
 
-  if (fields.length === 0) {
+  if (fields.length === 0 && !normalizedLocations) {
     const existing = await db('SELECT * FROM trips WHERE id = $1', [tripId]);
-    return enrichTrip(existing.rows[0]);
+    return enrichTripWithLocations(existing.rows[0]);
   }
 
-  values.push(tripId);
-  const result = await db(
-    `UPDATE trips SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`,
-    values,
-  );
+  if (!normalizedLocations) {
+    values.push(tripId);
+    const result = await db(
+      `UPDATE trips SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`,
+      values,
+    );
+    const trip = result.rows[0];
 
-  const trip = result.rows[0];
+    if (updates.startDate) {
+      const client = await getClient();
+      try {
+        await client.query('BEGIN');
+        const HOUR = parseInt(process.env.REMINDER_HOUR_UTC ?? '3');
+        const MIN  = parseInt(process.env.REMINDER_MIN_UTC  ?? '30');
+        const start = new Date(updates.startDate);
+        start.setUTCHours(HOUR, MIN, 0, 0);
+        const remindersToCreate = [
+          { type: 'trip_start',    date: new Date(start) },
+          { type: '1_day_before',  date: new Date(start.getTime() - 86400000) },
+          { type: '3_days_before', date: new Date(start.getTime() - 3 * 86400000) },
+          { type: '1_week_before', date: new Date(start.getTime() - 7 * 86400000) },
+        ];
+        for (const r of remindersToCreate) {
+          if (r.date > new Date()) {
+            await client.query(
+              `INSERT INTO trip_reminders (trip_id, reminder_type, scheduled_at)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (trip_id, reminder_type) WHERE sent_at IS NULL
+               DO UPDATE SET scheduled_at = EXCLUDED.scheduled_at`,
+              [trip.id, r.type, r.date.toISOString()],
+            );
+          }
+        }
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    }
+
+    return enrichTripWithLocations(trip);
+  }
+
+  const client = await getClient();
+  let trip;
+  try {
+    await client.query('BEGIN');
+
+    if (fields.length > 0) {
+      values.push(tripId);
+      const result = await client.query(
+        `UPDATE trips SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`,
+        values,
+      );
+      trip = result.rows[0];
+    } else {
+      const existing = await client.query('SELECT * FROM trips WHERE id = $1', [tripId]);
+      trip = existing.rows[0];
+    }
+
+    if (normalizedLocations) {
+      await replaceLocations(client, 'trip_locations', 'trip_id', tripId, normalizedLocations);
+    }
+
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
 
   if (updates.startDate) {
     const client = await getClient();
@@ -485,7 +605,8 @@ const updateTrip = async (tripId, updates) => {
     }
   }
 
-  return enrichTrip(trip);
+  const locations = await loadTripLocations(db, tripId);
+  return enrichTrip(trip, locations);
 };
 
 // ─── Delete Trip ──────────────────────────────────────────────────────────────
@@ -778,7 +899,7 @@ const archiveTrip = async (tripId) => {
   if (result.rowCount === 0) {
     const err = new Error('Trip not found'); err.statusCode = 404; err.error = 'NOT_FOUND'; throw err;
   }
-  return enrichTrip(result.rows[0]);
+  return enrichTripWithLocations(result.rows[0]);
 };
 
 const unarchiveTrip = async (tripId) => {
@@ -789,7 +910,7 @@ const unarchiveTrip = async (tripId) => {
   if (result.rowCount === 0) {
     const err = new Error('Trip not found'); err.statusCode = 404; err.error = 'NOT_FOUND'; throw err;
   }
-  return enrichTrip(result.rows[0]);
+  return enrichTripWithLocations(result.rows[0]);
 };
 
 // ─── Confirm Trip (TRIP_MILESTONE) ───────────────────────────────────────────

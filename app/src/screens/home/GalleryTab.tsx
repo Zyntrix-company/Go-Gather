@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, ScrollView, Image,
   Dimensions, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, FlatList,
 } from 'react-native';
 import { showConfirm } from '../../store/alertStore';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import {
   createGalleryAlbum,
   updateGalleryAlbum,
@@ -26,6 +25,9 @@ import { getUserGallery, getUserPhotos, upsertGallerySubtitle, archiveGalleryIte
 import { getTripPhotos, uploadTripPhotos, updateTrip, getDriveStatus, listDrivePhotoFiles, importDrivePhotos, type DriveFile } from '../../api/trips.api';
 import { getEventPhotos, uploadEventPhotos, updateEvent } from '../../api/events.api';
 import Toast from 'react-native-toast-message';
+import { ALBUM_HERO_H, ALBUM_THUMB_H, ALBUM_THUMB_W, albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
+import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
+import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = (SCREEN_W - 52) / 2;
@@ -380,7 +382,6 @@ function PhotosModal({
   const navigation = useNavigation<any>();
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const insets = useSafeAreaInsets();
   const [editMode, setEditMode] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
@@ -469,67 +470,63 @@ function PhotosModal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, parentId, parentType, userId]);
 
-  const handleAddPhotos = () => {
-    launchImageLibrary(
-      { mediaType: 'photo', selectionLimit: 20, quality: 0.85, maxWidth: 2048, maxHeight: 2048 },
-      async (res) => {
-        if (res.didCancel || !res.assets?.length) return;
+  const pickPhotos = (cam: boolean) => {
+    const fn = cam ? launchCamera : launchImageLibrary;
+    const opts = cam
+      ? { mediaType: 'photo' as const, quality: 0.85, maxWidth: 2048, maxHeight: 2048 }
+      : { mediaType: 'photo' as const, selectionLimit: 20, quality: 0.85, maxWidth: 2048, maxHeight: 2048 };
+    fn(opts, async (res) => {
+      if (res.didCancel || !res.assets?.length) return;
 
-        const assets = res.assets.map((a) => ({
-          uri: a.uri ?? '',
-          type: a.type ?? 'image/jpeg',
-          name: a.fileName ?? 'photo.jpg',
-        })).filter((a) => a.uri);
-        if (!assets.length) return;
+      const assets = res.assets.map((a) => ({
+        uri: a.uri ?? '',
+        type: a.type ?? 'image/jpeg',
+        name: a.fileName ?? 'photo.jpg',
+      })).filter((a) => a.uri);
+      if (!assets.length) return;
 
-        // Optimistic: add photos immediately with local file URIs so they display
-        // right away without waiting for the S3 upload to complete.
-        const tempIds = assets.map((_, i) => `temp_${Date.now()}_${i}`);
-        setPhotos((prev) => [
-          ...prev,
-          ...assets.map((a, i) => ({
-            id: tempIds[i],
-            uri: a.uri,
-            localUri: a.uri,
+      const tempIds = assets.map((_, i) => `temp_${Date.now()}_${i}`);
+      setPhotos((prev) => [
+        ...prev,
+        ...assets.map((a, i) => ({
+          id: tempIds[i],
+          uri: a.uri,
+          localUri: a.uri,
+          activityId: null,
+          activityTitle: null,
+        })),
+      ]);
+
+      setUploading(true);
+      try {
+        const result = parentType === 'trip'
+          ? await uploadTripPhotos(parentId, assets)
+          : await uploadEventPhotos(parentId, assets);
+
+        setPhotos((prev) => {
+          const withoutTemps = prev.filter((p) => !tempIds.includes(p.id));
+          const uploaded: PhotoItem[] = result.photos.map((ph: any, i: number) => ({
+            id: ph.id,
+            uri: ph.url ?? ph.fileUrl ?? assets[i]?.uri ?? '',
+            localUri: assets[i]?.uri,
             activityId: null,
             activityTitle: null,
-          })),
-        ]);
-
-        setUploading(true);
-        try {
-          const result = parentType === 'trip'
-            ? await uploadTripPhotos(parentId, assets)
-            : await uploadEventPhotos(parentId, assets);
-
-          // Replace temp entries with server-backed photos; keep localUri as fallback
-          setPhotos((prev) => {
-            const withoutTemps = prev.filter((p) => !tempIds.includes(p.id));
-            const uploaded: PhotoItem[] = result.photos.map((ph: any, i: number) => ({
-              id: ph.id,
-              uri: ph.url ?? ph.fileUrl ?? assets[i]?.uri ?? '',
-              localUri: assets[i]?.uri,
-              activityId: null,
-              activityTitle: null,
-            }));
-            // Persist localUris so they survive the next setPhotos([]) call in loadPhotos
-            uploaded.forEach((p) => { if (p.localUri) localUriCache.current[p.id] = p.localUri; });
-            return [...withoutTemps, ...uploaded];
-          });
-        } catch (err: any) {
-          // Roll back optimistic entries on failure
-          setPhotos((prev) => prev.filter((p) => !tempIds.includes(p.id)));
-          const status = err?.response?.status;
-          Toast.show({
-            type: 'error',
-            text1: status === 403 ? 'Permission denied' : 'Upload failed',
-            text2: status === 403 ? 'You do not have permission to add photos here.' : 'Please try again.',
-          });
-        } finally {
-          setUploading(false);
-        }
-      },
-    );
+          }));
+          uploaded.forEach((p) => { if (p.localUri) localUriCache.current[p.id] = p.localUri; });
+          return [...withoutTemps, ...uploaded];
+        });
+      } catch (err: any) {
+        setPhotos((prev) => prev.filter((p) => !tempIds.includes(p.id)));
+        const status = err?.response?.status;
+        Toast.show({
+          type: 'error',
+          text1: status === 403 ? 'Permission denied' : 'Upload failed',
+          text2: status === 403 ? 'You do not have permission to add photos here.' : 'Please try again.',
+        });
+      } finally {
+        setUploading(false);
+      }
+    });
   };
 
   const openPhotoDrivePicker = async () => {
@@ -651,59 +648,47 @@ function PhotosModal({
   return (
     <>
       <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
-        <View style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
-
-          {/* ── Sticky header bar (safe-area aware) ── */}
-          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30, paddingTop: insets.top, backgroundColor: 'transparent' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 8 }}>
-              {/* Back */}
-              <TouchableOpacity
-                onPress={onClose}
-                style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, elevation: 4 }}
-                activeOpacity={0.8}
-              >
-                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                  <Path d="M19 12H5M12 5l-7 7 7 7" stroke="#0f172a" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
-                </Svg>
-              </TouchableOpacity>
-              {/* Edit / Archive */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                {!userId && (
-                  editMode ? (
-                    <TouchableOpacity
-                      onPress={handleDoneEdit}
-                      style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, elevation: 4 }}
-                      disabled={saving}
-                    >
-                      {saving ? <ActivityIndicator size="small" color="#0d9488" /> : <CheckIcon />}
-                    </TouchableOpacity>
-                  ) : (
-                    <>
-                      <TouchableOpacity
-                        onPress={() => setEditMode(true)}
-                        style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, elevation: 4 }}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <Pen size={16} color="#0d9488" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={handleArchiveAlbum}
-                        style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 4, elevation: 4 }}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <Archive size={16} color="#64748b" />
-                      </TouchableOpacity>
-                    </>
-                  )
-                )}
-              </View>
-            </View>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-
-            {/* ── Hero Photo (swipeable FlatList pager) ── */}
-            <View style={{ height: 290, backgroundColor: '#0f172a', position: 'relative' }}>
+        <AlbumPhotosScreenLayout
+          navigation={navigation}
+          activeTab="gallery"
+          onClose={onClose}
+          photoIndex={heroIndex}
+          photoTotal={photos.length}
+          headerRight={
+            !userId ? (
+              editMode ? (
+                <TouchableOpacity onPress={handleDoneEdit} style={acs.headerBack} disabled={saving}>
+                  {saving ? <ActivityIndicator size="small" color="#0d9488" /> : <CheckIcon />}
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <TouchableOpacity onPress={() => setEditMode(true)} style={acs.headerBack} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <Pen size={15} color="#0d9488" />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleArchiveAlbum} style={acs.headerBack} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <Archive size={15} color="#64748b" />
+                  </TouchableOpacity>
+                </>
+              )
+            ) : null
+          }
+          footer={
+            !userId ? (
+              <AlbumPhotosFooter
+                aboveTabBar
+                onUpload={() => pickPhotos(false)}
+                onCamera={() => pickPhotos(true)}
+                onDrive={openPhotoDrivePicker}
+                uploading={uploading}
+                driveImporting={driveImporting}
+              />
+            ) : (
+              <AlbumPhotosFooter viewOnly aboveTabBar />
+            )
+          }
+        >
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={{ flex: 1 }}>
+            <View style={{ height: ALBUM_HERO_H, backgroundColor: '#0f172a' }}>
               {loading ? (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                   <ActivityIndicator size="large" color="#5eead4" />
@@ -722,7 +707,7 @@ function PhotosModal({
                     setHeroIndex(idx);
                   }}
                   renderItem={({ item }) => (
-                    <View style={{ width: SCREEN_W, height: 290 }}>
+                    <View style={{ width: SCREEN_W, height: ALBUM_HERO_H }}>
                       <GalleryHeroPhoto photo={item} />
                     </View>
                   )}
@@ -730,26 +715,19 @@ function PhotosModal({
                 />
               ) : (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                  <Svg width={56} height={56} viewBox="0 0 24 24" fill="none">
+                  <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
                     <Rect x={3} y={3} width={18} height={18} rx={2} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} />
                     <Circle cx={8.5} cy={8.5} r={1.5} fill="rgba(255,255,255,0.25)" />
                     <Path d="M21 15l-5-5L5 21" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                   </Svg>
-                  <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 10 }}>No photos yet</Text>
-                </View>
-              )}
-              {/* Photo count */}
-              {photos.length > 0 && (
-                <View style={{ position: 'absolute', bottom: 14, right: 14, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.52)', paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14 }}>
-                  <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{heroIndex + 1} / {photos.length}</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 8 }}>No photos yet</Text>
                 </View>
               )}
             </View>
 
-            {/* ── Thumbnail Strip ── */}
             {photos.length > 0 && (
-              <View style={{ backgroundColor: '#fff', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, flexDirection: 'row' }}>
+              <View style={acs.thumbStrip}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 6, flexDirection: 'row' }}>
                   {photos.map((ph, idx) => {
                     const thumbUri = ph.localUri ?? ph.uri;
                     return (
@@ -758,8 +736,8 @@ function PhotosModal({
                         onPress={() => { setHeroIndex(idx); heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true }); }}
                         activeOpacity={0.85}
                         style={{
-                          width: 74, height: 60, borderRadius: 10, overflow: 'hidden',
-                          borderWidth: idx === heroIndex ? 2.5 : 0,
+                          width: ALBUM_THUMB_W, height: ALBUM_THUMB_H, borderRadius: 8, overflow: 'hidden',
+                          borderWidth: idx === heroIndex ? 2 : 0,
                           borderColor: '#0d9488',
                           backgroundColor: '#e2e8f0',
                         }}
@@ -772,144 +750,63 @@ function PhotosModal({
               </View>
             )}
 
-            {/* ── Identity Card ── */}
-            <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 18 }}>
-              {/* Edit mode name input */}
+            <View style={acs.metaCard}>
               {(editMode && !userId) ? (
-                <TextInput
-                  value={nameDraft}
-                  onChangeText={setNameDraft}
-                  style={[styles.titleEditInput, { fontSize: 22, marginBottom: 6 }]}
-                  placeholderTextColor="#94a3b8"
-                  placeholder="Album title"
-                  returnKeyType="next"
-                />
+                <>
+                  <TextInput
+                    value={nameDraft}
+                    onChangeText={setNameDraft}
+                    style={[styles.titleEditInput, { fontSize: 16, marginBottom: 6 }]}
+                    placeholderTextColor="#94a3b8"
+                    placeholder="Album title"
+                    returnKeyType="next"
+                  />
+                  <TextInput
+                    value={subtitleDraft}
+                    onChangeText={setSubtitleDraft}
+                    placeholder="Add a short description…"
+                    placeholderTextColor="#94a3b8"
+                    style={[styles.modalSubtitleInput, { marginBottom: 6, fontSize: 13 }]}
+                    maxLength={80}
+                    returnKeyType="done"
+                    onSubmitEditing={handleDoneEdit}
+                  />
+                </>
               ) : (
                 <>
                   {isActivityPhoto && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                      <View style={{ width: 3, height: 14, backgroundColor: '#0d9488', borderRadius: 2 }} />
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#0d9488', letterSpacing: 0.3 }}>ACTIVITY</Text>
-                    </View>
+                    <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488', letterSpacing: 0.4, marginBottom: 4 }}>ACTIVITY</Text>
                   )}
-                  <Text style={{ fontSize: 26, fontWeight: '700', color: '#0f172a', letterSpacing: -0.4, marginBottom: 4 }} numberOfLines={2}>
-                    {dynamicTitle}
-                  </Text>
+                  <Text style={acs.metaTitle} numberOfLines={2}>{dynamicTitle}</Text>
                   {isActivityPhoto && (
-                    <Text style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>
-                      from <Text style={{ fontWeight: '600', color: '#0f172a' }}>{title}</Text>
-                    </Text>
+                    <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 6 }}>from {title}</Text>
                   )}
+                  {initialSubtitle?.trim() ? (
+                    <Text style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }} numberOfLines={descExpanded ? undefined : 2}>
+                      {initialSubtitle}
+                    </Text>
+                  ) : null}
                 </>
               )}
-
-              {/* Subtitle edit / display */}
-              {(editMode && !userId) ? (
-                <TextInput
-                  value={subtitleDraft}
-                  onChangeText={setSubtitleDraft}
-                  placeholder="Add a short description…"
-                  placeholderTextColor="#94a3b8"
-                  style={[styles.modalSubtitleInput, { marginBottom: 10 }]}
-                  maxLength={80}
-                  returnKeyType="done"
-                  onSubmitEditing={handleDoneEdit}
-                />
-              ) : (initialSubtitle?.trim() ? (
-                <Text style={{ fontSize: 14, color: '#64748b', marginBottom: 10 }}>{initialSubtitle}</Text>
-              ) : null)}
-
-              {/* Type badge + photo count */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 }}>
-                <View style={{ backgroundColor: parentType === 'trip' ? '#f0fdf4' : '#fdf2f8', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  {parentType === 'trip' ? (
-                    <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
-                      <Path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" stroke="#0d9488" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                  ) : (
-                    <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
-                      <Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke="#db2777" strokeWidth={2} />
-                      <Path d="M16 2v4M8 2v4M3 10h18" stroke="#db2777" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                  )}
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: parentType === 'trip' ? '#0d9488' : '#db2777' }}>
+              <View style={acs.metaRow}>
+                <View style={{ backgroundColor: parentType === 'trip' ? '#f0fdf4' : '#fdf2f8', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: parentType === 'trip' ? '#0d9488' : '#db2777' }}>
                     {parentType === 'trip' ? 'Trip' : 'Event'}
                   </Text>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <Svg width={13} height={13} viewBox="0 0 24 24" fill="none">
-                    <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
-                    <Circle cx={8.5} cy={8.5} r={1.5} fill="#0d9488" />
-                    <Path d="M21 15l-5-5L5 21" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                  <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '600' }}>
-                    {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'Photo' : 'Photos'}`}
-                  </Text>
-                </View>
+                <Text style={acs.metaCount}>
+                  {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
+                </Text>
               </View>
             </View>
 
-            {/* ── Description (subtitle as description) ── */}
-            {!editMode && initialSubtitle && initialSubtitle.trim().length > 60 && (
-              <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 20 }}>
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#0f172a', marginBottom: 8 }}>Description</Text>
-                <Text style={{ fontSize: 14, color: '#475569', lineHeight: 22 }} numberOfLines={descExpanded ? undefined : 3}>
-                  {initialSubtitle}
-                </Text>
-                <TouchableOpacity onPress={() => setDescExpanded(p => !p)} activeOpacity={0.7} style={{ marginTop: 5 }}>
-                  <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '600' }}>
-                    {descExpanded ? 'Show less' : '.....Read more'}
-                  </Text>
-                </TouchableOpacity>
+            {!loading && photos.length === 0 && !userId && (
+              <View style={[styles.emptyCenter, { paddingVertical: 24 }]}>
+                <Text style={styles.emptySub}>Tap the buttons below to add photos.</Text>
               </View>
             )}
-
-            {/* ── Add Photos Button (edit mode) / empty state ── */}
-            <View style={{ backgroundColor: '#fff', marginTop: 10, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 36 }}>
-              {!loading && photos.length === 0 && (
-                <View style={styles.emptyCenter}>
-                  <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
-                    <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
-                    <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
-                    <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                  <Text style={styles.emptyTitle}>No photos yet</Text>
-                  <Text style={styles.emptySub}>
-                    {!userId ? 'Tap "Add photos" below to capture memories.' : `No memories captured for this ${parentType}.`}
-                  </Text>
-                </View>
-              )}
-              {!userId && (
-                <View style={{ gap: 10 }}>
-                  <TouchableOpacity
-                    style={[styles.addPhotosBtn, uploading && { opacity: 0.6 }]}
-                    onPress={handleAddPhotos}
-                    disabled={uploading}
-                    activeOpacity={0.85}
-                  >
-                    {uploading ? <ActivityIndicator color="#0d9488" /> : <Text style={styles.addPhotosBtnText}>Add photos</Text>}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.addPhotosBtn, styles.drivePhotosBtn, (uploading || driveImporting) && { opacity: 0.6 }]}
-                    onPress={openPhotoDrivePicker}
-                    disabled={uploading || driveImporting}
-                    activeOpacity={0.85}
-                  >
-                    {driveImporting ? (
-                      <ActivityIndicator color="#0d9488" />
-                    ) : (
-                      <>
-                        <DriveBrandIcon size={16} />
-                        <Text style={styles.addPhotosBtnText}>Add from Drive</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-
           </ScrollView>
-        </View>
+        </AlbumPhotosScreenLayout>
       </Modal>
       <Modal visible={showDrivePicker} transparent animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
         <View style={styles.overlay}>
@@ -1125,6 +1022,7 @@ function CustomCardPhotosModal({
   onArchiveCard: (id: string) => void;
   onDeleteCard: (id: string) => void;
 }) {
+  const navigation = useNavigation<any>();
   const [editMode, setEditMode] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
@@ -1132,6 +1030,8 @@ function CustomCardPhotosModal({
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const heroFlatListRef = useRef<any>(null);
 
   const loadPhotos = () => {
     if (!card?.id) return;
@@ -1148,6 +1048,7 @@ function CustomCardPhotosModal({
     if (!visible) {
       setEditMode(false);
       setPhotos([]);
+      setHeroIndex(0);
     } else if (card) {
       setNameDraft(card.name);
       loadPhotos();
@@ -1169,34 +1070,39 @@ function CustomCardPhotosModal({
     setEditMode(false);
   };
 
-  const addPhotos = () => {
+  const uploadAssets = async (assets: { uri: string; type: string; name: string }[]) => {
+    if (!card || !assets.length) return;
+    setUploading(true);
+    try {
+      const { photos: uploaded } = await uploadGalleryAlbumPhotos(card.id, assets);
+      setPhotos((prev) => [
+        ...prev,
+        ...uploaded.map((p) => ({ id: p.id, uri: p.uri ?? '' })),
+      ]);
+      if (!card.bannerImageUrl && uploaded[0]?.uri) {
+        const updated = await updateGalleryAlbum(card.id, { bannerImageUrl: uploaded[0].uri });
+        onCardUpdated({ ...updated, type: card.type });
+      }
+    } catch {
+      Toast.show({ type: 'error', text1: 'Upload failed', text2: 'Please try again.' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const pickPhotos = (cam: boolean) => {
     if (!card) return;
-    launchImageLibrary(
-      { mediaType: 'photo', selectionLimit: 20, includeBase64: false, quality: 0.85, maxWidth: 2048, maxHeight: 2048 },
-      async (res) => {
-        if (res.didCancel || !res.assets?.length) return;
-        const assets = res.assets
-          .map((a) => ({ uri: a.uri ?? '', type: a.type ?? 'image/jpeg', name: a.fileName ?? 'photo.jpg' }))
-          .filter((a) => a.uri);
-        if (!assets.length) return;
-        setUploading(true);
-        try {
-          const { photos: uploaded } = await uploadGalleryAlbumPhotos(card.id, assets);
-          setPhotos((prev) => [
-            ...prev,
-            ...uploaded.map((p) => ({ id: p.id, uri: p.uri ?? '' })),
-          ]);
-          if (!card.bannerImageUrl && uploaded[0]?.uri) {
-            const updated = await updateGalleryAlbum(card.id, { bannerImageUrl: uploaded[0].uri });
-            onCardUpdated({ ...updated, type: card.type });
-          }
-        } catch {
-          Toast.show({ type: 'error', text1: 'Upload failed', text2: 'Please try again.' });
-        } finally {
-          setUploading(false);
-        }
-      },
-    );
+    const fn = cam ? launchCamera : launchImageLibrary;
+    const opts = cam
+      ? { mediaType: 'photo' as const, quality: 0.85, maxWidth: 2048, maxHeight: 2048 }
+      : { mediaType: 'photo' as const, selectionLimit: 20, includeBase64: false, quality: 0.85, maxWidth: 2048, maxHeight: 2048 };
+    fn(opts, async (res) => {
+      if (res.didCancel || !res.assets?.length) return;
+      const assets = res.assets
+        .map((a) => ({ uri: a.uri ?? '', type: a.type ?? 'image/jpeg', name: a.fileName ?? 'photo.jpg' }))
+        .filter((a) => a.uri);
+      await uploadAssets(assets);
+    });
   };
 
   const deletePhoto = async (photoId: string) => {
@@ -1222,6 +1128,7 @@ function CustomCardPhotosModal({
     try {
       const updated = await updateGalleryAlbum(card.id, { bannerImageUrl: uri });
       onCardUpdated({ ...updated, type: card.type });
+      Toast.show({ type: 'success', text1: 'Cover updated' });
     } catch {
       Toast.show({ type: 'error', text1: 'Could not set cover', text2: 'Please try again.' });
     }
@@ -1237,21 +1144,9 @@ function CustomCardPhotosModal({
         if (!uri) return;
         const alreadyIn = photos.some((p) => p.uri === uri);
         if (!alreadyIn) {
-          setUploading(true);
-          try {
-            const { photos: uploaded } = await uploadGalleryAlbumPhotos(card.id, [
-              { uri, type: res.assets[0].type ?? 'image/jpeg', name: res.assets[0].fileName ?? 'cover.jpg' },
-            ]);
-            setPhotos((prev) => [...prev, ...uploaded.map((p) => ({ id: p.id, uri: p.uri ?? '' }))]);
-            if (uploaded[0]?.uri) await setPhotoAsCover(uploaded[0].uri);
-          } catch {
-            Toast.show({ type: 'error', text1: 'Upload failed', text2: 'Please try again.' });
-          } finally {
-            setUploading(false);
-          }
-        } else {
-          await setPhotoAsCover(uri);
+          await uploadAssets([{ uri, type: res.assets[0].type ?? 'image/jpeg', name: res.assets[0].fileName ?? 'cover.jpg' }]);
         }
+        await setPhotoAsCover(uri);
       },
     );
   };
@@ -1260,128 +1155,138 @@ function CustomCardPhotosModal({
 
   return (
     <>
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        <View style={styles.overlay}>
-          <View style={[styles.dialog, { maxHeight: '85%' }]}>
-
-            {/* Header */}
-            <View style={styles.dialogHeader}>
-              {editMode ? (
-                <TextInput
-                  value={nameDraft}
-                  onChangeText={setNameDraft}
-                  style={styles.albumNameInput}
-                  placeholderTextColor="#94a3b8"
-                  placeholder="Album title"
-                  returnKeyType="done"
-                  onSubmitEditing={saveAndExitEdit}
-                  autoFocus
-                />
-              ) : (
-                <Text style={styles.dialogTitle} numberOfLines={1}>{card.name}</Text>
-              )}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                {editMode ? (
-                  <TouchableOpacity onPress={saveAndExitEdit} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <CheckIcon />
-                  </TouchableOpacity>
-                ) : (
-                  <>
-                    <TouchableOpacity onPress={() => setEditMode(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Pen size={18} color="#0d9488" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => {
-                        showConfirm({
-                          title: 'Archive album?',
-                          message:
-                            `Hide "${card.name}" from your gallery only.\n\n` +
-                            'Friends will not see this album on your profile. Restore from Archived.',
-                          confirmText: 'Archive',
-                          onConfirm: () => { onArchiveCard(card.id); onClose(); },
-                        });
-                      }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Archive size={18} color="#64748b" />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => {
-                        showConfirm({
-                          title: 'Delete album permanently?',
-                          message:
-                            `Permanently delete "${card.name}" from your gallery.\n\n` +
-                            'Does not delete shared trips or events. This cannot be undone.',
-                          confirmText: 'Delete',
-                          destructive: true,
-                          onConfirm: () => { onDeleteCard(card.id); onClose(); },
-                        });
-                      }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Trash2 size={18} color="#ef4444" />
-                    </TouchableOpacity>
-                  </>
-                )}
-                <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <CloseIcon />
+      <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
+        <AlbumPhotosScreenLayout
+          navigation={navigation}
+          activeTab="gallery"
+          onClose={onClose}
+          photoIndex={heroIndex}
+          photoTotal={photos.length}
+          headerRight={
+            editMode ? (
+              <TouchableOpacity onPress={saveAndExitEdit} style={acs.headerBack}>
+                <CheckIcon />
+              </TouchableOpacity>
+            ) : (
+              <>
+                <TouchableOpacity onPress={() => setEditMode(true)} style={acs.headerBack} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <Pen size={15} color="#0d9488" />
                 </TouchableOpacity>
-              </View>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.dialogBody}>
-
-                {/* Change cover row — only in edit mode */}
-                {editMode && (
-                  <TouchableOpacity style={styles.changeCoverRow} onPress={changeCoverFromLibrary} activeOpacity={0.75}>
-                    <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
-                      <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      <Circle cx={12} cy={13} r={4} stroke="#0d9488" strokeWidth={2} />
-                    </Svg>
-                    <Text style={styles.changeCoverText}>Change cover photo</Text>
-                  </TouchableOpacity>
-                )}
-
-                {loading && (
-                  <View style={styles.modalLoadingRow}>
-                    <ActivityIndicator color="#0d9488" />
+                <TouchableOpacity
+                  onPress={() => {
+                    showConfirm({
+                      title: 'Archive album?',
+                      message: `Hide "${card.name}" from your gallery only.\n\nFriends will not see this album on your profile. Restore from Archived.`,
+                      confirmText: 'Archive',
+                      onConfirm: () => { onArchiveCard(card.id); onClose(); },
+                    });
+                  }}
+                  style={acs.headerBack}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Archive size={15} color="#64748b" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    showConfirm({
+                      title: 'Delete album permanently?',
+                      message: `Permanently delete "${card.name}" from your gallery.\n\nDoes not delete shared trips or events. This cannot be undone.`,
+                      confirmText: 'Delete',
+                      destructive: true,
+                      onConfirm: () => { onDeleteCard(card.id); onClose(); },
+                    });
+                  }}
+                  style={acs.headerBack}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Trash2 size={15} color="#ef4444" />
+                </TouchableOpacity>
+              </>
+            )
+          }
+          footer={
+            <AlbumPhotosFooter
+              aboveTabBar
+              onUpload={() => pickPhotos(false)}
+              onCamera={() => pickPhotos(true)}
+              uploading={uploading}
+              showDrive={false}
+            />
+          }
+        >
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={{ flex: 1 }}>
+            <TouchableOpacity
+              activeOpacity={photos.length > 0 && !editMode ? 0.95 : 1}
+              onPress={() => { if (photos.length > 0 && !editMode) setPreviewIndex(heroIndex); }}
+            >
+              <View style={{ height: ALBUM_HERO_H, backgroundColor: '#0f172a' }}>
+                {loading ? (
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <ActivityIndicator size="large" color="#5eead4" />
                   </View>
-                )}
-
-                {!loading && photos.length === 0 && (
-                  <View style={styles.emptyCenter}>
+                ) : photos.length > 0 ? (
+                  <FlatList
+                    ref={heroFlatListRef}
+                    data={photos}
+                    horizontal
+                    pagingEnabled
+                    scrollEnabled={!editMode}
+                    showsHorizontalScrollIndicator={false}
+                    initialScrollIndex={heroIndex}
+                    getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
+                    onMomentumScrollEnd={e => setHeroIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
+                    renderItem={({ item }) => (
+                      <View style={{ width: SCREEN_W, height: ALBUM_HERO_H }}>
+                        <GalleryHeroPhoto photo={item} />
+                      </View>
+                    )}
+                    keyExtractor={item => item.id}
+                  />
+                ) : (
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                     <Svg width={48} height={48} viewBox="0 0 24 24" fill="none">
-                      <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
-                      <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
-                      <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                      <Rect x={3} y={3} width={18} height={18} rx={2} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} />
+                      <Circle cx={8.5} cy={8.5} r={1.5} fill="rgba(255,255,255,0.25)" />
+                      <Path d="M21 15l-5-5L5 21" stroke="rgba(255,255,255,0.25)" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                     </Svg>
-                    <Text style={styles.emptyTitle}>No photos yet</Text>
-                    <Text style={styles.emptySub}>
-                      {editMode ? 'Tap "Add photos" below to fill this album.' : 'Tap the pencil icon to add photos.'}
-                    </Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 8 }}>No photos yet</Text>
                   </View>
                 )}
+              </View>
+            </TouchableOpacity>
 
-                {!loading && photos.length > 0 && (
-                  <View style={styles.thumbRow}>
-                    {photos.map((ph) => {
-                      const isCover = !!card.bannerImageUrl && card.bannerImageUrl === ph.uri;
-                      return (
-                        <View key={ph.id} style={{ position: 'relative' }}>
-                          <PhotoThumb
-                            photo={ph}
-                            onPress={() => !editMode && setPreviewIndex(photos.findIndex(p => p.id === ph.id))}
-                          />
-                          {/* Delete button — top-right */}
-                          {editMode && (
+            {photos.length > 0 && (
+              <View style={acs.thumbStrip}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 6, flexDirection: 'row' }}>
+                  {photos.map((ph, idx) => {
+                    const isCover = !!card.bannerImageUrl && card.bannerImageUrl === ph.uri;
+                    return (
+                      <View key={ph.id} style={{ position: 'relative' }}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setHeroIndex(idx);
+                            heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
+                            if (!editMode) setPreviewIndex(idx);
+                          }}
+                          activeOpacity={0.85}
+                          style={{
+                            width: ALBUM_THUMB_W, height: ALBUM_THUMB_H, borderRadius: 8, overflow: 'hidden',
+                            borderWidth: idx === heroIndex ? 2 : 0,
+                            borderColor: '#0d9488',
+                            backgroundColor: '#e2e8f0',
+                          }}
+                        >
+                          <CachedImage uri={ph.uri} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                        </TouchableOpacity>
+                        {editMode && (
+                          <>
                             <TouchableOpacity
                               onPress={() => {
                                 showConfirm({
                                   title: 'Delete photo?',
                                   message: 'This photo will be removed from the album.',
                                   destructive: true,
-                                  onConfirm: () => { deletePhoto(ph.id); },
+                                  onConfirm: () => deletePhoto(ph.id),
                                 });
                               }}
                               style={styles.thumbDeleteBtn}
@@ -1392,47 +1297,69 @@ function CustomCardPhotosModal({
                                 ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
                                 : <Trash2 size={11} color="#fff" strokeWidth={2.5} />}
                             </TouchableOpacity>
-                          )}
-                          {/* Set as cover button — bottom-left, only in edit mode */}
-                          {editMode && (
                             <TouchableOpacity
                               onPress={() => setPhotoAsCover(ph.uri)}
                               style={[styles.thumbCoverBtn, isCover && styles.thumbCoverBtnActive]}
                               hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                             >
-                              <Svg width={9} height={9} viewBox="0 0 24 24" fill={isCover ? '#0d9488' : '#fff'}>
-                                <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke={isCover ? '#0d9488' : '#fff'} strokeWidth={2} />
-                                <Circle cx={12} cy={13} r={4} stroke={isCover ? '#0d9488' : '#fff'} strokeWidth={2} />
-                              </Svg>
+                              <Text style={{ fontSize: 8, fontWeight: '700', color: isCover ? '#0d9488' : '#fff' }}>Cover</Text>
                             </TouchableOpacity>
-                          )}
-                          {/* Cover indicator badge — visible in both modes */}
-                          {isCover && !editMode && (
-                            <View style={styles.coverBadge}>
-                              <Text style={styles.coverBadgeText}>Cover</Text>
-                            </View>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-
-                {editMode && (
-                  <TouchableOpacity
-                    style={[styles.addPhotosBtn, uploading && { opacity: 0.6 }]}
-                    onPress={addPhotos}
-                    disabled={uploading}
-                    activeOpacity={0.85}>
-                    {uploading
-                      ? <ActivityIndicator color="#0d9488" />
-                      : <Text style={styles.addPhotosBtnText}>Add photos</Text>}
-                  </TouchableOpacity>
-                )}
+                          </>
+                        )}
+                        {isCover && !editMode && (
+                          <View style={[styles.coverBadge, { top: 4, left: 4 }]}>
+                            <Text style={styles.coverBadgeText}>Cover</Text>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
               </View>
-            </ScrollView>
-          </View>
-        </View>
+            )}
+
+            <View style={acs.metaCard}>
+              {editMode ? (
+                <>
+                  <TextInput
+                    value={nameDraft}
+                    onChangeText={setNameDraft}
+                    style={[styles.titleEditInput, { fontSize: 16, marginBottom: 6 }]}
+                    placeholderTextColor="#94a3b8"
+                    placeholder="Album title"
+                    returnKeyType="done"
+                    onSubmitEditing={saveAndExitEdit}
+                  />
+                  <TouchableOpacity style={styles.changeCoverRow} onPress={changeCoverFromLibrary} activeOpacity={0.75}>
+                    <Svg width={15} height={15} viewBox="0 0 24 24" fill="none">
+                      <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      <Circle cx={12} cy={13} r={4} stroke="#0d9488" strokeWidth={2} />
+                    </Svg>
+                    <Text style={styles.changeCoverText}>Change cover photo</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <Text style={acs.metaTitle} numberOfLines={2}>{card.name}</Text>
+              )}
+              <View style={acs.metaRow}>
+                <View style={{ backgroundColor: '#f0fdf4', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488' }}>
+                    {card.type === 'trip' ? 'Custom trip album' : 'Custom event album'}
+                  </Text>
+                </View>
+                <Text style={acs.metaCount}>
+                  {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
+                </Text>
+              </View>
+            </View>
+
+            {!loading && photos.length === 0 && (
+              <View style={[styles.emptyCenter, { paddingVertical: 16 }]}>
+                <Text style={styles.emptySub}>Use the buttons below to add photos.</Text>
+              </View>
+            )}
+          </ScrollView>
+        </AlbumPhotosScreenLayout>
       </Modal>
 
       <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>

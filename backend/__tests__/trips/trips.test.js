@@ -88,7 +88,8 @@ describe('Trips Routes', () => {
     it('returns 200 with paginated trips list', async () => {
       db.query.mockResolvedValueOnce({
         rows: [{ ...tripRow, member_count: 2, total_count: '1' }],
-      });
+      })
+      .mockResolvedValueOnce({ rows: [] }); // trip_locations batch
 
       const res = await request(app)
         .get('/trips')
@@ -140,15 +141,16 @@ describe('Trips Routes', () => {
         query: jest.fn()
           .mockResolvedValueOnce(undefined)                         // BEGIN
           .mockResolvedValueOnce({ rows: [tripRow] })               // INSERT trip
+          .mockResolvedValueOnce({ rows: [] })                      // INSERT trip_locations
           .mockResolvedValueOnce({ rows: [] })                      // INSERT trip_members (creator)
           .mockResolvedValueOnce(undefined),                        // COMMIT
         release: jest.fn(),
       };
       db.getClient.mockResolvedValue(mockClient);
-      db.query.mockResolvedValueOnce({                              // inviterName
-        rows: [{ full_name: 'Alice Smith' }],
-      })
-      .mockResolvedValueOnce({ rows: [{ count: '1' }] });          // member count
+      db.query
+        .mockResolvedValueOnce({ rows: [] })                              // resolveBannerUrl categories
+        .mockResolvedValueOnce({ rows: [{ full_name: 'Alice Smith' }] })  // inviterName
+        .mockResolvedValueOnce({ rows: [{ count: '1' }] });               // member count
 
       const res = await request(app)
         .post('/trips')
@@ -163,6 +165,40 @@ describe('Trips Routes', () => {
       expect(res.statusCode).toBe(201);
       expect(res.body.trip).toHaveProperty('id');
       expect(res.body.trip.name).toBe('Goa 2026');
+    });
+
+    it('returns 201 when creating trip with locations array', async () => {
+      const mockClient = {
+        query: jest.fn()
+          .mockResolvedValueOnce(undefined)
+          .mockResolvedValueOnce({ rows: [tripRow] })
+          .mockResolvedValueOnce({ rows: [] })
+          .mockResolvedValueOnce({ rows: [] })
+          .mockResolvedValueOnce(undefined),
+        release: jest.fn(),
+      };
+      db.getClient.mockResolvedValue(mockClient);
+      db.query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ full_name: 'Alice Smith' }] })
+        .mockResolvedValueOnce({ rows: [{ count: '1' }] });
+
+      const res = await request(app)
+        .post('/trips')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: 'Europe 2026',
+          startDate: '2026-05-01',
+          endDate: '2026-05-14',
+          locations: [
+            { name: 'Paris, France', sortOrder: 0 },
+            { name: 'Rome, Italy', sortOrder: 1 },
+          ],
+        });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.trip.locations).toHaveLength(2);
+      expect(res.body.trip.location.name).toBe('Paris, France');
     });
   });
 
@@ -200,6 +236,7 @@ describe('Trips Routes', () => {
             member_count: 3,
           }],
         })
+        .mockResolvedValueOnce({ rows: [] }) // trip_locations
         .mockResolvedValueOnce({ rows: [] }); // members query
 
       const res = await request(app)
@@ -228,9 +265,11 @@ describe('Trips Routes', () => {
 
     it('returns 200 when admin updates trip name', async () => {
       mockTripMemberAdmin();
-      db.query.mockResolvedValueOnce({
-        rows: [{ ...tripRow, name: 'Updated Name' }],
-      });
+      db.query
+        .mockResolvedValueOnce({
+          rows: [{ ...tripRow, name: 'Updated Name' }],
+        })
+        .mockResolvedValueOnce({ rows: [] }); // trip_locations load
 
       const res = await request(app)
         .put(`/trips/${TRIP_ID}`)
@@ -257,11 +296,12 @@ describe('Trips Routes', () => {
 
     it('returns 200 when admin deletes trip', async () => {
       mockTripMemberAdmin();
-      // docs S3 keys
       db.query
         .mockResolvedValueOnce({ rows: [] })                        // docs S3 keys
         .mockResolvedValueOnce({ rows: [] })                        // photos S3 keys
-        .mockResolvedValueOnce({ rows: [{ id: TRIP_ID }] });       // DELETE trip
+        .mockResolvedValueOnce({ rows: [] })                        // members
+        .mockResolvedValueOnce({ rows: [{ name: 'Goa 2026' }] })   // trip name
+        .mockResolvedValueOnce({ rowCount: 1, rows: [] });         // DELETE trip
 
       const res = await request(app)
         .delete(`/trips/${TRIP_ID}`)

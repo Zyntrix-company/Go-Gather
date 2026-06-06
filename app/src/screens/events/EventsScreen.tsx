@@ -23,7 +23,8 @@ import AppDatePicker from '../../components/common/AppDatePicker';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import CachedImage from '../../components/common/CachedImage';
-import LocationAutocomplete from '../../components/common/LocationAutocomplete';
+import LocationMultiPicker from '../../components/common/LocationMultiPicker';
+import { formatLocationsLabel, toLocationPayload, type LocationPoint } from '../../utils/locations';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import colors from '../../theme/colors';
 import { showAlert, showConfirm } from '../../store/alertStore';
@@ -158,7 +159,7 @@ function mapApiEvent(e: ApiEvent): EventItem {
     name: e.name,
     type: e.eventType ?? 'Other',
     typeColor: TYPE_COLORS[e.eventType ?? 'Other'] ?? '#f8fafc',
-    location: e.location?.name ?? '',
+    location: formatLocationsLabel(e),
     dateISO: e.eventDate,
     dateDisplay: eventDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
     dateDisplayNoYear: fmtDateNoYear(eventDate),
@@ -304,7 +305,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
   const [type, setType] = useState('Other');
   const [showTypeDrop, setShowTypeDrop] = useState(false);
   const [dateObj, setDateObj] = useState<Date | undefined>(undefined);
-  const [location, setLocation] = useState('');
+  const [locations, setLocations] = useState<LocationPoint[]>([]);
   const [uploadedDocs, setUploadedDocs] = useState<{ uri: string; name: string; type: string }[]>([]);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
   const [apiFriends, setApiFriends] = useState<typeof CT_FRIENDS>([]);
@@ -426,7 +427,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
   function reset() {
     setName(''); setType('Other'); setShowTypeDrop(false);
     setDateObj(undefined); setDateError(null);
-    setLocation('');
+    setLocations([]);
     setSubmitError(null);
     setUploadedDocs([]); setSelectedFriendIds([]);
     setEmailSelectedDocs([]);
@@ -519,7 +520,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
   async function handleSave() {
     if (!name.trim()) { showAlert({ title: 'Error', message: 'Please enter an event name' }); return; }
     if (!dateObj) { showAlert({ title: 'Error', message: 'Please select an event date' }); return; }
-    if (!location.trim()) { showAlert({ title: 'Error', message: 'Please enter a location' }); return; }
+    if (locations.length === 0) { showAlert({ title: 'Error', message: 'Please add at least one location' }); return; }
     setSubmitError(null);
     setIsSubmitting(true);
     try {
@@ -527,7 +528,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
         name: name.trim(),
         eventDate: fmtDateISO(dateObj),
         eventType: type,
-        location: { name: location.trim() },
+        locations: toLocationPayload(locations),
         friendIds: selectedFriendIds.length > 0 ? selectedFriendIds : undefined,
         reminders,
         ...(bannerCropFraction && { bannerCropFraction }),
@@ -543,7 +544,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
         name: result.event.name ?? name.trim(),
         type: result.event.eventType ?? type,
         typeColor: TYPE_COLORS[result.event.eventType ?? type] ?? '#f8fafc',
-        location: result.event.location?.name ?? location.trim(),
+        location: formatLocationsLabel(result.event),
         dateISO: eventDateIso,
         dateDisplay: fmtDateDisplay(dateObj),
         dateDisplayNoYear: fmtDateNoYear(dateObj),
@@ -722,12 +723,12 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
             />
 
             {/* Location */}
-            <Text style={modal.label}>Location</Text>
+            <Text style={modal.label}>Locations</Text>
             <View style={{ zIndex: 10 }}>
-              <LocationAutocomplete
-                initialValue={location}
-                onChangeText={setLocation}
-                placeholder="Search location..."
+              <LocationMultiPicker
+                value={locations}
+                onChange={setLocations}
+                placeholder="Search and add venue..."
                 variant="create"
               />
             </View>

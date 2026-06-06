@@ -64,6 +64,7 @@ import GalleryTab from './GalleryTab';
 import ProfileDropdown from './ProfileDropdown';
 import { UnifiedCard } from '../../components/common/Cards';
 import { requireTripFromResponse, runSafePostCreate } from '../../utils/createEntityFlow';
+import { formatLocationsLabel, toLocationPayload, type LocationPoint } from '../../utils/locations';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const INSIGHT_IMG_H = SCREEN_H < 700 ? 140 : SCREEN_H < 800 ? 160 : 192;
@@ -501,9 +502,7 @@ function fmtFullDate(iso: string): string {
   return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} ${d.getFullYear()}`;
 }
 function mapApiTrip(t: any): Trip {
-  const locName = typeof t.location === 'string'
-    ? t.location
-    : (t.location?.name ?? '');
+  const locName = formatLocationsLabel(t);
   // API may return full ISO datetime or just YYYY-MM-DD — normalize to YYYY-MM-DD
   const rawS: string = t.startDate ?? '';
   const rawE: string = t.endDate ?? '';
@@ -896,7 +895,7 @@ export default function HomeScreen({ navigation, route }: any) {
   }
 
   function navigateToEventDetail(ev: any) {
-    const locName = typeof ev.location === 'string' ? ev.location : (ev.location?.name ?? '');
+    const locName = formatLocationsLabel(ev);
     navigation.navigate('EventDetail', {
       event: {
         id: ev.id, name: ev.name,
@@ -1311,7 +1310,7 @@ export default function HomeScreen({ navigation, route }: any) {
               )}
             </View>
             {homeEvents.slice(0, 3).map((ev: any) => {
-            const locName = typeof ev.location === 'string' ? ev.location : (ev.location?.name ?? '');
+            const locName = formatLocationsLabel(ev);
             const rawAvatars: any[] = (ev.memberAvatars || []).slice(0, 2);
             const avatars: { id: string; uri: string }[] = rawAvatars.map((av: any, i: number) => {
               const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
@@ -1473,11 +1472,12 @@ export default function HomeScreen({ navigation, route }: any) {
         setBannerCropFraction={setTripBannerCrop}
         onSave={async (data) => {
           const cropFraction = data.bannerCropFraction as TripBannerCropFraction | null;
+          const tripLocations = (data.locations as LocationPoint[] | undefined) ?? [];
           const res = await apiCreateTrip({
             name: data.name as string,
             startDate: (data.startDateISO ?? data.startDate ?? '') as string,
             endDate: (data.endDateISO ?? data.endDate ?? '') as string,
-            location: { name: (data.location as string) || 'TBD' },
+            locations: toLocationPayload(tripLocations.length > 0 ? tripLocations : [{ name: 'TBD' }]),
             friendIds: (data.friendIds as string[] | undefined)?.length ? data.friendIds as string[] : undefined,
             emails: data.inviteEmail ? [data.inviteEmail as string] : undefined,
             ...(cropFraction ? { bannerCropFraction: cropFraction } : {}),

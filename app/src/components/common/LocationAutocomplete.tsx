@@ -22,6 +22,7 @@ type Prediction = {
 interface Props {
   initialValue?: string;
   onChangeText: (text: string) => void;
+  onSelect?: (description: string) => void;
   placeholder?: string;
   variant?: 'create' | 'edit';
 }
@@ -43,6 +44,7 @@ async function fetchPredictions(input: string): Promise<Prediction[]> {
 export default function LocationAutocomplete({
   initialValue = '',
   onChangeText,
+  onSelect,
   placeholder = 'Search location...',
   variant = 'create',
 }: Props) {
@@ -109,6 +111,7 @@ export default function LocationAutocomplete({
     requestIdRef.current += 1;
     setText(description);
     onChangeText(description);
+    onSelect?.(description);
     setPredictions([]);
     setOpen(false);
     setLoading(false);
