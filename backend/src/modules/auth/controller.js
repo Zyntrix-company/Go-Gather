@@ -9,7 +9,11 @@ const signup = async (req, res, next) => {
     const { email, phone, password } = req.body;
     const result = await authService.signup({ email, phone, password });
 
-    logger.info('User signed up', { userId: result.user.id });
+    logger.info('Signup initiated — OTP sent, pending email verification', {
+      userId: result.user.id,
+      email: result.user.email,
+      isVerified: result.user.isVerified,
+    });
 
     return res.status(201).json({
       message: 'Account created successfully',
@@ -155,6 +159,11 @@ const verifyEmail = async (req, res, next) => {
   try {
     const { email, otp, deviceToken, platform } = req.body;
     const result = await authService.verifyEmail({ email, otp, deviceToken, platform });
+
+    logger.info('Email verified — account activated', {
+      userId: result.user.id,
+      email: result.user.email,
+    });
 
     return res.status(200).json(result);
   } catch (error) {

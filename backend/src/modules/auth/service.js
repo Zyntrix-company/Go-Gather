@@ -209,6 +209,13 @@ const login = async ({ email, password, deviceToken, platform }) => {
     throw err;
   }
 
+  if (!user.is_verified) {
+    const err = new Error('Please verify your email with the OTP sent to your inbox.');
+    err.statusCode = 403;
+    err.error = 'EmailNotVerified';
+    throw err;
+  }
+
   await db.query(
     'UPDATE users SET last_login_at = NOW(), updated_at = NOW() WHERE id = $1',
     [user.id],

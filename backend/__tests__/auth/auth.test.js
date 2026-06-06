@@ -265,6 +265,7 @@ describe('Auth Routes', () => {
           email: 'test@test.com',
           password_hash: hashedPassword,
           is_profile_complete: true,
+          is_verified: true,
         }],
       });
 
@@ -273,6 +274,27 @@ describe('Auth Routes', () => {
         .send({ email: 'test@test.com', password: 'WrongPass1' });
 
       expect(res.statusCode).toBe(401);
+    });
+
+    it('returns 403 when email is not verified yet', async () => {
+      const hashedPassword = await bcrypt.hash('ValidPass1', 12);
+
+      db.query.mockResolvedValueOnce({
+        rows: [{
+          id: VALID_USER_ID,
+          email: 'test@test.com',
+          password_hash: hashedPassword,
+          is_profile_complete: false,
+          is_verified: false,
+        }],
+      });
+
+      const res = await request(app)
+        .post('/auth/login')
+        .send({ email: 'test@test.com', password: 'ValidPass1' });
+
+      expect(res.statusCode).toBe(403);
+      expect(res.body.error).toBe('EmailNotVerified');
     });
 
     it('returns 200 with tokens on valid credentials', async () => {
@@ -285,6 +307,7 @@ describe('Auth Routes', () => {
             email: 'test@test.com',
             password_hash: hashedPassword,
             is_profile_complete: true,
+            is_verified: true,
           }],
         })
         .mockResolvedValueOnce({ rows: [] });   // INSERT refresh token
