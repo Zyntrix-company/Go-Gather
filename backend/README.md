@@ -205,6 +205,8 @@ An every-5-minutes cron (`reminders.cron.js`, IST) queries `trip_reminders` for 
 
 **Ops:** Only one backend instance should run crons against a given database (production EC2 container is fine). Local dev has crons **disabled** by default; set `CRON_ENABLED=true` in `.env` only if you intend to process reminders locally. Never run local dev and production against the same RDS with both crons enabled.
 
+**Prod AWS keys:** GitHub Actions secrets are used for ECR deploy only. The running API reads `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` from `/home/ubuntu/Go-Gather/backend/.env` on EC2 — keep both in sync after rotating IAM keys, then `docker restart gathergo-container`.
+
 ---
 
 ### Friends Flow
