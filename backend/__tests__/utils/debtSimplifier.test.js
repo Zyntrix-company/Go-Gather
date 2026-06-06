@@ -1,4 +1,4 @@
-const { simplifyDebts, buildTransactions } = require('../../src/utils/debtSimplifier.util');
+const { simplifyDebts, buildTransactions, computeUserNetBalance } = require('../../src/utils/debtSimplifier.util');
 
 describe('debtSimplifier.util', () => {
 
@@ -101,6 +101,24 @@ describe('debtSimplifier.util', () => {
       const result = simplifyDebts(txs);
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({ from: bob, to: alice, amount: 600 });
+    });
+
+    it('computeUserNetBalance reflects settlements for debtor and creditor', () => {
+      const txs = [
+        { from: bob,   to: alice, amount: 1000 },
+        { from: alice, to: bob,   amount: 400 },
+      ];
+      expect(computeUserNetBalance(txs, bob)).toBe(-600);
+      expect(computeUserNetBalance(txs, alice)).toBe(600);
+    });
+
+    it('computeUserNetBalance zeroes out after full settlement', () => {
+      const txs = [
+        { from: bob,   to: alice, amount: 500 },
+        { from: alice, to: bob,   amount: 500 },
+      ];
+      expect(computeUserNetBalance(txs, bob)).toBe(0);
+      expect(computeUserNetBalance(txs, alice)).toBe(0);
     });
 
     it('handles floating point amounts without precision errors', () => {

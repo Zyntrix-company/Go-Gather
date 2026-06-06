@@ -1,5 +1,5 @@
 const { query: db, getClient } = require('../../../config/database');
-const { simplifyDebts, buildTransactions } = require('../../../utils/debtSimplifier.util');
+const { simplifyDebts, buildTransactions, computeUserNetBalance } = require('../../../utils/debtSimplifier.util');
 const { createAndSendNotifications } = require('../../../utils/fcm.util');
 
 const VALID_CATEGORIES = ['general', 'transportation', 'accommodation', 'entertainment', 'shopping', 'food', 'other'];
@@ -98,21 +98,22 @@ const computeSplits = (totalAmount, splitType, splitAmong, payerId) => {
   throw new Error('Invalid splitType');
 };
 
-const computeSimplifiedDebts = async (parentType, parentId) => {
-  const splitsResult = await db(
-    `SELECT es.user_id, es.amount, e.paid_by, COALESCE(e.currency, 'INR') AS currency
-     FROM expense_splits es
-     JOIN expenses e ON e.id = es.expense_id
-     WHERE e.parent_type = $1 AND e.parent_id = $2`,
-    [parentType, parentId],
-  );
-  const settlementsResult = await db(
-    `SELECT paid_by, paid_to, amount, COALESCE(currency, 'INR') AS currency
-     FROM settlements WHERE parent_type = $1 AND parent_id = $2`,
-    [parentType, parentId],
-  );
+const fetchCurrencyGroups = async (parentType, parentId) => {
+  const [splitsResult, settlementsResult] = await Promise.all([
+    db(
+      `SELECT es.user_id, es.amount, e.paid_by, COALESCE(e.currency, 'INR') AS currency
+       FROM expense_splits es
+       JOIN expenses e ON e.id = es.expense_id
+       WHERE e.parent_type = $1 AND e.parent_id = $2`,
+      [parentType, parentId],
+    ),
+    db(
+      `SELECT paid_by, paid_to, amount, COALESCE(currency, 'INR') AS currency
+       FROM settlements WHERE parent_type = $1 AND parent_id = $2`,
+      [parentType, parentId],
+    ),
+  ]);
 
-  // Group splits and settlements by currency, run simplifyDebts independently per group
   const currencyGroups = {};
   for (const row of splitsResult.rows) {
     const cur = row.currency || 'INR';
@@ -124,7 +125,10 @@ const computeSimplifiedDebts = async (parentType, parentId) => {
     if (!currencyGroups[cur]) currencyGroups[cur] = { splits: [], settlements: [] };
     currencyGroups[cur].settlements.push(row);
   }
+  return currencyGroups;
+};
 
+const computeSimplifiedDebtsFromGroups = (currencyGroups) => {
   const results = [];
   for (const [currency, { splits, settlements }] of Object.entries(currencyGroups)) {
     const txns = buildTransactions(splits, settlements);
@@ -132,6 +136,20 @@ const computeSimplifiedDebts = async (parentType, parentId) => {
     results.push(...simplified.map((d) => ({ ...d, currency })));
   }
   return results;
+};
+
+const computeSimplifiedDebts = async (parentType, parentId) => {
+  const currencyGroups = await fetchCurrencyGroups(parentType, parentId);
+  return computeSimplifiedDebtsFromGroups(currencyGroups);
+};
+
+const computeMyBalancesFromGroups = (currencyGroups, userId) => {
+  const myBalances = {};
+  for (const [currency, { splits, settlements }] of Object.entries(currencyGroups)) {
+    const txns = buildTransactions(splits, settlements);
+    myBalances[currency] = computeUserNetBalance(txns, userId);
+  }
+  return myBalances;
 };
 
 const enrichSimplifiedDebts = async (simplified, currentUserId = null) => {
@@ -401,21 +419,8 @@ const deleteExpense = async ({ parentType, parentId }, expId, requesterId, reque
 // ─── Get Balances ─────────────────────────────────────────────────────────────
 
 const getBalances = async ({ parentType, parentId }, userId) => {
-  const [paidResult, shareResult, totalResult] = await Promise.all([
-    db(
-      `SELECT COALESCE(currency, 'INR') AS currency, COALESCE(SUM(amount), 0) AS total_paid
-       FROM expenses WHERE parent_type = $1 AND parent_id = $2 AND paid_by = $3
-       GROUP BY currency`,
-      [parentType, parentId, userId],
-    ),
-    db(
-      `SELECT COALESCE(e.currency, 'INR') AS currency, COALESCE(SUM(es.amount), 0) AS total_share
-       FROM expense_splits es
-       JOIN expenses e ON e.id = es.expense_id
-       WHERE e.parent_type = $1 AND e.parent_id = $2 AND es.user_id = $3
-       GROUP BY e.currency`,
-      [parentType, parentId, userId],
-    ),
+  const [currencyGroups, totalResult] = await Promise.all([
+    fetchCurrencyGroups(parentType, parentId),
     db(
       `SELECT COALESCE(currency, 'INR') AS currency, COALESCE(SUM(amount), 0) AS total
        FROM expenses WHERE parent_type = $1 AND parent_id = $2
@@ -424,25 +429,15 @@ const getBalances = async ({ parentType, parentId }, userId) => {
     ),
   ]);
 
-  // Build the set of all currencies present across all three result sets
-  const allCurrencies = new Set([
-    ...paidResult.rows.map((r) => r.currency),
-    ...shareResult.rows.map((r) => r.currency),
-    ...totalResult.rows.map((r) => r.currency),
-  ]);
-
-  const myBalances = {};
   const totalExpensesByCurrency = {};
-
-  for (const currency of allCurrencies) {
-    const paid  = parseFloat(paidResult.rows.find((r) => r.currency === currency)?.total_paid  ?? '0');
-    const share = parseFloat(shareResult.rows.find((r) => r.currency === currency)?.total_share ?? '0');
-    const total = parseFloat(totalResult.rows.find((r) => r.currency === currency)?.total      ?? '0');
-    myBalances[currency] = Math.round((paid - share) * 100) / 100;
-    totalExpensesByCurrency[currency] = String(total);
+  for (const row of totalResult.rows) {
+    totalExpensesByCurrency[row.currency] = String(parseFloat(row.total));
   }
 
-  const simplified = await computeSimplifiedDebts(parentType, parentId);
+  // Net balance per currency includes settlements (paid − share alone does not)
+  const myBalances = computeMyBalancesFromGroups(currencyGroups, userId);
+
+  const simplified = computeSimplifiedDebtsFromGroups(currencyGroups);
   const debts = await enrichSimplifiedDebts(simplified, userId);
 
   // Legacy single-value fields (primary = INR, or first available) for backward compatibility

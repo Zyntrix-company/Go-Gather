@@ -91,7 +91,7 @@ export function formatCurrencyCompact(amount: number, currency: string): string 
 
   if (abs >= 1000) {
     const k = abs / 1000;
-    const kStr = k >= 100 ? `${Math.round(k)}k` : `${parseFloat(k.toFixed(1))}k`;
+    const kStr = k >= 100 ? `${Math.round(k)}K` : `${parseFloat(k.toFixed(1))}K`;
     return `${symbol}${kStr}`;
   }
 
@@ -109,16 +109,22 @@ export function formatSignedCurrencyCompact(amount: number, currency: string): s
   return `${sign}${formatCurrencyCompact(Math.abs(amount), currency)}`;
 }
 
+const EXPENSE_LABEL_MAX_CURRENCIES = 4;
+
 /**
- * Build a compact expense label for summary stats bars.
- * Shows the largest currency total; appends "+N" if multiple currencies are present.
+ * Build expense label for hero/stats — up to 4 currencies, then +N for the rest.
+ * e.g. '₹48K' | '₹48K | $320 | €180' | '₹48K | $320 | €180 | £50 +2'
  */
 export function buildExpenseLabel(byCurrency: Record<string, string> | undefined): string {
   if (!byCurrency) return '0';
-  const entries = Object.entries(byCurrency).filter(([, v]) => parseFloat(v) > 0);
+  const entries = Object.entries(byCurrency)
+    .filter(([, v]) => parseFloat(v) > 0)
+    .sort((a, b) => parseFloat(b[1]) - parseFloat(a[1]));
   if (entries.length === 0) return '0';
-  const sorted = [...entries].sort((a, b) => parseFloat(b[1]) - parseFloat(a[1]));
-  const [primaryCode, primaryAmount] = sorted[0];
-  const formatted = formatCurrencyCompact(parseFloat(primaryAmount), primaryCode);
-  return sorted.length > 1 ? `${formatted} +${sorted.length - 1}` : formatted;
+  const visible = entries.slice(0, EXPENSE_LABEL_MAX_CURRENCIES);
+  const label = visible
+    .map(([code, amount]) => formatCurrencyCompact(parseFloat(amount), code))
+    .join(' | ');
+  const extra = entries.length - visible.length;
+  return extra > 0 ? `${label} +${extra}` : label;
 }

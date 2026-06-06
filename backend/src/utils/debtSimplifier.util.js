@@ -107,4 +107,17 @@ const buildTransactions = (splits, settlements) => {
   return transactions;
 };
 
-module.exports = { simplifyDebts, buildTransactions };
+/**
+ * Net balance for one user from raw transactions (expenses + settlements).
+ * Positive = owed money, negative = owes money.
+ */
+const computeUserNetBalance = (transactions, userId) => {
+  let balance = 0;
+  for (const { from, to, amount } of transactions) {
+    if (from === userId) balance -= amount;
+    if (to === userId) balance += amount;
+  }
+  return Math.round(balance * 100) / 100;
+};
+
+module.exports = { simplifyDebts, buildTransactions, computeUserNetBalance };

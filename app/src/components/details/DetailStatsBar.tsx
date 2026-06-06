@@ -11,7 +11,7 @@ interface DetailStatsBarProps {
   memberCount: number;
   docCount: number;
   photoCount: number;
-  /** Pre-formatted expense label, e.g. '₹1,200' or '₹1,200 +1' for multi-currency */
+  /** Pre-formatted expense label, e.g. '₹48K' or '₹48K | $320 | €180 | £50 +2' */
   expenseLabel: string;
 }
 
@@ -69,23 +69,25 @@ function PhotosIcon() {
   );
 }
 
-function ExpensesIcon() {
-  return (
-    <Text style={{ fontSize: 13, color: ICON_COLOR, fontWeight: '700', lineHeight: 16 }}>$₹</Text>
-  );
-}
-
 function StatItem({
   icon,
   label,
+  shrink,
 }: {
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   label: string;
+  shrink?: boolean;
 }) {
   return (
-    <View style={styles.statItem}>
+    <View style={[styles.statItem, shrink && styles.statItemShrink]}>
       {icon}
-      <Text style={styles.statText}>{label}</Text>
+      <Text
+        style={styles.statText}
+        numberOfLines={shrink ? 1 : undefined}
+        adjustsFontSizeToFit={shrink}
+        minimumFontScale={shrink ? 0.8 : undefined}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -114,8 +116,8 @@ export default function DetailStatsBar({
       />
       <View style={styles.divider} />
       <StatItem
-        icon={<ExpensesIcon />}
         label={expenseLabel || '0'}
+        shrink
       />
     </View>
   );
@@ -142,6 +144,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     justifyContent: 'center',
+  },
+  statItemShrink: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   statText: {
     fontSize: 12,

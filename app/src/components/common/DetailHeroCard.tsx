@@ -5,7 +5,7 @@
  *   - Optional type badge (top-left)
  *   - Name (bold), date line, location text (left column)
  *   - Days counter + edit pencil button (right column)
- *   - Stats row inside the card: members | docs | photos | ₹expenses
+ *   - Stats row inside the card: members | docs | photos | expenses
  */
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
@@ -30,7 +30,7 @@ export interface DetailHeroCardProps {
   memberAvatars?: { id: string; uri: string }[];
   docCount: number;
   photoCount: number;
-  /** Pre-formatted expense label, e.g. '₹1,200' or '₹1,200 +1' for multi-currency */
+  /** Pre-formatted expense label, e.g. '₹48K' or '₹48K | $320 | €180 | £50 +2' */
   totalExpenses: number | string;
   /** Optional tag badge text (e.g. event type) */
   typeBadge?: string;
@@ -163,11 +163,14 @@ export default function DetailHeroCard({
           <PhotosIcon />
           <Text style={styles.statTxt}>{photoCount}</Text>
         </View>
-        <View style={styles.statBadge}>
-          <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-            <Path d="M6 3h12M6 8h12M6 13l10 8M6 8a6 6 0 0 0 0 5h3a6 6 0 0 0 6-5" stroke="#009788" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-          </Svg>
-          <Text style={styles.statTxt}>{typeof totalExpenses === 'string' ? (totalExpenses || '0') : (totalExpenses > 0 ? (totalExpenses as number).toFixed(0) : '0')}</Text>
+        <View style={[styles.statBadge, styles.expenseStatBadge]}>
+          <Text
+            style={styles.statTxt}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}>
+            {typeof totalExpenses === 'string' ? (totalExpenses || '0') : (totalExpenses > 0 ? (totalExpenses as number).toFixed(0) : '0')}
+          </Text>
         </View>
       </View>
     </LinearGradient>
@@ -269,6 +272,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 7,
     paddingVertical: 4,
+  },
+  expenseStatBadge: {
+    flexShrink: 1,
+    maxWidth: '100%',
   },
   statTxt: {
     fontSize: 11,
