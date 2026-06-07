@@ -1,13 +1,18 @@
 import React from 'react';
-import { View, Image, TouchableOpacity, StyleSheet, Text } from 'react-native'; // Text kept for badge
+import { View, Image, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import Svg, { Path, Line } from 'react-native-svg';
 import useNotificationStore from '../../store/notificationStore';
 
 type AppHeaderProps = {
+  title?: string;
+  subtitle?: string;
   onLogoPress?: () => void;
   onBellPress?: () => void;
   onMenuPress?: () => void;
 };
+
+/** Keeps centered titles from overlapping logo / bell+menu. */
+const TITLE_SIDE_INSET = 108;
 
 function BellIcon() {
   return (
@@ -34,6 +39,8 @@ function HamburgerIcon() {
 }
 
 export default function AppHeader({
+  title,
+  subtitle,
   onLogoPress,
   onBellPress,
   onMenuPress,
@@ -49,6 +56,7 @@ export default function AppHeader({
           resizeMode="contain"
         />
       </TouchableOpacity>
+
       <View style={s.rightSection}>
         <TouchableOpacity style={s.iconBtn} onPress={onBellPress} activeOpacity={0.7}>
           <BellIcon />
@@ -64,6 +72,15 @@ export default function AppHeader({
           <HamburgerIcon />
         </TouchableOpacity>
       </View>
+
+      {title ? (
+        <View style={s.titleOverlay} pointerEvents="none">
+          <Text style={[s.title, subtitle ? s.titleWithSubtitle : null]} numberOfLines={1}>{title}</Text>
+          {subtitle ? (
+            <Text style={s.subtitle} numberOfLines={1}>{subtitle}</Text>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -85,6 +102,29 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  titleOverlay: {
+    position: 'absolute',
+    left: TITLE_SIDE_INSET,
+    right: TITLE_SIDE_INSET,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f172a',
+    textAlign: 'center',
+  },
+  titleWithSubtitle: {
+    fontSize: 15,
+  },
+  subtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginTop: 1,
   },
   iconBtn: {
     width: 40,

@@ -253,11 +253,7 @@ export default function NotificationsScreen({ navigation }: any) {
   };
 
   return (
-    <AppScreenLayout navigation={navigation}>
-      <View style={styles.pageHeader}>
-        <Text style={styles.headerTitle}>Notifications</Text>
-      </View>
-
+    <AppScreenLayout navigation={navigation} title="Notifications">
       {/* Filter tabs */}
       <View style={styles.filterTabs}>
           <TouchableOpacity
@@ -401,17 +397,6 @@ export default function NotificationsScreen({ navigation }: any) {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  pageHeader: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '500',
-    color: '#0f172a',
-  },
-
   // Filter tabs
   filterTabs: {
     flexDirection: 'row',

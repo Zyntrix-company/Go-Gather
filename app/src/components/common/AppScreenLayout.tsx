@@ -18,6 +18,8 @@ export function tabBarContentPadding(bottomInset: number, extra = 24): number {
 type AppScreenLayoutProps = {
   navigation: any;
   children: React.ReactNode;
+  title?: string;
+  subtitle?: string;
   activeTab?: TabType | null;
   onLogoPress?: () => void;
   onBellPress?: () => void;
@@ -29,6 +31,8 @@ type AppScreenLayoutProps = {
 export default function AppScreenLayout({
   navigation,
   children,
+  title,
+  subtitle,
   activeTab = null,
   onLogoPress,
   onBellPress,
@@ -40,6 +44,8 @@ export default function AppScreenLayout({
     <BlobBackground>
       <SafeAreaView style={[styles.container, safeAreaStyle]}>
         <AppHeader
+          title={title}
+          subtitle={subtitle}
           onLogoPress={onLogoPress ?? (() => navigation.goBack())}
           onBellPress={onBellPress ?? (() => navigation.navigate('Notifications'))}
           onMenuPress={onMenuPress ?? (() => navigation.navigate('Settings'))}

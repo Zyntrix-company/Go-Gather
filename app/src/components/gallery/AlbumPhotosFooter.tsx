@@ -30,6 +30,8 @@ type AlbumPhotosFooterProps = {
   disabled?: boolean;
   /** When true, sits above the app FloatingTabBar (no extra bottom safe-area). */
   aboveTabBar?: boolean;
+  /** Glass-style buttons over gradient (Gallery modals). */
+  galleryChrome?: boolean;
 };
 
 export default function AlbumPhotosFooter({
@@ -42,30 +44,33 @@ export default function AlbumPhotosFooter({
   showDrive = true,
   disabled = false,
   aboveTabBar = false,
+  galleryChrome = false,
 }: AlbumPhotosFooterProps) {
   const insets = useSafeAreaInsets();
   const busy = uploading || driveImporting || disabled;
   const bottomPad = aboveTabBar ? 8 : Math.max(insets.bottom, 12);
 
+  if (viewOnly) {
+    return null;
+  }
+
   const wrap = (content: React.ReactNode) => (
-    <View style={{ backgroundColor: '#fff' }}>
-      <View style={[acs.footer, { paddingBottom: bottomPad }]}>
+    <View style={galleryChrome ? undefined : { backgroundColor: '#fff' }}>
+      <View style={[acs.footer, galleryChrome && acs.footerGallery, { paddingBottom: bottomPad }]}>
         {content}
       </View>
     </View>
   );
 
-  if (viewOnly) {
-    return wrap(
-      <Text style={{ fontSize: 11, color: '#94a3b8', textAlign: 'center' }}>View only · shared album</Text>,
-    );
-  }
+  const btn = galleryChrome ? acs.actionBtnGallery : acs.actionBtn;
+  const btnOutline = galleryChrome ? acs.actionBtnOutlineGallery : acs.actionBtnOutline;
+  const btnFull = galleryChrome ? acs.actionBtnFullGallery : acs.actionBtnFull;
 
   return wrap(
     <>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <TouchableOpacity
-          style={[acs.actionBtn, busy && { opacity: 0.6 }]}
+          style={[btn, busy && { opacity: 0.6 }]}
           onPress={onUpload}
           disabled={busy}
           activeOpacity={0.85}
@@ -74,7 +79,7 @@ export default function AlbumPhotosFooter({
           <Text style={acs.actionBtnText}>Upload</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[acs.actionBtnOutline, busy && { opacity: 0.6 }]}
+          style={[btnOutline, busy && { opacity: 0.6 }]}
           onPress={onCamera}
           disabled={busy}
           activeOpacity={0.85}
@@ -85,7 +90,7 @@ export default function AlbumPhotosFooter({
       </View>
       {showDrive && onDrive && (
         <TouchableOpacity
-          style={[acs.actionBtnFull, busy && { opacity: 0.6 }]}
+          style={[btnFull, busy && { opacity: 0.6 }]}
           onPress={onDrive}
           disabled={busy}
           activeOpacity={0.85}

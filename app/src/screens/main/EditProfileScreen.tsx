@@ -250,7 +250,7 @@ export default function EditProfileScreen({ navigation }: any) {
         onClose={() => setShowCountryPicker(false)}
       />
 
-      <AppScreenLayout navigation={navigation}>
+      <AppScreenLayout navigation={navigation} title="Edit Profile">
         <KeyboardAvoidingView
           style={styles.kav}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -263,7 +263,6 @@ export default function EditProfileScreen({ navigation }: any) {
             showsVerticalScrollIndicator={false}>
 
             <View style={styles.topBlock}>
-              <Text style={styles.title}>Edit Profile</Text>
               <Text style={styles.subtitle}>Update your personal information</Text>
 
               {/* Avatar */}
@@ -447,8 +446,7 @@ const styles = StyleSheet.create({
 
   // ── Top block ──────────────────────────────────────────────────────────────
   topBlock: { },
-  title:    { fontSize: 20, fontWeight: '400', color: '#0F172B', textAlign: 'center', marginTop: 10, marginBottom: 6 },
-  subtitle: { fontSize: 13, color: '#45556C', textAlign: 'center' },
+  subtitle: { fontSize: 13, color: '#45556C', textAlign: 'center', marginBottom: 4 },
 
   avatarSection: { alignItems: 'center', marginTop: 12 },
   avatarOuter:   { width: 96, height: 96, borderRadius: 48, backgroundColor: 'rgba(226,232,240,0.5)', alignItems: 'center', justifyContent: 'center' },

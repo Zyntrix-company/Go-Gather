@@ -86,7 +86,7 @@ const getCuratedAlbumPhotos = async (targetUserId, parentType, parentId, viewerI
          AND ph.id NOT IN (
            SELECT photo_id FROM user_gallery_hidden_photos WHERE user_id = $3
          )
-       ORDER BY ph.created_at DESC`,
+       ORDER BY ph.created_at ASC`,
       [parentType, parentId, targetUserId],
     ),
     db.query(
@@ -94,13 +94,13 @@ const getCuratedAlbumPhotos = async (targetUserId, parentType, parentId, viewerI
               NULL AS activity_title, created_at, 'extra' AS source
        FROM user_gallery_extra_photos
        WHERE user_id = $1 AND parent_type = $2 AND parent_id = $3
-       ORDER BY created_at DESC`,
+       ORDER BY created_at ASC`,
       [targetUserId, parentType, parentId],
     ),
   ]);
 
   const merged = [...sharedResult.rows, ...extraResult.rows]
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
   const photos = await Promise.all(merged.map(formatPhoto));
   return { photos, total: photos.length };

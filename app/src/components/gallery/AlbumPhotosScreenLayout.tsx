@@ -1,9 +1,14 @@
-import React from 'react';
-import { View, Text } from 'react-native';
+import React, { createContext, useContext } from 'react';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppScreenLayout, { TAB_BAR_BASE_HEIGHT } from '../common/AppScreenLayout';
 import type { TabType } from '../common/FloatingTabBar';
-import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
+
+const AlbumPhotosOverlayContext = createContext<React.ReactNode>(null);
+
+export function useAlbumPhotosOverlay() {
+  return useContext(AlbumPhotosOverlayContext);
+}
 
 type AlbumPhotosScreenLayoutProps = {
   navigation: any;
@@ -11,10 +16,20 @@ type AlbumPhotosScreenLayoutProps = {
   onClose: () => void;
   photoIndex?: number;
   photoTotal?: number;
-  headerRight?: React.ReactNode;
+  /** Action buttons rendered over the top-right of the hero image. */
+  heroOverlay?: React.ReactNode;
   footer: React.ReactNode;
   children: React.ReactNode;
+  /** Transparent chrome over app gradient (Gallery modals). */
+  galleryChrome?: boolean;
 };
+
+function buildPhotosHeaderSubtitle(photoIndex: number, photoTotal: number): string | undefined {
+  if (photoTotal > 0) {
+    return `${photoIndex + 1}/${photoTotal}`;
+  }
+  return undefined;
+}
 
 /** Full-screen album view with app-wide AppHeader + FloatingTabBar. */
 export default function AlbumPhotosScreenLayout({
@@ -23,7 +38,7 @@ export default function AlbumPhotosScreenLayout({
   onClose,
   photoIndex = 0,
   photoTotal = 0,
-  headerRight,
+  heroOverlay,
   footer,
   children,
 }: AlbumPhotosScreenLayoutProps) {
@@ -31,21 +46,19 @@ export default function AlbumPhotosScreenLayout({
   const tabBarPad = TAB_BAR_BASE_HEIGHT + insets.bottom + 6;
 
   return (
-    <AppScreenLayout navigation={navigation} activeTab={activeTab} onLogoPress={onClose}>
-      <View style={{ flex: 1, paddingBottom: tabBarPad }}>
-        <View style={acs.albumSubHeader}>
-          <View style={acs.albumSubHeaderSide} />
-          <View style={acs.headerCenter}>
-            <Text style={acs.headerTitle}>Photos</Text>
-            {photoTotal > 0 && (
-              <Text style={acs.headerSub}>{photoIndex + 1} of {photoTotal}</Text>
-            )}
-          </View>
-          <View style={acs.albumSubHeaderSide}>{headerRight}</View>
+    <AppScreenLayout
+      navigation={navigation}
+      activeTab={activeTab}
+      title="Photos"
+      subtitle={buildPhotosHeaderSubtitle(photoIndex, photoTotal)}
+      onLogoPress={onClose}
+    >
+      <AlbumPhotosOverlayContext.Provider value={heroOverlay ?? null}>
+        <View style={{ flex: 1, paddingBottom: tabBarPad }}>
+          <View style={{ flex: 1, overflow: 'hidden' }}>{children}</View>
+          {footer}
         </View>
-        <View style={{ flex: 1, overflow: 'hidden' }}>{children}</View>
-        {footer}
-      </View>
+      </AlbumPhotosOverlayContext.Provider>
     </AppScreenLayout>
   );
 }

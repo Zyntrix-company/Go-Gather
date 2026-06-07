@@ -32,12 +32,11 @@ export default function NotificationSettingsScreen({ navigation }: any) {
   };
 
   return (
-    <AppScreenLayout navigation={navigation}>
+    <AppScreenLayout navigation={navigation} title="Notification Preferences">
         <ScrollView
           contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}>
 
-          <Text style={styles.title}>Notification Preferences</Text>
           <Text style={styles.subtitle}>Control how and when GatherrGo notifies you</Text>
           <Text style={styles.scopeNote}>
             All controls below save to your account. Quiet start/end times come from the server (default 22:00–08:00); editing those times in the app is not available yet.
@@ -134,7 +133,6 @@ const styles = StyleSheet.create({
   safe:       { flex: 1 },
   scroll:     { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
 
-  title:      { fontSize: 20, fontWeight: '400', color: colors.textPrimary, textAlign: 'center', marginBottom: 4 },
   subtitle:   { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 10 },
   scopeNote: {
     fontSize: 11,

@@ -35,6 +35,8 @@ import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
 import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
 import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
+import DrivePickerRow from '../../components/gallery/DrivePickerRow';
+import { focusAlbumPhotosAtEnd, sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = (SCREEN_W - 52) / 2;
@@ -203,6 +205,7 @@ type PhotoItem = {
   activityId?: string | null;
   activityTitle?: string | null;
   source?: 'shared' | 'extra';
+  createdAt?: string | null;
 };
 
 type CustomCard = GalleryAlbumCard & {
@@ -293,63 +296,8 @@ function GalleryHeroPhoto({ photo }: { photo: PhotoItem }) {
         }}
       />
       {loading && (
-        <View style={{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
-          <ActivityIndicator size="large" color="#5eead4" />
-        </View>
-      )}
-    </View>
-  );
-}
-
-// ─── Full-screen preview (swipeable) ────────────────────────────────────────
-
-function PreviewItem({ photo }: { photo: PhotoItem }) {
-  const [loading, setLoading] = useState(true);
-  useEffect(() => { setLoading(true); }, [photo.uri]);
-  return (
-    <View style={{ width: SCREEN_W, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <CachedImage
-        uri={photo.localUri ?? photo.uri}
-        style={styles.previewImg}
-        resizeMode="contain"
-        onLoad={() => setLoading(false)}
-        onError={() => setLoading(false)}
-      />
-      {loading && <ActivityIndicator style={styles.previewLoader} size="large" color="#fff" />}
-    </View>
-  );
-}
-
-function PreviewModal({ photos, initialIndex, onClose }: {
-  photos: PhotoItem[];
-  initialIndex: number;
-  onClose: () => void;
-}) {
-  const listRef = useRef<any>(null);
-  const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  return (
-    <View style={styles.previewBg}>
-      <TouchableOpacity onPress={onClose} style={styles.previewClose} activeOpacity={0.8}>
-        <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-          <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-        </Svg>
-      </TouchableOpacity>
-      <FlatList
-        ref={listRef}
-        data={photos}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        initialScrollIndex={initialIndex}
-        getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
-        style={{ flex: 1, alignSelf: 'stretch' }}
-        onMomentumScrollEnd={e => setCurrentIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
-        renderItem={({ item }) => <PreviewItem photo={item} />}
-        keyExtractor={item => item.id}
-      />
-      {photos.length > 1 && (
-        <View style={styles.previewCounter}>
-          <Text style={styles.previewCounterText}>{currentIndex + 1} / {photos.length}</Text>
+        <View style={{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' }}>
+          <ActivityIndicator size="large" color="#0d9488" />
         </View>
       )}
     </View>
@@ -392,7 +340,6 @@ function PhotosModal({
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
   const [descExpanded, setDescExpanded] = useState(false);
   const heroFlatListRef = useRef<any>(null);
@@ -463,8 +410,9 @@ function PhotosModal({
           activityId: ph.activityId ?? null,
           activityTitle: ph.activityTitle ?? null,
           source: ph.source ?? 'shared',
+          createdAt: ph.createdAt ?? null,
         }));
-        setPhotos([...mapped.filter(p => !p.activityId), ...mapped.filter(p => !!p.activityId)]);
+        setPhotos(sortAlbumPhotosOldestFirst(mapped));
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -494,17 +442,19 @@ function PhotosModal({
       if (!assets.length) return;
 
       const tempIds = assets.map((_, i) => `temp_${Date.now()}_${i}`);
-      setPhotos((prev) => [
-        ...prev,
-        ...assets.map((a, i) => ({
-          id: tempIds[i],
-          uri: a.uri,
-          localUri: a.uri,
-          activityId: null,
-          activityTitle: null,
-          source: 'extra' as const,
-        })),
-      ]);
+      const optimistic: PhotoItem[] = assets.map((a, i) => ({
+        id: tempIds[i],
+        uri: a.uri,
+        localUri: a.uri,
+        activityId: null,
+        activityTitle: null,
+        source: 'extra' as const,
+        createdAt: new Date().toISOString(),
+      }));
+      setPhotos((prev) => {
+        focusAlbumPhotosAtEnd(prev.length, optimistic.length, setHeroIndex, heroFlatListRef);
+        return [...prev, ...optimistic];
+      });
 
       setUploading(true);
       try {
@@ -519,9 +469,12 @@ function PhotosModal({
             activityId: null,
             activityTitle: null,
             source: 'extra' as const,
+            createdAt: ph.createdAt ?? new Date().toISOString(),
           }));
           uploaded.forEach((p) => { if (p.localUri) localUriCache.current[p.id] = p.localUri; });
-          return [...withoutTemps, ...uploaded];
+          const next = [...withoutTemps, ...uploaded];
+          focusAlbumPhotosAtEnd(withoutTemps.length, uploaded.length, setHeroIndex, heroFlatListRef);
+          return next;
         });
       } catch (err: any) {
         setPhotos((prev) => prev.filter((p) => !tempIds.includes(p.id)));
@@ -570,16 +523,18 @@ function PhotosModal({
       const selected = driveFiles.filter((f) => selectedDriveFileIds.has(f.fileId));
       const res = await importDrivePhotosToGallery(parentType, parentId, selected);
       if (res.imported.length > 0) {
-        setPhotos((prev) => [
-          ...prev,
-          ...res.imported.map((ph) => ({
-            id: ph.id,
-            uri: ph.url ?? ph.fileUrl ?? '',
-            activityId: null,
-            activityTitle: null,
-            source: 'extra' as const,
-          })),
-        ]);
+        const imported = res.imported.map((ph) => ({
+          id: ph.id,
+          uri: ph.url ?? ph.fileUrl ?? '',
+          activityId: null,
+          activityTitle: null,
+          source: 'extra' as const,
+          createdAt: ph.createdAt ?? new Date().toISOString(),
+        }));
+        setPhotos((prev) => {
+          focusAlbumPhotosAtEnd(prev.length, imported.length, setHeroIndex, heroFlatListRef);
+          return [...prev, ...imported];
+        });
       }
       setShowDrivePicker(false);
       if (res.failed?.length) {
@@ -676,31 +631,28 @@ function PhotosModal({
     });
   };
 
-  const heroPhoto = photos.length > 0 ? photos[Math.min(heroIndex, photos.length - 1)] : null;
-  const isActivityPhoto = !!(heroPhoto?.activityTitle);
-  const dynamicTitle = isActivityPhoto ? heroPhoto!.activityTitle! : title;
-
   return (
     <>
       <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
         <AlbumPhotosScreenLayout
           navigation={navigation}
           activeTab="gallery"
+          galleryChrome
           onClose={onClose}
           photoIndex={heroIndex}
           photoTotal={photos.length}
-          headerRight={
+          heroOverlay={
             !userId ? (
               editMode ? (
-                <TouchableOpacity onPress={handleDoneEdit} style={acs.headerBack} disabled={saving}>
+                <TouchableOpacity onPress={handleDoneEdit} style={acs.heroOverlayBtnLight} disabled={saving}>
                   {saving ? <ActivityIndicator size="small" color="#0d9488" /> : <CheckIcon />}
                 </TouchableOpacity>
               ) : (
                 <>
-                  <TouchableOpacity onPress={() => setEditMode(true)} style={acs.headerBack} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <TouchableOpacity onPress={() => setEditMode(true)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
                     <Pen size={15} color="#0d9488" />
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={handleArchiveAlbum} style={acs.headerBack} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <TouchableOpacity onPress={handleArchiveAlbum} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
                     <Archive size={15} color="#64748b" />
                   </TouchableOpacity>
                 </>
@@ -710,6 +662,7 @@ function PhotosModal({
           footer={
             !userId ? (
               <AlbumPhotosFooter
+                galleryChrome
                 aboveTabBar
                 onUpload={() => pickPhotos(false)}
                 onCamera={() => pickPhotos(true)}
@@ -724,6 +677,7 @@ function PhotosModal({
         >
           <AlbumPhotosBody>
             <AlbumPhotosHeroCarousel
+              galleryChrome
               photos={photos}
               heroIndex={heroIndex}
               onIndexChange={setHeroIndex}
@@ -736,6 +690,8 @@ function PhotosModal({
               photos={photos}
               heroIndex={heroIndex}
               scrollEnabled={!editMode}
+              transparent
+              galleryChrome
               onSelect={(idx) => {
                 setHeroIndex(idx);
                 heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
@@ -767,7 +723,7 @@ function PhotosModal({
                 );
               }}
             />
-            <View style={acs.metaCard}>
+            <View style={acs.metaCardTransparent}>
               {(editMode && !userId) ? (
                 <>
                   <TextInput
@@ -791,13 +747,7 @@ function PhotosModal({
                 </>
               ) : (
                 <>
-                  {isActivityPhoto && (
-                    <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488', letterSpacing: 0.4, marginBottom: 2 }}>ACTIVITY</Text>
-                  )}
-                  <Text style={acs.metaTitle} numberOfLines={1}>{dynamicTitle}</Text>
-                  {isActivityPhoto && (
-                    <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }} numberOfLines={1}>from {title}</Text>
-                  )}
+                  <Text style={acs.metaTitle} numberOfLines={1}>{title}</Text>
                   {initialSubtitle?.trim() ? (
                     <Text style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }} numberOfLines={1}>
                       {initialSubtitle}
@@ -845,31 +795,18 @@ function PhotosModal({
                 data={driveFiles}
                 keyExtractor={(f) => f.fileId}
                 style={{ maxHeight: 380 }}
-                renderItem={({ item }) => {
-                  const sel = selectedDriveFileIds.has(item.fileId);
-                  return (
-                    <TouchableOpacity
-                      style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderColor: '#e2e8f0' }}
-                      onPress={() => setSelectedDriveFileIds((prev) => {
-                        const n = new Set(prev);
-                        if (sel) n.delete(item.fileId); else n.add(item.fileId);
-                        return n;
-                      })}
-                      activeOpacity={0.7}
-                    >
-                      <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: sel ? '#0d9488' : '#cbd5e1', backgroundColor: sel ? '#0d9488' : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                        {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>✓</Text>}
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }} numberOfLines={1}>{item.name}</Text>
-                        <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
-                          {item.sizeBytes ? `${Math.round(item.sizeBytes / 1024)} KB · ` : ''}
-                          {new Date(item.modifiedTime).toLocaleDateString()}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                }}
+                renderItem={({ item }) => (
+                  <DrivePickerRow
+                    file={item}
+                    selected={selectedDriveFileIds.has(item.fileId)}
+                    onToggle={() => setSelectedDriveFileIds((prev) => {
+                      const n = new Set(prev);
+                      if (n.has(item.fileId)) n.delete(item.fileId);
+                      else n.add(item.fileId);
+                      return n;
+                    })}
+                  />
+                )}
               />
             )}
             {!drivePickerLoading && driveFiles.length > 0 && (
@@ -892,9 +829,6 @@ function PhotosModal({
             )}
           </View>
         </View>
-      </Modal>
-      <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
-        <PreviewModal photos={photos} initialIndex={previewIndex ?? 0} onClose={() => setPreviewIndex(null)} />
       </Modal>
     </>
   );
@@ -1036,7 +970,6 @@ function CustomCardPhotosModal({
   const navigation = useNavigation<any>();
   const [editMode, setEditMode] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
-  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -1049,7 +982,9 @@ function CustomCardPhotosModal({
     setLoading(true);
     getMyGalleryAlbumPhotos(card.id)
       .then((res) => {
-        setPhotos(res.photos.map((p) => ({ id: p.id, uri: p.uri ?? '' })));
+        setPhotos(sortAlbumPhotosOldestFirst(
+          res.photos.map((p) => ({ id: p.id, uri: p.uri ?? '', createdAt: p.createdAt ?? null })),
+        ));
       })
       .catch(() => setPhotos([]))
       .finally(() => setLoading(false));
@@ -1086,10 +1021,15 @@ function CustomCardPhotosModal({
     setUploading(true);
     try {
       const { photos: uploaded } = await uploadGalleryAlbumPhotos(card.id, assets);
-      setPhotos((prev) => [
-        ...prev,
-        ...uploaded.map((p) => ({ id: p.id, uri: p.uri ?? '' })),
-      ]);
+      setPhotos((prev) => {
+        const mapped = uploaded.map((p) => ({
+          id: p.id,
+          uri: p.uri ?? '',
+          createdAt: p.createdAt ?? new Date().toISOString(),
+        }));
+        focusAlbumPhotosAtEnd(prev.length, mapped.length, setHeroIndex, heroFlatListRef);
+        return [...prev, ...mapped];
+      });
       if (!card.bannerImageUrl && uploaded[0]?.uri) {
         const updated = await updateGalleryAlbum(card.id, { bannerImageUrl: uploaded[0].uri });
         onCardUpdated({ ...updated, type: card.type });
@@ -1170,17 +1110,18 @@ function CustomCardPhotosModal({
         <AlbumPhotosScreenLayout
           navigation={navigation}
           activeTab="gallery"
+          galleryChrome
           onClose={onClose}
           photoIndex={heroIndex}
           photoTotal={photos.length}
-          headerRight={
+          heroOverlay={
             editMode ? (
-              <TouchableOpacity onPress={saveAndExitEdit} style={acs.headerBack}>
+              <TouchableOpacity onPress={saveAndExitEdit} style={acs.heroOverlayBtnLight}>
                 <CheckIcon />
               </TouchableOpacity>
             ) : (
               <>
-                <TouchableOpacity onPress={() => setEditMode(true)} style={acs.headerBack} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                <TouchableOpacity onPress={() => setEditMode(true)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
                   <Pen size={15} color="#0d9488" />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1192,7 +1133,7 @@ function CustomCardPhotosModal({
                       onConfirm: () => { onArchiveCard(card.id); onClose(); },
                     });
                   }}
-                  style={acs.headerBack}
+                  style={acs.heroOverlayBtnLight}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 >
                   <Archive size={15} color="#64748b" />
@@ -1201,13 +1142,13 @@ function CustomCardPhotosModal({
                   onPress={() => {
                     showConfirm({
                       title: 'Delete album permanently?',
-                      message: `Permanently delete "${card.name}" from your gallery.\n\nDoes not delete shared trips or events. This cannot be undone.`,
+                      message: `Permanently delete "${card.name}" from your gallery only.\n\nDoes not delete shared trips or events. This cannot be undone.`,
                       confirmText: 'Delete',
                       destructive: true,
                       onConfirm: () => { onDeleteCard(card.id); onClose(); },
                     });
                   }}
-                  style={acs.headerBack}
+                  style={acs.heroOverlayBtnLight}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 >
                   <Trash2 size={15} color="#ef4444" />
@@ -1217,6 +1158,7 @@ function CustomCardPhotosModal({
           }
           footer={
             <AlbumPhotosFooter
+              galleryChrome
               aboveTabBar
               onUpload={() => pickPhotos(false)}
               onCamera={() => pickPhotos(true)}
@@ -1227,6 +1169,7 @@ function CustomCardPhotosModal({
         >
           <AlbumPhotosBody>
             <AlbumPhotosHeroCarousel
+              galleryChrome
               photos={photos}
               heroIndex={heroIndex}
               onIndexChange={setHeroIndex}
@@ -1239,10 +1182,11 @@ function CustomCardPhotosModal({
               photos={photos}
               heroIndex={heroIndex}
               scrollEnabled={!editMode}
+              transparent
+              galleryChrome
               onSelect={(idx) => {
                 setHeroIndex(idx);
                 heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
-                if (!editMode) setPreviewIndex(idx);
               }}
               renderOverlay={(ph, idx) => {
                 const isCover = !!card.bannerImageUrl && card.bannerImageUrl === ph.uri;
@@ -1284,7 +1228,7 @@ function CustomCardPhotosModal({
                 );
               }}
             />
-            <View style={acs.metaCard}>
+            <View style={acs.metaCardTransparent}>
               {editMode ? (
                 <>
                   <TextInput
@@ -1320,10 +1264,6 @@ function CustomCardPhotosModal({
             </View>
           </AlbumPhotosBody>
         </AlbumPhotosScreenLayout>
-      </Modal>
-
-      <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
-        <PreviewModal photos={photos} initialIndex={previewIndex ?? 0} onClose={() => setPreviewIndex(null)} />
       </Modal>
     </>
   );
@@ -1747,22 +1687,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // Full-screen preview
-  previewBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' },
-  previewClose: {
-    position: 'absolute', top: 48, left: 20, zIndex: 10,
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  previewImg: { width: SCREEN_W, height: SCREEN_W * 1.2 },
-  previewLoader: { position: 'absolute' },
-  previewCounter: {
-    position: 'absolute', bottom: 36, alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12,
-  },
-  previewCounterText: { color: '#fff', fontSize: 13, fontWeight: '300' },
 
   dialogSubheading: { fontSize: 12, color: '#94a3b8', fontWeight: '400', marginTop: 2 },
 

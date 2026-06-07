@@ -83,6 +83,12 @@ async function refreshAccessToken(plainRefreshToken) {
   };
 }
 
+function authenticatedDriveUrl(url, accessToken) {
+  if (!url) return null;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}access_token=${encodeURIComponent(accessToken)}`;
+}
+
 async function listFiles(accessToken, folderId, { photosOnly = false } = {}) {
   const parent = folderId || 'root';
   // Exclude Google Workspace documents (Docs, Sheets, Slides) — they can't be downloaded directly.
@@ -94,7 +100,7 @@ async function listFiles(accessToken, folderId, { photosOnly = false } = {}) {
   const res = await axios.get(`${DRIVE_BASE}/files`, {
     params: {
       q,
-      fields: 'files(id,name,mimeType,size,modifiedTime)',
+      fields: 'files(id,name,mimeType,size,modifiedTime,thumbnailLink,iconLink)',
       pageSize: 50,
       orderBy:  'modifiedTime desc',
     },
@@ -107,6 +113,8 @@ async function listFiles(accessToken, folderId, { photosOnly = false } = {}) {
     mimeType:     f.mimeType,
     sizeBytes:    f.size ? parseInt(f.size, 10) : null,
     modifiedTime: f.modifiedTime,
+    thumbnailUrl: photosOnly ? authenticatedDriveUrl(f.thumbnailLink, accessToken) : null,
+    iconUrl:      !photosOnly ? authenticatedDriveUrl(f.iconLink, accessToken) : null,
   }));
 }
 

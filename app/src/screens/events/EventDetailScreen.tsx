@@ -7,6 +7,7 @@ import {
 import Toast from 'react-native-toast-message';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { Pen, Check, Trash2 } from 'lucide-react-native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { WebView } from 'react-native-webview';
@@ -82,15 +83,17 @@ import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
 import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
 import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
 import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
+import DrivePickerRow from '../../components/gallery/DrivePickerRow';
 import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
 import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
 import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
+import { focusAlbumPhotosAtEnd, sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import { checkDriveConnected, promptConnectDrive, watchDriveConnect } from '../../utils/drivePickerFlow';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type DocItem = { id: string; name: string; uri: string; mimeType?: string };
-type PhotoItem = { id: string; uri: string; localUri?: string; name: string };
+type PhotoItem = { id: string; uri: string; localUri?: string; name: string; createdAt?: string | null };
 type EventMemberLocal = { userId: string; fullName: string; avatarUrl?: string; role: 'admin' | 'member' };
 type ExpenseLocal = {
   id: string; description: string; amount: number; category: string;
@@ -356,23 +359,6 @@ function resolveFriendAvatar(friend: any): string {
   return `https://i.pravatar.cc/150?u=${encodeURIComponent(String(id || 'friend'))}`;
 }
 
-function EventPhotoPreview({ photo }: { photo: PhotoItem }) {
-  const [loading, setLoading] = useState(true);
-  useEffect(() => { setLoading(true); }, [photo.uri]);
-  return (
-    <View style={{ width: SCREEN_W, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <CachedImage
-        uri={photo.localUri ?? photo.uri}
-        style={{ width: SCREEN_W, height: SCREEN_W * 1.2 }}
-        resizeMode="contain"
-        onLoad={() => setLoading(false)}
-        onError={() => setLoading(false)}
-      />
-      {loading && <ActivityIndicator style={{ position: 'absolute' }} size="large" color="#fff" />}
-    </View>
-  );
-}
-
 function EventAlbumHeroPhoto({ photo }: { photo: PhotoItem }) {
   const [loading, setLoading] = useState(true);
   const [localUriFailed, setLocalUriFailed] = useState(false);
@@ -448,14 +434,14 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [driveStatus, setDriveStatus] = useState({ connected: false });
   const [showMembers, setShowMembers] = useState(false);
   const [showPhotos, setShowPhotos] = useState(false);
+  const [photosEditMode, setPhotosEditMode] = useState(false);
+  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [showExpenses, setShowExpenses] = useState(false);
   const showExpensesRef = useRef(showExpenses);
   showExpensesRef.current = showExpenses;
   const [showPolls, setShowPolls] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showEditEvent, setShowEditEvent] = useState(false);
-  const [previewPhotoIndex, setPreviewPhotoIndex] = useState<number | null>(null);
-  const photoListRef = useRef<any>(null);
   const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
   const [albumHeroIndex, setAlbumHeroIndex] = useState(0);
   const [albumDescExpanded, setAlbumDescExpanded] = useState(false);
@@ -482,7 +468,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [notes, setNotes] = useState<NoteLocal[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
-  const previewPhoto = previewPhotoIndex !== null ? photos[previewPhotoIndex] ?? null : null;
   const myMemberRole = members.find(m => m.userId === currentUserId)?.role ?? 'member';
 
   // ── Load event detail and all modules from API on every focus ──
@@ -532,12 +517,13 @@ export default function EventDetailScreen({ route, navigation }: any) {
             setPhotos(prev => {
               const cache: Record<string, string> = {};
               prev.forEach(p => { if ((p as any).localUri) cache[p.id] = (p as any).localUri; });
-              return photosData.photos.map(p => ({
+              return sortAlbumPhotosOldestFirst(photosData.photos.map(p => ({
                 id: p.id,
                 uri: p.url ?? p.fileUrl ?? '',
                 localUri: cache[p.id],
                 name: 'photo.jpg',
-              }));
+                createdAt: (p as { createdAt?: string }).createdAt ?? null,
+              })));
             });
 
             // Update expenses and balances
@@ -877,15 +863,17 @@ export default function EventDetailScreen({ route, navigation }: any) {
       let res: { imported: unknown[]; failed?: { fileName: string; reason: string }[] };
       if (drivePickerTarget === 'photos') {
         res = await importDrivePhotos('event', event.id, selected);
-        setPhotos(p => [
-          ...p,
-          ...res.imported.map((ph: any) => ({
+        setPhotos(p => {
+          const imported = res.imported.map((ph: any) => ({
             id: ph.id,
             uri: ph.url ?? ph.fileUrl ?? '',
             localUri: undefined,
             name: ph.fileName,
-          })),
-        ]);
+            createdAt: (ph as { createdAt?: string }).createdAt ?? new Date().toISOString(),
+          }));
+          focusAlbumPhotosAtEnd(p.length, imported.length, setAlbumHeroIndex, albumHeroRef);
+          return [...p, ...imported];
+        });
       } else {
         res = await importDriveFiles('event', event.id, selected);
         setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl }))]);
@@ -918,12 +906,20 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
       // Optimistic: add temp photos with local URIs so they display immediately
       const tempIds = assets.map((_, i) => `temp-${Date.now()}-${i}`);
-      const tempPhotos = assets.map((a, i) => ({ id: tempIds[i], uri: a.uri!, localUri: a.uri!, name: a.fileName ?? 'photo.jpg' }));
-      setPhotos(prev => [...prev, ...tempPhotos]);
+      const tempPhotos = assets.map((a, i) => ({
+        id: tempIds[i],
+        uri: a.uri!,
+        localUri: a.uri!,
+        name: a.fileName ?? 'photo.jpg',
+        createdAt: new Date().toISOString(),
+      }));
+      setPhotos(prev => {
+        focusAlbumPhotosAtEnd(prev.length, tempPhotos.length, setAlbumHeroIndex, albumHeroRef);
+        return [...prev, ...tempPhotos];
+      });
 
       try {
         const result = await uploadEventPhotos(event.id, assets.map(a => ({ uri: a.uri!, type: a.type, name: a.fileName ?? 'photo.jpg' })));
-        // Replace temp entries with real CDN-backed ones (keep localUri as fallback)
         setPhotos(prev => {
           const withoutTemps = prev.filter(ph => !tempIds.includes(ph.id));
           const newPhotos = result.photos.map((ph, i) => ({
@@ -931,7 +927,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
             uri: ph.url ?? ph.fileUrl ?? assets[i]?.uri ?? '',
             localUri: assets[i]?.uri,
             name: 'photo.jpg',
+            createdAt: (ph as { createdAt?: string }).createdAt ?? new Date().toISOString(),
           }));
+          focusAlbumPhotosAtEnd(withoutTemps.length, newPhotos.length, setAlbumHeroIndex, albumHeroRef);
           return [...withoutTemps, ...newPhotos];
         });
       } catch (err) {
@@ -942,21 +940,23 @@ export default function EventDetailScreen({ route, navigation }: any) {
     });
   }
 
-  function openPhotoPreview(photoId: string) {
-    const idx = photos.findIndex(x => x.id === photoId);
-    if (idx >= 0) setPreviewPhotoIndex(idx);
+  async function handleDeletePhoto(photoId: string) {
+    try {
+      setDeletingPhotoId(photoId);
+      await deleteEventPhoto(event.id, photoId);
+      setPhotos(p => {
+        const next = p.filter(ph => ph.id !== photoId);
+        setAlbumHeroIndex(hi => Math.min(hi, Math.max(0, next.length - 1)));
+        return next;
+      });
+    } catch (err) { handleApiError(err); }
+    finally { setDeletingPhotoId(null); }
   }
-  function showPrevPhoto() {
-    if (previewPhotoIndex === null || photos.length <= 1) return;
-    const next = (previewPhotoIndex - 1 + photos.length) % photos.length;
-    setPreviewPhotoIndex(next);
-    photoListRef.current?.scrollToIndex({ index: next, animated: true });
-  }
-  function showNextPhoto() {
-    if (previewPhotoIndex === null || photos.length <= 1) return;
-    const next = (previewPhotoIndex + 1) % photos.length;
-    setPreviewPhotoIndex(next);
-    photoListRef.current?.scrollToIndex({ index: next, animated: true });
+
+  function closePhotosModal() {
+    setShowPhotos(false);
+    setPhotosEditMode(false);
+    setDeletingPhotoId(null);
   }
 
   async function handleAddExpense() {
@@ -1660,26 +1660,19 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   data={driveFiles}
                   keyExtractor={f => f.fileId}
                   style={{ maxHeight: 380 }}
-                  renderItem={({ item }) => {
-                    const sel = selectedDriveFileIds.has(item.fileId);
-                    return (
-                      <TouchableOpacity
-                        style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderColor: '#e2e8f0' }}
-                        onPress={() => setSelectedDriveFileIds(prev => { const n = new Set(prev); sel ? n.delete(item.fileId) : n.add(item.fileId); return n; })}
-                        activeOpacity={0.7}>
-                        <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: sel ? '#0d9488' : '#cbd5e1', backgroundColor: sel ? '#0d9488' : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                          {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>✓</Text>}
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }} numberOfLines={1}>{item.name}</Text>
-                          <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
-                            {item.sizeBytes ? `${Math.round(item.sizeBytes / 1024)} KB · ` : ''}
-                            {new Date(item.modifiedTime).toLocaleDateString()}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  }}
+                  renderItem={({ item }) => (
+                    <DrivePickerRow
+                      file={item}
+                      selected={selectedDriveFileIds.has(item.fileId)}
+                      showThumbnail={drivePickerTarget === 'photos'}
+                      onToggle={() => setSelectedDriveFileIds((prev) => {
+                        const n = new Set(prev);
+                        if (n.has(item.fileId)) n.delete(item.fileId);
+                        else n.add(item.fileId);
+                        return n;
+                      })}
+                    />
+                  )}
                 />
               )}
               {!drivePickerLoading && driveFiles.length > 0 && (
@@ -1808,15 +1801,30 @@ export default function EventDetailScreen({ route, navigation }: any) {
         {/* ═══════════════════════════════════════════════════
             MODAL 3 — Photos (Immersive Album View)
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showPhotos} transparent={false} animationType="slide" onRequestClose={() => setShowPhotos(false)}>
+        <Modal visible={showPhotos} transparent={false} animationType="slide" onRequestClose={closePhotosModal}>
           <AlbumPhotosScreenLayout
             navigation={navigation}
             activeTab="events"
-            onClose={() => setShowPhotos(false)}
+            galleryChrome
+            onClose={closePhotosModal}
             photoIndex={albumHeroIndex}
             photoTotal={photos.length}
+            heroOverlay={
+              photos.length > 0 ? (
+                photosEditMode ? (
+                  <TouchableOpacity onPress={() => setPhotosEditMode(false)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <Check size={17} color="#0d9488" />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity onPress={() => setPhotosEditMode(true)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <Pen size={15} color="#0d9488" />
+                  </TouchableOpacity>
+                )
+              ) : null
+            }
             footer={
               <AlbumPhotosFooter
+                galleryChrome
                 aboveTabBar
                 onUpload={() => handlePickPhoto(false)}
                 onCamera={() => handlePickPhoto(true)}
@@ -1827,23 +1835,48 @@ export default function EventDetailScreen({ route, navigation }: any) {
           >
             <AlbumPhotosBody>
               <AlbumPhotosHeroCarousel
+                galleryChrome
                 photos={photos}
                 heroIndex={albumHeroIndex}
                 onIndexChange={setAlbumHeroIndex}
                 heroRef={albumHeroRef}
-                onPhotoPress={(idx) => setPreviewPhotoIndex(idx)}
+                scrollEnabled={!photosEditMode}
                 renderPhoto={(item) => <EventAlbumHeroPhoto photo={item} />}
               />
               <AlbumPhotosThumbStrip
                 photos={photos}
                 heroIndex={albumHeroIndex}
+                scrollEnabled={!photosEditMode}
+                transparent
+                galleryChrome
                 onSelect={(idx) => {
                   setAlbumHeroIndex(idx);
                   albumHeroRef.current?.scrollToIndex({ index: idx, animated: true });
-                  setPreviewPhotoIndex(idx);
+                }}
+                renderOverlay={(ph) => {
+                  if (!photosEditMode) return null;
+                  return (
+                    <TouchableOpacity
+                      onPress={() => {
+                        showConfirm({
+                          title: 'Delete Photo',
+                          message: 'Remove this photo for everyone on this event?',
+                          destructive: true,
+                          onConfirm: () => handleDeletePhoto(ph.id),
+                        });
+                      }}
+                      style={acs.thumbDeleteBtn}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      disabled={deletingPhotoId === ph.id}
+                    >
+                      {deletingPhotoId === ph.id
+                        ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
+                        : <Trash2 size={9} color="#fff" />}
+                    </TouchableOpacity>
+                  );
                 }}
               />
-              <View style={acs.metaCard}>
+              <View style={acs.metaCardTransparent}>
                 <Text style={acs.metaTitle} numberOfLines={1}>{event.name}</Text>
                 <View style={acs.metaRow}>
                   {!!event.location && (
@@ -1892,80 +1925,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
               </View>
             </AlbumPhotosBody>
           </AlbumPhotosScreenLayout>
-        </Modal>
-
-        {/* Fullscreen photo preview */}
-        <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhotoIndex(null)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' }}>
-            <FlatList
-              ref={photoListRef}
-              data={photos}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              initialScrollIndex={previewPhotoIndex ?? 0}
-              getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
-              style={{ flex: 1 }}
-              onMomentumScrollEnd={e => setPreviewPhotoIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
-              renderItem={({ item }) => <EventPhotoPreview photo={item} />}
-              keyExtractor={item => item.id}
-            />
-            {/* Close button — top left */}
-            <TouchableOpacity
-              onPress={() => setPreviewPhotoIndex(null)}
-              style={{ position: 'absolute', top: 48, left: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}
-              activeOpacity={0.8}>
-              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-              </Svg>
-            </TouchableOpacity>
-            {/* Delete button — top right */}
-            {previewPhoto && (
-              <TouchableOpacity
-                onPress={() => {
-                  if (!previewPhoto) return;
-                  showConfirm({
-                    title: 'Delete Photo',
-                    message: 'Remove this photo for everyone on this event?',
-                    destructive: true,
-                    onConfirm: async () => {
-                      try {
-                        await deleteEventPhoto(event.id, previewPhoto.id);
-                        setPhotos(p => p.filter(x => x.id !== previewPhoto.id));
-                        setPreviewPhotoIndex(null);
-                      } catch (err) { handleApiError(err); }
-                    },
-                  });
-                }}
-                style={{ position: 'absolute', top: 48, right: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(239,68,68,0.85)', alignItems: 'center', justifyContent: 'center' }}
-                activeOpacity={0.8}>
-                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                  <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                </Svg>
-              </TouchableOpacity>
-            )}
-            {photos.length > 1 && (
-              <>
-                <TouchableOpacity
-                  onPress={showPrevPhoto}
-                  activeOpacity={0.8}
-                  style={{ position: 'absolute', left: 12, top: '50%', marginTop: -22, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Text style={{ color: '#fff', fontSize: 28, lineHeight: 30 }}>{'‹'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={showNextPhoto}
-                  activeOpacity={0.8}
-                  style={{ position: 'absolute', right: 12, top: '50%', marginTop: -22, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Text style={{ color: '#fff', fontSize: 28, lineHeight: 30 }}>{'›'}</Text>
-                </TouchableOpacity>
-                <View style={{ position: 'absolute', bottom: 36, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
-                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>{(previewPhotoIndex ?? 0) + 1} / {photos.length}</Text>
-                </View>
-              </>
-            )}
-          </View>
         </Modal>
 
         {/* Document preview modal */}

@@ -10,6 +10,7 @@ const EXPENSES_MODAL_HEIGHT = Math.round(SCREEN_H * 0.78);
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { Pen, Check, Trash2 } from 'lucide-react-native';
 import SweeIcon from '../../components/common/SweeIcon';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
@@ -100,9 +101,11 @@ import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
 import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
 import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
 import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
+import DrivePickerRow from '../../components/gallery/DrivePickerRow';
 import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
 import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
 import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
+import { focusAlbumPhotosAtEnd, sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import { checkDriveConnected, promptConnectDrive, watchDriveConnect } from '../../utils/drivePickerFlow';
 
 
@@ -114,7 +117,7 @@ type Activity = {
   linkedExpense?: { id: string; description: string; amount: number } | null;
 };
 type DocItem = { id: string; name: string; uri: string; mimeType?: string };
-type PhotoItem = { id: string; uri: string; localUri?: string; name: string; uploadedBy?: string; activityId?: string | null; activityTitle?: string | null };
+type PhotoItem = { id: string; uri: string; localUri?: string; name: string; uploadedBy?: string; activityId?: string | null; activityTitle?: string | null; createdAt?: string | null };
 type Expense = {
   id: string; description: string; amount: number; category: string;
   currency: string;
@@ -601,31 +604,6 @@ function TripPhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => v
   );
 }
 
-function TripPhotoPreview({ photo }: { photo: PhotoItem }) {
-  const [loading, setLoading] = useState(true);
-  useEffect(() => { setLoading(true); }, [photo.uri]);
-  return (
-    <View style={{ width: SCREEN_W, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <CachedImage
-        uri={photo.localUri ?? photo.uri}
-        style={{ width: SCREEN_W, height: SCREEN_W * 1.2 }}
-        resizeMode="contain"
-        onLoad={() => setLoading(false)}
-        onError={() => setLoading(false)}
-      />
-      {loading && <ActivityIndicator style={{ position: 'absolute' }} size="large" color="#fff" />}
-      {photo.activityTitle && (
-        <View style={{ marginTop: 16, paddingHorizontal: 20, alignItems: 'center' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(13,148,136,0.25)', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 }}>
-            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#0d9488' }} />
-            <Text style={{ color: '#5eead4', fontSize: 13, fontWeight: '500' }}>{photo.activityTitle}</Text>
-          </View>
-        </View>
-      )}
-    </View>
-  );
-}
-
 function TripAlbumHeroPhoto({ photo }: { photo: PhotoItem }) {
   const [loading, setLoading] = useState(true);
   const [localUriFailed, setLocalUriFailed] = useState(false);
@@ -767,13 +745,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [driveStatus, setDriveStatus] = useState({ connected: false });
   const [showMembers, setShowMembers] = useState(false);
   const [showPhotos, setShowPhotos] = useState(false);
+  const [photosEditMode, setPhotosEditMode] = useState(false);
+  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [showExpenses, setShowExpenses] = useState(false);
   const showExpensesRef = useRef(showExpenses);
   showExpensesRef.current = showExpenses;
   const [showPolls, setShowPolls] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
-  const [previewPhotoIndex, setPreviewPhotoIndex] = useState<number | null>(null);
-  const photoListRef = useRef<any>(null);
   const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
   const [albumHeroIndex, setAlbumHeroIndex] = useState(0);
   const [albumDescExpanded, setAlbumDescExpanded] = useState(false);
@@ -1040,9 +1018,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
             uploadedBy: p.uploadedBy,
             activityId: p.activityId ?? null,
             activityTitle: p.activityTitle ?? null,
+            createdAt: p.createdAt ?? null,
           }));
-          // Trip-level photos first, then activity photos
-          return [...mapped.filter(p => !p.activityId), ...mapped.filter(p => !!p.activityId)];
+          return sortAlbumPhotosOldestFirst(mapped);
         });
         setUnreadCounts(prev => ({ ...prev, photos: 0 }));
         markTripSectionViewed(tripId, 'photos');
@@ -1152,7 +1130,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
     const ad = new Date(a.date); ad.setHours(0, 0, 0, 0);
     return ad.getTime() < _today;
   });
-  const previewPhoto = previewPhotoIndex !== null ? photos[previewPhotoIndex] ?? null : null;
   const expenseTotals = useMemo(
     () => buildGroupExpenseTotals(
       expenses,
@@ -1327,10 +1304,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
               uploadedBy: ph.uploadedBy ?? currentUserId,
               activityId: a.id,
               activityTitle: a.title,
+              createdAt: ph.createdAt ?? new Date().toISOString(),
             }));
             setPhotos(p => {
               const without = p.filter(e => !actPhotoItems.find(n => n.id === e.id));
-              return [...without, ...actPhotoItems];
+              const next = sortAlbumPhotosOldestFirst([...without, ...actPhotoItems]);
+              focusAlbumPhotosAtEnd(without.length, actPhotoItems.length, setAlbumHeroIndex, albumHeroRef);
+              return next;
             });
           }
         }
@@ -1370,23 +1350,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
     });
   }
 
-  function openPhotoPreview(photoId: string) {
-    const idx = photos.findIndex(p => p.id === photoId);
-    if (idx >= 0) setPreviewPhotoIndex(idx);
-  }
-  function showPrevPhoto() {
-    if (previewPhotoIndex === null || photos.length <= 1) return;
-    const next = (previewPhotoIndex - 1 + photos.length) % photos.length;
-    setPreviewPhotoIndex(next);
-    photoListRef.current?.scrollToIndex({ index: next, animated: true });
-  }
-  function showNextPhoto() {
-    if (previewPhotoIndex === null || photos.length <= 1) return;
-    const next = (previewPhotoIndex + 1) % photos.length;
-    setPreviewPhotoIndex(next);
-    photoListRef.current?.scrollToIndex({ index: next, animated: true });
-  }
-
   // ── Photo handlers (API-backed) ──
 
   function handlePickPhoto(cam: boolean) {
@@ -1402,10 +1365,22 @@ export default function TripDetailScreen({ route, navigation }: any) {
       if (!assets.length) return;
       // Optimistic: add with local URIs immediately so thumbnails show right away
       const tempIds = assets.map((_, i) => `temp_${Date.now()}_${i}`);
-      setPhotos(p => [...p, ...assets.map((a, i) => ({ id: tempIds[i], uri: a.uri, localUri: a.uri, name: a.name, uploadedBy: currentUserId, activityId: null, activityTitle: null }))]);
+      const optimistic = assets.map((a, i) => ({
+        id: tempIds[i],
+        uri: a.uri,
+        localUri: a.uri,
+        name: a.name,
+        uploadedBy: currentUserId,
+        activityId: null,
+        activityTitle: null,
+        createdAt: new Date().toISOString(),
+      }));
+      setPhotos(p => {
+        focusAlbumPhotosAtEnd(p.length, optimistic.length, setAlbumHeroIndex, albumHeroRef);
+        return [...p, ...optimistic];
+      });
       try {
         const data = await uploadTripPhotos(tripId, assets);
-        // Replace temp entries with real CDN-backed ones (keep localUri as fallback)
         setPhotos(p => {
           const withoutTemps = p.filter(ph => !tempIds.includes(ph.id));
           const newPhotos = data.photos.map((ph, i) => ({
@@ -1416,7 +1391,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
             uploadedBy: ph.uploadedBy,
             activityId: null,
             activityTitle: null,
+            createdAt: ph.createdAt ?? new Date().toISOString(),
           }));
+          focusAlbumPhotosAtEnd(withoutTemps.length, newPhotos.length, setAlbumHeroIndex, albumHeroRef);
           return [...withoutTemps, ...newPhotos];
         });
       } catch (err) {
@@ -1429,9 +1406,21 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   async function handleDeletePhoto(photoId: string) {
     try {
+      setDeletingPhotoId(photoId);
       await deleteTripPhoto(tripId, photoId);
-      setPhotos(p => p.filter(ph => ph.id !== photoId));
+      setPhotos(p => {
+        const next = p.filter(ph => ph.id !== photoId);
+        setAlbumHeroIndex(hi => Math.min(hi, Math.max(0, next.length - 1)));
+        return next;
+      });
     } catch (err) { handleApiError(err); }
+    finally { setDeletingPhotoId(null); }
+  }
+
+  function closePhotosModal() {
+    setShowPhotos(false);
+    setPhotosEditMode(false);
+    setDeletingPhotoId(null);
   }
 
   // ── Doc handlers (API-backed) ──
@@ -1541,18 +1530,20 @@ export default function TripDetailScreen({ route, navigation }: any) {
       let res: { imported: unknown[]; failed?: { fileName: string; reason: string }[] };
       if (drivePickerTarget === 'photos') {
         res = await importDrivePhotos('trip', tripId, selected);
-        setPhotos(p => [
-          ...p,
-          ...res.imported.map((ph: any) => ({
-            id: ph.id,
-            uri: ph.url ?? ph.fileUrl ?? '',
-            localUri: undefined,
-            name: ph.fileName,
-            uploadedBy: currentUserId,
-            activityId: null,
-            activityTitle: null,
-          })),
-        ]);
+        const imported = res.imported.map((ph: any) => ({
+          id: ph.id,
+          uri: ph.url ?? ph.fileUrl ?? '',
+          localUri: undefined,
+          name: ph.fileName,
+          uploadedBy: currentUserId,
+          activityId: null,
+          activityTitle: null,
+          createdAt: ph.createdAt ?? new Date().toISOString(),
+        }));
+        setPhotos(p => {
+          focusAlbumPhotosAtEnd(p.length, imported.length, setAlbumHeroIndex, albumHeroRef);
+          return [...p, ...imported];
+        });
       } else {
         res = await importDriveFiles('trip', tripId, selected);
         setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl, uploadedBy: currentUserId }))]);
@@ -1924,7 +1915,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         <AppHeader
           onLogoPress={() => navigation.goBack()}
           onBellPress={() => navigation.navigate('Notifications')}
-          onMenuPress={() => navigation.goBack()}
+          onMenuPress={() => navigation.navigate('Settings')}
         />
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -2565,26 +2556,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   data={driveFiles}
                   keyExtractor={f => f.fileId}
                   style={{ maxHeight: 380 }}
-                  renderItem={({ item }) => {
-                    const sel = selectedDriveFileIds.has(item.fileId);
-                    return (
-                      <TouchableOpacity
-                        style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5, borderColor: '#e2e8f0' }}
-                        onPress={() => setSelectedDriveFileIds(prev => { const n = new Set(prev); sel ? n.delete(item.fileId) : n.add(item.fileId); return n; })}
-                        activeOpacity={0.7}>
-                        <View style={{ width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, borderColor: sel ? '#0d9488' : '#cbd5e1', backgroundColor: sel ? '#0d9488' : 'transparent', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                          {sel && <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>✓</Text>}
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: '500', color: '#0f172a' }} numberOfLines={1}>{item.name}</Text>
-                          <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
-                            {item.sizeBytes ? `${Math.round(item.sizeBytes / 1024)} KB · ` : ''}
-                            {new Date(item.modifiedTime).toLocaleDateString()}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  }}
+                  renderItem={({ item }) => (
+                    <DrivePickerRow
+                      file={item}
+                      selected={selectedDriveFileIds.has(item.fileId)}
+                      showThumbnail={drivePickerTarget === 'photos'}
+                      onToggle={() => setSelectedDriveFileIds((prev) => {
+                        const n = new Set(prev);
+                        if (n.has(item.fileId)) n.delete(item.fileId);
+                        else n.add(item.fileId);
+                        return n;
+                      })}
+                    />
+                  )}
                 />
               )}
               {!drivePickerLoading && driveFiles.length > 0 && (
@@ -2701,15 +2685,30 @@ export default function TripDetailScreen({ route, navigation }: any) {
         {/* ═══════════════════════════════════════════════════
           MODAL 4 — Photos (Immersive Album View)
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showPhotos} transparent={false} animationType="slide" onRequestClose={() => setShowPhotos(false)}>
+        <Modal visible={showPhotos} transparent={false} animationType="slide" onRequestClose={closePhotosModal}>
           <AlbumPhotosScreenLayout
             navigation={navigation}
             activeTab="trips"
-            onClose={() => setShowPhotos(false)}
+            galleryChrome
+            onClose={closePhotosModal}
             photoIndex={albumHeroIndex}
             photoTotal={photos.length}
+            heroOverlay={
+              photos.length > 0 ? (
+                photosEditMode ? (
+                  <TouchableOpacity onPress={() => setPhotosEditMode(false)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <Check size={17} color="#0d9488" />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity onPress={() => setPhotosEditMode(true)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <Pen size={15} color="#0d9488" />
+                  </TouchableOpacity>
+                )
+              ) : null
+            }
             footer={
               <AlbumPhotosFooter
+                galleryChrome
                 aboveTabBar
                 onUpload={() => handlePickPhoto(false)}
                 onCamera={() => handlePickPhoto(true)}
@@ -2720,42 +2719,49 @@ export default function TripDetailScreen({ route, navigation }: any) {
           >
             <AlbumPhotosBody>
               <AlbumPhotosHeroCarousel
+                galleryChrome
                 photos={photos}
                 heroIndex={albumHeroIndex}
                 onIndexChange={setAlbumHeroIndex}
                 heroRef={albumHeroRef}
-                onPhotoPress={(idx) => setPreviewPhotoIndex(idx)}
+                scrollEnabled={!photosEditMode}
                 renderPhoto={(item) => <TripAlbumHeroPhoto photo={item} />}
               />
               <AlbumPhotosThumbStrip
                 photos={photos}
                 heroIndex={albumHeroIndex}
+                scrollEnabled={!photosEditMode}
+                transparent
+                galleryChrome
                 onSelect={(idx) => {
                   setAlbumHeroIndex(idx);
                   albumHeroRef.current?.scrollToIndex({ index: idx, animated: true });
-                  setPreviewPhotoIndex(idx);
+                }}
+                renderOverlay={(ph) => {
+                  if (!photosEditMode) return null;
+                  return (
+                    <TouchableOpacity
+                      onPress={() => {
+                        showConfirm({
+                          title: 'Delete Photo',
+                          message: 'Remove this photo for everyone on this trip?',
+                          destructive: true,
+                          onConfirm: () => handleDeletePhoto(ph.id),
+                        });
+                      }}
+                      style={acs.thumbDeleteBtn}
+                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      disabled={deletingPhotoId === ph.id}
+                    >
+                      {deletingPhotoId === ph.id
+                        ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
+                        : <Trash2 size={9} color="#fff" />}
+                    </TouchableOpacity>
+                  );
                 }}
               />
-              <View style={acs.metaCard}>
-                {(() => {
-                  const heroPhoto = photos.length > 0 ? photos[Math.min(albumHeroIndex, photos.length - 1)] : null;
-                  const isActivityPhoto = !!(heroPhoto?.activityTitle);
-                  return (
-                    <>
-                      {isActivityPhoto && (
-                        <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488', letterSpacing: 0.4, marginBottom: 2 }}>ACTIVITY</Text>
-                      )}
-                      <Text style={acs.metaTitle} numberOfLines={1}>
-                        {isActivityPhoto ? heroPhoto!.activityTitle! : (trip?.name ?? 'Trip')}
-                      </Text>
-                      {isActivityPhoto && (
-                        <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }} numberOfLines={1}>
-                          from {trip?.name ?? 'Trip'}
-                        </Text>
-                      )}
-                    </>
-                  );
-                })()}
+              <View style={acs.metaCardTransparent}>
+                <Text style={acs.metaTitle} numberOfLines={1}>{trip?.name ?? 'Trip'}</Text>
 
                 <View style={acs.metaRow}>
                   {!!formatLocationsLabelFull(trip ?? {}) && (
@@ -2814,81 +2820,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
               </View>
             </AlbumPhotosBody>
           </AlbumPhotosScreenLayout>
-        </Modal>
-
-        {/* ═══════════════════════════════════════════════════
-          FULLSCREEN PHOTO PREVIEW
-      ═══════════════════════════════════════════════════ */}
-        <Modal visible={!!previewPhoto} transparent animationType="fade" onRequestClose={() => setPreviewPhotoIndex(null)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' }}>
-            <FlatList
-              ref={photoListRef}
-              data={photos}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              initialScrollIndex={previewPhotoIndex ?? 0}
-              getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
-              style={{ flex: 1 }}
-              onMomentumScrollEnd={e => setPreviewPhotoIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
-              renderItem={({ item }) => <TripPhotoPreview photo={item} />}
-              keyExtractor={item => item.id}
-            />
-            {/* Close — top left */}
-            <TouchableOpacity
-              onPress={() => setPreviewPhotoIndex(null)}
-              style={{ position: 'absolute', top: 48, left: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}
-              activeOpacity={0.8}
-            >
-              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-              </Svg>
-            </TouchableOpacity>
-            {/* Delete — top right */}
-            {previewPhoto && (
-              <TouchableOpacity
-                onPress={() => {
-                  if (!previewPhoto) return;
-                  showConfirm({
-                    title: 'Delete Photo',
-                    message: 'Remove this photo for everyone on this trip?',
-                    destructive: true,
-                    onConfirm: async () => {
-                      await handleDeletePhoto(previewPhoto.id);
-                      setPreviewPhotoIndex(null);
-                    },
-                  });
-                }}
-                style={{ position: 'absolute', top: 48, right: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(239,68,68,0.85)', alignItems: 'center', justifyContent: 'center' }}
-                activeOpacity={0.8}
-              >
-                <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-                  <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                </Svg>
-              </TouchableOpacity>
-            )}
-            {photos.length > 1 && (
-              <>
-                <TouchableOpacity
-                  onPress={showPrevPhoto}
-                  activeOpacity={0.8}
-                  style={{ position: 'absolute', left: 12, top: '50%', marginTop: -22, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Text style={{ color: '#fff', fontSize: 28, lineHeight: 30 }}>{'‹'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={showNextPhoto}
-                  activeOpacity={0.8}
-                  style={{ position: 'absolute', right: 12, top: '50%', marginTop: -22, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}
-                >
-                  <Text style={{ color: '#fff', fontSize: 28, lineHeight: 30 }}>{'›'}</Text>
-                </TouchableOpacity>
-                <View style={{ position: 'absolute', bottom: 36, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
-                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>{(previewPhotoIndex ?? 0) + 1} / {photos.length}</Text>
-                </View>
-              </>
-            )}
-          </View>
         </Modal>
 
         {/* Document preview modal — in-app WebView */}

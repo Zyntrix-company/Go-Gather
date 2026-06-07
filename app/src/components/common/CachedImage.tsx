@@ -9,6 +9,7 @@ export type CachedImageProps = {
   /** Use 'high' for above-fold avatars, 'normal' for thumbnails (default) */
   priority?: 'low' | 'normal' | 'high';
   onLoad?: () => void;
+  onLoadEnd?: () => void;
   onError?: () => void;
 };
 
@@ -31,6 +32,7 @@ export default function CachedImage({
   resizeMode = FastImage.resizeMode.cover,
   priority = 'normal',
   onLoad,
+  onLoadEnd,
   onError,
 }: CachedImageProps) {
   if (!uri) return null;
@@ -54,6 +56,7 @@ export default function CachedImage({
       style={style as FastImageProps['style']}
       resizeMode={rm}
       onLoad={onLoad}
+      onLoadEnd={onLoadEnd}
       onError={onError}
     />
   );

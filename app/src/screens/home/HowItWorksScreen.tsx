@@ -191,11 +191,7 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
   }, []);
 
   return (
-    <AppScreenLayout navigation={navigation}>
-        <View style={styles.pageHeader}>
-          <Text style={styles.headerTitle}>How it works?</Text>
-        </View>
-
+    <AppScreenLayout navigation={navigation} title="How it works?">
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -375,17 +371,6 @@ export default function HowItWorksScreen({ navigation }: { navigation: any }) {
 }
 
 const styles = StyleSheet.create({
-  pageHeader: {
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  headerTitle: {
-    fontSize: 16, fontWeight: '600', color: colors.textPrimary,
-  },
-
   scroll: {
     paddingHorizontal: 16,
     paddingTop: 20,

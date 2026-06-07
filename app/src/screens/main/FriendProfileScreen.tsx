@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
-  Dimensions, StyleSheet, ActivityIndicator, Modal, Animated, FlatList,
+  Dimensions, StyleSheet, ActivityIndicator, Modal, Animated,
 } from 'react-native';
 import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
 import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
 import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
 import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
+import { sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { UserMinus } from 'lucide-react-native';
@@ -152,80 +153,7 @@ function FriendProfileSkeleton() {
   );
 }
 
-type PhotoItem = { id: string; uri: string; localUri?: string; activityId?: string | null; activityTitle?: string | null };
-
-function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void }) {
-  const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
-  const displayUri = photo.localUri ?? photo.uri;
-  const prevUri = useRef(displayUri);
-  useEffect(() => {
-    if (prevUri.current !== displayUri) {
-      prevUri.current = displayUri;
-      setFailed(false);
-      setLoading(true);
-    }
-  }, [displayUri]);
-  return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.thumb}>
-      {!failed ? (
-        <>
-          <CachedImage uri={displayUri} style={styles.thumbImg} resizeMode="cover" onLoad={() => setLoading(false)} onError={() => { setLoading(false); setFailed(true); }} />
-          {loading && <View style={styles.thumbLoader}><ActivityIndicator size="small" color="#0d9488" /></View>}
-        </>
-      ) : (
-        <View style={styles.thumbError}><CameraIcon /></View>
-      )}
-    </TouchableOpacity>
-  );
-}
-
-function PreviewItem({ photo }: { photo: PhotoItem }) {
-  const [loading, setLoading] = useState(true);
-  useEffect(() => { setLoading(true); }, [photo.uri]);
-  return (
-    <View style={{ width: SCREEN_W, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <CachedImage uri={photo.localUri ?? photo.uri} style={styles.previewImg} resizeMode="contain" onLoad={() => setLoading(false)} onError={() => setLoading(false)} />
-      {loading && <ActivityIndicator style={styles.previewLoader} size="large" color="#fff" />}
-    </View>
-  );
-}
-
-function PreviewModal({ photos, initialIndex, onClose }: {
-  photos: PhotoItem[];
-  initialIndex: number;
-  onClose: () => void;
-}) {
-  const listRef = useRef<any>(null);
-  const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  return (
-    <View style={styles.previewBg}>
-      <TouchableOpacity onPress={onClose} style={styles.previewClose} activeOpacity={0.8}>
-        <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-          <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-        </Svg>
-      </TouchableOpacity>
-      <FlatList
-        ref={listRef}
-        data={photos}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        initialScrollIndex={initialIndex}
-        getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
-        style={{ flex: 1, alignSelf: 'stretch' }}
-        onMomentumScrollEnd={e => setCurrentIndex(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
-        renderItem={({ item }) => <PreviewItem photo={item} />}
-        keyExtractor={item => item.id}
-      />
-      {photos.length > 1 && (
-        <View style={styles.previewCounter}>
-          <Text style={styles.previewCounterText}>{currentIndex + 1} / {photos.length}</Text>
-        </View>
-      )}
-    </View>
-  );
-}
+type PhotoItem = { id: string; uri: string; localUri?: string; activityId?: string | null; activityTitle?: string | null; createdAt?: string | null };
 
 function CustomAlbumPhotosModal({
   visible,
@@ -243,7 +171,6 @@ function CustomAlbumPhotosModal({
   const navigation = useNavigation<any>();
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
   const heroFlatListRef = useRef<any>(null);
 
@@ -261,58 +188,50 @@ function CustomAlbumPhotosModal({
   }, [visible, albumId, userId]);
 
   return (
-    <>
-      <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
-        <AlbumPhotosScreenLayout
-          navigation={navigation}
-          activeTab="friends"
-          onClose={onClose}
-          photoIndex={heroIndex}
-          photoTotal={photos.length}
-          footer={<AlbumPhotosFooter viewOnly aboveTabBar />}
-        >
-          <AlbumPhotosBody>
-            <TouchableOpacity
-              style={{ flex: 1 }}
-              activeOpacity={photos.length > 0 ? 0.95 : 1}
-              onPress={() => { if (photos.length > 0) setPreviewIndex(heroIndex); }}
-            >
-              <AlbumPhotosHeroCarousel
-                photos={photos}
-                heroIndex={heroIndex}
-                onIndexChange={setHeroIndex}
-                heroRef={heroFlatListRef}
-                loading={loading}
-                renderPhoto={(item) => <FriendHeroPhoto photo={item} />}
-              />
-            </TouchableOpacity>
-            <AlbumPhotosThumbStrip
-              photos={photos}
-              heroIndex={heroIndex}
-              onSelect={(idx) => {
-                setHeroIndex(idx);
-                heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
-                setPreviewIndex(idx);
-              }}
-            />
-            <View style={acs.metaCard}>
-              <Text style={acs.metaTitle} numberOfLines={1}>{title}</Text>
-              <View style={acs.metaRow}>
-                <View style={{ backgroundColor: '#f0fdf4', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488' }}>Custom album</Text>
-                </View>
-                <Text style={acs.metaCount}>
-                  {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
-                </Text>
+    <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
+      <AlbumPhotosScreenLayout
+        navigation={navigation}
+        activeTab="friends"
+        galleryChrome
+        onClose={onClose}
+        photoIndex={heroIndex}
+        photoTotal={photos.length}
+        footer={<AlbumPhotosFooter viewOnly aboveTabBar />}
+      >
+        <AlbumPhotosBody>
+          <AlbumPhotosHeroCarousel
+            galleryChrome
+            photos={photos}
+            heroIndex={heroIndex}
+            onIndexChange={setHeroIndex}
+            heroRef={heroFlatListRef}
+            loading={loading}
+            renderPhoto={(item) => <FriendHeroPhoto photo={item} />}
+          />
+          <AlbumPhotosThumbStrip
+            photos={photos}
+            heroIndex={heroIndex}
+            transparent
+            galleryChrome
+            onSelect={(idx) => {
+              setHeroIndex(idx);
+              heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
+            }}
+          />
+          <View style={acs.metaCardTransparent}>
+            <Text style={acs.metaTitle} numberOfLines={1}>{title}</Text>
+            <View style={acs.metaRow}>
+              <View style={{ backgroundColor: '#f0fdf4', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
+                <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488' }}>Custom album</Text>
               </View>
+              <Text style={acs.metaCount}>
+                {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
+              </Text>
             </View>
-          </AlbumPhotosBody>
-        </AlbumPhotosScreenLayout>
-      </Modal>
-      <Modal visible={previewIndex !== null} transparent animationType="fade" onRequestClose={() => setPreviewIndex(null)}>
-        <PreviewModal photos={photos} initialIndex={previewIndex ?? 0} onClose={() => setPreviewIndex(null)} />
-      </Modal>
-    </>
+          </View>
+        </AlbumPhotosBody>
+      </AlbumPhotosScreenLayout>
+    </Modal>
   );
 }
 
@@ -341,8 +260,8 @@ function FriendHeroPhoto({ photo }: { photo: PhotoItem }) {
         }}
       />
       {loading && (
-        <View style={{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
-          <ActivityIndicator size="large" color="#5eead4" />
+        <View style={{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' }}>
+          <ActivityIndicator size="large" color="#0d9488" />
         </View>
       )}
     </View>
@@ -388,23 +307,21 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
           localUri: capturedCache[ph.id],
           activityId: ph.activityId ?? null,
           activityTitle: ph.activityTitle ?? null,
+          createdAt: ph.createdAt ?? null,
         }));
-        setPhotos([...mapped.filter(p => !p.activityId), ...mapped.filter(p => !!p.activityId)]);
+        setPhotos(sortAlbumPhotosOldestFirst(mapped));
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [visible, parentId, parentType, userId]);
 
-  const heroPhoto = photos.length > 0 ? photos[Math.min(heroIndex, photos.length - 1)] : null;
-  const isActivityPhoto = !!(heroPhoto?.activityTitle);
-  const dynamicTitle = isActivityPhoto ? heroPhoto!.activityTitle! : title;
-
   return (
     <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
       <AlbumPhotosScreenLayout
         navigation={navigation}
         activeTab="friends"
+        galleryChrome
         onClose={onClose}
         photoIndex={heroIndex}
         photoTotal={photos.length}
@@ -412,6 +329,7 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
       >
         <AlbumPhotosBody>
           <AlbumPhotosHeroCarousel
+            galleryChrome
             photos={photos}
             heroIndex={heroIndex}
             onIndexChange={setHeroIndex}
@@ -422,19 +340,15 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
           <AlbumPhotosThumbStrip
             photos={photos}
             heroIndex={heroIndex}
+            transparent
+            galleryChrome
             onSelect={(idx) => {
               setHeroIndex(idx);
               heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
             }}
           />
-          <View style={acs.metaCard}>
-            {isActivityPhoto && (
-              <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488', letterSpacing: 0.4, marginBottom: 2 }}>ACTIVITY</Text>
-            )}
-            <Text style={acs.metaTitle} numberOfLines={1}>{dynamicTitle}</Text>
-            {isActivityPhoto && (
-              <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }} numberOfLines={1}>from {title}</Text>
-            )}
+          <View style={acs.metaCardTransparent}>
+            <Text style={acs.metaTitle} numberOfLines={1}>{title}</Text>
             {gallerySubtitle?.trim() ? (
               <Text style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }} numberOfLines={1}>
                 {gallerySubtitle}
@@ -714,19 +628,6 @@ const styles = StyleSheet.create({
   emptyCenter: { alignItems: 'center', paddingVertical: 32, gap: 8 },
   emptyTitle: { fontSize: 15, fontWeight: '400', color: '#334155' },
   emptySub: { fontSize: 13, color: '#94a3b8', textAlign: 'center' },
-
-  thumbRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  thumb: { width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' },
-  thumbImg: { width: 80, height: 80, borderRadius: 8 },
-  thumbLoader: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' },
-  thumbError: { width: 80, height: 80, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' },
-
-  previewBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' },
-  previewClose: { position: 'absolute', top: 48, left: 20, zIndex: 10, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
-  previewImg: { width: SCREEN_W, height: SCREEN_W * 1.2 },
-  previewLoader: { position: 'absolute' },
-  previewCounter: { position: 'absolute', bottom: 36, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
-  previewCounterText: { color: '#fff', fontSize: 13, fontWeight: '300' },
 
   modalSubtitleText: { fontSize: 13, color: '#0d9488', fontWeight: '300', fontStyle: 'italic', marginTop: 3 },
 });

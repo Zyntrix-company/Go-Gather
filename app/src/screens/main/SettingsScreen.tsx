@@ -55,17 +55,12 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
   const avatarUrl = user?.photoUrl || user?.avatarUrl || (user?.profile as any)?.avatarUrl || null;
 
   return (
-    <AppScreenLayout navigation={navigation}>
+    <AppScreenLayout navigation={navigation} title="Settings">
         <ScrollView
           contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}>
 
-          <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.headerTitle}>Settings</Text>
-              <Text style={styles.headerSubtitle}>Profile, notifications, help</Text>
-            </View>
-          </View>
+          <Text style={styles.headerSubtitle}>Profile, notifications, help</Text>
 
           <View style={styles.profileCard}>
             <View style={styles.avatarRing}>
@@ -136,22 +131,13 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  scroll: { paddingHorizontal: 20, paddingBottom: 40 },
+  scroll: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 4 },
 
-  headerRow: {
-    paddingTop: 4,
-    marginBottom: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: colors.textPrimary,
-    marginBottom: 1,
-  },
   headerSubtitle: {
     fontSize: 12,
     fontWeight: '400',
     color: colors.textSecondary,
+    marginBottom: 12,
   },
 
   profileCard: {

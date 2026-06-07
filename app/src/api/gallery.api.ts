@@ -28,6 +28,7 @@ export type GalleryPhoto = {
   source?: 'shared' | 'extra';
   activityId?: string | null;
   activityTitle?: string | null;
+  createdAt?: string | null;
 };
 
 function uploadMultipart(path: string, formData: FormData): Promise<any> {

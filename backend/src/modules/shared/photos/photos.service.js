@@ -45,7 +45,7 @@ const getPhotos = async ({ parentType, parentId }, { page = 1, limit = 30 } = {}
      LEFT JOIN profiles p ON p.user_id = ph.uploaded_by
      LEFT JOIN trip_activities ta ON ta.id = ph.activity_id
      WHERE ph.parent_type = $1 AND ph.parent_id = $2
-     ORDER BY ph.created_at DESC
+     ORDER BY ph.created_at ASC
      LIMIT $3 OFFSET $4`,
     [parentType, parentId, safLimit, offset],
   );

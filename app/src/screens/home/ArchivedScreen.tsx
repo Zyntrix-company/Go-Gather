@@ -325,10 +325,7 @@ export default function ArchivedScreen() {
 
   if (loading) {
     return (
-      <AppScreenLayout navigation={navigation}>
-          <View style={styles.pageHeader}>
-            <Text style={styles.title}>Archived</Text>
-          </View>
+      <AppScreenLayout navigation={navigation} title="Archived">
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <ActivityIndicator size="large" color="#0d9488" />
           </View>
@@ -339,11 +336,7 @@ export default function ArchivedScreen() {
   const isEmpty = trips.length === 0 && events.length === 0 && galleryItems.length === 0;
 
   return (
-    <AppScreenLayout navigation={navigation}>
-        <View style={styles.pageHeader}>
-          <Text style={styles.title}>Archived</Text>
-        </View>
-
+    <AppScreenLayout navigation={navigation} title="Archived">
         {isEmpty ? (
           <View style={styles.emptyCenter}>
             <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
@@ -470,13 +463,6 @@ export default function ArchivedScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  pageHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  title: { fontSize: 17, fontWeight: '500', color: '#141414' },
   scrollContent: { paddingHorizontal: 16, paddingVertical: 12 },
 
   section: { marginBottom: 24 },

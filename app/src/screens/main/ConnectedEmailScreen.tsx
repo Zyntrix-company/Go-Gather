@@ -177,16 +177,13 @@ export default function ConnectedEmailScreen({ navigation, route }: { navigation
   }
 
   return (
-    <AppScreenLayout navigation={navigation}>
+    <AppScreenLayout navigation={navigation} title="Connected Services">
         <ScrollView
           contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
         >
-          <View style={styles.headerTextBlock}>
-            <Text style={styles.headerTitle}>Connected Services</Text>
-            <Text style={styles.headerSubtitle}>Link Gmail, Outlook or Google Drive to import travel docs</Text>
-          </View>
+          <Text style={styles.headerSubtitle}>Link Gmail, Outlook or Google Drive to import travel docs</Text>
 
           {loading && (
             <View style={styles.center}>
@@ -282,19 +279,11 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
 
-  headerTextBlock: {
-    marginBottom: 24,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '500',
-    color: colors.textPrimary,
-    marginBottom: 2,
-  },
   headerSubtitle: {
     fontSize: 13,
     fontWeight: '400',
     color: colors.textSecondary,
+    marginBottom: 24,
   },
 
   center: { paddingVertical: 24, alignItems: 'center' },

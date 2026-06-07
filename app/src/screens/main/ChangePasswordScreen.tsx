@@ -171,7 +171,7 @@ export default function ChangePasswordScreen({ navigation }: { navigation: any }
   }
 
   return (
-    <AppScreenLayout navigation={navigation}>
+    <AppScreenLayout navigation={navigation} title="Change Password">
       <KeyboardAvoidingView
         style={styles.kav}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -185,7 +185,6 @@ export default function ChangePasswordScreen({ navigation }: { navigation: any }
               <LockIcon />
             </View>
 
-            <Text style={styles.title}>Change Password</Text>
             <Text style={styles.subtitle}>
               Enter your current password, then choose a new one
             </Text>
@@ -334,14 +333,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignSelf: 'center',
     marginBottom: 18,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#0f172a',
-    textAlign: 'center',
-    letterSpacing: -0.3,
-    marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
