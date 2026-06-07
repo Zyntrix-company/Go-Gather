@@ -505,7 +505,6 @@ export type DriveFile = {
   sizeBytes: number | null;
   modifiedTime: string;
   thumbnailUrl?: string | null;
-  iconUrl?: string | null;
 };
 
 export async function getDriveConnectUrl() {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { formatCurrencyCompact, formatSignedCurrencyCompact } from '../../utils/currency';
+import { formatCurrencyFull, formatSignedCurrencyFull } from '../../utils/currency';
 
 const EPS = 0.005;
 
@@ -59,8 +59,12 @@ export default function ExpenseBalanceSummary({ totalExpensesByCurrency, myBalan
                 key={row.code}
                 style={[styles.line, idx < totalRows.length - 1 && styles.lineBorder]}>
                 <Text style={styles.lineCode}>{row.code}</Text>
-                <Text style={styles.lineAmount} numberOfLines={1}>
-                  {formatCurrencyCompact(row.total, row.code)}
+                <Text
+                  style={styles.lineAmount}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}>
+                  {formatCurrencyFull(row.total, row.code)}
                 </Text>
               </View>
             ))}
@@ -91,8 +95,8 @@ export default function ExpenseBalanceSummary({ totalExpensesByCurrency, myBalan
                     style={[styles.lineAmount, textColor]}
                     numberOfLines={1}
                     adjustsFontSizeToFit
-                    minimumFontScale={0.85}>
-                    {formatSignedCurrencyCompact(row.balance, row.code)}
+                    minimumFontScale={0.75}>
+                    {formatSignedCurrencyFull(row.balance, row.code)}
                   </Text>
                 </View>
               );
@@ -126,7 +130,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#64748b',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
@@ -152,14 +156,14 @@ const styles = StyleSheet.create({
   },
   lineCode: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '500',
     color: '#475569',
     width: 32,
     flexShrink: 0,
   },
   lineAmount: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '500',
     color: '#0f172a',
     flex: 1,
     minWidth: 0,

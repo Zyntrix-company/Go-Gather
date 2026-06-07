@@ -81,13 +81,30 @@ export function formatCurrency(amount: number, currency: string): string {
   return `${symbol}${amount.toFixed(decimals)}`;
 }
 
+function formatAmountDigits(abs: number, currency: string, useGrouping: boolean): string {
+  const decimals = getCurrencyDecimals(currency);
+  const formatInt = (n: number) => (useGrouping ? n.toLocaleString('en-IN') : String(n));
+
+  if (decimals === 0) return formatInt(Math.round(abs));
+
+  const rounded = Math.round(abs * 100) / 100;
+  if (rounded % 1 === 0) return formatInt(Math.round(rounded));
+
+  if (useGrouping) {
+    return rounded.toLocaleString('en-IN', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  }
+  return rounded.toFixed(decimals);
+}
+
 /**
  * Compact display: ₹24400 → ₹24.4k, $500 → $500 (drops .00 when whole).
  */
 export function formatCurrencyCompact(amount: number, currency: string): string {
   const symbol = getCurrencySymbol(currency);
   const abs = Math.abs(amount);
-  const decimals = getCurrencyDecimals(currency);
 
   if (abs >= 1000) {
     const k = abs / 1000;
@@ -95,11 +112,13 @@ export function formatCurrencyCompact(amount: number, currency: string): string 
     return `${symbol}${kStr}`;
   }
 
-  if (decimals === 0) return `${symbol}${Math.round(abs)}`;
+  return `${symbol}${formatAmountDigits(abs, currency, false)}`;
+}
 
-  const rounded = Math.round(abs * 100) / 100;
-  if (rounded % 1 === 0) return `${symbol}${rounded.toFixed(0)}`;
-  return `${symbol}${rounded.toFixed(decimals)}`;
+/** Full amount with grouping: ₹24400 → ₹24,400 (drops .00 when whole). */
+export function formatCurrencyFull(amount: number, currency: string): string {
+  const symbol = getCurrencySymbol(currency);
+  return `${symbol}${formatAmountDigits(Math.abs(amount), currency, true)}`;
 }
 
 /** e.g. +₹11.9k or −€220 */
@@ -107,6 +126,13 @@ export function formatSignedCurrencyCompact(amount: number, currency: string): s
   if (Math.abs(amount) < 0.005) return formatCurrencyCompact(0, currency);
   const sign = amount > 0 ? '+' : '−';
   return `${sign}${formatCurrencyCompact(Math.abs(amount), currency)}`;
+}
+
+/** e.g. +₹11,900 or −€220 */
+export function formatSignedCurrencyFull(amount: number, currency: string): string {
+  if (Math.abs(amount) < 0.005) return formatCurrencyFull(0, currency);
+  const sign = amount > 0 ? '+' : '−';
+  return `${sign}${formatCurrencyFull(Math.abs(amount), currency)}`;
 }
 
 const EXPENSE_LABEL_MAX_CURRENCIES = 4;

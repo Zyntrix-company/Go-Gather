@@ -100,7 +100,9 @@ async function listFiles(accessToken, folderId, { photosOnly = false } = {}) {
   const res = await axios.get(`${DRIVE_BASE}/files`, {
     params: {
       q,
-      fields: 'files(id,name,mimeType,size,modifiedTime,thumbnailLink,iconLink)',
+      fields: photosOnly
+        ? 'files(id,name,mimeType,size,modifiedTime,thumbnailLink)'
+        : 'files(id,name,mimeType,size,modifiedTime)',
       pageSize: 50,
       orderBy:  'modifiedTime desc',
     },
@@ -114,7 +116,6 @@ async function listFiles(accessToken, folderId, { photosOnly = false } = {}) {
     sizeBytes:    f.size ? parseInt(f.size, 10) : null,
     modifiedTime: f.modifiedTime,
     thumbnailUrl: photosOnly ? authenticatedDriveUrl(f.thumbnailLink, accessToken) : null,
-    iconUrl:      !photosOnly ? authenticatedDriveUrl(f.iconLink, accessToken) : null,
   }));
 }
 

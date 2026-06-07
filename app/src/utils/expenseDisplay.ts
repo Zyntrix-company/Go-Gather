@@ -1,4 +1,4 @@
-import { formatCurrencyCompact } from './currency';
+import { formatCurrencyFull } from './currency';
 
 const EPS = 0.005;
 
@@ -15,10 +15,10 @@ export function getExpenseRowBalanceLabel(exp: {
   if (iPaid) {
     const lent = exp.amount - myAmt;
     if (lent > EPS) {
-      return { text: `You lent ${formatCurrencyCompact(lent, exp.currency)}`, color: '#0d9488' };
+      return { text: `You lent ${formatCurrencyFull(lent, exp.currency)}`, color: '#0d9488' };
     }
   } else if (myAmt > EPS) {
-    return { text: `You owe ${formatCurrencyCompact(myAmt, exp.currency)}`, color: '#ef4444' };
+    return { text: `You owe ${formatCurrencyFull(myAmt, exp.currency)}`, color: '#ef4444' };
   }
 
   return null;

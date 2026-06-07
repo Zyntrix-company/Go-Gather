@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { Debt } from '../../api/trips.api';
-import { formatCurrencyCompact } from '../../utils/currency';
+import { formatCurrencyFull } from '../../utils/currency';
 
 type Props = {
   debts: Debt[];
@@ -42,8 +42,8 @@ export default function OutstandingDebtsList({ debts, currentUserId, onSettle, s
               <Text style={s.expName}>
                 {debt.fromName || 'Someone'} owes {debt.toName || 'Someone'}
               </Text>
-              <Text style={s.expMeta} numberOfLines={1}>
-                {formatCurrencyCompact(debt.amount, debt.currency)}
+              <Text style={s.expMeta} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                {formatCurrencyFull(debt.amount, debt.currency)}
               </Text>
             </View>
             {showSettle && (

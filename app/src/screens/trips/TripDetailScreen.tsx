@@ -94,7 +94,7 @@ import {
   resolveExpenseCategory,
 } from '../../components/common/CategoryIcons';
 import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
-import { formatCurrencyCompact, buildExpenseLabel } from '../../utils/currency';
+import { formatCurrencyFull, formatCurrencyCompact, buildExpenseLabel } from '../../utils/currency';
 import { getExpenseRowBalanceLabel } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
 import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
@@ -1698,7 +1698,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     }
     showConfirm({
       title: 'Record settlement',
-      message: `Record a payment of ${formatCurrencyCompact(amt, currency)} to settle this balance? Balances will update for everyone on the trip.`,
+      message: `Record a payment of ${formatCurrencyFull(amt, currency)} to settle this balance? Balances will update for everyone on the trip.`,
       confirmText: 'Settle',
       destructive: false,
       onConfirm: async () => {
@@ -2261,7 +2261,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                         <TextInput style={[styles.fInput, { flex: 1 }]} placeholder="Amount" placeholderTextColor="#94a3b8" value={actExpAmount} onChangeText={setActExpAmount} keyboardType="numeric" />
                         <TouchableOpacity style={[styles.fInputTouch, { minWidth: 56, justifyContent: 'center' }]} onPress={() => { setShowActExpCurrencyDrop(p => !p); setShowActExpCatDrop(false); setShowActExpPaidByDrop(false); }} activeOpacity={0.8}>
-                          <Text style={{ fontSize: 12, color: '#0f172a', fontWeight: '600' }}>{actExpCurrency}</Text>
+                          <Text style={{ fontSize: 12, color: '#0f172a', fontWeight: '500' }}>{actExpCurrency}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.fInputTouch, { flex: 1, justifyContent: 'center' }]} onPress={() => setShowActExpCatDrop(p => !p)} activeOpacity={0.8}>
                           <ExpenseCatRow cat={actExpCategory} size={14} fontSize={12} />
@@ -2519,7 +2519,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     activeOpacity={0.85}>
                     {emailImporting
                       ? <ActivityIndicator color="#fff" />
-                      : <Text style={styles.tealBtnTxt}>Import {selectedAttachIds.size > 0 ? `${selectedAttachIds.size} file${selectedAttachIds.size > 1 ? 's' : ''}` : 'Selected'}</Text>}
+                      : <Text style={styles.tealBtnTxt}>Import</Text>}
                   </TouchableOpacity>
                 </View>
               )}
@@ -2580,7 +2580,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     activeOpacity={0.85}>
                     {driveImporting
                       ? <ActivityIndicator color="#fff" />
-                      : <Text style={styles.tealBtnTxt}>Import {selectedDriveFileIds.size > 0 ? `${selectedDriveFileIds.size} file${selectedDriveFileIds.size > 1 ? 's' : ''}` : 'Selected'}</Text>}
+                      : <Text style={styles.tealBtnTxt}>Import</Text>}
                   </TouchableOpacity>
                 </View>
               )}
@@ -2891,7 +2891,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                           <TextInput style={[styles.fInput, { flex: 1 }]} placeholder="0.00" placeholderTextColor="#94a3b8" value={expAmount} onChangeText={setExpAmount} keyboardType="numeric" />
                           <TouchableOpacity style={[styles.fInputTouch, { minWidth: 64, justifyContent: 'center' }]} onPress={() => { setShowExpCurrencyDrop(p => !p); setShowExpCatDrop(false); setShowPaidByDrop(false); }} activeOpacity={0.8}>
-                            <Text style={{ fontSize: 13, color: '#0f172a', fontWeight: '600' }}>{expCurrency}</Text>
+                            <Text style={{ fontSize: 13, color: '#0f172a', fontWeight: '500' }}>{expCurrency}</Text>
                           </TouchableOpacity>
                         </View>
                         <CurrencyPickerDropdown
@@ -3028,7 +3028,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                   <Text style={styles.expMeta}>Split {exp.splitType} • {exp.splitAmong.length} person</Text>
                                 </View>
                                 <View style={{ alignItems: 'flex-end' }}>
-                                  <Text style={styles.expAmt}>{formatCurrencyCompact(exp.amount, exp.currency)}</Text>
+                                  <Text
+                                    style={styles.expAmt}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.8}>
+                                    {formatCurrencyFull(exp.amount, exp.currency)}
+                                  </Text>
                                   {balanceLabel && (
                                     <Text style={{ fontSize: 11, color: balanceLabel.color, marginBottom: 6 }}>{balanceLabel.text}</Text>
                                   )}

@@ -798,6 +798,7 @@ function PhotosModal({
                 renderItem={({ item }) => (
                   <DrivePickerRow
                     file={item}
+                    showThumbnail
                     selected={selectedDriveFileIds.has(item.fileId)}
                     onToggle={() => setSelectedDriveFileIds((prev) => {
                       const n = new Set(prev);
@@ -821,7 +822,7 @@ function PhotosModal({
                     <ActivityIndicator color="#0d9488" />
                   ) : (
                     <Text style={styles.addPhotosBtnText}>
-                      Import {selectedDriveFileIds.size > 0 ? `${selectedDriveFileIds.size} photo${selectedDriveFileIds.size > 1 ? 's' : ''}` : 'selected'}
+                      Import
                     </Text>
                   )}
                 </TouchableOpacity>
