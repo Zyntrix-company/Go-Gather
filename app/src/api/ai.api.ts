@@ -35,8 +35,7 @@ export type ExecuteResult = {
 /**
  * Send a message to Swee.
  * Uses the axios client (auto-refreshes expired tokens via interceptor).
- * Simulates word-by-word display locally so the UI still feels animated.
- * Returns an abort function to cancel both the request and the animation.
+ * Returns the full reply at once (no word-by-word animation).
  *
  * onDone receives the pendingAction from the backend (non-null when Swee
  * is showing a recap and waiting for explicit confirmation).
@@ -50,7 +49,6 @@ export function sendMessageStream(
   onError: (err: string) => void,
 ): () => void {
   let aborted = false;
-  const timers: ReturnType<typeof setTimeout>[] = [];
 
   (async () => {
     try {
@@ -70,23 +68,8 @@ export function sendMessageStream(
         return;
       }
 
-      // Simulate word-by-word animation locally
-      const words = reply.split(' ');
-      const WORD_DELAY_MS = 40;
-
-      words.forEach((word, i) => {
-        const t = setTimeout(() => {
-          if (!aborted) {
-            onDelta((i === 0 ? '' : ' ') + word);
-          }
-        }, i * WORD_DELAY_MS);
-        timers.push(t);
-      });
-
-      const doneTimer = setTimeout(() => {
-        if (!aborted) onDone(pendingAction);
-      }, words.length * WORD_DELAY_MS + 50);
-      timers.push(doneTimer);
+      onDelta(reply);
+      onDone(pendingAction);
 
     } catch (err: any) {
       if (!aborted) {
@@ -98,7 +81,6 @@ export function sendMessageStream(
 
   return () => {
     aborted = true;
-    timers.forEach(clearTimeout);
   };
 }
 

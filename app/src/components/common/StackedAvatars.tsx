@@ -37,6 +37,8 @@ export interface StackedAvatarsProps {
   counterStyle?: 'solid' | 'soft';
   /** Stagger fade+slide animation on mount. Default: true */
   animated?: boolean;
+  /** Extra horizontal shift (dp) applied only to the +N counter bubble. Default: 0 */
+  counterOffsetX?: number;
   containerStyle?: ViewStyle;
 }
 
@@ -100,6 +102,7 @@ export default function StackedAvatars({
   showCounter = true,
   counterStyle = 'solid',
   animated: useAnim = true,
+  counterOffsetX = 0,
   containerStyle,
 }: StackedAvatarsProps) {
   // ─── Derived data ─────────────────────────────────────────────────────────
@@ -147,7 +150,7 @@ export default function StackedAvatars({
   const isSolid = counterStyle === 'solid';
   const counterBg    = isSolid ? '#0d9488' : '#E8F8F8';
   const counterColor = isSolid ? '#fff'    : '#0d9488';
-  const counterFontSize = Math.max(7, Math.round(size * 0.34));
+  const counterFontSize = Math.max(9, Math.round(size * 0.38));
 
   // ─── Render helpers ───────────────────────────────────────────────────────
 
@@ -170,7 +173,7 @@ export default function StackedAvatars({
     return (
       <Animated.View
         key="counter"
-        style={{ opacity: slot.opacity, transform: [{ translateX: slot.tx }], marginLeft: ml, zIndex: 0 }}
+        style={{ opacity: slot.opacity, transform: [{ translateX: slot.tx }], marginLeft: ml + counterOffsetX, zIndex: 0 }}
       >
         <View style={[st.circle, { width: size, height: size, borderRadius: r, backgroundColor: counterBg }]}>
           <Text style={[st.counterText, { fontSize: counterFontSize, color: counterColor }]}>+{extra}</Text>

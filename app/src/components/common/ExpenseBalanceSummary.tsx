@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { formatCurrencyFull, formatSignedCurrencyFull } from '../../utils/currency';
+import { typeStyle } from '../../theme/typography';
 
 const EPS = 0.005;
 
@@ -154,21 +155,13 @@ const styles = StyleSheet.create({
   lineNegative: {
     backgroundColor: '#fff1f2',
   },
-  lineCode: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#475569',
-    width: 32,
-    flexShrink: 0,
-  },
-  lineAmount: {
-    fontSize: 12,
-    fontWeight: '500',
+  lineCode: typeStyle('expTotalValue', { color: '#475569', width: 32, flexShrink: 0 }),
+  lineAmount: typeStyle('expTotalValue', {
     color: '#0f172a',
     flex: 1,
     minWidth: 0,
     textAlign: 'right',
-  },
+  }),
   emptyLine: {
     fontSize: 13,
     color: '#94a3b8',

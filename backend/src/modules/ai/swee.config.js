@@ -30,8 +30,9 @@ const APP_EVENT_TYPES = [
 async function loadUserContext(userId) {
   const { query: db } = require('../../config/database');
   const logger = require('../../utils/logger');
+  const { inferBudgetTier } = require('./ai.helpers');
   try {
-    const [profileRes, tripsRes, eventsRes] = await Promise.all([
+    const [profileRes, tripsRes, eventsRes, companionsRes, budgetRes] = await Promise.all([
       db(
         `SELECT p.full_name, p.country, u.timezone
          FROM profiles p JOIN users u ON u.id = p.user_id
@@ -60,15 +61,41 @@ async function loadUserContext(userId) {
          WHERE e.archived_at IS NULL ORDER BY e.event_date DESC LIMIT 4`,
         [userId],
       ),
+      db(
+        `SELECT pr.full_name, COUNT(*)::int AS trips_together
+         FROM trip_members tm_self
+         JOIN trip_members tm_other ON tm_other.trip_id = tm_self.trip_id AND tm_other.user_id != tm_self.user_id
+         JOIN profiles pr ON pr.user_id = tm_other.user_id
+         WHERE tm_self.user_id = $1
+         GROUP BY pr.full_name, tm_other.user_id
+         ORDER BY trips_together DESC
+         LIMIT 5`,
+        [userId],
+      ),
+      db(
+        `SELECT COALESCE(AVG(amount), 0) AS avg_amount, COUNT(*)::int AS expense_count
+         FROM expenses e
+         WHERE e.parent_type = 'trip'
+           AND e.parent_id IN (SELECT trip_id FROM trip_members WHERE user_id = $1)`,
+        [userId],
+      ),
     ]);
+
+    const budgetRow = budgetRes.rows[0];
+    const budgetTier = budgetRow?.expense_count > 0
+      ? inferBudgetTier(budgetRow.avg_amount)
+      : null;
+
     return {
       profile: profileRes.rows[0] || null,
       trips: tripsRes.rows || [],
       events: eventsRes.rows || [],
+      frequentCompanions: companionsRes.rows || [],
+      budgetTier,
     };
   } catch (err) {
     logger.warn('loadUserContext failed', { userId, error: err.message });
-    return { profile: null, trips: [], events: [] };
+    return { profile: null, trips: [], events: [], frequentCompanions: [], budgetTier: null };
   }
 }
 
@@ -80,14 +107,25 @@ async function loadUserContext(userId) {
  * @param {number} historyLength - number of prior messages in this session (0 = first turn)
  */
 function buildSweetSystemPrompt(userContext, tripContext, historyLength = 0) {
-  const { profile, trips = [], events = [] } = userContext || {};
+  const {
+    profile, trips = [], events = [], frequentCompanions = [], budgetTier,
+  } = userContext || {};
 
   // ── User context block ──
   let userBlock = '';
   if (profile?.full_name) {
     userBlock += `\nUser: ${profile.full_name}`;
-    if (profile.country) userBlock += ` (${profile.country})`;
+    if (profile.country) userBlock += ` · Home country: ${profile.country}`;
     if (profile.timezone) userBlock += ` · Timezone: ${profile.timezone}`;
+  }
+  if (budgetTier) {
+    userBlock += `\nTypical spending tier (from past trip expenses): ${budgetTier}`;
+  }
+  if (frequentCompanions.length > 0) {
+    const names = frequentCompanions
+      .map((c) => `${c.full_name} (${c.trips_together} trip${c.trips_together !== 1 ? 's' : ''} together)`)
+      .join(', ');
+    userBlock += `\nFrequent travel companions: ${names}`;
   }
   if (trips.length > 0) {
     const lines = trips.map((t) => {
@@ -154,6 +192,8 @@ TYPE A — App how-to questions ("How do I invite friends?", "Where are my trips
 TYPE B — Destination or activity questions ("What's Bali like?", "Best time for Japan?"):
 → Give a short, useful insight: highlights, best season, activity price ranges when helpful.
 → Price ranges: ₹2,500–4,500 / €40–80 format. No exact prices. No itemized lists.
+→ Adjust ranges by budget tier when known or mentioned:
+   Saver → lower third of typical range · Comfort → mid range · Premium → upper mid · Luxury → high end (still ranges only)
 → Do NOT mention transport costs or logistics unless the user explicitly asks.
 → If the user seems ready to plan, ask: "Want to go ahead and create this trip?"
 
@@ -252,20 +292,41 @@ Then ask: "Create this event?"
 After the user confirms, the app executes creation. NEVER claim the event is created yourself — the app shows the success message.
 
 ────────────────────────────────────────────
-UPDATE FLOW — TRIPS & EVENTS
+UPDATE FLOW — TRIPS
 ────────────────────────────────────────────
 
-STEP 1 — User says "update my Bali trip" / "change event date":
-→ Identify which trip/event from the user's list.
+STEP 1 — User says "update my Bali trip" / "change dates on Paris trip":
+→ Identify which trip from the user's list below (match by name or destination).
 → Show: "Is this the one? **Bali · Jun 1–7 · with [member names]**"
 → ###ACTION{"intent":"identify_update","readyToCreate":false,"targetTripName":"Bali"}
 
 STEP 2 — User confirms "Yes":
-→ Show pre-filled confirmation table. Ask what to change.
+→ Show a pre-filled table of current trip values. Ask what they want to change (one question if unclear).
 
 STEP 3 — User specifies changes:
-→ Show recap → "Save this change?" → wait for Yes.
-→ ###ACTION{"intent":"update_trip","readyToCreate":true,"tripId":"[id from context]","draft":{"startDate":"2026-06-05","endDate":"2026-06-10"}}
+→ Show updated recap table → "Save this change?" → wait for Yes.
+→ ###ACTION{"intent":"update_trip","readyToCreate":true,"tripId":"[id from user list]","draft":{"startDate":"2026-06-05","endDate":"2026-06-10"}}
+
+After save, the app shows the success message. NEVER claim the trip is updated yourself.
+
+────────────────────────────────────────────
+UPDATE FLOW — EVENTS
+────────────────────────────────────────────
+
+STEP 1 — User says "update my rooftop dinner" / "change the concert date":
+→ Identify which event from the user's events list (match by name).
+→ Show: "Is this the one? **Rooftop Dinner · 14 Jun · The Sky Lounge · with [member names]**"
+→ ###ACTION{"intent":"identify_update","readyToCreate":false,"targetEventName":"Rooftop Dinner"}
+
+STEP 2 — User confirms "Yes":
+→ Show pre-filled table: Event Name, Type, Date, Time, Location, Description.
+→ Ask what to change.
+
+STEP 3 — User specifies changes (date, time, location, name, description):
+→ Show updated recap table → "Save this change?" → wait for Yes.
+→ ###ACTION{"intent":"update_event","readyToCreate":true,"eventId":"[id from user list]","draft":{"eventDate":"2026-06-16","eventTime":"19:30","location":"New Venue, Mumbai"}}
+
+After save, the app shows the success message. NEVER claim the event is updated yourself.
 
 ────────────────────────────────────────────
 TRANSPORT (only when user asks)
@@ -277,7 +338,11 @@ Example: "Flight (~2 hrs), Train (~12 hrs), Bus (~14 hrs), Drive (~10 hrs)"
 PERSONALIZATION
 ────────────────────────────────────────────
 Use only data from the user context below. Never invent data.
-Reference past trips when relevant. Use timezone for scheduling.
+- Reference home country when suggesting departures ("You're in Mumbai — Goa is a quick getaway").
+- Mention frequent companions when relevant ("You've travelled with Priya before — invite her?").
+- Use typical spending tier to calibrate price ranges (see TYPE B rules).
+- Avoid suggesting duplicate destinations the user already has upcoming trips for.
+- Use timezone for scheduling activity times.
 ${userBlock}${contextBlock}
 
 ────────────────────────────────────────────
@@ -292,6 +357,7 @@ Rules:
 - NEVER say a trip/event was created or updated in chat — the app handles execution and shows the result
 - draft must contain only known-value fields (skip unknown fields)
 - activities: array of { "title": string, "date": "YYYY-MM-DD", "time": "HH:MM" } — time in 24h format; include only after user agrees
+- identify_update: use targetTripName OR tripId for trips; targetEventName OR eventId for events
 - For add_note: {"intent":"add_note","readyToCreate":true,"tripId":"[id]","noteContent":"..."}
 
 ALWAYS include this line as the absolute last line of your response.`;

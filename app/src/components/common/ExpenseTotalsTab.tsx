@@ -4,6 +4,7 @@ import Svg, { Path } from 'react-native-svg';
 import type { GroupExpenseTotals } from '../../utils/expenseTotals';
 import { formatCurrencyFull } from '../../utils/currency';
 import ExpenseDistributionBar from './ExpenseDistributionBar';
+import { typeStyle } from '../../theme/typography';
 
 type Props = {
   totals: GroupExpenseTotals;
@@ -59,9 +60,9 @@ export default function ExpenseTotalsTab({ totals, styles: s }: Props) {
         members.map(m => (
           <View key={`${m.userId}-${currency}`} style={[s.expRow, { alignItems: 'flex-start' }]}>
             <View style={{ flex: 1 }}>
-              <Text style={s.expName}>{m.name}</Text>
+              <Text style={local.breakdownName}>{m.name}</Text>
               <Text
-                style={[s.expAmt, { marginTop: 4 }]}
+                style={[local.breakdownAmt, { marginTop: 4 }]}
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.8}>
@@ -69,9 +70,9 @@ export default function ExpenseTotalsTab({ totals, styles: s }: Props) {
               </Text>
             </View>
             <View style={{ alignItems: 'flex-end', flexShrink: 1, maxWidth: '48%' }}>
-              <Text style={s.expMeta}>Paid out</Text>
+              <Text style={local.breakdownMeta}>Paid out</Text>
               <Text
-                style={[s.expAmt, { color: '#0d9488' }]}
+                style={[local.breakdownAmt, { color: '#0d9488' }]}
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.8}>
@@ -90,10 +91,8 @@ const local = StyleSheet.create({
     width: '100%',
     marginBottom: 16,
   },
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0f172a',
-    marginBottom: 10,
-  },
+  sectionLabel: typeStyle('expSectionHeading', { color: '#0f172a', marginBottom: 10 }),
+  breakdownName: typeStyle('expBreakdownRow', { color: '#0f172a' }),
+  breakdownMeta: typeStyle('expBreakdownRow', { color: '#94a3b8' }),
+  breakdownAmt: typeStyle('expBreakdownRow', { color: '#0f172a' }),
 });

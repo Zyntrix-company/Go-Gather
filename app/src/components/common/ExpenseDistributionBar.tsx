@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { CurrencyExpenseTotals } from '../../utils/expenseTotals';
 import { formatCurrencyFull } from '../../utils/currency';
+import { typeStyle } from '../../theme/typography';
 
 const CURRENCY_COLORS: Record<string, string> = {
   INR: '#0d9488',
@@ -105,19 +106,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  currencyCode: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#0f172a',
-  },
-  currencyTotal: {
-    fontSize: 14,
-    fontWeight: '500',
+  currencyCode: typeStyle('expTotalValue', { color: '#0f172a' }),
+  currencyTotal: typeStyle('expTotalValue', {
     color: '#0f172a',
     flexShrink: 1,
     marginLeft: 8,
     textAlign: 'right',
-  },
+  }),
   barTrack: {
     flexDirection: 'row',
     height: 16,

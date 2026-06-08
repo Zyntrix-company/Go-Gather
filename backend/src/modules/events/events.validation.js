@@ -19,6 +19,10 @@ const createEventValidation = [
       return true;
     }),
   body('eventType').optional().isString().isLength({ max: 100 }).withMessage('eventType must be a string (max 100 chars)'),
+  body('eventTime')
+    .optional({ nullable: true })
+    .matches(/^([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/)
+    .withMessage('eventTime must be HH:MM or HH:MM:SS (24h)'),
   body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }).withMessage('description must be a string (max 5000 chars)'),
   body('location').optional().isObject().withMessage('location must be an object'),
   body('location.name').optional().isString().isLength({ max: 500 }),
@@ -58,6 +62,10 @@ const updateEventValidation = [
     return true;
   }),
   body('eventType').optional({ nullable: true }).isString().isLength({ max: 100 }),
+  body('eventTime')
+    .optional({ nullable: true })
+    .matches(/^([01]?\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/)
+    .withMessage('eventTime must be HH:MM or HH:MM:SS (24h)'),
   body('description').optional({ nullable: true }).isString().isLength({ max: 5000 }),
   body('location').optional().isObject(),
   body('location.name').optional().isString().isLength({ max: 500 }),

@@ -16,10 +16,17 @@ const {
   loadEventLocationsBatch,
   attachLocationsToEvent,
 } = require('../../utils/locations.util');
+const { resolveBannerUrl } = require('../../utils/banner.util');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const toDateStr = (d) => (d ? new Date(d).toISOString().slice(0, 10) : null);
+
+const toTimeStr = (t) => {
+  if (!t) return null;
+  const match = String(t).match(/^(\d{2}):(\d{2})/);
+  return match ? `${match[1]}:${match[2]}` : null;
+};
 
 const formatEvent = (e, locations = null) => {
   const attached = attachLocationsToEvent(e, locations);
@@ -27,6 +34,7 @@ const formatEvent = (e, locations = null) => {
     id: e.id,
     name: e.name,
     eventDate: toDateStr(e.event_date),
+    eventTime: toTimeStr(e.event_time),
     eventType: e.event_type || null,
     description: e.description || null,
     bannerImageUrl: e.banner_image_url || null,
@@ -98,7 +106,7 @@ const sanitizeAvatarUrl = (rawUrl, updatedAt, userId) => {
 
 const createEvent = async (userId, body) => {
   const {
-    name, eventDate, eventType, description, reminders,
+    name, eventDate, eventTime, eventType, description, reminders,
     friendIds = [], emails = [], bannerImageUrl, bannerCropFraction = null,
   } = body;
 
@@ -112,15 +120,18 @@ const createEvent = async (userId, body) => {
 
   const primary = primaryFromLocations(normalizedLocations);
 
+  const resolvedBanner = bannerImageUrl
+    || await resolveBannerUrl([eventType, name, primary.name, description].filter(Boolean).join(' '));
+
   const client = await getClient();
   try {
     await client.query('BEGIN');
 
     const eventResult = await client.query(
-      `INSERT INTO events (name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url, banner_crop_fraction)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO events (name, event_date, event_type, description, location_name, location_lat, location_lng, created_by, banner_image_url, banner_crop_fraction, event_time)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [name, eventDate, eventType || null, description || null, primary.name, primary.lat, primary.lng, userId, bannerImageUrl || null, bannerCropFraction ? JSON.stringify(bannerCropFraction) : null],
+      [name, eventDate, eventType || null, description || null, primary.name, primary.lat, primary.lng, userId, resolvedBanner, bannerCropFraction ? JSON.stringify(bannerCropFraction) : null, eventTime || null],
     );
     const event = eventResult.rows[0];
 
@@ -440,6 +451,7 @@ const updateEvent = async (eventId, updates) => {
 
   if (updates.name !== undefined)             { fields.push(`name = $${idx++}`);             values.push(updates.name); }
   if (updates.eventDate !== undefined)        { fields.push(`event_date = $${idx++}`);       values.push(updates.eventDate); }
+  if (updates.eventTime !== undefined)        { fields.push(`event_time = $${idx++}`);       values.push(updates.eventTime); }
   if (updates.eventType !== undefined)        { fields.push(`event_type = $${idx++}`);        values.push(updates.eventType); }
   if (updates.description !== undefined)      { fields.push(`description = $${idx++}`);       values.push(updates.description); }
   if (updates.bannerImageUrl !== undefined)   { fields.push(`banner_image_url = $${idx++}`);  values.push(updates.bannerImageUrl); }

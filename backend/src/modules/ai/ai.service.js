@@ -9,9 +9,18 @@ const logger = require('../../utils/logger');
 const {
   loadUserContext,
   buildSweetSystemPrompt,
-  EVENT_TYPE_MAP,
-  APP_EVENT_TYPES,
 } = require('./swee.config');
+const {
+  parseActionBlock,
+  generateTripName,
+  resolveEventType,
+  parseActivityTime,
+  parseEventTime,
+  badRequest,
+  requireIsoDate,
+  requireNonEmptyString,
+  buildPlanningMetadata,
+} = require('./ai.helpers');
 
 
 // 10 messages = ~5 back-and-forth exchanges (one user + one assistant each)
@@ -66,57 +75,6 @@ function toGeminiHistory(history) {
     }
   }
   return cleaned;
-}
-
-// ─── Action block extraction ───────────────────────────────────────────────────
-// Gemini appends ###ACTION{...} as the last line of every response.
-// parseActionBlock strips it from visible reply and returns parsed action.
-
-function parseActionBlock(rawText) {
-  const marker = '###ACTION';
-  const idx = rawText.lastIndexOf(marker);
-  if (idx === -1) return { reply: rawText.trim(), pendingAction: null };
-
-  const visibleReply = rawText.slice(0, idx).trim();
-  const jsonStr = rawText.slice(idx + marker.length).trim();
-
-  try {
-    const action = JSON.parse(jsonStr);
-    // Only surface actions that are ready to create or are meaningful transitions
-    const meaningful = action.readyToCreate || action.intent === 'identify_update';
-    return {
-      reply: visibleReply,
-      pendingAction: meaningful ? action : null,
-    };
-  } catch {
-    return { reply: visibleReply, pendingAction: null };
-  }
-}
-
-// ─── Trip name generator ───────────────────────────────────────────────────────
-
-function generateTripName(destination, startDate) {
-  const dest = (destination || 'Trip').split(',')[0].trim();
-  let suffix = '';
-  if (startDate) {
-    try {
-      const d = new Date(startDate);
-      suffix = ` ${d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
-    } catch { /* ignore */ }
-  }
-  const raw = `${dest}${suffix}`;
-  return raw.length > 20 ? raw.slice(0, 20) : raw;
-}
-
-// ─── Map user event type label → app enum ─────────────────────────────────────
-
-function resolveEventType(userLabel) {
-  if (!userLabel) return 'Other';
-  const clean = userLabel.toLowerCase().trim();
-  if (EVENT_TYPE_MAP[clean]) return EVENT_TYPE_MAP[clean];
-  // Check against app enum directly (case-insensitive)
-  const match = APP_EVENT_TYPES.find((t) => t.toLowerCase() === clean);
-  return match || 'Other';
 }
 
 // ─── Find user trip by name / tripId ─────────────────────────────────────────
@@ -214,38 +172,6 @@ async function writePlanningNote(parentType, parentId, userId, planningData) {
 
 // ─── Activity bulk creator ────────────────────────────────────────────────────
 
-/**
- * Create a list of suggested activities for a newly created trip.
- * Silently skips any activity that fails (non-critical).
- * @param {string} tripId
- * @param {string} userId
- * @param {Array<{title:string, date?:string, time?:{hour:number,minute:number}, locationName?:string, description?:string}>} activities
- */
-/**
- * Parse a time value from the AI into { hour, minute }.
- * Accepts: "17:00", "08:30", 17, 930, { hour:17, minute:0 }
- */
-function parseActivityTime(rawTime) {
-  if (!rawTime) return null;
-  if (typeof rawTime === 'object' && rawTime !== null) {
-    const h = parseInt(rawTime.hour, 10);
-    const m = parseInt(rawTime.minute ?? 0, 10);
-    if (!isNaN(h)) return { hour: h, minute: isNaN(m) ? 0 : m };
-  }
-  if (typeof rawTime === 'string') {
-    const match = rawTime.match(/^(\d{1,2}):(\d{2})$/);
-    if (match) return { hour: parseInt(match[1], 10), minute: parseInt(match[2], 10) };
-  }
-  if (typeof rawTime === 'number') {
-    // Support compact like 900 = 9:00, 1730 = 17:30
-    if (rawTime < 24) return { hour: rawTime, minute: 0 };
-    const h = Math.floor(rawTime / 100);
-    const m = rawTime % 100;
-    if (h < 24 && m < 60) return { hour: h, minute: m };
-  }
-  return null;
-}
-
 async function bulkCreateActivities(tripId, userId, activities) {
   const activitiesService = require('../trips/submodules/activities/activities.service');
   for (const act of activities) {
@@ -313,6 +239,22 @@ async function writeAllNotes(type, parentId, userId, draft) {
   }
 }
 
+/** Persist Swee draft extras to planning_metadata JSONB (non-critical). */
+async function writePlanningMetadata(parentType, parentId, draft) {
+  try {
+    const table = parentType === 'trip' ? 'trips' : 'events';
+    const metadata = buildPlanningMetadata(draft);
+    await db(
+      `UPDATE ${table}
+       SET planning_metadata = COALESCE(planning_metadata, '{}'::jsonb) || $1::jsonb
+       WHERE id = $2`,
+      [JSON.stringify(metadata), parentId],
+    );
+  } catch (err) {
+    logger.warn('writePlanningMetadata failed (non-critical)', { parentId, error: err.message });
+  }
+}
+
 // ─── Gemini chat ──────────────────────────────────────────────────────────────
 
 async function geminiChat(message, history, systemPrompt) {
@@ -374,27 +316,6 @@ const chatStream = async (userId, message, conversationHistory, tripContext, res
   await geminiChatStream(message, history, systemPrompt, res);
 };
 
-// ─── Execute validation helpers ────────────────────────────────────────────────
-
-function badRequest(message) {
-  return Object.assign(new Error(message), { statusCode: 400 });
-}
-
-function requireIsoDate(value, label) {
-  if (!value || typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
-    throw badRequest(`${label} is required (YYYY-MM-DD)`);
-  }
-  const d = new Date(`${value.trim()}T12:00:00`);
-  if (Number.isNaN(d.getTime())) throw badRequest(`${label} must be a valid date`);
-  return value.trim();
-}
-
-function requireNonEmptyString(value, label) {
-  const v = typeof value === 'string' ? value.trim() : '';
-  if (!v) throw badRequest(`${label} is required`);
-  return v;
-}
-
 /**
  * Execute a confirmed Swee action (create_trip, create_event, update_trip, update_event, add_note).
  * Called after user taps "Yes" / "Confirm" in the chat UI.
@@ -443,6 +364,7 @@ const executeAction = async (userId, pendingAction) => {
     }
 
     await writeAllNotes('trip', trip.id, userId, draft);
+    await writePlanningMetadata('trip', trip.id, draft);
 
     return {
       reply: 'Trip created! Add places and invite friends now.',
@@ -459,15 +381,14 @@ const executeAction = async (userId, pendingAction) => {
     const eventsService = require('../events/events.service');
 
     const eventType = resolveEventType(draft.eventType);
-    const descriptionParts = [];
-    if (draft.eventTime) descriptionParts.push(`Time: ${draft.eventTime}`);
-    if (draft.description) descriptionParts.push(draft.description);
+    const eventTime = parseEventTime(draft.eventTime);
 
     const body = {
       name,
       eventDate,
+      eventTime: eventTime || undefined,
       eventType,
-      description: descriptionParts.join(' · ') || undefined,
+      description: draft.description || undefined,
       location: { name: location },
       reminders: true,
     };
@@ -476,6 +397,7 @@ const executeAction = async (userId, pendingAction) => {
     const event = await eventsService.createEvent(userId, body);
 
     await writeAllNotes('event', event.id, userId, draft);
+    await writePlanningMetadata('event', event.id, draft);
 
     return {
       reply: 'Event created! You can invite your friends directly from the event page.',
@@ -521,6 +443,7 @@ const executeAction = async (userId, pendingAction) => {
     if (draft.notes || draft.travelFocus || draft.budgetTier) {
       await writePlanningNote('trip', targetTrip.id, userId, draft);
     }
+    await writePlanningMetadata('trip', targetTrip.id, draft);
 
     return {
       reply: `Done! ${targetTrip.name} updated.`,
@@ -541,6 +464,7 @@ const executeAction = async (userId, pendingAction) => {
     const targetEvent = events[0];
     const updates = {};
     if (draft.eventDate) updates.eventDate = requireIsoDate(draft.eventDate, 'Event date');
+    if (draft.eventTime) updates.eventTime = parseEventTime(draft.eventTime);
     if (draft.location) updates.location = { name: requireNonEmptyString(draft.location, 'Location') };
     if (draft.description) updates.description = draft.description;
 
@@ -549,6 +473,7 @@ const executeAction = async (userId, pendingAction) => {
     }
 
     await eventsService.updateEvent(targetEvent.id, updates);
+    await writePlanningMetadata('event', targetEvent.id, draft);
 
     return {
       reply: `Done! ${targetEvent.name} updated.`,

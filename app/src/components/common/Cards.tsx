@@ -164,8 +164,11 @@ export function UnifiedCard({
               avatars={members}
               totalCount={members.length + extraMembers}
               counterStyle="soft"
-              size={26}
+              size={22}
+              overlap={10}
               maxVisible={2}
+              counterOffsetX={3}
+              containerStyle={s.avatarStack}
             />
             <TouchableOpacity
               style={s.moreBtn}
@@ -173,7 +176,7 @@ export function UnifiedCard({
               activeOpacity={0.7}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <MoreVertical size={15} color="#64748b" strokeWidth={1.8} />
+              <MoreVertical size={12} color="#64748b" strokeWidth={1.6} />
             </TouchableOpacity>
           </View>
 
@@ -324,12 +327,12 @@ const s = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#EEF2F7',
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 90,
-    gap: 10,
+    gap: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.07,
@@ -352,11 +355,13 @@ const s = StyleSheet.create({
     gap: 3,
     justifyContent: 'center',
     minWidth: 0,            // allows flex child to shrink and truncate text
+    marginRight: -14,         // reclaim gap space for title (~20 chars before ellipsis)
   },
   name: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '400',
     color: '#009788',
+    flexShrink: 1,
   },
   infoRow: {
     flexDirection: 'row',
@@ -377,7 +382,12 @@ const s = StyleSheet.create({
   rightTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
+    overflow: 'visible',
+  },
+  avatarStack: {
+    flexShrink: 0,
+    transform: [{ translateX: 1 }],
   },
   rightBottom: {
     flexDirection: 'row',
@@ -397,12 +407,13 @@ const s = StyleSheet.create({
     letterSpacing: 0.2,
   },
   moreBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   menuDropdown: {
     position: 'absolute',

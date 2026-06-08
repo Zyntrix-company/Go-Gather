@@ -43,6 +43,21 @@ const scale = {
 
   /** Tiny counters only — avatar +N, nav dots */
   micro: { fontSize: 9, fontWeight: '600' as const, lineHeight: 12 },
+
+  /** Expense list — Edit / Delete action links */
+  expAction: { fontSize: 11, fontWeight: '400' as const, lineHeight: 14 },
+
+  /** Expense form field label */
+  expFieldLabel: { fontSize: 11, fontWeight: '400' as const, lineHeight: 15 },
+
+  /** Expense totals — currency code & amount */
+  expTotalValue: { fontSize: 12, fontWeight: '500' as const, lineHeight: 17 },
+
+  /** Expense totals — subsection heading e.g. Individual breakdown */
+  expSectionHeading: { fontSize: 13, fontWeight: '500' as const, lineHeight: 18 },
+
+  /** Expense totals — breakdown row text */
+  expBreakdownRow: { fontSize: 12, fontWeight: '400' as const, lineHeight: 17 },
 } satisfies Record<string, TextStyle>;
 
 export type TypographyToken = keyof typeof scale;

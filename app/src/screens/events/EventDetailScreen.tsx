@@ -81,6 +81,7 @@ import { getExpenseRowBalanceLabel } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
 import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
 import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
+import typography from '../../theme/typography';
 import { albumChromeStyles as acs, ALBUM_DIALOG_HERO_H } from '../../constants/albumPhotosLayout';
 import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
@@ -1990,9 +1991,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
                     {showAddExpense && (
                       <View style={{ marginTop: 14 }}>
-                        <Text style={styles.fLabel}>Description</Text>
+                        <Text style={styles.expFieldLabel}>Description</Text>
                         <TextInput style={styles.fInput} placeholder="e.g., Event tickets" placeholderTextColor="#94a3b8" value={expDesc} onChangeText={setExpDesc} />
-                        <Text style={styles.fLabel}>Amount</Text>
+                        <Text style={styles.expFieldLabel}>Amount</Text>
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                           <TextInput style={[styles.fInput, { flex: 1 }]} placeholder="0.00" placeholderTextColor="#94a3b8" value={expAmount} onChangeText={setExpAmount} keyboardType="numeric" />
                           <TouchableOpacity style={[styles.fInputTouch, { minWidth: 64, justifyContent: 'center' }]} onPress={() => { setShowExpCurrencyDrop(p => !p); setShowExpCatDrop(false); setShowPaidByDrop(false); }} activeOpacity={0.8}>
@@ -2006,7 +2007,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                           style={styles.dropdown}
                           itemStyle={styles.dropdownItem}
                         />
-                        <Text style={styles.fLabel}>Category</Text>
+                        <Text style={styles.expFieldLabel}>Category</Text>
                         <TouchableOpacity style={[styles.fInputTouch, { justifyContent: 'center' }]} onPress={() => { setShowExpCatDrop(p => !p); setShowExpCurrencyDrop(false); setShowPaidByDrop(false); }} activeOpacity={0.8}>
                           <ExpenseCatRow cat={expCategory} />
                         </TouchableOpacity>
@@ -2019,7 +2020,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                             ))}
                           </View>
                         )}
-                        <Text style={styles.fLabel}>Paid by</Text>
+                        <Text style={styles.expFieldLabel}>Paid by</Text>
                         <TouchableOpacity style={styles.fInputTouch} onPress={() => { setShowPaidByDrop(p => !p); setShowExpCurrencyDrop(false); setShowExpCatDrop(false); }} activeOpacity={0.8}>
                           <Text style={{ fontSize: 13, color: '#0f172a' }}>{expPaidBy}</Text>
                         </TouchableOpacity>
@@ -2032,7 +2033,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                             ))}
                           </View>
                         )}
-                        <Text style={styles.fLabel}>Split type</Text>
+                        <Text style={styles.expFieldLabel}>Split type</Text>
                         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
                           {(['equally', 'amount', 'percent'] as const).map((key, i) => (
                             <TouchableOpacity key={key} onPress={() => setExpSplitType(key)} style={[styles.splitTypeBtn, expSplitType === key && styles.splitTypeBtnActive]} activeOpacity={0.8}>
@@ -2040,7 +2041,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                             </TouchableOpacity>
                           ))}
                         </View>
-                        <Text style={styles.fLabel}>Split among</Text>
+                        <Text style={styles.expFieldLabel}>Split among</Text>
                         <TouchableOpacity style={[styles.splitRow, expSplitAmong.includes('You') && styles.splitRowActive]} onPress={() => setExpSplitAmong(p => p.includes('You') ? p.filter(x => x !== 'You') : [...p, 'You'])} activeOpacity={0.8}>
                           <View style={[styles.splitCheck, expSplitAmong.includes('You') && styles.splitCheckActive]}>
                             {expSplitAmong.includes('You') && <CheckIcon />}
@@ -2112,8 +2113,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
                                   <Text style={{ fontSize: 11, color: balanceLabel.color, marginBottom: 6 }}>{balanceLabel.text}</Text>
                                 )}
                                 <View style={{ flexDirection: 'row', gap: 12, marginTop: balanceLabel ? 0 : 6 }}>
-                                  <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>Edit</Text></TouchableOpacity>
-                                  <TouchableOpacity onPress={() => handleDeleteExpense(exp.id)} activeOpacity={0.7}><Text style={{ fontSize: 12, color: '#ef4444', fontWeight: '500' }}>Delete</Text></TouchableOpacity>
+                                  <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={styles.expActionEdit}>Edit</Text></TouchableOpacity>
+                                  <TouchableOpacity onPress={() => handleDeleteExpense(exp.id)} activeOpacity={0.7}><Text style={styles.expActionDelete}>Delete</Text></TouchableOpacity>
                                 </View>
                               </View>
                             </View>
@@ -2575,6 +2576,9 @@ const styles = StyleSheet.create({
   dFooterRow: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
 
   fLabel: { fontSize: 12, fontWeight: '500', color: '#374151', marginBottom: 6, marginTop: 12 },
+  expFieldLabel: { ...typography.expFieldLabel, color: '#374151', marginBottom: 6, marginTop: 12 },
+  expActionEdit: { ...typography.expAction, color: '#0d9488' },
+  expActionDelete: { ...typography.expAction, color: '#ef4444' },
   fInput: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#0f172a' },
   fInputTouch: { backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 },
 
@@ -2618,7 +2622,7 @@ const styles = StyleSheet.create({
 
   balCard: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 10, padding: 10, alignItems: 'center' },
   balLabel: { fontSize: 11, color: '#64748b', fontWeight: '500', marginBottom: 4 },
-  balValue: { fontSize: 13, fontWeight: '500', color: '#0f172a' },
+  balValue: { ...typography.expTotalValue, color: '#0f172a' },
 
   pollCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
   pollQ: { fontSize: 13, fontWeight: '600', color: '#0f172a', marginBottom: 2 },
