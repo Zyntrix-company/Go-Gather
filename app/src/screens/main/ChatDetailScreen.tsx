@@ -72,6 +72,34 @@ function toApiHistory(messages: Message[]): ConversationMessage[] {
     .map((m) => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }));
 }
 
+// ─── Confirmation helpers ────────────────────────────────────────────────────
+
+function findPendingConfirmation(messages: Message[]): { action: PendingAction; msgId: string } | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.sender === 'swee' && m.pendingAction?.readyToCreate) {
+      return { action: m.pendingAction, msgId: m.id };
+    }
+  }
+  return null;
+}
+
+const AFFIRMATIVE_PHRASES = new Set([
+  'yes', 'yeah', 'yep', 'yup', 'sure', 'ok', 'okay', 'confirm', 'confirmed',
+  'go ahead', 'create it', 'do it', 'yes please', 'yeah go', 'yes done',
+  'yes create it', 'yes, create it', 'save', 'save changes', 'save it',
+  'looks good', 'perfect', 'sounds good', 'that works', 'go for it',
+]);
+
+function isAffirmativeConfirmation(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/[!.]+$/, '');
+  if (!normalized || normalized === 'no' || normalized.startsWith('no ')) return false;
+  // "yes but change dates" should continue the conversation, not execute
+  if (/\b(but|except|wait|change|actually|instead|not)\b/.test(normalized)) return false;
+  if (AFFIRMATIVE_PHRASES.has(normalized)) return true;
+  return /^(yes|yeah|yep|sure|ok|confirm|save|go ahead)\b/.test(normalized);
+}
+
 // ─── Icons ─────────────────────────────────────────────────────────────────
 
 const DotsIcon = () => (
@@ -199,18 +227,47 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     };
   }, []);
 
-  const sendMessage = useCallback((overrideText?: unknown) => {
-    const resolvedText = typeof overrideText === 'string' ? overrideText : inputText;
-    const text = resolvedText.trim();
-    if (!text || isTyping) return;
+  // Execute a confirmed Swee action (create/update trip or event)
+  const handleConfirmAction = useCallback(async (action: PendingAction, fromMsgId: string) => {
+    if (isExecuting) return;
+    setIsExecuting(true);
 
-    const userMsg: Message = {
-      id: `u_${Date.now()}`,
-      text,
-      sender: 'user',
+    setMessages((prev) =>
+      prev.map((m) => m.id === fromMsgId ? { ...m, pendingAction: null } : m),
+    );
+
+    const workingId = `exec_${Date.now()}`;
+    setMessages((prev) => [...prev, {
+      id: workingId,
+      text: '',
+      sender: 'swee',
       time: formatTime(),
-    };
+      streaming: true,
+    }]);
 
+    try {
+      const result = await executeAction(action);
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === workingId
+            ? { ...m, text: result.reply, streaming: false, createdResult: result.created ?? undefined }
+            : m,
+        ),
+      );
+    } catch (err: any) {
+      const msg: string = err?.response?.data?.message ?? err?.message ?? 'Something went wrong.';
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === workingId ? { ...m, text: msg, streaming: false } : m,
+        ),
+      );
+    } finally {
+      setIsExecuting(false);
+    }
+  }, [isExecuting]);
+
+  const streamToSwee = useCallback((text: string, currentMessages: Message[], userMsg: Message) => {
     const streamingMsgId = `s_${Date.now() + 1}`;
     const streamingMsg: Message = {
       id: streamingMsgId,
@@ -220,11 +277,10 @@ export default function ChatDetailScreen({ route, navigation }: any) {
       streaming: true,
     };
 
-    setMessages((prev) => [...prev, userMsg, streamingMsg]);
-    setInputText('');
+    setMessages((prev) => [...prev, streamingMsg]);
     setIsTyping(true);
 
-    const history = toApiHistory([...messages, userMsg]);
+    const history = toApiHistory([...currentMessages, userMsg]);
 
     abortRef.current = sendMessageStream(
       text,
@@ -260,49 +316,41 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         abortRef.current = null;
       },
     );
-  }, [inputText, isTyping, messages, tripContext]);
+  }, [tripContext]);
 
-  // Execute a confirmed Swee action (create/update trip or event)
-  const handleConfirmAction = useCallback(async (action: PendingAction, fromMsgId: string) => {
-    if (isExecuting) return;
-    setIsExecuting(true);
+  const sendMessage = useCallback((overrideText?: unknown) => {
+    const resolvedText = typeof overrideText === 'string' ? overrideText : inputText;
+    const text = resolvedText.trim();
+    if (!text || isTyping || isExecuting) return;
 
-    // Clear the pendingAction from the source message so chips disappear
-    setMessages((prev) =>
-      prev.map((m) => m.id === fromMsgId ? { ...m, pendingAction: null } : m),
-    );
-
-    // Show a "working" Swee message
-    const workingId = `exec_${Date.now()}`;
-    setMessages((prev) => [...prev, {
-      id: workingId,
-      text: '',
-      sender: 'swee',
+    const userMsg: Message = {
+      id: `u_${Date.now()}`,
+      text,
+      sender: 'user',
       time: formatTime(),
-      streaming: true,
-    }]);
+    };
 
-    try {
-      const result = await executeAction(action);
+    setInputText('');
 
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === workingId
-            ? { ...m, text: result.reply, streaming: false, createdResult: result.created ?? undefined }
-            : m,
-        ),
-      );
-    } catch (err: any) {
-      const msg: string = err?.response?.data?.message ?? err?.message ?? 'Something went wrong.';
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === workingId ? { ...m, text: msg, streaming: false } : m,
-        ),
-      );
-    } finally {
-      setIsExecuting(false);
+    // Typed confirmation → execute pending action instead of sending to Gemini
+    const pending = findPendingConfirmation(messages);
+    if (pending && isAffirmativeConfirmation(text)) {
+      setMessages((prev) => [...prev, userMsg]);
+      handleConfirmAction(pending.action, pending.msgId);
+      return;
     }
-  }, [isExecuting]);
+
+    setMessages((prev) => [...prev, userMsg]);
+    streamToSwee(text, messages, userMsg);
+  }, [inputText, isTyping, isExecuting, messages, tripContext, handleConfirmAction, streamToSwee]);
+
+  const handleIdentifyResponse = useCallback((msgId: string, affirmative: boolean) => {
+    if (isTyping || isExecuting) return;
+    setMessages((prev) =>
+      prev.map((m) => m.id === msgId ? { ...m, pendingAction: null } : m),
+    );
+    sendMessage(affirmative ? 'Yes' : 'No');
+  }, [isTyping, isExecuting, sendMessage]);
 
   useEffect(() => {
     const text = typeof initialMessageParam === 'string' ? initialMessageParam.trim() : '';
@@ -364,6 +412,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     const bubbleWidthStyle = hasTable ? styles.msgBubbleWide : null;
 
     const showConfirmChips = !isUser && !item.streaming && item.pendingAction?.readyToCreate === true;
+    const showIdentifyChips = !isUser && !item.streaming && item.pendingAction?.intent === 'identify_update';
     const showViewBtn = !isUser && !item.streaming && item.createdResult;
 
     return (
@@ -388,6 +437,28 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           )}
           {!item.streaming && (
             <Text style={[styles.msgTime, isUser && styles.msgTimeUser]}>{item.time}</Text>
+          )}
+
+          {/* ── Identify chips (update flow: "Is this the one?") ── */}
+          {showIdentifyChips && (
+            <View style={styles.confirmRow}>
+              <TouchableOpacity
+                style={styles.confirmYes}
+                onPress={() => handleIdentifyResponse(item.id, true)}
+                activeOpacity={0.8}
+                disabled={isTyping || isExecuting}
+              >
+                <Text style={styles.confirmYesText}>Yes, that's it</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmNo}
+                onPress={() => handleIdentifyResponse(item.id, false)}
+                activeOpacity={0.8}
+                disabled={isTyping || isExecuting}
+              >
+                <Text style={styles.confirmNoText}>No, different one</Text>
+              </TouchableOpacity>
+            </View>
           )}
 
           {/* ── Confirm chips (shown when Swee asks for confirmation) ── */}

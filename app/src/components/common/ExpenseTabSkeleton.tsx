@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, View, StyleSheet } from 'react-native';
 
 /* ─── Shimmer pulse ─────────────────────────────────────────────────────── */
-function SkeletonBox({ width, height, style }: { width?: number | string; height: number; style?: object }) {
+export function SkeletonBox({ width, height, style }: { width?: number | string; height: number; style?: object }) {
   const opacity = useRef(new Animated.Value(0.35)).current;
 
   useEffect(() => {

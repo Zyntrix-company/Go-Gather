@@ -5,8 +5,15 @@ const { height: SCREEN_H } = Dimensions.get('window');
 /** @deprecated Use flex hero (AlbumPhotosHeroCarousel) — kept for previews only */
 export const ALBUM_HERO_H = Math.round(SCREEN_H * 0.46);
 
-export const ALBUM_THUMB_W = 52;
-export const ALBUM_THUMB_H = 42;
+export const ALBUM_THUMB_W = 64;
+export const ALBUM_THUMB_H = 50;
+
+/** Fixed hero height inside trip/event photos dialog. */
+export const ALBUM_DIALOG_HERO_H = 248;
+
+/** Rounded hero frame in photos dialog. */
+export const ALBUM_HERO_RADIUS = 16;
+export const ALBUM_HERO_H_PAD = 16;
 
 export const albumChromeStyles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#f8fafc' },

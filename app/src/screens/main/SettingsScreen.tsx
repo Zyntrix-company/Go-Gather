@@ -60,8 +60,6 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
           contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}>
 
-          <Text style={styles.headerSubtitle}>Profile, notifications, help</Text>
-
           <View style={styles.profileCard}>
             <View style={styles.avatarRing}>
               <View style={styles.avatarInner}>
@@ -132,13 +130,6 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 4 },
-
-  headerSubtitle: {
-    fontSize: 12,
-    fontWeight: '400',
-    color: colors.textSecondary,
-    marginBottom: 12,
-  },
 
   profileCard: {
     flexDirection: 'row',

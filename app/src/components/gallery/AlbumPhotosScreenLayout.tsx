@@ -1,14 +1,11 @@
-import React, { createContext, useContext } from 'react';
+import React from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppScreenLayout, { TAB_BAR_BASE_HEIGHT } from '../common/AppScreenLayout';
 import type { TabType } from '../common/FloatingTabBar';
+import { AlbumPhotosOverlayContext } from './AlbumPhotosContext';
 
-const AlbumPhotosOverlayContext = createContext<React.ReactNode>(null);
-
-export function useAlbumPhotosOverlay() {
-  return useContext(AlbumPhotosOverlayContext);
-}
+export { useAlbumPhotosOverlay } from './AlbumPhotosContext';
 
 type AlbumPhotosScreenLayoutProps = {
   navigation: any;

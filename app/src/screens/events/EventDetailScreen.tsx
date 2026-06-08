@@ -81,10 +81,11 @@ import { getExpenseRowBalanceLabel } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
 import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
 import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
-import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
+import { albumChromeStyles as acs, ALBUM_DIALOG_HERO_H } from '../../constants/albumPhotosLayout';
 import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
-import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
+import AlbumPhotosDialogLayout from '../../components/gallery/AlbumPhotosDialogLayout';
+import AlbumPhotosDialogSkeleton from '../../components/gallery/AlbumPhotosDialogSkeleton';
 import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
 import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
 import { focusAlbumPhotosAtEnd, sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
@@ -706,6 +707,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
     .filter(f => !memberIdSet.has(f.id) && f.name.toLowerCase().includes(memberSearch.toLowerCase()));
   const dayLabel = event.dayCount > 0 ? 'Days to go' : event.dayCount === 0 ? 'Today' : 'Days ago';
   const statusOnly = event.dayCount === 0;
+  const photosModalLoading = loadingDetail && photos.length === 0;
 
   const dismissExpenseOverlays = useCallback(() => {
     closeExpenseOverlays({
@@ -1799,133 +1801,132 @@ export default function EventDetailScreen({ route, navigation }: any) {
         </Modal>
 
         {/* ═══════════════════════════════════════════════════
-            MODAL 3 — Photos (Immersive Album View)
+            MODAL 3 — Photos
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showPhotos} transparent={false} animationType="slide" onRequestClose={closePhotosModal}>
-          <AlbumPhotosScreenLayout
-            navigation={navigation}
-            activeTab="events"
-            galleryChrome
-            onClose={closePhotosModal}
-            photoIndex={albumHeroIndex}
-            photoTotal={photos.length}
-            heroOverlay={
-              photos.length > 0 ? (
-                photosEditMode ? (
-                  <TouchableOpacity onPress={() => setPhotosEditMode(false)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                    <Check size={17} color="#0d9488" />
+        <AlbumPhotosDialogLayout
+          visible={showPhotos}
+          onClose={closePhotosModal}
+          photoIndex={albumHeroIndex}
+          photoTotal={photos.length}
+          loading={photosModalLoading}
+          heroOverlay={
+            photos.length > 0 ? (
+              photosEditMode ? (
+                <TouchableOpacity onPress={() => setPhotosEditMode(false)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <Check size={17} color="#0d9488" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={() => setPhotosEditMode(true)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <Pen size={15} color="#0d9488" />
+                </TouchableOpacity>
+              )
+            ) : null
+          }
+          actions={
+            <AlbumPhotosFooter
+              variant="primary"
+              placement="top"
+              onUpload={() => handlePickPhoto(false)}
+              onCamera={() => handlePickPhoto(true)}
+              onDrive={() => openDrivePicker('photos')}
+              driveImporting={driveImporting}
+            />
+          }
+        >
+          {photosModalLoading ? (
+            <AlbumPhotosDialogSkeleton />
+          ) : (
+          <AlbumPhotosBody compact>
+            <AlbumPhotosHeroCarousel
+              photos={photos}
+              heroIndex={albumHeroIndex}
+              onIndexChange={setAlbumHeroIndex}
+              heroRef={albumHeroRef}
+              scrollEnabled={!photosEditMode}
+              fixedHeight={ALBUM_DIALOG_HERO_H}
+              renderPhoto={(item) => <EventAlbumHeroPhoto photo={item} />}
+            />
+            <AlbumPhotosThumbStrip
+              photos={photos}
+              heroIndex={albumHeroIndex}
+              scrollEnabled={!photosEditMode}
+              onSelect={(idx) => {
+                setAlbumHeroIndex(idx);
+                albumHeroRef.current?.scrollToIndex({ index: idx, animated: true });
+              }}
+              renderOverlay={(ph) => {
+                if (!photosEditMode) return null;
+                return (
+                  <TouchableOpacity
+                    onPress={() => {
+                      showConfirm({
+                        title: 'Delete Photo',
+                        message: 'Remove this photo for everyone on this event?',
+                        destructive: true,
+                        onConfirm: () => handleDeletePhoto(ph.id),
+                      });
+                    }}
+                    style={acs.thumbDeleteBtn}
+                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    disabled={deletingPhotoId === ph.id}
+                  >
+                    {deletingPhotoId === ph.id
+                      ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
+                      : <Trash2 size={9} color="#fff" />}
                   </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity onPress={() => setPhotosEditMode(true)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                    <Pen size={15} color="#0d9488" />
-                  </TouchableOpacity>
-                )
-              ) : null
-            }
-            footer={
-              <AlbumPhotosFooter
-                galleryChrome
-                aboveTabBar
-                onUpload={() => handlePickPhoto(false)}
-                onCamera={() => handlePickPhoto(true)}
-                onDrive={() => openDrivePicker('photos')}
-                driveImporting={driveImporting}
-              />
-            }
-          >
-            <AlbumPhotosBody>
-              <AlbumPhotosHeroCarousel
-                galleryChrome
-                photos={photos}
-                heroIndex={albumHeroIndex}
-                onIndexChange={setAlbumHeroIndex}
-                heroRef={albumHeroRef}
-                scrollEnabled={!photosEditMode}
-                renderPhoto={(item) => <EventAlbumHeroPhoto photo={item} />}
-              />
-              <AlbumPhotosThumbStrip
-                photos={photos}
-                heroIndex={albumHeroIndex}
-                scrollEnabled={!photosEditMode}
-                transparent
-                galleryChrome
-                onSelect={(idx) => {
-                  setAlbumHeroIndex(idx);
-                  albumHeroRef.current?.scrollToIndex({ index: idx, animated: true });
-                }}
-                renderOverlay={(ph) => {
-                  if (!photosEditMode) return null;
-                  return (
-                    <TouchableOpacity
-                      onPress={() => {
-                        showConfirm({
-                          title: 'Delete Photo',
-                          message: 'Remove this photo for everyone on this event?',
-                          destructive: true,
-                          onConfirm: () => handleDeletePhoto(ph.id),
-                        });
-                      }}
-                      style={acs.thumbDeleteBtn}
-                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                      disabled={deletingPhotoId === ph.id}
-                    >
-                      {deletingPhotoId === ph.id
-                        ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
-                        : <Trash2 size={9} color="#fff" />}
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-              <View style={acs.metaCardTransparent}>
-                <Text style={acs.metaTitle} numberOfLines={1}>{event.name}</Text>
-                <View style={acs.metaRow}>
-                  {!!event.location && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '42%' }}>
-                      <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                        <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                        <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
-                      </Svg>
-                      <Text style={acs.metaTextAccent} numberOfLines={2}>{formatLocationsHeroLabel(event)}</Text>
-                    </View>
-                  )}
-                  {!!event.dateLine && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                      <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                        <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#64748b" strokeWidth={2} />
-                        <Path d="M16 2v4M8 2v4M3 10h18" stroke="#64748b" strokeWidth={2} strokeLinecap="round" />
-                      </Svg>
-                      <Text style={acs.metaText} numberOfLines={1}>{event.dateLine}</Text>
-                    </View>
-                  )}
-                  <Text style={acs.metaCount}>
-                    {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
-                  </Text>
-                </View>
-                {members.length > 0 && (
-                  <View style={acs.metaMembers}>
-                    {members.slice(0, 4).map((m, idx) => (
-                      <View key={m.userId} style={{ marginLeft: idx === 0 ? 0 : -8, zIndex: 4 - idx }}>
-                        <EventFriendAvatar
-                          uri={m.avatarUrl || ''}
-                          name={m.fullName}
-                          style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#fff' }}
-                        />
-                      </View>
-                    ))}
-                    {members.length > 4 && (
-                      <View style={[acs.metaAvatar, { marginLeft: -8, alignItems: 'center', justifyContent: 'center' }]}>
-                        <Text style={{ fontSize: 8, fontWeight: '700', color: '#475569' }}>+{members.length - 4}</Text>
-                      </View>
-                    )}
-                    <Text style={{ marginLeft: 6, fontSize: 10, color: '#94a3b8' }} numberOfLines={1}>
-                      {members.length} {members.length === 1 ? 'member' : 'members'}
-                    </Text>
+                );
+              }}
+            />
+            <View style={acs.metaCard}>
+              <Text style={acs.metaTitle} numberOfLines={1}>{event.name}</Text>
+              <View style={acs.metaRow}>
+                {!!event.location && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '42%' }}>
+                    <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+                      <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
+                    </Svg>
+                    <Text style={acs.metaTextAccent} numberOfLines={2}>{formatLocationsHeroLabel(event)}</Text>
                   </View>
                 )}
+                {!!event.dateLine && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+                      <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#64748b" strokeWidth={2} />
+                      <Path d="M16 2v4M8 2v4M3 10h18" stroke="#64748b" strokeWidth={2} strokeLinecap="round" />
+                    </Svg>
+                    <Text style={acs.metaText} numberOfLines={1}>{event.dateLine}</Text>
+                  </View>
+                )}
+                <Text style={acs.metaCount}>
+                  {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
+                </Text>
               </View>
-            </AlbumPhotosBody>
-          </AlbumPhotosScreenLayout>
-        </Modal>
+              {members.length > 0 && (
+                <View style={acs.metaMembers}>
+                  {members.slice(0, 4).map((m, idx) => (
+                    <View key={m.userId} style={{ marginLeft: idx === 0 ? 0 : -8, zIndex: 4 - idx }}>
+                      <EventFriendAvatar
+                        uri={m.avatarUrl || ''}
+                        name={m.fullName}
+                        style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#fff' }}
+                      />
+                    </View>
+                  ))}
+                  {members.length > 4 && (
+                    <View style={[acs.metaAvatar, { marginLeft: -8, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Text style={{ fontSize: 8, fontWeight: '700', color: '#475569' }}>+{members.length - 4}</Text>
+                    </View>
+                  )}
+                  <Text style={{ marginLeft: 6, fontSize: 10, color: '#94a3b8' }} numberOfLines={1}>
+                    {members.length} {members.length === 1 ? 'member' : 'members'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </AlbumPhotosBody>
+          )}
+        </AlbumPhotosDialogLayout>
 
         {/* Document preview modal */}
         <Modal visible={!!docPreviewUrl} transparent={false} animationType="slide" onRequestClose={() => setDocPreviewUrl(null)}>

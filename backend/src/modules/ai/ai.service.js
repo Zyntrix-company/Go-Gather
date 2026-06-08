@@ -374,6 +374,27 @@ const chatStream = async (userId, message, conversationHistory, tripContext, res
   await geminiChatStream(message, history, systemPrompt, res);
 };
 
+// ─── Execute validation helpers ────────────────────────────────────────────────
+
+function badRequest(message) {
+  return Object.assign(new Error(message), { statusCode: 400 });
+}
+
+function requireIsoDate(value, label) {
+  if (!value || typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    throw badRequest(`${label} is required (YYYY-MM-DD)`);
+  }
+  const d = new Date(`${value.trim()}T12:00:00`);
+  if (Number.isNaN(d.getTime())) throw badRequest(`${label} must be a valid date`);
+  return value.trim();
+}
+
+function requireNonEmptyString(value, label) {
+  const v = typeof value === 'string' ? value.trim() : '';
+  if (!v) throw badRequest(`${label} is required`);
+  return v;
+}
+
 /**
  * Execute a confirmed Swee action (create_trip, create_event, update_trip, update_event, add_note).
  * Called after user taps "Yes" / "Confirm" in the chat UI.
@@ -386,19 +407,30 @@ const executeAction = async (userId, pendingAction) => {
 
   const { intent, draft = {}, tripId, targetTripName, noteContent } = pendingAction;
 
+  if (intent === 'identify_update' || intent === 'none') {
+    throw badRequest('This step cannot be executed directly — continue the conversation with Swee');
+  }
+
   // ── create_trip ──────────────────────────────────────────────────────────────
   if (intent === 'create_trip') {
-    if (!draft.destination) {
-      throw Object.assign(new Error('Destination is required to create a trip'), { statusCode: 400 });
+    const destination = requireNonEmptyString(draft.destination, 'Destination');
+    const startDate = requireIsoDate(draft.startDate, 'Start date');
+    const endDate = requireIsoDate(draft.endDate, 'End date');
+    if (new Date(`${endDate}T12:00:00`) < new Date(`${startDate}T12:00:00`)) {
+      throw badRequest('End date must be on or after start date');
     }
+
     const tripsService = require('../trips/trips.service');
 
-    const name = (draft.name || generateTripName(draft.destination, draft.startDate)).slice(0, 20);
+    let name = (draft.name || generateTripName(destination, startDate)).trim();
+    if (name.length > 255) name = name.slice(0, 255);
+    if (name.length < 3) throw badRequest('Trip name must be at least 3 characters');
+
     const body = {
       name,
-      startDate: draft.startDate,
-      endDate: draft.endDate,
-      location: { name: draft.destination },
+      startDate,
+      endDate,
+      location: { name: destination },
       reminders: true,
     };
 
@@ -420,23 +452,23 @@ const executeAction = async (userId, pendingAction) => {
 
   // ── create_event ─────────────────────────────────────────────────────────────
   if (intent === 'create_event') {
-    if (!draft.name) {
-      throw Object.assign(new Error('Event name is required'), { statusCode: 400 });
-    }
+    const name = requireNonEmptyString(draft.name, 'Event name').slice(0, 255);
+    const eventDate = requireIsoDate(draft.eventDate, 'Event date');
+    const location = requireNonEmptyString(draft.location, 'Location');
+
     const eventsService = require('../events/events.service');
 
     const eventType = resolveEventType(draft.eventType);
-    // Append time to description if no event_time column yet
     const descriptionParts = [];
     if (draft.eventTime) descriptionParts.push(`Time: ${draft.eventTime}`);
     if (draft.description) descriptionParts.push(draft.description);
 
     const body = {
-      name: draft.name.slice(0, 255),
-      eventDate: draft.eventDate,
+      name,
+      eventDate,
       eventType,
       description: descriptionParts.join(' · ') || undefined,
-      location: { name: draft.location || undefined },
+      location: { name: location },
       reminders: true,
     };
 
@@ -468,11 +500,23 @@ const executeAction = async (userId, pendingAction) => {
     const tripsService = require('../trips/trips.service');
     const targetTrip = trips[0];
     const updates = {};
-    if (draft.startDate) updates.startDate = draft.startDate;
-    if (draft.endDate) updates.endDate = draft.endDate;
-    if (draft.destination) updates.location = { name: draft.destination };
+    if (draft.startDate) updates.startDate = requireIsoDate(draft.startDate, 'Start date');
+    if (draft.endDate) updates.endDate = requireIsoDate(draft.endDate, 'End date');
+    if (draft.destination) updates.location = { name: requireNonEmptyString(draft.destination, 'Destination') };
 
-    await tripsService.updateTrip(targetTrip.id, updates);
+    if (updates.startDate && updates.endDate && new Date(`${updates.endDate}T12:00:00`) < new Date(`${updates.startDate}T12:00:00`)) {
+      throw badRequest('End date must be on or after start date');
+    }
+
+    const hasFieldUpdate = Object.keys(updates).length > 0;
+    const hasMetaUpdate = draft.notes || draft.travelFocus || draft.budgetTier;
+    if (!hasFieldUpdate && !hasMetaUpdate) {
+      throw badRequest('No changes to save');
+    }
+
+    if (hasFieldUpdate) {
+      await tripsService.updateTrip(targetTrip.id, updates);
+    }
 
     if (draft.notes || draft.travelFocus || draft.budgetTier) {
       await writePlanningNote('trip', targetTrip.id, userId, draft);
@@ -496,9 +540,13 @@ const executeAction = async (userId, pendingAction) => {
     const eventsService = require('../events/events.service');
     const targetEvent = events[0];
     const updates = {};
-    if (draft.eventDate) updates.eventDate = draft.eventDate;
-    if (draft.location) updates.location = { name: draft.location };
+    if (draft.eventDate) updates.eventDate = requireIsoDate(draft.eventDate, 'Event date');
+    if (draft.location) updates.location = { name: requireNonEmptyString(draft.location, 'Location') };
     if (draft.description) updates.description = draft.description;
+
+    if (Object.keys(updates).length === 0) {
+      throw badRequest('No changes to save');
+    }
 
     await eventsService.updateEvent(targetEvent.id, updates);
 
@@ -516,13 +564,15 @@ const executeAction = async (userId, pendingAction) => {
     const parentId = pendingAction.tripId || pendingAction.eventId;
 
     if (!parentId) {
-      throw Object.assign(new Error('Trip or event ID required to add a note'), { statusCode: 400 });
+      throw badRequest('Trip or event ID required to add a note');
     }
+
+    const content = requireNonEmptyString(noteContent || draft.notes, 'Note content');
 
     await sharedNotes.createNote(
       { parentType, parentId },
       userId,
-      { title: 'Swee Note', content: noteContent || draft.notes || '', category: 'general' },
+      { title: 'Swee Note', content, category: 'general' },
     );
 
     return {

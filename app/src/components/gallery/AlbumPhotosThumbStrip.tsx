@@ -271,14 +271,23 @@ export default function AlbumPhotosThumbStrip<T extends ThumbPhoto>({
 }
 
 /** Non-scroll column: hero flexes, thumbs + meta stay fixed height. */
-export function AlbumPhotosBody({ children }: { children: React.ReactNode }) {
-  return <View style={styles.body}>{children}</View>;
+export function AlbumPhotosBody({
+  children,
+  compact = false,
+}: {
+  children: React.ReactNode;
+  compact?: boolean;
+}) {
+  return <View style={[styles.body, compact && styles.bodyCompact]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
   body: {
     flex: 1,
     overflow: 'hidden',
+  },
+  bodyCompact: {
+    flex: 0,
   },
   thumbSlot: {
     width: THUMB_SLOT,

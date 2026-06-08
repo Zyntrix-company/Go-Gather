@@ -1,24 +1,27 @@
 import React, { useState } from 'react';
-import { View, Text, ActivityIndicator, FlatList, Dimensions, StyleSheet, TouchableOpacity } from 'react-native';
-import { useAlbumPhotosOverlay } from './AlbumPhotosScreenLayout';
-
-const { width: SCREEN_W } = Dimensions.get('window');
+import { View, Text, ActivityIndicator, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import { useAlbumPhotosOverlay, useAlbumPhotosPageWidth } from './AlbumPhotosContext';
+import { ALBUM_HERO_H_PAD, ALBUM_HERO_RADIUS } from '../../constants/albumPhotosLayout';
 const MAX_DOTS = 15;
 
 function AlbumPhotosPagerDots({
   count,
   activeIndex,
   galleryChrome = false,
+  rounded = false,
 }: {
   count: number;
   activeIndex: number;
   galleryChrome?: boolean;
+  rounded?: boolean;
 }) {
   if (count <= 1) return null;
 
+  const wrapStyle = [styles.dotsWrap, rounded && styles.dotsWrapRounded];
+
   if (count > MAX_DOTS) {
     return (
-      <View style={styles.dotsWrap} pointerEvents="none">
+      <View style={wrapStyle} pointerEvents="none">
         <View style={styles.dotsPill}>
           <Text style={[styles.dotsPillText, galleryChrome && styles.dotsPillTextGallery]}>
             {activeIndex + 1} / {count}
@@ -29,7 +32,7 @@ function AlbumPhotosPagerDots({
   }
 
   return (
-    <View style={styles.dotsWrap} pointerEvents="none">
+    <View style={wrapStyle} pointerEvents="none">
       <View style={styles.dotsRow}>
         {Array.from({ length: count }, (_, i) => (
           <View
@@ -60,6 +63,8 @@ type AlbumPhotosHeroCarouselProps<T extends AlbumHeroPhoto> = {
   onPhotoPress?: (index: number) => void;
   /** Show gradient behind hero instead of solid dark (Gallery modals). */
   galleryChrome?: boolean;
+  /** Fixed hero height (trip/event dialog) instead of flex-grow. */
+  fixedHeight?: number;
 };
 
 /** Flex-grow hero pager — height follows available space (no fixed % of screen). */
@@ -74,14 +79,50 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
   scrollEnabled = true,
   onPhotoPress,
   galleryChrome = false,
+  fixedHeight,
 }: AlbumPhotosHeroCarouselProps<T>) {
-  const [heroH, setHeroH] = useState(0);
+  const [heroH, setHeroH] = useState(fixedHeight ?? 0);
   const heroOverlay = useAlbumPhotosOverlay();
+  const pageWidth = useAlbumPhotosPageWidth();
+  const lightChrome = galleryChrome || fixedHeight != null;
+  const rounded = fixedHeight != null;
+  const slotStyle = fixedHeight != null
+    ? [styles.heroSlot, styles.heroSlotFixed, { height: fixedHeight }, galleryChrome && styles.heroSlotGallery]
+    : [styles.heroSlot, galleryChrome && styles.heroSlotGallery];
+
+  const renderHeroPhoto = (item: T, index: number) => {
+    const photo = renderPhoto(item);
+    if (!rounded) {
+      return (
+        <TouchableOpacity
+          style={{ width: pageWidth, height: heroH }}
+          activeOpacity={0.95}
+          onPress={() => onPhotoPress?.(index)}
+          disabled={!onPhotoPress}
+        >
+          {photo}
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        style={[styles.heroSlideRounded, { width: pageWidth, height: heroH }]}
+        activeOpacity={0.95}
+        onPress={() => onPhotoPress?.(index)}
+        disabled={!onPhotoPress}
+      >
+        <View style={styles.heroFrameOuter}>
+          <View style={styles.heroFrameInner}>{photo}</View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View
-      style={[styles.heroSlot, galleryChrome && styles.heroSlotGallery]}
-      onLayout={(e) => {
+      style={slotStyle}
+      onLayout={fixedHeight != null ? undefined : (e) => {
         const h = Math.round(e.nativeEvent.layout.height);
         if (h > 0 && h !== heroH) setHeroH(h);
       }}
@@ -101,34 +142,25 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
           removeClippedSubviews={false}
           windowSize={Math.min(photos.length, 5) + 2}
           initialScrollIndex={Math.min(heroIndex, photos.length - 1)}
-          getItemLayout={(_, index) => ({ length: SCREEN_W, offset: SCREEN_W * index, index })}
-          onMomentumScrollEnd={(e) => onIndexChange(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))}
+          getItemLayout={(_, index) => ({ length: pageWidth, offset: pageWidth * index, index })}
+          onMomentumScrollEnd={(e) => onIndexChange(Math.round(e.nativeEvent.contentOffset.x / pageWidth))}
           onScrollToIndexFailed={(info) => {
             setTimeout(() => {
               heroRef?.current?.scrollToIndex({ index: info.index, animated: false });
             }, 50);
           }}
           extraData={heroIndex}
-          renderItem={({ item, index }) => (
-            <TouchableOpacity
-              style={{ width: SCREEN_W, height: heroH }}
-              activeOpacity={0.95}
-              onPress={() => onPhotoPress?.(index)}
-              disabled={!onPhotoPress}
-            >
-              {renderPhoto(item)}
-            </TouchableOpacity>
-          )}
+          renderItem={({ item, index }) => renderHeroPhoto(item, index)}
           keyExtractor={(item) => item.id}
         />
       ) : !loading ? (
         <View style={styles.center}>
-          <Text style={galleryChrome ? styles.emptyText : styles.emptyTextDark}>{emptyLabel}</Text>
+          <Text style={lightChrome ? styles.emptyText : styles.emptyTextDark}>{emptyLabel}</Text>
         </View>
       ) : null}
 
       {heroOverlay ? (
-        <View style={styles.heroOverlay} pointerEvents="box-none">
+        <View style={[styles.heroOverlay, rounded && styles.heroOverlayRounded]} pointerEvents="box-none">
           {heroOverlay}
         </View>
       ) : null}
@@ -137,7 +169,8 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
         <AlbumPhotosPagerDots
           count={photos.length}
           activeIndex={heroIndex}
-          galleryChrome={galleryChrome}
+          galleryChrome={lightChrome}
+          rounded={rounded}
         />
       ) : null}
     </View>
@@ -149,6 +182,32 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 100,
     backgroundColor: '#0f172a',
+    overflow: 'hidden',
+  },
+  heroSlotFixed: {
+    flex: 0,
+    minHeight: undefined,
+    backgroundColor: '#f1f5f9',
+    overflow: 'visible',
+  },
+  heroSlideRounded: {
+    paddingHorizontal: ALBUM_HERO_H_PAD,
+    paddingTop: 4,
+    paddingBottom: 6,
+  },
+  heroFrameOuter: {
+    flex: 1,
+    borderRadius: ALBUM_HERO_RADIUS,
+    backgroundColor: '#e2e8f0',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  heroFrameInner: {
+    flex: 1,
+    borderRadius: ALBUM_HERO_RADIUS,
     overflow: 'hidden',
   },
   heroSlotGallery: {
@@ -176,6 +235,10 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 10,
   },
+  heroOverlayRounded: {
+    top: 16,
+    right: ALBUM_HERO_H_PAD + 12,
+  },
   dotsWrap: {
     position: 'absolute',
     left: 0,
@@ -183,6 +246,9 @@ const styles = StyleSheet.create({
     bottom: 10,
     alignItems: 'center',
     zIndex: 9,
+  },
+  dotsWrapRounded: {
+    bottom: 16,
   },
   dotsRow: {
     flexDirection: 'row',

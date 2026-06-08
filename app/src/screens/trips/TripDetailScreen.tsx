@@ -99,10 +99,11 @@ import { getExpenseRowBalanceLabel } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
 import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
 import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
-import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
+import { albumChromeStyles as acs, ALBUM_DIALOG_HERO_H } from '../../constants/albumPhotosLayout';
 import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
-import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
+import AlbumPhotosDialogLayout from '../../components/gallery/AlbumPhotosDialogLayout';
+import AlbumPhotosDialogSkeleton from '../../components/gallery/AlbumPhotosDialogSkeleton';
 import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
 import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
 import { focusAlbumPhotosAtEnd, sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
@@ -701,7 +702,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── Loading / submitting flags ──
   const [, setIsLoadingInit] = useState(true);
   const [, setIsLoadingDocs] = useState(false);
-  const [, setIsLoadingPhotos] = useState(false);
+  const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
   const [isLoadingExpenses, setIsLoadingExpenses] = useState(false);
   const [isRefreshingExpenses, setIsRefreshingExpenses] = useState(false);
   const [settlingDebtKey, setSettlingDebtKey] = useState<string | null>(null);
@@ -2683,144 +2684,143 @@ export default function TripDetailScreen({ route, navigation }: any) {
         </Modal>
 
         {/* ═══════════════════════════════════════════════════
-          MODAL 4 — Photos (Immersive Album View)
+          MODAL 4 — Photos
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showPhotos} transparent={false} animationType="slide" onRequestClose={closePhotosModal}>
-          <AlbumPhotosScreenLayout
-            navigation={navigation}
-            activeTab="trips"
-            galleryChrome
-            onClose={closePhotosModal}
-            photoIndex={albumHeroIndex}
-            photoTotal={photos.length}
-            heroOverlay={
-              photos.length > 0 ? (
-                photosEditMode ? (
-                  <TouchableOpacity onPress={() => setPhotosEditMode(false)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                    <Check size={17} color="#0d9488" />
+        <AlbumPhotosDialogLayout
+          visible={showPhotos}
+          onClose={closePhotosModal}
+          photoIndex={albumHeroIndex}
+          photoTotal={photos.length}
+          loading={isLoadingPhotos && photos.length === 0}
+          heroOverlay={
+            photos.length > 0 ? (
+              photosEditMode ? (
+                <TouchableOpacity onPress={() => setPhotosEditMode(false)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <Check size={17} color="#0d9488" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={() => setPhotosEditMode(true)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                  <Pen size={15} color="#0d9488" />
+                </TouchableOpacity>
+              )
+            ) : null
+          }
+          actions={
+            <AlbumPhotosFooter
+              variant="primary"
+              placement="top"
+              onUpload={() => handlePickPhoto(false)}
+              onCamera={() => handlePickPhoto(true)}
+              onDrive={() => openDrivePicker('photos')}
+              driveImporting={driveImporting}
+            />
+          }
+        >
+          {isLoadingPhotos && photos.length === 0 ? (
+            <AlbumPhotosDialogSkeleton />
+          ) : (
+          <AlbumPhotosBody compact>
+            <AlbumPhotosHeroCarousel
+              photos={photos}
+              heroIndex={albumHeroIndex}
+              onIndexChange={setAlbumHeroIndex}
+              heroRef={albumHeroRef}
+              scrollEnabled={!photosEditMode}
+              fixedHeight={ALBUM_DIALOG_HERO_H}
+              renderPhoto={(item) => <TripAlbumHeroPhoto photo={item} />}
+            />
+            <AlbumPhotosThumbStrip
+              photos={photos}
+              heroIndex={albumHeroIndex}
+              scrollEnabled={!photosEditMode}
+              onSelect={(idx) => {
+                setAlbumHeroIndex(idx);
+                albumHeroRef.current?.scrollToIndex({ index: idx, animated: true });
+              }}
+              renderOverlay={(ph) => {
+                if (!photosEditMode) return null;
+                return (
+                  <TouchableOpacity
+                    onPress={() => {
+                      showConfirm({
+                        title: 'Delete Photo',
+                        message: 'Remove this photo for everyone on this trip?',
+                        destructive: true,
+                        onConfirm: () => handleDeletePhoto(ph.id),
+                      });
+                    }}
+                    style={acs.thumbDeleteBtn}
+                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                    disabled={deletingPhotoId === ph.id}
+                  >
+                    {deletingPhotoId === ph.id
+                      ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
+                      : <Trash2 size={9} color="#fff" />}
                   </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity onPress={() => setPhotosEditMode(true)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                    <Pen size={15} color="#0d9488" />
-                  </TouchableOpacity>
-                )
-              ) : null
-            }
-            footer={
-              <AlbumPhotosFooter
-                galleryChrome
-                aboveTabBar
-                onUpload={() => handlePickPhoto(false)}
-                onCamera={() => handlePickPhoto(true)}
-                onDrive={() => openDrivePicker('photos')}
-                driveImporting={driveImporting}
-              />
-            }
-          >
-            <AlbumPhotosBody>
-              <AlbumPhotosHeroCarousel
-                galleryChrome
-                photos={photos}
-                heroIndex={albumHeroIndex}
-                onIndexChange={setAlbumHeroIndex}
-                heroRef={albumHeroRef}
-                scrollEnabled={!photosEditMode}
-                renderPhoto={(item) => <TripAlbumHeroPhoto photo={item} />}
-              />
-              <AlbumPhotosThumbStrip
-                photos={photos}
-                heroIndex={albumHeroIndex}
-                scrollEnabled={!photosEditMode}
-                transparent
-                galleryChrome
-                onSelect={(idx) => {
-                  setAlbumHeroIndex(idx);
-                  albumHeroRef.current?.scrollToIndex({ index: idx, animated: true });
-                }}
-                renderOverlay={(ph) => {
-                  if (!photosEditMode) return null;
-                  return (
-                    <TouchableOpacity
-                      onPress={() => {
-                        showConfirm({
-                          title: 'Delete Photo',
-                          message: 'Remove this photo for everyone on this trip?',
-                          destructive: true,
-                          onConfirm: () => handleDeletePhoto(ph.id),
-                        });
-                      }}
-                      style={acs.thumbDeleteBtn}
-                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                      disabled={deletingPhotoId === ph.id}
-                    >
-                      {deletingPhotoId === ph.id
-                        ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
-                        : <Trash2 size={9} color="#fff" />}
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-              <View style={acs.metaCardTransparent}>
-                <Text style={acs.metaTitle} numberOfLines={1}>{trip?.name ?? 'Trip'}</Text>
+                );
+              }}
+            />
+            <View style={acs.metaCard}>
+              <Text style={acs.metaTitle} numberOfLines={1}>{trip?.name ?? 'Trip'}</Text>
 
-                <View style={acs.metaRow}>
-                  {!!formatLocationsLabelFull(trip ?? {}) && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '42%' }}>
-                      <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                        <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                        <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
-                      </Svg>
-                      <Text style={acs.metaTextAccent} numberOfLines={1}>
-                        {formatLocationsLabelFull(trip ?? {})}
-                      </Text>
-                    </View>
-                  )}
-                  {!!(trip?.startDateISO || trip?.startDate) && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                      <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                        <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#64748b" strokeWidth={2} />
-                        <Path d="M16 2v4M8 2v4M3 10h18" stroke="#64748b" strokeWidth={2} strokeLinecap="round" />
-                      </Svg>
-                      <Text style={acs.metaText} numberOfLines={1}>
-                        {trip?.startDateISO ? new Date(trip.startDateISO).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : trip?.startDate}
-                        {(trip?.endDateISO || trip?.endDate) ? ` — ${trip?.endDateISO ? new Date(trip.endDateISO).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : trip?.endDate}` : ''}
-                      </Text>
-                    </View>
-                  )}
-                  <Text style={acs.metaCount}>
-                    {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
-                  </Text>
-                </View>
-
-                {members.length > 0 && (
-                  <View style={acs.metaMembers}>
-                    {members.slice(0, 4).map((m: TripMember, idx: number) => (
-                      <View key={m.userId} style={{ marginLeft: idx === 0 ? 0 : -8, zIndex: 4 - idx }}>
-                        <View style={acs.metaAvatar}>
-                          {m.avatarUrl ? (
-                            <CachedImage uri={m.avatarUrl} style={{ width: 18, height: 18, borderRadius: 9 }} resizeMode="cover" />
-                          ) : (
-                            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                              <Text style={{ fontSize: 9, fontWeight: '600', color: '#64748b' }}>{(m.fullName ?? '?')[0]?.toUpperCase()}</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    ))}
-                    {members.length > 4 && (
-                      <View style={[acs.metaAvatar, { marginLeft: -8, alignItems: 'center', justifyContent: 'center' }]}>
-                        <Text style={{ fontSize: 8, fontWeight: '700', color: '#475569' }}>+{members.length - 4}</Text>
-                      </View>
-                    )}
-                    <Text style={{ marginLeft: 6, fontSize: 10, color: '#94a3b8' }} numberOfLines={1}>
-                      {members.length} {members.length === 1 ? 'member' : 'members'}
+              <View style={acs.metaRow}>
+                {!!formatLocationsLabelFull(trip ?? {}) && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '42%' }}>
+                    <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+                      <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                      <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
+                    </Svg>
+                    <Text style={acs.metaTextAccent} numberOfLines={1}>
+                      {formatLocationsLabelFull(trip ?? {})}
                     </Text>
                   </View>
                 )}
+                {!!(trip?.startDateISO || trip?.startDate) && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+                      <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#64748b" strokeWidth={2} />
+                      <Path d="M16 2v4M8 2v4M3 10h18" stroke="#64748b" strokeWidth={2} strokeLinecap="round" />
+                    </Svg>
+                    <Text style={acs.metaText} numberOfLines={1}>
+                      {trip?.startDateISO ? new Date(trip.startDateISO).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : trip?.startDate}
+                      {(trip?.endDateISO || trip?.endDate) ? ` — ${trip?.endDateISO ? new Date(trip.endDateISO).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : trip?.endDate}` : ''}
+                    </Text>
+                  </View>
+                )}
+                <Text style={acs.metaCount}>
+                  {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
+                </Text>
               </View>
-            </AlbumPhotosBody>
-          </AlbumPhotosScreenLayout>
-        </Modal>
+
+              {members.length > 0 && (
+                <View style={acs.metaMembers}>
+                  {members.slice(0, 4).map((m: TripMember, idx: number) => (
+                    <View key={m.userId} style={{ marginLeft: idx === 0 ? 0 : -8, zIndex: 4 - idx }}>
+                      <View style={acs.metaAvatar}>
+                        {m.avatarUrl ? (
+                          <CachedImage uri={m.avatarUrl} style={{ width: 18, height: 18, borderRadius: 9 }} resizeMode="cover" />
+                        ) : (
+                          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ fontSize: 9, fontWeight: '600', color: '#64748b' }}>{(m.fullName ?? '?')[0]?.toUpperCase()}</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+                  {members.length > 4 && (
+                    <View style={[acs.metaAvatar, { marginLeft: -8, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Text style={{ fontSize: 8, fontWeight: '700', color: '#475569' }}>+{members.length - 4}</Text>
+                    </View>
+                  )}
+                  <Text style={{ marginLeft: 6, fontSize: 10, color: '#94a3b8' }} numberOfLines={1}>
+                    {members.length} {members.length === 1 ? 'member' : 'members'}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </AlbumPhotosBody>
+          )}
+        </AlbumPhotosDialogLayout>
 
         {/* Document preview modal — in-app WebView */}
         <Modal visible={!!docPreviewUrl} transparent={false} animationType="slide" onRequestClose={() => setDocPreviewUrl(null)}>

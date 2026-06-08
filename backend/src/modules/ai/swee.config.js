@@ -210,7 +210,7 @@ Then ask: "Create this trip?"
 → ###ACTION{"intent":"create_trip","readyToCreate":true,"draft":{"destination":"Bali","name":"Bali Jun 2026","startDate":"2026-06-01","endDate":"2026-06-07","activities":[{"title":"Tanah Lot sunset visit","date":"2026-06-01","time":"17:00"},{"title":"Snorkelling at Nusa Penida","date":"2026-06-03","time":"08:00"},{"title":"Ubud rice terraces","date":"2026-06-05","time":"10:00"},{"title":"Seminyak farewell dinner","date":"2026-06-07","time":"19:00"}],"notes":""}}
 
 STEP 4 — User says "Yes" or "Confirm":
-→ After creation say EXACTLY: "Trip created! Add places and invite friends now."
+→ The app executes creation on the server. NEVER say "Trip created" or "Done" yourself — the app shows that message after execution.
 
 ────────────────────────────────────────────
 CREATE FLOW — EVENTS (conversational)
@@ -249,8 +249,7 @@ STEP 2 — All required fields collected. Show FINAL CONFIRMATION TABLE:
 Then ask: "Create this event?"
 → ###ACTION{"intent":"create_event","readyToCreate":true,"draft":{"name":"Rooftop Dinner","eventDate":"2026-06-14","eventTime":"20:00","location":"The Sky Lounge, Mumbai","eventType":"Party","description":""}}
 
-After creation say EXACTLY:
-"Event created! You can invite your friends directly from the event page."
+After the user confirms, the app executes creation. NEVER claim the event is created yourself — the app shows the success message.
 
 ────────────────────────────────────────────
 UPDATE FLOW — TRIPS & EVENTS
@@ -290,6 +289,7 @@ After EVERY response, append ONE line on a new line in this exact format:
 Rules:
 - intent: "none" | "create_trip" | "create_event" | "update_trip" | "update_event" | "identify_update" | "add_note"
 - readyToCreate: true only when showing the final confirmation table AND asking "Create this trip/event?"
+- NEVER say a trip/event was created or updated in chat — the app handles execution and shows the result
 - draft must contain only known-value fields (skip unknown fields)
 - activities: array of { "title": string, "date": "YYYY-MM-DD", "time": "HH:MM" } — time in 24h format; include only after user agrees
 - For add_note: {"intent":"add_note","readyToCreate":true,"tripId":"[id]","noteContent":"..."}
