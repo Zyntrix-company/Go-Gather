@@ -37,6 +37,7 @@ import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCar
 import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
 import { focusAlbumPhotosAtEnd, sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
+import useUploadLimits from '../../hooks/useUploadLimits';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = (SCREEN_W - 52) / 2;
@@ -336,6 +337,7 @@ function PhotosModal({
   onArchived?: () => void;
 }) {
   const navigation = useNavigation<any>();
+  const uploadLimits = useUploadLimits();
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -428,9 +430,10 @@ function PhotosModal({
 
   const pickPhotos = (cam: boolean) => {
     const fn = cam ? launchCamera : launchImageLibrary;
+    const batch = uploadLimits.galleryPhoto.maxBatchFiles;
     const opts = cam
       ? { mediaType: 'photo' as const, quality: 0.85, maxWidth: 2048, maxHeight: 2048 }
-      : { mediaType: 'photo' as const, selectionLimit: 20, quality: 0.85, maxWidth: 2048, maxHeight: 2048 };
+      : { mediaType: 'photo' as const, selectionLimit: batch, quality: 0.85, maxWidth: 2048, maxHeight: 2048 };
     fn(opts, async (res) => {
       if (res.didCancel || !res.assets?.length) return;
 
@@ -969,6 +972,7 @@ function CustomCardPhotosModal({
   onDeleteCard: (id: string) => void;
 }) {
   const navigation = useNavigation<any>();
+  const uploadLimits = useUploadLimits();
   const [editMode, setEditMode] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
@@ -1045,9 +1049,10 @@ function CustomCardPhotosModal({
   const pickPhotos = (cam: boolean) => {
     if (!card) return;
     const fn = cam ? launchCamera : launchImageLibrary;
+    const batch = uploadLimits.galleryPhoto.maxBatchFiles;
     const opts = cam
       ? { mediaType: 'photo' as const, quality: 0.85, maxWidth: 2048, maxHeight: 2048 }
-      : { mediaType: 'photo' as const, selectionLimit: 20, includeBase64: false, quality: 0.85, maxWidth: 2048, maxHeight: 2048 };
+      : { mediaType: 'photo' as const, selectionLimit: batch, includeBase64: false, quality: 0.85, maxWidth: 2048, maxHeight: 2048 };
     fn(opts, async (res) => {
       if (res.didCancel || !res.assets?.length) return;
       const assets = res.assets

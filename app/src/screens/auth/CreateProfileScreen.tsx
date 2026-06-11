@@ -26,6 +26,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { profileSchema } from '../../utils/validators';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
+import useUploadLimits from '../../hooks/useUploadLimits';
+import { rejectOversizedFile } from '../../utils/uploadLimits';
 
 type FormData = {
   fullName: string;
@@ -203,6 +205,7 @@ export default function CreateProfileScreen({ navigation }: any) {
   const setPendingProfileSetup = useAuthStore((s) => s.setPendingProfileSetup);
   // Read user ONCE synchronously before any hook so we can seed initial state
   const user = useAuthStore((s) => s.user);
+  const uploadLimits = useUploadLimits();
 
   const { g: initialGender, c: initialCountry, photo: initialPhoto, dob: initialDob } = deriveInitialState(user);
 
@@ -351,14 +354,9 @@ export default function CreateProfileScreen({ navigation }: any) {
         return;
       }
 
-      // Reject files larger than 8 MB before attempting the upload.
-      // Most servers cap multipart uploads around 5–10 MB; exceeding this causes
-      // the server to close the connection silently → "Network request failed".
-      const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
-      if (asset.fileSize && asset.fileSize > MAX_BYTES) {
-        const sizeMB = (asset.fileSize / (1024 * 1024)).toFixed(1);
-        console.warn(`[pickImage] File rejected — ${sizeMB} MB exceeds the 8 MB limit`);
-        setApiError(`Image is too large (${sizeMB} MB). Please choose a smaller photo.`);
+      const sizeError = rejectOversizedFile(asset.fileSize, uploadLimits.avatar.maxFileBytes);
+      if (sizeError) {
+        setApiError(sizeError);
         return;
       }
 

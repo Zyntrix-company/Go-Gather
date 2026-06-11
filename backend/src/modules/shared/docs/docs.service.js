@@ -3,8 +3,7 @@ const { deleteFromS3, getPresignedDownloadUrl, uploadToS3, sanitiseFilename } = 
 const { validateMimeFromBuffer } = require('../../../middleware/upload.middleware');
 const { createAndSendNotifications } = require('../../../utils/fcm.util');
 const { v4: uuidv4 } = require('uuid');
-
-const MAX_DOCS = 50;
+const { docMaxCount } = require('../../../config/uploadLimits');
 
 const uploadDoc = async ({ parentType, parentId }, userId, file) => {
   const validTypes = [
@@ -24,8 +23,8 @@ const uploadDoc = async ({ parentType, parentId }, userId, file) => {
     'SELECT COUNT(*) FROM docs WHERE parent_type = $1 AND parent_id = $2',
     [parentType, parentId],
   );
-  if (parseInt(countResult.rows[0].count, 10) >= MAX_DOCS) {
-    const e = new Error(`Maximum ${MAX_DOCS} documents allowed`);
+  if (parseInt(countResult.rows[0].count, 10) >= docMaxCount) {
+    const e = new Error(`Maximum ${docMaxCount} documents allowed`);
     e.statusCode = 422; e.error = 'LIMIT_EXCEEDED'; throw e;
   }
 

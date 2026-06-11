@@ -26,6 +26,7 @@ const notificationsRoutes = require('./modules/notifications/notifications.route
 const adminRoutes        = require('./modules/admin/admin.routes');
 const { recordRequest }  = require('./modules/admin/admin.middleware');
 const legalRoutes        = require('./modules/legal/legal.routes');
+const uploadLimitsRoutes = require('./modules/config/uploadLimits.routes');
 
 const app = express();
 
@@ -97,6 +98,9 @@ app.get('/health', (_req, res) => {
 
 // Public legal documents (privacy / terms)
 app.use('/legal', legalRoutes);
+
+// Public upload limits (mobile clients — single source of truth for caps)
+app.use('/config', uploadLimitsRoutes);
 
 /* ───────────────────────────────────────────
  * API Routes

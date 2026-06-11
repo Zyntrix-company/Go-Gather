@@ -32,10 +32,13 @@ export type ExecuteResult = {
   created: { id: string; type: 'trip' | 'event'; name: string } | null;
 };
 
+/** Milliseconds between each word revealed in the stream animation. */
+const WORD_DELAY_MS = 32;
+
 /**
  * Send a message to Swee.
  * Uses the axios client (auto-refreshes expired tokens via interceptor).
- * Returns the full reply at once (no word-by-word animation).
+ * Reveals the reply word-by-word for a smooth typing effect.
  *
  * onDone receives the pendingAction from the backend (non-null when Swee
  * is showing a recap and waiting for explicit confirmation).
@@ -49,6 +52,7 @@ export function sendMessageStream(
   onError: (err: string) => void,
 ): () => void {
   let aborted = false;
+  const timers: ReturnType<typeof setTimeout>[] = [];
 
   (async () => {
     try {
@@ -68,8 +72,25 @@ export function sendMessageStream(
         return;
       }
 
-      onDelta(reply);
-      onDone(pendingAction);
+      const words = reply.trim() ? reply.split(' ') : [];
+      if (words.length === 0) {
+        onDelta('');
+        onDone(pendingAction);
+        return;
+      }
+
+      words.forEach((word, i) => {
+        const t = setTimeout(() => {
+          if (aborted) return;
+          onDelta(words.slice(0, i + 1).join(' '));
+        }, i * WORD_DELAY_MS);
+        timers.push(t);
+      });
+
+      const doneTimer = setTimeout(() => {
+        if (!aborted) onDone(pendingAction);
+      }, words.length * WORD_DELAY_MS + 40);
+      timers.push(doneTimer);
 
     } catch (err: any) {
       if (!aborted) {
@@ -81,6 +102,7 @@ export function sendMessageStream(
 
   return () => {
     aborted = true;
+    timers.forEach(clearTimeout);
   };
 }
 

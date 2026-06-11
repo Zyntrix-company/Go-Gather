@@ -12,8 +12,10 @@ const outlookProvider = require('./providers/outlook.provider');
 
 const PROVIDERS = { gmail: gmailProvider, outlook: outlookProvider };
 const ALLOWED_MIME_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
-const MAX_FILE_BYTES = 15 * 1024 * 1024;
-const MAX_DOCS = 50;
+const { docMaxBytes, docMaxCount } = require('../../config/uploadLimits');
+
+const MAX_FILE_BYTES = docMaxBytes;
+const MAX_DOCS = docMaxCount;
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 function resolveProvider(provider) {

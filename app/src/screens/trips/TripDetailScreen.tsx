@@ -30,6 +30,7 @@ import InviteViaChannels from '../../components/common/InviteViaChannels';
 import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
 import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
 import useAuthStore from '../../store/authStore';
+import useUploadLimits from '../../hooks/useUploadLimits';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
 import {
@@ -687,6 +688,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const rawUser = useAuthStore(s => s.user) as any;
   const currentUserId: string = rawUser?.id ?? rawUser?.sub ?? '';
   const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
+  const uploadLimits = useUploadLimits();
 
   // ── API-driven state ──
   const [role, setRole] = useState<'admin' | 'member'>('member');
@@ -1356,7 +1358,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   function handlePickPhoto(cam: boolean) {
     const fn = cam ? launchCamera : launchImageLibrary;
-    const opts = cam ? { mediaType: 'mixed' as const } : { mediaType: 'mixed' as const, selectionLimit: 20 };
+    const opts = cam ? { mediaType: 'mixed' as const } : { mediaType: 'mixed' as const, selectionLimit: uploadLimits.tripPhoto.maxBatchFiles };
     fn(opts, async res => {
       if (res.didCancel || res.errorCode) return;
       const assets = (res.assets || []).map(a => ({
@@ -2223,13 +2225,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <TextInput style={[styles.fInput, { height: 76, textAlignVertical: 'top', paddingTop: 10 }]} placeholder="Add any additional details..." placeholderTextColor="#94a3b8" value={actDesc} onChangeText={setActDesc} multiline />
 
                   <View style={styles.actExtraRow}>
-                    <Text style={styles.actExtraLabel}>Photos (Max 5)</Text>
-                    {actPhotos.length < 5 && (
+                    <Text style={styles.actExtraLabel}>Photos (Max {uploadLimits.tripActivityPhoto.maxFilesTotal})</Text>
+                    {actPhotos.length < (uploadLimits.tripActivityPhoto.maxFilesTotal ?? 5) && (
                       <TouchableOpacity onPress={() => {
-                        launchImageLibrary({ mediaType: 'photo', selectionLimit: 5 - actPhotos.length }, res => {
+                        const activityMax = uploadLimits.tripActivityPhoto.maxFilesTotal ?? 5;
+                        launchImageLibrary({ mediaType: 'photo', selectionLimit: activityMax - actPhotos.length }, res => {
                           if (res.didCancel || res.errorCode) return;
                           const uris = (res.assets || []).map(a => a.uri || '').filter(Boolean);
-                          setActPhotos(p => [...p, ...uris].slice(0, 5));
+                          setActPhotos(p => [...p, ...uris].slice(0, activityMax));
                         });
                       }} activeOpacity={0.7}><Text style={styles.actExtraBtn}>+ Add Photos</Text></TouchableOpacity>
                     )}

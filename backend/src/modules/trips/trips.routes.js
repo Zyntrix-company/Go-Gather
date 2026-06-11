@@ -6,6 +6,7 @@ const tripMemberMW = require('../../middleware/tripMember.middleware');
 const tripAdminMW = require('../../middleware/tripAdmin.middleware');
 const validate = require('../../middleware/validate');
 const { docUpload, photoUpload, activityPhotoUpload, tripFilesUpload, handleMulterError } = require('../../middleware/upload.middleware');
+const { limits } = require('../../config/uploadLimits');
 
 const tripsController = require('./trips.controller');
 const validators = require('./trips.validation');
@@ -63,8 +64,8 @@ const parseMultipartJsonFields = (req, _res, next) => {
 router.post(
   '/',
   (req, res, next) => tripFilesUpload.fields([
-    { name: 'photos', maxCount: 10 },
-    { name: 'docs', maxCount: 10 },
+    { name: 'photos', maxCount: limits.tripCreate.maxPhotoBatch },
+    { name: 'docs', maxCount: limits.tripCreate.maxDocBatch },
   ])(req, res, (err) => {
     if (err) return handleMulterError(err, req, res, next);
     next();
@@ -102,7 +103,7 @@ router.delete('/:id/activities/:actId', tripMemberMW, activitiesCtrl.deleteActiv
 router.post(
   '/:id/activities/:actId/photos',
   tripMemberMW,
-  (req, res, next) => activityPhotoUpload.array('photos', 5)(req, res, (err) => {
+  (req, res, next) => activityPhotoUpload.array('photos', limits.tripActivityPhoto.maxBatchFiles)(req, res, (err) => {
     if (err) return handleMulterError(err, req, res, next);
     next();
   }),
@@ -133,7 +134,7 @@ router.get('/:id/photos', tripMemberMW, photosCtrl.getPhotos);
 router.post(
   '/:id/photos',
   tripMemberMW,
-  (req, res, next) => photoUpload.array('photos')(req, res, (err) => {
+  (req, res, next) => photoUpload.array('photos', limits.tripPhoto.maxBatchFiles)(req, res, (err) => {
     if (err) return handleMulterError(err, req, res, next);
     next();
   }),

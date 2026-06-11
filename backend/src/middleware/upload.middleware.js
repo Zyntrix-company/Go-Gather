@@ -1,40 +1,39 @@
 const multer = require('multer');
-
-const MB = 1024 * 1024;
+const {
+  limits,
+  docMaxBytes,
+  photoMaxBytes,
+  avatarMaxBytes,
+  promoVideoMaxBytes,
+  blogImageMaxBytes,
+  formatMb,
+} = require('../config/uploadLimits');
 
 // ── Memory storage (buffer → S3 directly, never disk) ─────────
 const memoryStorage = multer.memoryStorage();
 
 // ── Docs upload ───────────────────────────────────────────────
-const DOC_MAX_SIZE = 15 * MB; // 15 MB
 const DOC_ALLOWED_TYPES = [
   'image/jpeg',
   'image/png',
   'application/pdf',
-  // MS Office modern (OOXML / ZIP-based)
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',       // .xlsx
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
-  // MS Office legacy (OLE2)
-  'application/msword',                 // .doc
-  'application/vnd.ms-excel',           // .xls
-  'application/vnd.ms-powerpoint',      // .ppt
-  // Plain text
-  'text/plain',  // .txt
-  'text/csv',    // .csv
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/msword',
+  'application/vnd.ms-excel',
+  'application/vnd.ms-powerpoint',
+  'text/plain',
+  'text/csv',
 ];
 
-// Magic-bytes MIME validation — trusts buffer, not Content-Type header.
-// Types with no defined magic (text/plain, text/csv) skip byte-level check.
 const MIME_MAGIC = {
   'image/jpeg':      [0xFF, 0xD8, 0xFF],
   'image/png':       [0x89, 0x50, 0x4E, 0x47],
-  'application/pdf': [0x25, 0x50, 0x44, 0x46], // %PDF
-  // OOXML formats are ZIP archives
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':  [0x50, 0x4B, 0x03, 0x04], // PK
+  'application/pdf': [0x25, 0x50, 0x44, 0x46],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':  [0x50, 0x4B, 0x03, 0x04],
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':        [0x50, 0x4B, 0x03, 0x04],
   'application/vnd.openxmlformats-officedocument.presentationml.presentation':[0x50, 0x4B, 0x03, 0x04],
-  // OLE2 legacy Office formats
   'application/msword':           [0xD0, 0xCF, 0x11, 0xE0],
   'application/vnd.ms-excel':     [0xD0, 0xCF, 0x11, 0xE0],
   'application/vnd.ms-powerpoint':[0xD0, 0xCF, 0x11, 0xE0],
@@ -42,19 +41,19 @@ const MIME_MAGIC = {
 
 const validateMimeFromBuffer = (buffer, expectedMime) => {
   const magic = MIME_MAGIC[expectedMime];
-  if (!magic) return true; // no magic defined (e.g. text/plain, text/csv) — skip byte check
+  if (!magic) return true;
   if (!buffer || buffer.length < magic.length) return false;
   return magic.every((byte, i) => buffer[i] === byte);
 };
 
 const createDocUpload = () => multer({
   storage: memoryStorage,
-  limits: { fileSize: DOC_MAX_SIZE },
+  limits: { fileSize: docMaxBytes },
   fileFilter: (_req, file, cb) => {
     if (DOC_ALLOWED_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      const err = new Error('Invalid file type. Allowed: JPEG, PNG, PDF, Word, Excel, PowerPoint, TXT, CSV (max 15 MB)');
+      const err = new Error(`Invalid file type. Allowed: JPEG, PNG, PDF, Word, Excel, PowerPoint, TXT, CSV (max ${formatMb(docMaxBytes)})`);
       err.statusCode = 400;
       err.error = 'INVALID_FILE_TYPE';
       cb(err, false);
@@ -62,8 +61,6 @@ const createDocUpload = () => multer({
   },
 });
 
-// ── Photos upload ─────────────────────────────────────────────
-const PHOTO_MAX_SIZE = 50 * MB; // 50 MB
 const PHOTO_ALLOWED_TYPES = [
   'image/jpeg',
   'image/png',
@@ -75,12 +72,12 @@ const PHOTO_ALLOWED_TYPES = [
 
 const createPhotoUpload = () => multer({
   storage: memoryStorage,
-  limits: { fileSize: PHOTO_MAX_SIZE },
+  limits: { fileSize: photoMaxBytes },
   fileFilter: (_req, file, cb) => {
     if (PHOTO_ALLOWED_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      const err = new Error('Photos must be JPEG, PNG, HEIC, MP4, or MOV (max 50 MB each)');
+      const err = new Error(`Photos must be JPEG, PNG, HEIC, MP4, or MOV (max ${formatMb(photoMaxBytes)} each)`);
       err.statusCode = 400;
       err.error = 'INVALID_FILE_TYPE';
       cb(err, false);
@@ -88,13 +85,11 @@ const createPhotoUpload = () => multer({
   },
 });
 
-// ── Avatar upload (re-export existing config's behaviour) ─────
-const AVATAR_MAX_SIZE = 10 * MB;
 const AVATAR_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 const createAvatarUpload = () => multer({
   storage: memoryStorage,
-  limits: { fileSize: AVATAR_MAX_SIZE },
+  limits: { fileSize: avatarMaxBytes },
   fileFilter: (_req, file, cb) => {
     if (AVATAR_ALLOWED_TYPES.includes(file.mimetype)) {
       cb(null, true);
@@ -107,7 +102,6 @@ const createAvatarUpload = () => multer({
   },
 });
 
-// Multer error handler — converts MulterError to ApiError shape
 const handleMulterError = (err, _req, res, next) => {
   if (err && err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({
@@ -126,10 +120,9 @@ const handleMulterError = (err, _req, res, next) => {
   next(err);
 };
 
-// Activity photos reuse the same config as trip photos
 const createActivityPhotoUpload = () => multer({
   storage: memoryStorage,
-  limits: { fileSize: PHOTO_MAX_SIZE },
+  limits: { fileSize: limits.tripActivityPhoto.maxFileBytes },
   fileFilter: (_req, file, cb) => {
     const allowed = ['image/jpeg', 'image/png', 'image/heic', 'image/heif'];
     if (allowed.includes(file.mimetype)) {
@@ -143,18 +136,15 @@ const createActivityPhotoUpload = () => multer({
   },
 });
 
-// ── Trip creation upload (photos + docs in one request) ───────
-// Accepts both media files (field: "photos") and documents (field: "docs").
-// Per-fieldname MIME validation — rejects unknown field names silently.
 const createTripFilesUpload = () => multer({
   storage: memoryStorage,
-  limits: { fileSize: PHOTO_MAX_SIZE }, // 50 MB ceiling covers both photos and docs
+  limits: { fileSize: Math.max(photoMaxBytes, docMaxBytes) },
   fileFilter: (_req, file, cb) => {
     if (file.fieldname === 'photos') {
       if (PHOTO_ALLOWED_TYPES.includes(file.mimetype)) {
         cb(null, true);
       } else {
-        const err = new Error('Photos must be JPEG, PNG, HEIC, MP4, or MOV (max 50 MB each)');
+        const err = new Error(`Photos must be JPEG, PNG, HEIC, MP4, or MOV (max ${formatMb(photoMaxBytes)} each)`);
         err.statusCode = 400;
         err.error = 'INVALID_FILE_TYPE';
         cb(err, false);
@@ -163,29 +153,27 @@ const createTripFilesUpload = () => multer({
       if (DOC_ALLOWED_TYPES.includes(file.mimetype)) {
         cb(null, true);
       } else {
-        const err = new Error('Documents must be PDF, Word, Excel, PowerPoint, TXT, or CSV (max 15 MB)');
+        const err = new Error(`Documents must be PDF, Word, Excel, PowerPoint, TXT, or CSV (max ${formatMb(docMaxBytes)})`);
         err.statusCode = 400;
         err.error = 'INVALID_FILE_TYPE';
         cb(err, false);
       }
     } else {
-      cb(null, false); // ignore unknown field names
+      cb(null, false);
     }
   },
 });
 
-// ── Blog image upload (JPEG, PNG, WebP — 10 MB max) ──────────
-const BLOG_IMAGE_MAX_SIZE = 10 * MB;
 const BLOG_IMAGE_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 const createBlogImageUpload = () => multer({
   storage: memoryStorage,
-  limits: { fileSize: BLOG_IMAGE_MAX_SIZE },
+  limits: { fileSize: blogImageMaxBytes },
   fileFilter: (_req, file, cb) => {
     if (BLOG_IMAGE_ALLOWED_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      const err = new Error('Blog images must be JPEG, PNG, or WebP (max 10 MB)');
+      const err = new Error(`Blog images must be JPEG, PNG, or WebP (max ${formatMb(blogImageMaxBytes)})`);
       err.statusCode = 400;
       err.error = 'INVALID_FILE_TYPE';
       cb(err, false);
@@ -193,18 +181,16 @@ const createBlogImageUpload = () => multer({
   },
 });
 
-// ── Promo video upload (MP4 / MOV — 200 MB max) ─────────────
-const PROMO_VIDEO_MAX_SIZE = 200 * MB;
 const PROMO_VIDEO_ALLOWED_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
 
 const createPromoVideoUpload = () => multer({
   storage: memoryStorage,
-  limits: { fileSize: PROMO_VIDEO_MAX_SIZE },
+  limits: { fileSize: promoVideoMaxBytes },
   fileFilter: (_req, file, cb) => {
     if (PROMO_VIDEO_ALLOWED_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      const err = new Error('Promo video must be MP4, MOV, or WebM (max 200 MB)');
+      const err = new Error(`Promo video must be MP4, MOV, or WebM (max ${formatMb(promoVideoMaxBytes)})`);
       err.statusCode = 400;
       err.error = 'INVALID_FILE_TYPE';
       cb(err, false);
@@ -212,15 +198,14 @@ const createPromoVideoUpload = () => multer({
   },
 });
 
-// ── Deal image upload (same config as blog images) ───────────
 const createDealImageUpload = () => multer({
   storage: memoryStorage,
-  limits: { fileSize: BLOG_IMAGE_MAX_SIZE },
+  limits: { fileSize: blogImageMaxBytes },
   fileFilter: (_req, file, cb) => {
     if (BLOG_IMAGE_ALLOWED_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      const err = new Error('Deal images must be JPEG, PNG, or WebP (max 10 MB)');
+      const err = new Error(`Deal images must be JPEG, PNG, or WebP (max ${formatMb(blogImageMaxBytes)})`);
       err.statusCode = 400;
       err.error = 'INVALID_FILE_TYPE';
       cb(err, false);

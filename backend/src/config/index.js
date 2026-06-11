@@ -127,6 +127,9 @@ module.exports = {
     ogImageUrl:       process.env.OG_INVITE_IMAGE_URL,
   },
 
+  // ─── Upload limits (see config/uploadLimits.js) ─
+  uploadLimits: require('./uploadLimits'),
+
   // ─── Rate Limits ─────────────────────────────
   rateLimits: {
     friendInvitePerHour: parseInt(process.env.FRIEND_INVITE_RATE_LIMIT_PER_HOUR, 10) || 10,

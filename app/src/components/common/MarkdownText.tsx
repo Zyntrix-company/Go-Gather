@@ -144,21 +144,50 @@ type Props = {
   userMessage?: boolean;
 };
 
-// Returns true when streaming text already contains a partial or full table marker
-function looksLikeTable(text: string): boolean {
-  return /\|.+\|/.test(text);
+/** Split streaming buffer: prose before table vs table block (hide partial pipes). */
+function splitStreamingContent(text: string): { beforeTable: string; inTable: boolean } {
+  const lines = text.split('\n');
+  let tableStart = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (isTableLine(lines[i])) {
+      tableStart = i;
+      break;
+    }
+  }
+  if (tableStart === -1) return { beforeTable: text, inTable: false };
+  return {
+    beforeTable: lines.slice(0, tableStart).join('\n').trimEnd(),
+    inTable: true,
+  };
 }
 
 export default function MarkdownText({ text, streaming, baseStyle }: Props) {
   const safeText = text ?? '';
 
   if (streaming) {
-    // If the accumulating text has table characters, show skeleton instead of raw pipes
-    if (looksLikeTable(safeText)) {
-      return <TableSkeleton />;
+    const { beforeTable, inTable } = splitStreamingContent(safeText);
+    if (inTable) {
+      // Stream prose, show one static table skeleton (not streaming row-by-row)
+      return (
+        <View>
+          {beforeTable ? (
+            <Text style={baseStyle}>
+              {beforeTable}
+              <Text style={styles.cursor}>▌</Text>
+            </Text>
+          ) : (
+            <TableSkeleton />
+          )}
+          {beforeTable ? <TableSkeleton /> : null}
+        </View>
+      );
     }
-    // Plain streaming text — render as-is
-    return <Text style={baseStyle}>{safeText}</Text>;
+    return (
+      <Text style={baseStyle}>
+        {safeText}
+        <Text style={styles.cursor}>▌</Text>
+      </Text>
+    );
   }
 
   const lines = safeText.split('\n');
@@ -251,6 +280,7 @@ const styles = StyleSheet.create({
   bulletDot: { lineHeight: 21 },
   bulletText: { flex: 1, lineHeight: 21 },
   spacer: { height: 6 },
+  cursor: { color: '#0d9488', fontWeight: '300' },
 });
 
 const skeletonStyles = StyleSheet.create({

@@ -21,6 +21,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
+import useUploadLimits from '../../hooks/useUploadLimits';
+import { rejectOversizedFile } from '../../utils/uploadLimits';
 
 type FormData = {
   fullName: string;
@@ -142,6 +144,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const { uploadPhoto, editProfile, refreshProfile } = useAuth();
   const isLoading = useAuthStore((s) => s.isLoading);
   const user = useAuthStore((s) => s.user);
+  const uploadLimits = useUploadLimits();
 
   const initialGender   = user?.gender   ? (GENDER_FROM_API[user.gender] ?? '') : '';
   const initialCountry  = user?.country  || '';
@@ -198,8 +201,9 @@ export default function EditProfileScreen({ navigation }: any) {
       const mimeType = asset.type     ?? 'image/jpeg';
 
       if (!mimeType.startsWith('image/')) { setApiError('Only image files are allowed'); return; }
-      if (asset.fileSize && asset.fileSize > 8 * 1024 * 1024) {
-        setApiError(`Image too large (${(asset.fileSize / (1024 * 1024)).toFixed(1)} MB). Choose a smaller photo.`);
+      const sizeError = rejectOversizedFile(asset.fileSize, uploadLimits.avatar.maxFileBytes);
+      if (sizeError) {
+        setApiError(sizeError);
         return;
       }
 

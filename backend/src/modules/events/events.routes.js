@@ -6,6 +6,7 @@ const eventMemberMW = require('../../middleware/eventMember.middleware');
 const eventAdminMW = require('../../middleware/eventAdmin.middleware');
 const validate = require('../../middleware/validate');
 const { docUpload, photoUpload, handleMulterError } = require('../../middleware/upload.middleware');
+const { limits } = require('../../config/uploadLimits');
 
 const ctrl = require('./events.controller');
 const validators = require('./events.validation');
@@ -78,7 +79,7 @@ router.get('/:eventId/photos', eventMemberMW, ctrl.getPhotos);
 router.post(
   '/:eventId/photos',
   eventMemberMW,
-  (req, res, next) => photoUpload.array('photos')(req, res, (err) => {
+  (req, res, next) => photoUpload.array('photos', limits.eventPhoto.maxBatchFiles)(req, res, (err) => {
     if (err) return handleMulterError(err, req, res, next);
     next();
   }),

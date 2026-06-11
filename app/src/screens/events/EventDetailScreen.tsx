@@ -60,6 +60,7 @@ import {
 } from '../../api/events.api';
 import { getFriends, getEmailStatus, listEmailAttachments, importEmailAttachments, listDriveFiles, listDrivePhotoFiles, importDriveFiles, importDrivePhotos, type EmailAttachment, type DriveFile } from '../../api/trips.api';
 import useAuthStore from '../../store/authStore';
+import useUploadLimits from '../../hooks/useUploadLimits';
 import { authUserId } from '../../utils/avatarUri';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import { markEventSectionViewed } from '../../api/events.api';
@@ -415,6 +416,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   const currentUserId = useAuthStore(s => authUserId(s.user));
   const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
+  const uploadLimits = useUploadLimits();
   const [failedAvatarIds, setFailedAvatarIds] = useState<Set<string>>(new Set());
 
 
@@ -901,7 +903,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   function handlePickPhoto(cam: boolean) {
     const fn = cam ? launchCamera : launchImageLibrary;
-    const opts = cam ? { mediaType: 'photo' as const, maxWidth: 1280, maxHeight: 1280, quality: 0.7 } : { mediaType: 'photo' as const, maxWidth: 1280, maxHeight: 1280, quality: 0.7, selectionLimit: 20 };
+    const opts = cam ? { mediaType: 'photo' as const, maxWidth: 1280, maxHeight: 1280, quality: 0.7 } : { mediaType: 'photo' as const, maxWidth: 1280, maxHeight: 1280, quality: 0.7, selectionLimit: uploadLimits.eventPhoto.maxBatchFiles };
     fn(opts, async res => {
       if (res.didCancel || res.errorCode) return;
       const assets = (res.assets || []).filter(a => a.uri);

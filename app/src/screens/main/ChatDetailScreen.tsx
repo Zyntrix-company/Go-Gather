@@ -29,6 +29,7 @@ import {
   type PendingAction,
   type ExecuteResult,
 } from '../../api/ai.api';
+import { animateTextStream } from '../../utils/animateTextStream';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -44,20 +45,17 @@ type Message = {
   createdResult?: ExecuteResult['created'];
 };
 
-// ─── Welcome message ───────────────────────────────────────────────────────
-// Static object — created fresh each time via makeWelcome() so the time
-// always reflects when the screen opened, not when the module loaded.
+// ─── Welcome message variants (picked randomly, typed on screen open) ───────
 
-function makeWelcome(): Message {
-  return {
-    id: 'welcome',
-    text: "Hi! I'm Swee. Let's plan your next trip or event!",
-    sender: 'swee',
-    time: formatTime(),
-    // mark as pre-rendered so renderMessage never shows the streaming cursor
-    streaming: false,
-  };
-}
+const WELCOME_VARIANTS = [
+  "Hi! I'm Swee. Let's plan your next trip or event!",
+  "Hey — I'm Swee. Where should we go next?",
+  "Hi! I'm Swee. Trip or event on your mind?",
+  "Hello! I'm Swee — ready when you are.",
+  "Hi! I'm Swee. Tell me what you're planning.",
+];
+
+const WELCOME_ID = 'welcome';
 
 function formatTime() {
   const now = new Date();
@@ -155,10 +153,7 @@ function TypingIndicator() {
   }, []);
 
   return (
-    <View style={styles.msgRow}>
-      <View style={styles.msgAvatarSwee}>
-        <SweeIcon size={14} color="#fff" />
-      </View>
+    <View style={[styles.msgRow, styles.msgRowSwee]}>
       <View style={[styles.msgBubble, styles.msgBubbleSwee, styles.typingBubble]}>
         {dots.map((dot, i) => (
           <Animated.View
@@ -198,9 +193,10 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     route?.params?.tripContext ?? null,
   );
 
-  const [messages, setMessages] = useState<Message[]>([makeWelcome()]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isWelcomeTyping, setIsWelcomeTyping] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [showOverflow, setShowOverflow] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -213,7 +209,41 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
   const flatListRef = useRef<FlatList>(null);
   const abortRef = useRef<(() => void) | null>(null);
+  const welcomeAnimRef = useRef<(() => void) | null>(null);
   const autoSentInitialRef = useRef<string | null>(null);
+
+  const startWelcomeAnimation = useCallback(() => {
+    welcomeAnimRef.current?.();
+    const text = WELCOME_VARIANTS[Math.floor(Math.random() * WELCOME_VARIANTS.length)];
+    setIsWelcomeTyping(true);
+    setMessages([{
+      id: WELCOME_ID,
+      text: '',
+      sender: 'swee',
+      time: formatTime(),
+      streaming: true,
+    }]);
+
+    welcomeAnimRef.current = animateTextStream(
+      text,
+      (partial, done) => {
+        setMessages([{
+          id: WELCOME_ID,
+          text: partial,
+          sender: 'swee',
+          time: formatTime(),
+          streaming: !done,
+        }]);
+        if (done) setIsWelcomeTyping(false);
+      },
+    );
+  }, []);
+
+  // Type welcome when screen opens
+  useEffect(() => {
+    startWelcomeAnimation();
+    return () => welcomeAnimRef.current?.();
+  }, [startWelcomeAnimation]);
 
   // Scroll to bottom whenever messages change
   useEffect(() => {
@@ -224,6 +254,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
   useEffect(() => {
     return () => {
       abortRef.current?.();
+      welcomeAnimRef.current?.();
     };
   }, []);
 
@@ -245,25 +276,30 @@ export default function ChatDetailScreen({ route, navigation }: any) {
       streaming: true,
     }]);
 
+    const finishStream = (reply: string, created?: ExecuteResult['created']) => {
+      animateTextStream(reply, (partial, done) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === workingId
+              ? {
+                  ...m,
+                  text: partial,
+                  streaming: !done,
+                  createdResult: done ? created : m.createdResult,
+                }
+              : m,
+          ),
+        );
+        if (done) setIsExecuting(false);
+      });
+    };
+
     try {
       const result = await executeAction(action);
-
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === workingId
-            ? { ...m, text: result.reply, streaming: false, createdResult: result.created ?? undefined }
-            : m,
-        ),
-      );
+      finishStream(result.reply, result.created ?? undefined);
     } catch (err: any) {
       const msg: string = err?.response?.data?.message ?? err?.message ?? 'Something went wrong.';
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === workingId ? { ...m, text: msg, streaming: false } : m,
-        ),
-      );
-    } finally {
-      setIsExecuting(false);
+      finishStream(msg);
     }
   }, [isExecuting]);
 
@@ -321,7 +357,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
   const sendMessage = useCallback((overrideText?: unknown) => {
     const resolvedText = typeof overrideText === 'string' ? overrideText : inputText;
     const text = resolvedText.trim();
-    if (!text || isTyping || isExecuting) return;
+    if (!text || isTyping || isExecuting || isWelcomeTyping) return;
 
     const userMsg: Message = {
       id: `u_${Date.now()}`,
@@ -342,7 +378,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
     setMessages((prev) => [...prev, userMsg]);
     streamToSwee(text, messages, userMsg);
-  }, [inputText, isTyping, isExecuting, messages, tripContext, handleConfirmAction, streamToSwee]);
+  }, [inputText, isTyping, isExecuting, isWelcomeTyping, messages, tripContext, handleConfirmAction, streamToSwee]);
 
   const handleIdentifyResponse = useCallback((msgId: string, affirmative: boolean) => {
     if (isTyping || isExecuting) return;
@@ -368,11 +404,12 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     setShowOverflow(false);
     setIsTyping(false);
     setIsExecuting(false);
-    setMessages([makeWelcome()]);
+    welcomeAnimRef.current?.();
+    startWelcomeAnimation();
     try {
       await clearConversation(userId);
     } catch (_) { /* silent — client already cleared */ }
-  }, [userId]);
+  }, [userId, startWelcomeAnimation]);
 
   const openReportModal = useCallback(() => {
     const lastSweeMsg = [...messages].reverse().find((m) => m.sender === 'swee');
@@ -416,13 +453,12 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     const showViewBtn = !isUser && !item.streaming && item.createdResult;
 
     return (
-      <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowOther]}>
-        {!isUser && (
-          <View style={styles.msgAvatarSwee}>
-            <SweeIcon size={14} color="#fff" />
-          </View>
-        )}
-        <View style={[styles.msgBubble, isUser ? styles.msgBubbleUser : styles.msgBubbleSwee, bubbleWidthStyle]}>
+      <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowSwee]}>
+        <View style={[
+          styles.msgBubble,
+          isUser ? styles.msgBubbleUser : styles.msgBubbleSwee,
+          !isUser && bubbleWidthStyle,
+        ]}>
           {isUser ? (
             <Text style={textStyle}>{item.text}</Text>
           ) : (
@@ -431,9 +467,6 @@ export default function ChatDetailScreen({ route, navigation }: any) {
               streaming={item.streaming}
               baseStyle={textStyle}
             />
-          )}
-          {item.streaming && (
-            <Text style={[styles.msgText, styles.cursor]}>▌</Text>
           )}
           {!item.streaming && (
             <Text style={[styles.msgTime, isUser && styles.msgTimeUser]}>{item.time}</Text>
@@ -531,7 +564,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           <View style={styles.headerInfo}>
             <Text style={styles.headerName}>{chat.name}</Text>
             <Text style={styles.headerSubtitle}>
-              {isTyping ? 'typing...' : 'Always active · AI Assistant'}
+              {isTyping || isWelcomeTyping ? 'typing...' : 'Always active · AI Assistant'}
             </Text>
           </View>
 
@@ -601,12 +634,12 @@ export default function ChatDetailScreen({ route, navigation }: any) {
               multiline
               maxLength={1000}
               selectionColor="#0d9488"
-              editable={!isTyping}
+              editable={!isTyping && !isWelcomeTyping}
             />
             <TouchableOpacity
-              style={[styles.sendBtn, (!inputText.trim() || isTyping) && styles.sendBtnDisabled]}
+              style={[styles.sendBtn, (!inputText.trim() || isTyping || isWelcomeTyping || isExecuting) && styles.sendBtnDisabled]}
               onPress={sendMessage}
-              disabled={!inputText.trim() || isTyping}
+              disabled={!inputText.trim() || isTyping || isWelcomeTyping || isExecuting}
               activeOpacity={0.8}
             >
               <SendIcon />
@@ -775,18 +808,14 @@ const styles = StyleSheet.create({
   },
   contextBannerText: { flex: 1, fontSize: 12, color: '#0d9488', fontWeight: '500' },
 
-  messageList: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 8, gap: 12 },
+  messageList: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 8, gap: 10 },
 
-  msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 2 },
-  msgRowUser: { flexDirection: 'row-reverse' },
-  msgRowOther: {},
+  msgRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 4 },
+  msgRowUser: { flexDirection: 'row-reverse', justifyContent: 'flex-start' },
+  msgRowSwee: { justifyContent: 'flex-start' },
 
-  msgAvatarSwee: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center', marginBottom: 4,
-  },
-  msgBubble: { maxWidth: '78%', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 13 },
-  msgBubbleWide: { maxWidth: '96%' },
+  msgBubble: { maxWidth: '82%', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14 },
+  msgBubbleWide: { maxWidth: '100%' },
   msgBubbleUser: { backgroundColor: '#0d9488', borderBottomRightRadius: 4 },
   msgBubbleSwee: {
     backgroundColor: '#f0fdfa', borderBottomLeftRadius: 4,
@@ -818,8 +847,7 @@ const styles = StyleSheet.create({
 
   msgText: { fontSize: 14, color: '#0f172a', lineHeight: 21 },
   msgTextUser: { color: '#ffffff' },
-  cursor: { color: '#0d9488', fontWeight: '300' },
-  msgTime: { fontSize: 10, color: '#94a3b8', marginTop: 4, textAlign: 'right' },
+  msgTime: { fontSize: 10, color: '#94a3b8', marginTop: 6, textAlign: 'right' },
   msgTimeUser: { color: 'rgba(255,255,255,0.65)' },
 
   typingBubble: {

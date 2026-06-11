@@ -4,6 +4,7 @@ const { createAndSendNotifications } = require('../../../../utils/fcm.util');
 const { scheduleActivityReminders } = require('../../../../utils/reminders.cron');
 const sharedPhotos = require('../../../shared/photos/photos.service');
 const logger = require('../../../../utils/logger');
+const { limits } = require('../../../../config/uploadLimits');
 
 // ── Time helpers ──────────────────────────────────────────────────────────────
 
@@ -294,10 +295,11 @@ const uploadActivityPhotos = async (tripId, actId, userId, files) => {
   );
   const existing = countResult.rows[0].count;
 
-  if (existing + files.length > 5) {
-    const e = new Error('Maximum 5 photos allowed per activity');
+  const maxPerActivity = limits.tripActivityPhoto.maxFilesTotal;
+  if (existing + files.length > maxPerActivity) {
+    const e = new Error(`Maximum ${maxPerActivity} photos allowed per activity`);
     e.statusCode = 400; e.error = 'MAX_PHOTOS_EXCEEDED';
-    e.limit = 5; e.current = existing; throw e;
+    e.limit = maxPerActivity; e.current = existing; throw e;
   }
 
   // Store in shared photos table with activity_id — appears in trip gallery too

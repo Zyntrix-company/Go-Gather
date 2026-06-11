@@ -10,10 +10,11 @@ const driveProvider              = require('../emailDocs/providers/drive.provide
 const emailDocsService = require('../emailDocs/emailDocs.service');
 
 const config = require('../../config');
+const { docMaxBytes, docMaxCount, photoMaxBytes } = require('../../config/uploadLimits');
 
-const MAX_FILE_BYTES = 15 * 1024 * 1024;
-const MAX_PHOTO_BYTES = 50 * 1024 * 1024;
-const MAX_DOCS       = 50;
+const MAX_FILE_BYTES = docMaxBytes;
+const MAX_PHOTO_BYTES = photoMaxBytes;
+const MAX_DOCS = docMaxCount;
 
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',

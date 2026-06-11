@@ -4,6 +4,7 @@ const validators = require('./validators');
 const validate = require('../../middleware/validate');
 const authenticateJWT = require('../../middleware/authenticate');
 const { avatarUpload, photoUpload, handleMulterError } = require('../../middleware/upload.middleware');
+const { limits } = require('../../config/uploadLimits');
 
 const router = Router();
 
@@ -138,7 +139,7 @@ router.post(
   authenticateJWT,
   validators.albumIdParam,
   validate,
-  photoUpload.array('photos', 20),
+  photoUpload.array('photos', limits.galleryPhoto.maxBatchFiles),
   handleMulterError,
   controller.uploadGalleryAlbumPhotos,
 );
@@ -164,7 +165,7 @@ router.post(
   authenticateJWT,
   validators.galleryItemParams,
   validate,
-  photoUpload.array('photos', 20),
+  photoUpload.array('photos', limits.galleryPhoto.maxBatchFiles),
   handleMulterError,
   controller.uploadGalleryItemPhotos,
 );

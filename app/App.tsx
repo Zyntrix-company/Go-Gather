@@ -16,6 +16,7 @@ import Toast from 'react-native-toast-message';
 import messaging from '@react-native-firebase/messaging';
 import ThemedAlert from './src/components/common/ThemedAlert';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
+import { loadUploadLimits } from './src/utils/uploadLimits';
 
 // Configure geolocation to use native Android location provider
 Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLevel: 'whenInUse' });
@@ -104,6 +105,10 @@ function App() {
     } catch (e) {
       // noop during scaffold
     }
+  }, []);
+
+  useEffect(() => {
+    loadUploadLimits();
   }, []);
 
   return (
