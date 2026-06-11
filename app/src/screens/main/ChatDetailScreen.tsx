@@ -67,6 +67,16 @@ function formatTime(date?: Date | string) {
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
+function sortMessagesChronologically(messages: AiMessage[]): AiMessage[] {
+  return [...messages].sort((a, b) => {
+    const ta = new Date(a.createdAt).getTime();
+    const tb = new Date(b.createdAt).getTime();
+    if (ta !== tb) return ta - tb;
+    if (a.role === b.role) return 0;
+    return a.role === 'user' ? -1 : 1;
+  });
+}
+
 function mapApiMessage(m: AiMessage): Message {
   return {
     id: m.id,
@@ -270,7 +280,10 @@ export default function ChatDetailScreen({ route, navigation }: any) {
       const data = await getConversationMessages(conversationId, {
         before: nextBefore ?? undefined,
       });
-      setMessages((prev) => [...data.messages.map(mapApiMessage), ...prev]);
+      setMessages((prev) => [
+        ...sortMessagesChronologically(data.messages).map(mapApiMessage),
+        ...prev,
+      ]);
       setHasMoreOlder(data.hasMore);
       setNextBefore(data.nextBefore);
     } catch {
@@ -314,7 +327,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
         setConversationTitle(meta.title);
         if (meta.tripContext) setTripContext(meta.tripContext);
-        const loaded = msgData.messages.map(mapApiMessage);
+        const loaded = sortMessagesChronologically(msgData.messages).map(mapApiMessage);
         setMessages(loaded);
         setHasMoreOlder(msgData.hasMore);
         setNextBefore(msgData.nextBefore);
@@ -419,11 +432,11 @@ export default function ChatDetailScreen({ route, navigation }: any) {
       conversationId,
       history,
       tripContext,
-      (delta) => {
-        accumulatedReply += delta;
+      (partial) => {
+        accumulatedReply = partial;
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === streamingMsgId ? { ...m, text: m.text + delta } : m,
+            m.id === streamingMsgId ? { ...m, text: partial } : m,
           ),
         );
       },

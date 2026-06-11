@@ -68,6 +68,33 @@ describe('conversations.service helpers', () => {
     const long = 'a'.repeat(80);
     expect(conversationsService.titleFromFirstMessage(long).length).toBeLessThanOrEqual(50);
   });
+
+  it('listMessages returns user before assistant when timestamps match', async () => {
+    const ts = '2026-06-08T10:00:00.000Z';
+    db.query
+      .mockResolvedValueOnce({ rows: [convRow] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'msg-assistant',
+            role: 'assistant',
+            content: 'Reply',
+            metadata: {},
+            created_at: ts,
+          },
+          {
+            id: 'msg-user',
+            role: 'user',
+            content: 'Hello',
+            metadata: {},
+            created_at: ts,
+          },
+        ],
+      });
+
+    const result = await conversationsService.listMessages(USER_ID, CONV_ID);
+    expect(result.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
+  });
 });
 
 describe('GET /ai/conversations', () => {

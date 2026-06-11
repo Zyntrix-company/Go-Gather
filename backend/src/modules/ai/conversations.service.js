@@ -178,11 +178,15 @@ async function deleteConversation(userId, conversationId) {
 
 // ─── Messages ─────────────────────────────────────────────────────────────────
 
+// User + assistant rows inserted in one transaction share the same NOW() timestamp.
+// Tie-break so reversed DESC results always read user → assistant chronologically.
+const MESSAGE_ORDER_DESC = `created_at DESC, CASE role WHEN 'assistant' THEN 0 ELSE 1 END`;
+
 async function loadMessageHistory(conversationId, limit = 10) {
   const result = await db(
     `SELECT role, content FROM ai_messages
      WHERE conversation_id = $1
-     ORDER BY created_at DESC
+     ORDER BY ${MESSAGE_ORDER_DESC}
      LIMIT $2`,
     [conversationId, limit],
   );
@@ -199,13 +203,13 @@ async function listMessages(userId, conversationId, { before, limit = MESSAGES_D
   if (before) {
     sql = `SELECT * FROM ai_messages
            WHERE conversation_id = $1 AND created_at < $2
-           ORDER BY created_at DESC
+           ORDER BY ${MESSAGE_ORDER_DESC}
            LIMIT $3`;
     params = [conversationId, before, safeLimit];
   } else {
     sql = `SELECT * FROM ai_messages
            WHERE conversation_id = $1
-           ORDER BY created_at DESC
+           ORDER BY ${MESSAGE_ORDER_DESC}
            LIMIT $2`;
     params = [conversationId, safeLimit];
   }
@@ -241,14 +245,14 @@ async function appendMessages(userId, conversationId, {
     await client.query('BEGIN');
 
     await client.query(
-      `INSERT INTO ai_messages (conversation_id, role, content, metadata)
-       VALUES ($1, 'user', $2, '{}')`,
+      `INSERT INTO ai_messages (conversation_id, role, content, metadata, created_at)
+       VALUES ($1, 'user', $2, '{}', clock_timestamp())`,
       [conversationId, userContent],
     );
 
     const msgResult = await client.query(
-      `INSERT INTO ai_messages (conversation_id, role, content, metadata)
-       VALUES ($1, 'assistant', $2, $3)
+      `INSERT INTO ai_messages (conversation_id, role, content, metadata, created_at)
+       VALUES ($1, 'assistant', $2, $3, clock_timestamp())
        RETURNING *`,
       [conversationId, assistantContent, JSON.stringify(assistantMeta)],
     );
@@ -292,11 +296,13 @@ async function appendConfirmExchange(userId, conversationId, {
   try {
     await client.query('BEGIN');
     await client.query(
-      `INSERT INTO ai_messages (conversation_id, role, content, metadata) VALUES ($1, 'user', $2, '{}')`,
+      `INSERT INTO ai_messages (conversation_id, role, content, metadata, created_at)
+       VALUES ($1, 'user', $2, '{}', clock_timestamp())`,
       [conversationId, userContent],
     );
     const msgResult = await client.query(
-      `INSERT INTO ai_messages (conversation_id, role, content, metadata) VALUES ($1, 'assistant', $2, $3) RETURNING *`,
+      `INSERT INTO ai_messages (conversation_id, role, content, metadata, created_at)
+       VALUES ($1, 'assistant', $2, $3, clock_timestamp()) RETURNING *`,
       [conversationId, assistantContent, JSON.stringify(assistantMeta)],
     );
     await client.query(

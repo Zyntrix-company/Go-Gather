@@ -121,7 +121,7 @@ export function sendMessageStream(
   conversationId: string | null,
   history: ConversationMessage[],
   tripContext: TripContext | null,
-  onDelta: (delta: string) => void,
+  onPartial: (partial: string) => void,
   onDone: (result: ChatDoneResult) => void,
   onError: (err: string) => void,
 ): () => void {
@@ -150,7 +150,7 @@ export function sendMessageStream(
       }
 
       if (!reply.trim()) {
-        onDelta('');
+        onPartial('');
         onDone({ pendingAction, conversationId: resolvedConversationId, messageId });
         return;
       }
@@ -159,7 +159,7 @@ export function sendMessageStream(
         reply,
         (partial, done) => {
           if (aborted) return;
-          onDelta(partial);
+          onPartial(partial);
           if (done) {
             onDone({ pendingAction, conversationId: resolvedConversationId, messageId });
           }
