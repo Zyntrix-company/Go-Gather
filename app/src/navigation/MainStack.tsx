@@ -21,7 +21,18 @@ export type MainStackParamList = {
   Notifications: undefined;
   TripDetail: { trip: any };
   EventDetail: { event: any };
-  ChatDetail: { chat: any };
+  ChatDetail: {
+    conversationId?: string;
+    tripContext?: {
+      name?: string;
+      destination?: string;
+      startDate?: string;
+      endDate?: string;
+      memberCount?: number;
+      contextType?: 'trip' | 'event';
+    };
+    initialMessage?: string;
+  };
   Archived: undefined;
   FriendProfile: { userId: string; friendName: string };
   HowItWorks: undefined;

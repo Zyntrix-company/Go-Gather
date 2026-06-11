@@ -30,6 +30,8 @@ import InviteViaChannels from '../../components/common/InviteViaChannels';
 import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
 import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
 import useAuthStore from '../../store/authStore';
+import useChatStore from '../../store/chatStore';
+import { createConversation } from '../../api/ai.api';
 import useUploadLimits from '../../hooks/useUploadLimits';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
@@ -2107,17 +2109,23 @@ export default function TripDetailScreen({ route, navigation }: any) {
         </ScrollView>
 
         <SweeFab
-          onPress={() => navigation.navigate('ChatDetail', {
-            chat: { id: 'swee', name: 'Swee', isSwee: true, subtitle: 'Always active · AI Assistant' },
-            tripContext: {
+          onPress={async () => {
+            const tripContext = {
               name: trip?.name,
               destination: formatLocationsLabelFull(trip ?? {}),
               startDate: trip?.start_date ? new Date(trip.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : undefined,
               endDate: trip?.end_date ? new Date(trip.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : undefined,
               memberCount: members?.length,
-              contextType: 'trip',
-            },
-          })}
+              contextType: 'trip' as const,
+            };
+            try {
+              const conversation = await createConversation(tripContext);
+              useChatStore.getState().prependConversation(conversation);
+              navigation.navigate('ChatDetail', { conversationId: conversation.id, tripContext });
+            } catch {
+              // user can open chat from home tab
+            }
+          }}
           fabStyle={{ bottom: 78 }}
         />
 

@@ -21,6 +21,7 @@ const {
   requireNonEmptyString,
   buildPlanningMetadata,
 } = require('./ai.helpers');
+const conversationsService = require('./conversations.service');
 
 
 // 10 messages = ~5 back-and-forth exchanges (one user + one assistant each)
@@ -284,20 +285,51 @@ async function geminiChatStream(message, history, systemPrompt, res) {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Main chat handler. Loads user context, builds full system prompt, calls Gemini,
- * parses the ###ACTION block, and returns { reply, pendingAction }.
+ * Main chat handler. Loads history from DB when conversationId is set,
+ * calls Gemini, persists messages, returns { reply, pendingAction, conversationId, messageId }.
  */
-const chat = async (userId, message, conversationHistory, tripContext) => {
-  const history = trimHistory(conversationHistory);
-  const historyLength = history.length;
+const chat = async (userId, message, { conversationId, conversationHistory, tripContext } = {}) => {
+  let resolvedConversationId = conversationId;
+  let resolvedTripContext = tripContext || null;
 
+  if (resolvedConversationId) {
+    const conv = await conversationsService.getConversation(userId, resolvedConversationId);
+    if (!resolvedTripContext && conv.tripContext) {
+      resolvedTripContext = conv.tripContext;
+    }
+  } else {
+    const created = await conversationsService.createConversation(userId, tripContext || null);
+    resolvedConversationId = created.id;
+    resolvedTripContext = created.tripContext || tripContext || null;
+  }
+
+  let history;
+  if (conversationId) {
+    history = trimHistory(await conversationsService.loadMessageHistory(resolvedConversationId, MAX_HISTORY_MESSAGES));
+  } else {
+    history = trimHistory(conversationHistory);
+  }
+
+  const historyLength = history.length;
   const [userContext] = await Promise.all([loadUserContext(userId)]);
 
-  const systemPrompt = buildSweetSystemPrompt(userContext, tripContext, historyLength);
+  const systemPrompt = buildSweetSystemPrompt(userContext, resolvedTripContext, historyLength);
   const rawReply = await geminiChat(message, history, systemPrompt);
   const { reply, pendingAction } = parseActionBlock(rawReply);
 
-  return { reply, pendingAction: pendingAction || null };
+  const savedMessage = await conversationsService.appendMessages(userId, resolvedConversationId, {
+    userContent: message,
+    assistantContent: reply,
+    pendingAction: pendingAction || null,
+    tripContext: tripContext || null,
+  });
+
+  return {
+    reply,
+    pendingAction: pendingAction || null,
+    conversationId: resolvedConversationId,
+    messageId: savedMessage.id,
+  };
 };
 
 const chatStream = async (userId, message, conversationHistory, tripContext, res) => {

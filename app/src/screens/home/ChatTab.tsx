@@ -1,52 +1,179 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  StyleSheet,
+  RefreshControl,
+  ActivityIndicator,
+} from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import ChatConversationRow from '../../components/chat/ChatConversationRow';
+import ChatListSkeleton from '../../components/chat/ChatListSkeleton';
 import SweeIcon from '../../components/common/SweeIcon';
+import useChatStore from '../../store/chatStore';
+import { createConversation, type AiConversation } from '../../api/ai.api';
 
-// Mock data
-export const SWEE_CHAT = {
-  id: 'swee',
-  name: 'Swee',
-  subtitle: 'Always active · AI Assistant',
-  isSwee: true,
-  lastMessage: "Hi! I'm Swee, your travel assistant. How can I help plan your next adventure?",
-  time: 'Now',
-  unread: 0,
+type Props = {
+  onOpenConversation: (conversationId: string) => void;
+  onOpenNewConversation: (conversationId: string) => void;
 };
 
-
-function ChatTab({ onNavigateToChat }: { onNavigateToChat: (chat: any) => void }) {
+function PlusIcon() {
   return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      {/* Swee AI chat — the only entry */}
-      <TouchableOpacity style={styles.sweeChatCard} onPress={() => onNavigateToChat(SWEE_CHAT)} activeOpacity={0.85}>
-        <View style={styles.sweeChatAvatar}>
-          <SweeIcon size={22} />
-        </View>
-        <View style={styles.chatInfo}>
-          <View style={styles.chatTitleRow}>
-            <View>
-              <Text style={styles.chatName}>{SWEE_CHAT.name}</Text>
-              <Text style={styles.sweeChatSubtitle}>{SWEE_CHAT.subtitle}</Text>
-            </View>
-            <Text style={styles.chatTime}>{SWEE_CHAT.time}</Text>
-          </View>
-          <Text style={styles.chatLastMsg} numberOfLines={2}>{SWEE_CHAT.lastMessage}</Text>
-        </View>
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 5v14M5 12h14" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+function ChatTab({ onOpenConversation, onOpenNewConversation }: Props) {
+  const conversations = useChatStore((s) => s.conversations);
+  const loading = useChatStore((s) => s.loading);
+  const hasMore = useChatStore((s) => s.hasMore);
+  const fetchConversations = useChatStore((s) => s.fetchConversations);
+  const prependConversation = useChatStore((s) => s.prependConversation);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    fetchConversations(true);
+  }, [fetchConversations]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchConversations(true);
+    setRefreshing(false);
+  }, [fetchConversations]);
+
+  const handleNewChat = useCallback(async () => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const conversation = await createConversation();
+      prependConversation(conversation);
+      onOpenNewConversation(conversation.id);
+    } catch {
+      // silent — user can retry
+    } finally {
+      setCreating(false);
+    }
+  }, [creating, onOpenNewConversation, prependConversation]);
+
+  const renderItem = useCallback(({ item }: { item: AiConversation }) => (
+    <ChatConversationRow
+      conversation={item}
+      onPress={() => onOpenConversation(item.id)}
+    />
+  ), [onOpenConversation]);
+
+  const showInitialSkeleton = loading && conversations.length === 0;
+
+  return (
+    <View style={styles.container}>
+      <TouchableOpacity
+        style={styles.newChatBtn}
+        onPress={handleNewChat}
+        activeOpacity={0.85}
+        disabled={creating}
+      >
+        {creating ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <>
+            <PlusIcon />
+            <Text style={styles.newChatText}>Start New Chat</Text>
+          </>
+        )}
       </TouchableOpacity>
-    </ScrollView>
+
+      {showInitialSkeleton ? (
+        <ChatListSkeleton />
+      ) : (
+        <FlatList
+          data={conversations}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#0d9488" />
+          }
+          onEndReached={() => fetchConversations(false)}
+          onEndReachedThreshold={0.4}
+          ListEmptyComponent={
+            !loading ? (
+              <View style={styles.empty}>
+                <View style={styles.emptyIcon}>
+                  <SweeIcon size={28} color="#0d9488" />
+                </View>
+                <Text style={styles.emptyTitle}>Start your first chat with Swee</Text>
+                <Text style={styles.emptySubtitle}>
+                  Plan trips, create events, or ask anything travel-related.
+                </Text>
+              </View>
+            ) : null
+          }
+          ListFooterComponent={
+            loading && conversations.length > 0 ? (
+              <ActivityIndicator style={styles.footerLoader} color="#0d9488" />
+            ) : null
+          }
+        />
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 4 },
-  sweeChatCard: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff', borderRadius: 16, padding: 16, gap: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 3, borderWidth: 1, borderColor: '#f0fdfa' },
-  sweeChatAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  sweeChatSubtitle: { fontSize: 12, color: '#0d9488', fontWeight: '500', marginTop: 1 },
-  chatInfo: { flex: 1 },
-  chatTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
-  chatName: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
-  chatTime: { fontSize: 11, color: '#94a3b8' },
-  chatLastMsg: { flex: 1, fontSize: 13, color: '#64748b' },
+  container: { flex: 1, paddingHorizontal: 20, paddingTop: 4, paddingBottom: 100 },
+  newChatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0d9488',
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginBottom: 14,
+    shadowColor: '#0d9488',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  newChatText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  listContent: { gap: 10, flexGrow: 1, paddingBottom: 16 },
+  empty: {
+    alignItems: 'center',
+    paddingTop: 48,
+    paddingHorizontal: 24,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#f0fdfa',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  footerLoader: { marginVertical: 16 },
 });
 
 export default ChatTab;

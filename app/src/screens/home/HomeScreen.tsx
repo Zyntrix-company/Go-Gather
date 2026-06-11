@@ -59,7 +59,9 @@ import Toast from 'react-native-toast-message';
 import TripsScreen, { CreateTripModal, BannerCropFraction as TripBannerCropFraction } from '../trips/TripsScreen';
 import EventsScreen, { CreateEventModal } from '../events/EventsScreen';
 import FriendsScreen from './FriendsScreen';
-import ChatTab, { SWEE_CHAT } from './ChatTab';
+import ChatTab from './ChatTab';
+import { createConversation } from '../../api/ai.api';
+import useChatStore from '../../store/chatStore';
 import GalleryTab from './GalleryTab';
 import ProfileDropdown from './ProfileDropdown';
 import { UnifiedCard } from '../../components/common/Cards';
@@ -807,13 +809,27 @@ export default function HomeScreen({ navigation, route }: any) {
   const { upcoming } = categorizeTrips(trips);
 
   function navigateToTrip(trip: Trip) { navigation.navigate('TripDetail', { trip }); }
-  function navigateToChat(chat: any, initialMessage?: string) {
-    navigation.navigate('ChatDetail', { chat, initialMessage });
+
+  function openChatConversation(conversationId: string, opts?: { initialMessage?: string }) {
+    navigation.navigate('ChatDetail', { conversationId, initialMessage: opts?.initialMessage });
+  }
+
+  async function startNewChat(opts?: { initialMessage?: string }) {
+    try {
+      const conversation = await createConversation();
+      useChatStore.getState().prependConversation(conversation);
+      navigation.navigate('ChatDetail', {
+        conversationId: conversation.id,
+        initialMessage: opts?.initialMessage,
+      });
+    } catch {
+      // user can retry from chat tab
+    }
   }
 
   function handleAskSwee(rawMessage?: string) {
     const trimmed = (rawMessage ?? sweeSearchText).trim();
-    navigateToChat(SWEE_CHAT, trimmed || undefined);
+    startNewChat({ initialMessage: trimmed || undefined });
     InteractionManager.runAfterInteractions(() => {
       setSweeSearchText('');
     });
@@ -1568,7 +1584,12 @@ export default function HomeScreen({ navigation, route }: any) {
           <EventsScreen openCreateOnMount={showCreateEvent} onCreateMountHandled={() => setShowCreateEvent(false)} />
         </View>
         {activeTab === 'friends' && <FriendsScreen />}
-        {activeTab === 'chat' && <ChatTab onNavigateToChat={navigateToChat} />}
+        {activeTab === 'chat' && (
+          <ChatTab
+            onOpenConversation={(conversationId) => openChatConversation(conversationId)}
+            onOpenNewConversation={(conversationId) => openChatConversation(conversationId)}
+          />
+        )}
         {activeTab === 'gallery' && (
           <GalleryTab
             user={user}
@@ -1580,7 +1601,7 @@ export default function HomeScreen({ navigation, route }: any) {
         )}
 
         {/* Draggable Swee FAB */}
-        <SweeFab onPress={() => navigateToChat(SWEE_CHAT)} />
+        <SweeFab onPress={() => startNewChat()} />
 
         {/* Bottom Tab Bar — slides off screen when keyboard is open */}
         <Animated.View

@@ -1,4 +1,5 @@
 import client from './client';
+import { animateTextStream } from '../utils/animateTextStream';
 
 export type ConversationMessage = {
   role: 'user' | 'assistant';
@@ -14,8 +15,6 @@ export type TripContext = {
   contextType?: 'trip' | 'event';
 };
 
-// Structured action extracted from Swee's response after a recap is shown.
-// readyToCreate === true means the user just needs to say "Yes" for Swee to act.
 export type PendingAction = {
   intent: 'create_trip' | 'create_event' | 'update_trip' | 'update_event' | 'add_note' | 'identify_update' | 'none';
   readyToCreate: boolean;
@@ -32,32 +31,108 @@ export type ExecuteResult = {
   created: { id: string; type: 'trip' | 'event'; name: string } | null;
 };
 
-/** Milliseconds between each word revealed in the stream animation. */
-const WORD_DELAY_MS = 32;
+export type ConversationCategory = 'trip' | 'event' | 'general' | 'content';
+
+export type AiConversation = {
+  id: string;
+  title: string;
+  preview: string;
+  category: ConversationCategory;
+  updatedAt: string;
+  createdAt?: string;
+  tripContext?: TripContext | null;
+};
+
+export type AiMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  metadata?: {
+    pendingAction?: PendingAction;
+    createdResult?: ExecuteResult['created'];
+  };
+  createdAt: string;
+};
+
+export type ChatDoneResult = {
+  pendingAction: PendingAction | null;
+  conversationId: string | null;
+  messageId: string | null;
+};
+
+export type ConversationListResponse = {
+  conversations: AiConversation[];
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+};
+
+export type ConversationMessagesResponse = {
+  messages: AiMessage[];
+  hasMore: boolean;
+  nextBefore: string | null;
+};
+
+/** Per-character delay for Swee reply typing (slightly faster than welcome). */
+const REPLY_CHAR_MS = 22;
 
 /**
  * Send a message to Swee.
  * Uses the axios client (auto-refreshes expired tokens via interceptor).
- * Reveals the reply word-by-word for a smooth typing effect.
+ * Reveals the reply character-by-character for a human typing effect.
  *
  * onDone receives the pendingAction from the backend (non-null when Swee
  * is showing a recap and waiting for explicit confirmation).
  */
+export async function listConversations(page = 1, limit = 20): Promise<ConversationListResponse> {
+  const response = await client.get('/ai/conversations', { params: { page, limit } });
+  return response.data as ConversationListResponse;
+}
+
+export async function createConversation(tripContext?: TripContext | null): Promise<AiConversation> {
+  const response = await client.post('/ai/conversations', {
+    tripContext: tripContext ?? undefined,
+  });
+  return response.data as AiConversation;
+}
+
+export async function getConversation(conversationId: string): Promise<AiConversation> {
+  const response = await client.get(`/ai/conversations/${conversationId}`);
+  return response.data as AiConversation;
+}
+
+export async function getConversationMessages(
+  conversationId: string,
+  opts?: { before?: string; limit?: number },
+): Promise<ConversationMessagesResponse> {
+  const response = await client.get(`/ai/conversations/${conversationId}/messages`, {
+    params: opts,
+  });
+  return response.data as ConversationMessagesResponse;
+}
+
+export async function deleteConversation(conversationId: string): Promise<void> {
+  await client.delete(`/ai/conversations/${conversationId}`);
+}
+
 export function sendMessageStream(
   message: string,
+  conversationId: string | null,
   history: ConversationMessage[],
   tripContext: TripContext | null,
   onDelta: (delta: string) => void,
-  onDone: (pendingAction: PendingAction | null) => void,
+  onDone: (result: ChatDoneResult) => void,
   onError: (err: string) => void,
 ): () => void {
   let aborted = false;
-  const timers: ReturnType<typeof setTimeout>[] = [];
+  let cancelAnim: (() => void) | null = null;
 
   (async () => {
     try {
       const response = await client.post('/ai/chat', {
         message,
+        conversationId: conversationId ?? undefined,
         conversationHistory: history,
         tripContext: tripContext ?? undefined,
       }, { timeout: 60000 });
@@ -66,31 +141,31 @@ export function sendMessageStream(
 
       const reply: string = response.data?.reply ?? '';
       const pendingAction: PendingAction | null = response.data?.pendingAction ?? null;
+      const resolvedConversationId: string | null = response.data?.conversationId ?? conversationId;
+      const messageId: string | null = response.data?.messageId ?? null;
 
       if (!reply) {
         onError('Swee returned an empty response. Please try again.');
         return;
       }
 
-      const words = reply.trim() ? reply.split(' ') : [];
-      if (words.length === 0) {
+      if (!reply.trim()) {
         onDelta('');
-        onDone(pendingAction);
+        onDone({ pendingAction, conversationId: resolvedConversationId, messageId });
         return;
       }
 
-      words.forEach((word, i) => {
-        const t = setTimeout(() => {
+      cancelAnim = animateTextStream(
+        reply,
+        (partial, done) => {
           if (aborted) return;
-          onDelta(words.slice(0, i + 1).join(' '));
-        }, i * WORD_DELAY_MS);
-        timers.push(t);
-      });
-
-      const doneTimer = setTimeout(() => {
-        if (!aborted) onDone(pendingAction);
-      }, words.length * WORD_DELAY_MS + 40);
-      timers.push(doneTimer);
+          onDelta(partial);
+          if (done) {
+            onDone({ pendingAction, conversationId: resolvedConversationId, messageId });
+          }
+        },
+        REPLY_CHAR_MS,
+      );
 
     } catch (err: any) {
       if (!aborted) {
@@ -102,7 +177,7 @@ export function sendMessageStream(
 
   return () => {
     aborted = true;
-    timers.forEach(clearTimeout);
+    cancelAnim?.();
   };
 }
 
@@ -110,8 +185,14 @@ export function sendMessageStream(
  * Execute a confirmed Swee action (create/update trip or event).
  * Called when the user taps the Yes/Confirm chip after a recap.
  */
-export async function executeAction(pendingAction: PendingAction): Promise<ExecuteResult> {
-  const response = await client.post('/ai/execute', { pendingAction }, { timeout: 30000 });
+export async function executeAction(
+  pendingAction: PendingAction,
+  conversationId?: string | null,
+): Promise<ExecuteResult> {
+  const response = await client.post('/ai/execute', {
+    pendingAction,
+    conversationId: conversationId ?? undefined,
+  }, { timeout: 30000 });
   return response.data as ExecuteResult;
 }
 
@@ -120,13 +201,6 @@ export async function executeAction(pendingAction: PendingAction): Promise<Execu
  */
 export async function reportMessage(messageId: string, reason: string): Promise<void> {
   await client.post('/ai/report', { messageId, reason });
-}
-
-/**
- * Clear conversation history (server acknowledges; client clears local state).
- */
-export async function clearConversation(userId: string): Promise<void> {
-  await client.delete(`/ai/chat/${userId}`);
 }
 
 /**

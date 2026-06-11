@@ -1,36 +1,45 @@
 const aiService = require('./ai.service');
+const conversationsService = require('./conversations.service');
 const logger = require('../../utils/logger');
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuid(value) {
+  return typeof value === 'string' && UUID_RE.test(value);
+}
 
 /**
  * POST /ai/chat
- * Non-streaming chat with Swee. Returns { reply, pendingAction }.
- * pendingAction is non-null when Swee has collected enough info and is showing a recap.
+ * Returns { reply, pendingAction, conversationId, messageId }.
  */
 const chat = async (req, res, next) => {
   try {
-    const { message, conversationHistory, tripContext } = req.body;
+    const { message, conversationHistory, tripContext, conversationId } = req.body;
 
     if (!message || typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ error: 'BadRequest', message: 'message is required' });
     }
 
-    const result = await aiService.chat(
-      req.user.id,
-      message.trim(),
+    if (conversationId && !isUuid(conversationId)) {
+      return res.status(400).json({ error: 'BadRequest', message: 'conversationId must be a valid UUID' });
+    }
+
+    const result = await aiService.chat(req.user.id, message.trim(), {
+      conversationId: conversationId || null,
       conversationHistory,
       tripContext,
-    );
+    });
 
     return res.status(200).json(result);
   } catch (error) {
     logger.error('Swee chat error', { error: error.message, userId: req.user?.id });
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: 'ChatError', message: error.message });
+    }
     next(error);
   }
 };
 
-/**
- * POST /ai/chat/stream — SSE streaming chat with Swee.
- */
 const chatStream = async (req, res, next) => {
   try {
     const { message, conversationHistory, tripContext } = req.body;
@@ -59,22 +68,14 @@ const chatStream = async (req, res, next) => {
   }
 };
 
-/**
- * DELETE /ai/chat/:userId — Clear conversation (client-side history; server acknowledges).
- */
+/** @deprecated Use DELETE /ai/conversations/:id */
 const clearConversation = async (_req, res) => {
   return res.status(200).json({ success: true });
 };
 
-/**
- * POST /ai/execute
- * Execute a confirmed Swee action (create_trip, create_event, update_trip, update_event, add_note).
- * Body: { pendingAction: { intent, draft, tripId?, targetTripName?, ... } }
- * Returns: { reply, created: { id, type, name } | null }
- */
 const executeAction = async (req, res, next) => {
   try {
-    const { pendingAction } = req.body;
+    const { pendingAction, conversationId } = req.body;
 
     if (!pendingAction || typeof pendingAction !== 'object') {
       return res.status(400).json({ error: 'BadRequest', message: 'pendingAction is required' });
@@ -84,7 +85,23 @@ const executeAction = async (req, res, next) => {
       return res.status(400).json({ error: 'BadRequest', message: 'Action is not ready for execution' });
     }
 
+    if (conversationId && !isUuid(conversationId)) {
+      return res.status(400).json({ error: 'BadRequest', message: 'conversationId must be a valid UUID' });
+    }
+
     const result = await aiService.executeAction(req.user.id, pendingAction);
+
+    if (conversationId) {
+      try {
+        await conversationsService.appendConfirmExchange(req.user.id, conversationId, {
+          assistantContent: result.reply,
+          createdResult: result.created ?? null,
+        });
+      } catch (persistErr) {
+        logger.warn('executeAction persist failed', { error: persistErr.message });
+      }
+    }
+
     return res.status(200).json(result);
   } catch (error) {
     logger.error('Swee execute error', { error: error.message, userId: req.user?.id });
@@ -95,9 +112,6 @@ const executeAction = async (req, res, next) => {
   }
 };
 
-/**
- * POST /ai/report — Report a Swee response issue.
- */
 const reportIssue = async (req, res, next) => {
   try {
     const { messageId, reason } = req.body;
@@ -114,4 +128,87 @@ const reportIssue = async (req, res, next) => {
   }
 };
 
-module.exports = { chat, chatStream, clearConversation, executeAction, reportIssue };
+// ─── Conversations CRUD ───────────────────────────────────────────────────────
+
+const listConversations = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 20;
+    const result = await conversationsService.listConversations(req.user.id, { page, limit });
+    return res.status(200).json(result);
+  } catch (error) {
+    logger.error('listConversations error', { error: error.message });
+    next(error);
+  }
+};
+
+const createConversation = async (req, res, next) => {
+  try {
+    const { tripContext } = req.body || {};
+    const conversation = await conversationsService.createConversation(req.user.id, tripContext || null);
+    return res.status(201).json(conversation);
+  } catch (error) {
+    logger.error('createConversation error', { error: error.message });
+    next(error);
+  }
+};
+
+const getConversation = async (req, res, next) => {
+  try {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ error: 'BadRequest', message: 'Invalid conversation id' });
+    }
+    const conversation = await conversationsService.getConversation(req.user.id, req.params.id);
+    return res.status(200).json(conversation);
+  } catch (error) {
+    if (error.statusCode === 404) {
+      return res.status(404).json({ error: 'NotFound', message: error.message });
+    }
+    next(error);
+  }
+};
+
+const getConversationMessages = async (req, res, next) => {
+  try {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ error: 'BadRequest', message: 'Invalid conversation id' });
+    }
+    const before = req.query.before || null;
+    const limit = parseInt(req.query.limit, 10) || 30;
+    const result = await conversationsService.listMessages(req.user.id, req.params.id, { before, limit });
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode === 404) {
+      return res.status(404).json({ error: 'NotFound', message: error.message });
+    }
+    next(error);
+  }
+};
+
+const deleteConversation = async (req, res, next) => {
+  try {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ error: 'BadRequest', message: 'Invalid conversation id' });
+    }
+    const result = await conversationsService.deleteConversation(req.user.id, req.params.id);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode === 404) {
+      return res.status(404).json({ error: 'NotFound', message: error.message });
+    }
+    next(error);
+  }
+};
+
+module.exports = {
+  chat,
+  chatStream,
+  clearConversation,
+  executeAction,
+  reportIssue,
+  listConversations,
+  createConversation,
+  getConversation,
+  getConversationMessages,
+  deleteConversation,
+};

@@ -18,18 +18,23 @@ import Svg, { Path } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING, tabBarContentPadding } from '../../components/common/AppScreenLayout';
 import MarkdownText from '../../components/common/MarkdownText';
 import SweeIcon from '../../components/common/SweeIcon';
-import useAuthStore from '../../store/authStore';
+import useChatStore from '../../store/chatStore';
 import {
   sendMessageStream,
   reportMessage,
-  clearConversation,
+  deleteConversation,
   executeAction,
+  createConversation,
+  getConversation,
+  getConversationMessages,
   type ConversationMessage,
   type TripContext,
   type PendingAction,
   type ExecuteResult,
+  type AiMessage,
 } from '../../api/ai.api';
 import { animateTextStream } from '../../utils/animateTextStream';
+import { SkeletonBox } from '../../components/common/ExpenseTabSkeleton';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -57,9 +62,25 @@ const WELCOME_VARIANTS = [
 
 const WELCOME_ID = 'welcome';
 
-function formatTime() {
-  const now = new Date();
-  return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+function formatTime(date?: Date | string) {
+  const d = date ? new Date(date) : new Date();
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+}
+
+function mapApiMessage(m: AiMessage): Message {
+  return {
+    id: m.id,
+    text: m.content,
+    sender: m.role === 'user' ? 'user' : 'swee',
+    time: formatTime(m.createdAt),
+    pendingAction: m.metadata?.pendingAction ?? null,
+    createdResult: m.metadata?.createdResult ?? undefined,
+  };
+}
+
+function buildPreview(text: string): string {
+  const clean = text.replace(/[#*_`|]/g, '').replace(/\s+/g, ' ').trim();
+  return clean.length > 80 ? `${clean.slice(0, 79)}…` : clean;
 }
 
 // ─── Build history for API ─────────────────────────────────────────────────
@@ -176,22 +197,22 @@ function TypingIndicator() {
 
 export default function ChatDetailScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
-  const rawUser = useAuthStore((s) => s.user) as any;
-  const userId: string = rawUser?.id ?? '';
   const initialMessageParam = route?.params?.initialMessage;
+  const paramConversationId = route?.params?.conversationId as string | undefined;
 
-  const chat = route?.params?.chat ?? {
-    id: 'swee',
-    name: 'Swee',
-    isSwee: true,
-    subtitle: 'Always active · AI Assistant',
-  };
-  const isSwee = chat.isSwee ?? chat.id === 'swee';
+  const updateConversationInStore = useChatStore((s) => s.updateConversation);
+  const removeConversationFromStore = useChatStore((s) => s.removeConversation);
+  const prependConversationInStore = useChatStore((s) => s.prependConversation);
 
-  // Trip/event context passed from TripDetailScreen or EventDetailScreen via SweeFab
+  const [conversationId, setConversationId] = useState<string | null>(paramConversationId ?? null);
+  const [conversationTitle, setConversationTitle] = useState('New chat');
   const [tripContext, setTripContext] = useState<TripContext | null>(
     route?.params?.tripContext ?? null,
   );
+  const [loadingHistory, setLoadingHistory] = useState(!!paramConversationId);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [nextBefore, setNextBefore] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -211,6 +232,8 @@ export default function ChatDetailScreen({ route, navigation }: any) {
   const abortRef = useRef<(() => void) | null>(null);
   const welcomeAnimRef = useRef<(() => void) | null>(null);
   const autoSentInitialRef = useRef<string | null>(null);
+  const initRef = useRef(false);
+  const loadingOlderRef = useRef(false);
 
   const startWelcomeAnimation = useCallback(() => {
     welcomeAnimRef.current?.();
@@ -239,11 +262,77 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     );
   }, []);
 
-  // Type welcome when screen opens
+  const loadOlderMessages = useCallback(async () => {
+    if (!conversationId || loadingOlderRef.current || !hasMoreOlder) return;
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    try {
+      const data = await getConversationMessages(conversationId, {
+        before: nextBefore ?? undefined,
+      });
+      setMessages((prev) => [...data.messages.map(mapApiMessage), ...prev]);
+      setHasMoreOlder(data.hasMore);
+      setNextBefore(data.nextBefore);
+    } catch {
+      // non-blocking
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+    }
+  }, [conversationId, hasMoreOlder, nextBefore]);
+
   useEffect(() => {
-    startWelcomeAnimation();
-    return () => welcomeAnimRef.current?.();
-  }, [startWelcomeAnimation]);
+    if (initRef.current) return;
+    initRef.current = true;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        let convId = paramConversationId ?? null;
+        const ctx = route?.params?.tripContext as TripContext | undefined;
+
+        if (!convId) {
+          const created = await createConversation(ctx ?? null);
+          convId = created.id;
+          if (cancelled) return;
+          setConversationId(convId);
+          setConversationTitle(created.title);
+          if (ctx) setTripContext(ctx);
+          prependConversationInStore(created);
+          setLoadingHistory(false);
+          if (!initialMessageParam) startWelcomeAnimation();
+          return;
+        }
+
+        setConversationId(convId);
+        const [meta, msgData] = await Promise.all([
+          getConversation(convId),
+          getConversationMessages(convId),
+        ]);
+        if (cancelled) return;
+
+        setConversationTitle(meta.title);
+        if (meta.tripContext) setTripContext(meta.tripContext);
+        const loaded = msgData.messages.map(mapApiMessage);
+        setMessages(loaded);
+        setHasMoreOlder(msgData.hasMore);
+        setNextBefore(msgData.nextBefore);
+        setLoadingHistory(false);
+
+        if (loaded.length === 0 && !initialMessageParam) {
+          startWelcomeAnimation();
+        }
+      } catch {
+        if (!cancelled) setLoadingHistory(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      welcomeAnimRef.current?.();
+    };
+  }, [paramConversationId, prependConversationInStore, route?.params?.tripContext, startWelcomeAnimation]);
 
   // Scroll to bottom whenever messages change
   useEffect(() => {
@@ -295,13 +384,19 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     };
 
     try {
-      const result = await executeAction(action);
+      const result = await executeAction(action, conversationId);
       finishStream(result.reply, result.created ?? undefined);
+      if (conversationId) {
+        updateConversationInStore(conversationId, {
+          preview: buildPreview(result.reply),
+          updatedAt: new Date().toISOString(),
+        });
+      }
     } catch (err: any) {
       const msg: string = err?.response?.data?.message ?? err?.message ?? 'Something went wrong.';
       finishStream(msg);
     }
-  }, [isExecuting]);
+  }, [conversationId, isExecuting, updateConversationInStore]);
 
   const streamToSwee = useCallback((text: string, currentMessages: Message[], userMsg: Message) => {
     const streamingMsgId = `s_${Date.now() + 1}`;
@@ -317,26 +412,42 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     setIsTyping(true);
 
     const history = toApiHistory([...currentMessages, userMsg]);
+    let accumulatedReply = '';
 
     abortRef.current = sendMessageStream(
       text,
+      conversationId,
       history,
       tripContext,
       (delta) => {
+        accumulatedReply += delta;
         setMessages((prev) =>
           prev.map((m) =>
             m.id === streamingMsgId ? { ...m, text: m.text + delta } : m,
           ),
         );
       },
-      (pendingAction) => {
+      ({ pendingAction, conversationId: convId, messageId }) => {
+        if (convId) setConversationId(convId);
         setMessages((prev) =>
           prev.map((m) =>
             m.id === streamingMsgId
-              ? { ...m, streaming: false, pendingAction: pendingAction ?? null }
+              ? {
+                  ...m,
+                  id: messageId ?? m.id,
+                  streaming: false,
+                  pendingAction: pendingAction ?? null,
+                }
               : m,
           ),
         );
+        const resolvedId = convId ?? conversationId;
+        if (resolvedId) {
+          updateConversationInStore(resolvedId, {
+            preview: buildPreview(accumulatedReply),
+            updatedAt: new Date().toISOString(),
+          });
+        }
         setIsTyping(false);
         abortRef.current = null;
       },
@@ -352,7 +463,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         abortRef.current = null;
       },
     );
-  }, [tripContext]);
+  }, [conversationId, tripContext, updateConversationInStore]);
 
   const sendMessage = useCallback((overrideText?: unknown) => {
     const resolvedText = typeof overrideText === 'string' ? overrideText : inputText;
@@ -398,18 +509,25 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     navigation.setParams({ initialMessage: undefined });
   }, [initialMessageParam, isTyping, navigation, sendMessage]);
 
-  const handleClearConversation = useCallback(async () => {
+  const handleDeleteChat = useCallback(async () => {
+    if (!conversationId) {
+      navigation.goBack();
+      return;
+    }
     abortRef.current?.();
     abortRef.current = null;
     setShowOverflow(false);
     setIsTyping(false);
     setIsExecuting(false);
     welcomeAnimRef.current?.();
-    startWelcomeAnimation();
     try {
-      await clearConversation(userId);
-    } catch (_) { /* silent — client already cleared */ }
-  }, [userId, startWelcomeAnimation]);
+      await deleteConversation(conversationId);
+      removeConversationFromStore(conversationId);
+    } catch {
+      // still navigate back on failure — user wanted to leave
+    }
+    navigation.goBack();
+  }, [conversationId, navigation, removeConversationFromStore]);
 
   const openReportModal = useCallback(() => {
     const lastSweeMsg = [...messages].reverse().find((m) => m.sender === 'swee');
@@ -562,40 +680,30 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           </View>
 
           <View style={styles.headerInfo}>
-            <Text style={styles.headerName}>{chat.name}</Text>
-            <Text style={styles.headerSubtitle}>
-              {isTyping || isWelcomeTyping ? 'typing...' : 'Always active · AI Assistant'}
-            </Text>
+            <Text style={styles.headerName} numberOfLines={1}>{conversationTitle}</Text>
+            {(isTyping || isWelcomeTyping) ? (
+              <Text style={styles.headerSubtitle}>typing...</Text>
+            ) : null}
           </View>
 
-          {/* + context button */}
-          {isSwee && (
+          {tripContext ? (
             <TouchableOpacity
-              style={[styles.iconBtn, tripContext && styles.contextBtnActive]}
-              onPress={() => {
-                // If context already set, clear it; otherwise open would need a trip list sheet
-                // For now: tap to clear the context
-                if (tripContext) setTripContext(null);
-              }}
+              style={[styles.iconBtn, styles.contextBtnActive]}
+              onPress={() => setTripContext(null)}
               activeOpacity={0.7}
             >
-              {tripContext ? (
-                <View style={styles.contextPill}>
-                  <Text style={styles.contextPillText} numberOfLines={1}>
-                    {tripContext.name?.substring(0, 12) ?? 'Trip'}
-                  </Text>
-                  <CloseIcon size={12} />
-                </View>
-              ) : null}
+              <View style={styles.contextPill}>
+                <Text style={styles.contextPillText} numberOfLines={1}>
+                  {tripContext.name?.substring(0, 12) ?? 'Context'}
+                </Text>
+                <CloseIcon size={12} />
+              </View>
             </TouchableOpacity>
-          )}
+          ) : null}
 
-          {/* Overflow menu */}
-          {isSwee && (
-            <TouchableOpacity style={styles.iconBtn} onPress={() => setShowOverflow(true)} activeOpacity={0.7}>
-              <DotsIcon />
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={styles.iconBtn} onPress={() => setShowOverflow(true)} activeOpacity={0.7}>
+            <DotsIcon />
+          </TouchableOpacity>
         </View>
 
         {/* ── Context banner (when trip is attached) ── */}
@@ -613,14 +721,33 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         )}
 
         {/* ── Messages ── */}
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={renderMessage}
-          contentContainerStyle={[styles.messageList, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
-          showsVerticalScrollIndicator={false}
-        />
+        {loadingHistory ? (
+          <View style={styles.historySkeleton}>
+            {[1, 2, 3, 4].map((i) => (
+              <View key={i} style={[styles.msgRow, i % 2 === 0 ? styles.msgRowUser : styles.msgRowSwee]}>
+                <SkeletonBox width={i % 2 === 0 ? '55%' : '70%'} height={52} style={{ borderRadius: 16 }} />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(item) => item.id}
+            renderItem={renderMessage}
+            contentContainerStyle={[styles.messageList, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
+            showsVerticalScrollIndicator={false}
+            onScroll={(e) => {
+              if (e.nativeEvent.contentOffset.y < 48) loadOlderMessages();
+            }}
+            scrollEventThrottle={200}
+            ListHeaderComponent={
+              loadingOlder ? (
+                <ActivityIndicator style={styles.olderLoader} color="#0d9488" />
+              ) : null
+            }
+          />
+        )}
 
         {/* ── Input bar ── */}
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -653,12 +780,12 @@ export default function ChatDetailScreen({ route, navigation }: any) {
       <Modal visible={showOverflow} transparent animationType="fade" onRequestClose={() => setShowOverflow(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowOverflow(false)}>
           <View style={styles.overflowMenu}>
-            <TouchableOpacity style={styles.overflowItem} onPress={handleClearConversation} activeOpacity={0.8}>
-              <Text style={styles.overflowItemText}>Clear conversation</Text>
+            <TouchableOpacity style={styles.overflowItem} onPress={handleDeleteChat} activeOpacity={0.8}>
+              <Text style={[styles.overflowItemText, { color: '#ef4444' }]}>Delete chat</Text>
             </TouchableOpacity>
             <View style={styles.overflowDivider} />
             <TouchableOpacity style={styles.overflowItem} onPress={openReportModal} activeOpacity={0.8}>
-              <Text style={[styles.overflowItemText, { color: '#ef4444' }]}>Report issue</Text>
+              <Text style={styles.overflowItemText}>Report issue</Text>
             </TouchableOpacity>
             <View style={styles.overflowDivider} />
             <TouchableOpacity style={styles.overflowItem} onPress={() => { setShowOverflow(false); setShowAboutModal(true); }} activeOpacity={0.8}>
@@ -809,6 +936,8 @@ const styles = StyleSheet.create({
   contextBannerText: { flex: 1, fontSize: 12, color: '#0d9488', fontWeight: '500' },
 
   messageList: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 8, gap: 10 },
+  historySkeleton: { paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
+  olderLoader: { marginVertical: 8 },
 
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 4 },
   msgRowUser: { flexDirection: 'row-reverse', justifyContent: 'flex-start' },

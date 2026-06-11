@@ -7,7 +7,14 @@ const router = Router();
 // All AI routes require authentication
 router.use(authenticateJWT);
 
-// POST /ai/chat — Non-streaming chat with Swee; returns { reply, pendingAction }
+// Conversations
+router.get('/conversations', ctrl.listConversations);
+router.post('/conversations', ctrl.createConversation);
+router.get('/conversations/:id', ctrl.getConversation);
+router.get('/conversations/:id/messages', ctrl.getConversationMessages);
+router.delete('/conversations/:id', ctrl.deleteConversation);
+
+// POST /ai/chat — Non-streaming chat with Swee; returns { reply, pendingAction, conversationId }
 router.post('/chat', ctrl.chat);
 
 // POST /ai/chat/stream — SSE streaming chat with Swee

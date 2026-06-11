@@ -12,20 +12,10 @@ import {
 import Svg, { Path, Circle } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import useNotificationStore from '../../store/notificationStore';
+import { getRelativeTime } from '../../utils/relativeTime';
 
 // Notification types that live in the Requests tab
 const REQUEST_TYPES = ['FRIEND_REQUEST', 'TRIP_MEMBER_ADDED', 'EVENT_MEMBER_ADDED'];
-
-// ── Time helper ───────────────────────────────────────────────────────────────
-
-function getRelativeTime(ts: number | string): string {
-  const time = typeof ts === 'string' ? new Date(ts).getTime() : ts;
-  const diff = Math.floor((Date.now() - time) / 1000);
-  if (diff < 60) return 'Just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} hour${Math.floor(diff / 3600) > 1 ? 's' : ''} ago`;
-  return `${Math.floor(diff / 86400)} day${Math.floor(diff / 86400) > 1 ? 's' : ''} ago`;
-}
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
