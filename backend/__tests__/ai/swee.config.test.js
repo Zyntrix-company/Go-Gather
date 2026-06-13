@@ -30,6 +30,14 @@ describe('swee.config buildSweetSystemPrompt', () => {
     expect(prompt).not.toMatch(/show a complete form immediately/i);
   });
 
+  it('requires trip disambiguation before identify_update chips', () => {
+    const prompt = buildSweetSystemPrompt(baseContext, null, 1);
+    expect(prompt).toMatch(/does NOT name a specific trip/i);
+    expect(prompt).toMatch(/Which trip do you mean/i);
+    expect(prompt).toMatch(/Do NOT show Yes\/No identification chips/i);
+    expect(prompt).toMatch(/ONLY after user named or chose a specific trip/i);
+  });
+
   it('includes event update flow', () => {
     const prompt = buildSweetSystemPrompt(baseContext, null, 1);
     expect(prompt).toMatch(/UPDATE FLOW — EVENTS/i);

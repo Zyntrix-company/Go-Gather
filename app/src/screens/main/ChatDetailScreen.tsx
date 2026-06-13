@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
   Animated,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING, tabBarContentPadding } from '../../components/common/AppScreenLayout';
 import MarkdownText from '../../components/common/MarkdownText';
@@ -34,6 +34,7 @@ import {
   type AiMessage,
 } from '../../api/ai.api';
 import { animateTextStream } from '../../utils/animateTextStream';
+import { loadChatDraft, saveChatDraft, clearChatDraft } from '../../utils/chatDraftStorage';
 import { SkeletonBox } from '../../components/common/ExpenseTabSkeleton';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -270,6 +271,33 @@ export default function ChatDetailScreen({ route, navigation }: any) {
   const autoSentInitialRef = useRef<string | null>(null);
   const initRef = useRef(false);
   const loadingOlderRef = useRef(false);
+  const inputTextRef = useRef('');
+
+  const draftConversationKey = conversationId ?? paramConversationId ?? null;
+
+  useEffect(() => {
+    inputTextRef.current = inputText;
+  }, [inputText]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      loadChatDraft(draftConversationKey).then((draft) => {
+        if (active && draft) setInputText(draft);
+      });
+      return () => {
+        active = false;
+        saveChatDraft(draftConversationKey, inputTextRef.current);
+      };
+    }, [draftConversationKey]),
+  );
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      saveChatDraft(draftConversationKey, inputText);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [inputText, draftConversationKey]);
 
   const startWelcomeAnimation = useCallback(() => {
     welcomeAnimRef.current?.();
@@ -521,6 +549,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     };
 
     setInputText('');
+    clearChatDraft(draftConversationKey);
 
     setMessages((prev) => {
       const pending = findPendingConfirmation(prev);
@@ -534,7 +563,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
       queueMicrotask(() => streamToSwee(text, prev, userMsg));
       return withUser;
     });
-  }, [inputText, isTyping, isExecuting, isWelcomeTyping, handleConfirmAction, streamToSwee]);
+  }, [inputText, isTyping, isExecuting, isWelcomeTyping, handleConfirmAction, streamToSwee, draftConversationKey]);
 
   const handleIdentifyResponse = useCallback((msgId: string, affirmative: boolean) => {
     if (isTyping || isExecuting) return;
@@ -966,7 +995,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center',
   },
   headerInfo: { flex: 1 },
-  headerName: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  headerName: { fontSize: 14, fontWeight: '400', color: '#009788' },
   headerSubtitle: { fontSize: 11, color: '#64748b', marginTop: 1 },
 
   contextPill: {
