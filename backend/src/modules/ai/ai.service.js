@@ -22,6 +22,12 @@ const {
   buildPlanningMetadata,
 } = require('./ai.helpers');
 const conversationsService = require('./conversations.service');
+const circuitBreaker = require('./swee.circuitBreaker');
+const { geminiRateLimitMessage, serviceBusyMessage } = require('./swee.messages');
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 
 // 10 messages = ~5 back-and-forth exchanges (one user + one assistant each)
@@ -258,12 +264,79 @@ async function writePlanningMetadata(parentType, parentId, draft) {
 
 // ─── Gemini chat ──────────────────────────────────────────────────────────────
 
-async function geminiChat(message, history, systemPrompt) {
+function classifyGeminiError(err) {
+  const msg = String(err?.message || '').toLowerCase();
+  const status = err?.status || err?.statusCode || err?.response?.status;
+
+  const isRateLimit = status === 429
+    || msg.includes('429')
+    || msg.includes('resource exhausted')
+    || msg.includes('quota exceeded')
+    || msg.includes('rate limit');
+
+  if (isRateLimit) {
+    return Object.assign(new Error(geminiRateLimitMessage()), {
+      statusCode: 429,
+      sweeErrorCode: 'GEMINI_RATE_LIMIT',
+    });
+  }
+
+  const isUnavailable = status === 503
+    || msg.includes('503')
+    || msg.includes('unavailable')
+    || msg.includes('overloaded');
+
+  if (isUnavailable) {
+    return Object.assign(new Error(serviceBusyMessage()), {
+      statusCode: 503,
+      sweeErrorCode: 'SERVICE_UNAVAILABLE',
+    });
+  }
+
+  return err;
+}
+
+async function geminiChatOnce(message, history, systemPrompt) {
   const model = getGeminiModel(systemPrompt);
   const geminiHistory = toGeminiHistory(history);
   const chatSession = model.startChat({ history: geminiHistory });
   const result = await chatSession.sendMessage(message);
   return result.response.text();
+}
+
+async function geminiChat(message, history, systemPrompt) {
+  const attempt = async () => {
+    try {
+      return await geminiChatOnce(message, history, systemPrompt);
+    } catch (err) {
+      throw classifyGeminiError(err);
+    }
+  };
+
+  try {
+    const text = await attempt();
+    circuitBreaker.recordSuccess();
+    return text;
+  } catch (err) {
+    if (err.sweeErrorCode === 'GEMINI_RATE_LIMIT') {
+      logger.info('Swee Gemini retrying after rate limit', { delayMs: '2000-5000' });
+      await sleep(2000 + Math.floor(Math.random() * 3000));
+      try {
+        const text = await attempt();
+        circuitBreaker.recordSuccess();
+        return text;
+      } catch (retryErr) {
+        if (retryErr.sweeErrorCode === 'GEMINI_RATE_LIMIT' || retryErr.sweeErrorCode === 'SERVICE_UNAVAILABLE') {
+          circuitBreaker.recordFailure();
+        }
+        throw retryErr;
+      }
+    }
+    if (err.sweeErrorCode === 'SERVICE_UNAVAILABLE') {
+      circuitBreaker.recordFailure();
+    }
+    throw err;
+  }
 }
 
 async function geminiChatStream(message, history, systemPrompt, res) {
@@ -304,8 +377,20 @@ const chat = async (userId, message, { conversationId, conversationHistory, trip
   }
 
   let history;
-  if (conversationId) {
-    history = trimHistory(await conversationsService.loadMessageHistory(resolvedConversationId, MAX_HISTORY_MESSAGES));
+  let memoryBlock = '';
+
+  if (resolvedConversationId) {
+    const msgCount = await conversationsService.countMessages(resolvedConversationId);
+    if (msgCount > 0) {
+      const loaded = await conversationsService.loadHistoryForGemini(
+        resolvedConversationId,
+        MAX_HISTORY_MESSAGES,
+      );
+      history = trimHistory(loaded.history);
+      memoryBlock = loaded.memoryBlock;
+    } else {
+      history = trimHistory(conversationHistory);
+    }
   } else {
     history = trimHistory(conversationHistory);
   }
@@ -313,9 +398,55 @@ const chat = async (userId, message, { conversationId, conversationHistory, trip
   const historyLength = history.length;
   const [userContext] = await Promise.all([loadUserContext(userId)]);
 
-  const systemPrompt = buildSweetSystemPrompt(userContext, resolvedTripContext, historyLength);
-  const rawReply = await geminiChat(message, history, systemPrompt);
-  const { reply, pendingAction } = parseActionBlock(rawReply);
+  const systemPrompt = buildSweetSystemPrompt(
+    userContext,
+    resolvedTripContext,
+    historyLength,
+    memoryBlock,
+  );
+
+  const startedAt = Date.now();
+
+  if (circuitBreaker.isOpen()) {
+    throw Object.assign(new Error(serviceBusyMessage()), {
+      statusCode: 503,
+      sweeErrorCode: 'CIRCUIT_OPEN',
+    });
+  }
+
+  let rawReply;
+  try {
+    rawReply = await geminiChat(message, history, systemPrompt);
+  } catch (err) {
+    if (err.sweeErrorCode === 'GEMINI_RATE_LIMIT') {
+      logger.warn('Swee Gemini rate_limited', { userId, code: 429, conversationId: resolvedConversationId });
+    } else if (err.sweeErrorCode === 'SERVICE_UNAVAILABLE' || err.sweeErrorCode === 'CIRCUIT_OPEN') {
+      logger.warn('Swee Gemini unavailable', {
+        userId,
+        code: err.sweeErrorCode === 'CIRCUIT_OPEN' ? 'circuit_open' : 503,
+        conversationId: resolvedConversationId,
+      });
+    }
+    throw err;
+  }
+
+  logger.info('Swee chat completed', {
+    userId,
+    conversationId: resolvedConversationId,
+    latencyMs: Date.now() - startedAt,
+    historyMessages: historyLength,
+    hasMemory: Boolean(memoryBlock),
+  });
+
+  const parsed = parseActionBlock(rawReply, { logInvalid: true, logger });
+  if (parsed.actionParseError) {
+    logger.warn('Swee action_parse_failed', {
+      userId,
+      conversationId: resolvedConversationId,
+      reason: parsed.actionParseError,
+    });
+  }
+  const { reply, pendingAction } = parsed;
 
   const savedMessage = await conversationsService.appendMessages(userId, resolvedConversationId, {
     userContent: message,

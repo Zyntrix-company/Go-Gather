@@ -1,6 +1,6 @@
 import { Dimensions, StyleSheet } from 'react-native';
 
-const { height: SCREEN_H } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 /** @deprecated Use flex hero (AlbumPhotosHeroCarousel) — kept for previews only */
 export const ALBUM_HERO_H = Math.round(SCREEN_H * 0.46);
@@ -10,6 +10,9 @@ export const ALBUM_THUMB_H = 50;
 
 /** Fixed hero height inside trip/event photos dialog. */
 export const ALBUM_DIALOG_HERO_H = 248;
+
+/** Responsive hero height for full-screen gallery album detail. */
+export const GALLERY_ALBUM_HERO_H = Math.round(Math.min(SCREEN_W - 32, 420) * 0.58);
 
 /** Rounded hero frame in photos dialog. */
 export const ALBUM_HERO_RADIUS = 16;

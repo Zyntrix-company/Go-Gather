@@ -65,6 +65,10 @@ type AlbumPhotosHeroCarouselProps<T extends AlbumHeroPhoto> = {
   galleryChrome?: boolean;
   /** Fixed hero height (trip/event dialog) instead of flex-grow. */
   fixedHeight?: number;
+  /** Transparent activity label strip at bottom of hero (gallery detail). */
+  activityLabel?: string | null;
+  /** Show pager dots under hero (default true). */
+  showPagerDots?: boolean;
 };
 
 /** Flex-grow hero pager — height follows available space (no fixed % of screen). */
@@ -80,6 +84,8 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
   onPhotoPress,
   galleryChrome = false,
   fixedHeight,
+  activityLabel,
+  showPagerDots = true,
 }: AlbumPhotosHeroCarouselProps<T>) {
   const [heroH, setHeroH] = useState(fixedHeight ?? 0);
   const heroOverlay = useAlbumPhotosOverlay();
@@ -165,7 +171,13 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
         </View>
       ) : null}
 
-      {!loading && photos.length > 1 ? (
+      {activityLabel?.trim() ? (
+        <View style={[styles.activityStrip, rounded && styles.activityStripRounded]} pointerEvents="none">
+          <Text style={styles.activityStripText} numberOfLines={1}>{activityLabel}</Text>
+        </View>
+      ) : null}
+
+      {showPagerDots && !loading && photos.length > 1 ? (
         <AlbumPhotosPagerDots
           count={photos.length}
           activeIndex={heroIndex}
@@ -290,5 +302,28 @@ const styles = StyleSheet.create({
   },
   dotsPillTextGallery: {
     color: '#0f172a',
+  },
+  activityStrip: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(15,23,42,0.42)',
+    zIndex: 8,
+  },
+  activityStripRounded: {
+    left: ALBUM_HERO_H_PAD,
+    right: ALBUM_HERO_H_PAD,
+    bottom: 6,
+    borderBottomLeftRadius: ALBUM_HERO_RADIUS,
+    borderBottomRightRadius: ALBUM_HERO_RADIUS,
+  },
+  activityStripText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+    letterSpacing: 0.1,
   },
 });

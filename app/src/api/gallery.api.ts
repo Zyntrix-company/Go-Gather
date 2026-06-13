@@ -204,3 +204,53 @@ export async function deleteGalleryExtraPhoto(photoId: string) {
 export function emptyCustomAlbums(): GalleryAlbumsBySection {
   return { trip: [], event: [] };
 }
+
+export type GalleryComment = {
+  id: string;
+  userId: string;
+  userName: string;
+  avatarUrl?: string | null;
+  text: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type GalleryEngagement = {
+  likeCount: number;
+  likedByMe: boolean;
+  comments: GalleryComment[];
+};
+
+export async function getGalleryEngagement(
+  parentType: 'trip' | 'event',
+  parentId: string,
+): Promise<GalleryEngagement> {
+  const { data } = await client.get(`/users/me/gallery-items/${parentType}/${parentId}/engagement`);
+  return data as GalleryEngagement;
+}
+
+export async function toggleGalleryLike(
+  parentType: 'trip' | 'event',
+  parentId: string,
+): Promise<{ liked: boolean; likeCount: number }> {
+  const { data } = await client.post(`/users/me/gallery-items/${parentType}/${parentId}/like`);
+  return data;
+}
+
+export async function addGalleryComment(
+  parentType: 'trip' | 'event',
+  parentId: string,
+  text: string,
+): Promise<GalleryComment> {
+  const { data } = await client.post(`/users/me/gallery-items/${parentType}/${parentId}/comments`, { text });
+  return data.comment;
+}
+
+export async function updateGalleryComment(commentId: string, text: string): Promise<GalleryComment> {
+  const { data } = await client.patch(`/users/me/gallery-items/comments/${commentId}`, { text });
+  return data.comment;
+}
+
+export async function deleteGalleryComment(commentId: string): Promise<void> {
+  await client.delete(`/users/me/gallery-items/comments/${commentId}`);
+}

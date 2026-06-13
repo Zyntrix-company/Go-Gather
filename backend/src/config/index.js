@@ -134,6 +134,8 @@ module.exports = {
   rateLimits: {
     friendInvitePerHour: parseInt(process.env.FRIEND_INVITE_RATE_LIMIT_PER_HOUR, 10) || 10,
     friendRequestPerDay: parseInt(process.env.FRIEND_REQUEST_RATE_LIMIT_PER_DAY, 10) || 20,
+    sweeChatPerHour: parseInt(process.env.SWEE_CHAT_RATE_LIMIT_PER_HOUR, 10) || 30,
+    sweeChatPerDay: parseInt(process.env.SWEE_CHAT_RATE_LIMIT_PER_DAY, 10) || 200,
   },
 
   // ─── Universal Links ─────────────────────────

@@ -42,6 +42,28 @@ describe('ai.helpers', () => {
       expect(reply).toBe('Hello there');
       expect(pendingAction).toBeNull();
     });
+
+    it('returns fallback when ACTION JSON is invalid', () => {
+      const raw = 'Create this?\n###ACTION{not valid json';
+      const { reply, pendingAction, actionParseError } = parseActionBlock(raw);
+      expect(reply).toBe('Create this?');
+      expect(pendingAction).toBeNull();
+      expect(actionParseError).toBe('json_parse_failed');
+    });
+
+    it('rejects readyToCreate with invalid intent', () => {
+      const raw = 'Go?\n###ACTION{"intent":"bogus","readyToCreate":true}';
+      const { pendingAction, actionParseError } = parseActionBlock(raw);
+      expect(pendingAction).toBeNull();
+      expect(actionParseError).toBe('invalid_intent');
+    });
+
+    it('rejects ready create_trip without draft fields', () => {
+      const raw = 'Create?\n###ACTION{"intent":"create_trip","readyToCreate":true,"draft":{}}';
+      const { pendingAction, actionParseError } = parseActionBlock(raw);
+      expect(pendingAction).toBeNull();
+      expect(actionParseError).toBe('create_trip_missing_draft');
+    });
   });
 
   describe('generateTripName', () => {

@@ -60,8 +60,6 @@ import TripsScreen, { CreateTripModal, BannerCropFraction as TripBannerCropFract
 import EventsScreen, { CreateEventModal } from '../events/EventsScreen';
 import FriendsScreen from './FriendsScreen';
 import ChatTab from './ChatTab';
-import { createConversation } from '../../api/ai.api';
-import useChatStore from '../../store/chatStore';
 import GalleryTab from './GalleryTab';
 import ProfileDropdown from './ProfileDropdown';
 import { UnifiedCard } from '../../components/common/Cards';
@@ -814,22 +812,16 @@ export default function HomeScreen({ navigation, route }: any) {
     navigation.navigate('ChatDetail', { conversationId, initialMessage: opts?.initialMessage });
   }
 
-  async function startNewChat(opts?: { initialMessage?: string }) {
-    try {
-      const conversation = await createConversation();
-      useChatStore.getState().prependConversation(conversation);
-      navigation.navigate('ChatDetail', {
-        conversationId: conversation.id,
-        initialMessage: opts?.initialMessage,
-      });
-    } catch {
-      // user can retry from chat tab
-    }
+  function openNewChat(opts?: { initialMessage?: string; tripContext?: Record<string, unknown> }) {
+    navigation.navigate('ChatDetail', {
+      initialMessage: opts?.initialMessage,
+      tripContext: opts?.tripContext,
+    });
   }
 
   function handleAskSwee(rawMessage?: string) {
     const trimmed = (rawMessage ?? sweeSearchText).trim();
-    startNewChat({ initialMessage: trimmed || undefined });
+    openNewChat({ initialMessage: trimmed || undefined });
     InteractionManager.runAfterInteractions(() => {
       setSweeSearchText('');
     });
@@ -1587,7 +1579,7 @@ export default function HomeScreen({ navigation, route }: any) {
         {activeTab === 'chat' && (
           <ChatTab
             onOpenConversation={(conversationId) => openChatConversation(conversationId)}
-            onOpenNewConversation={(conversationId) => openChatConversation(conversationId)}
+            onOpenNewChat={() => openNewChat()}
           />
         )}
         {activeTab === 'gallery' && (
@@ -1601,7 +1593,7 @@ export default function HomeScreen({ navigation, route }: any) {
         )}
 
         {/* Draggable Swee FAB */}
-        <SweeFab onPress={() => startNewChat()} />
+        <SweeFab onPress={() => openNewChat()} />
 
         {/* Bottom Tab Bar — slides off screen when keyboard is open */}
         <Animated.View

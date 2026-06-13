@@ -24,7 +24,6 @@ import {
   reportMessage,
   deleteConversation,
   executeAction,
-  createConversation,
   getConversation,
   getConversationMessages,
   type ConversationMessage,
@@ -306,13 +305,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         const ctx = route?.params?.tripContext as TripContext | undefined;
 
         if (!convId) {
-          const created = await createConversation(ctx ?? null);
-          convId = created.id;
-          if (cancelled) return;
-          setConversationId(convId);
-          setConversationTitle(created.title);
           if (ctx) setTripContext(ctx);
-          prependConversationInStore(created);
           setLoadingHistory(false);
           if (!initialMessageParam) startWelcomeAnimation();
           return;
@@ -345,7 +338,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
       cancelled = true;
       welcomeAnimRef.current?.();
     };
-  }, [paramConversationId, prependConversationInStore, route?.params?.tripContext, startWelcomeAnimation]);
+  }, [paramConversationId, route?.params?.tripContext, startWelcomeAnimation]);
 
   // Scroll to bottom whenever messages change
   useEffect(() => {
@@ -441,6 +434,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         );
       },
       ({ pendingAction, conversationId: convId, messageId }) => {
+        const isFirstPersist = Boolean(convId && !conversationId);
         if (convId) setConversationId(convId);
         setMessages((prev) =>
           prev.map((m) =>
@@ -461,6 +455,14 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             updatedAt: new Date().toISOString(),
           });
         }
+        if (isFirstPersist && convId) {
+          getConversation(convId)
+            .then((conv) => {
+              prependConversationInStore(conv);
+              setConversationTitle(conv.title);
+            })
+            .catch(() => {});
+        }
         setIsTyping(false);
         abortRef.current = null;
       },
@@ -476,7 +478,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         abortRef.current = null;
       },
     );
-  }, [conversationId, tripContext, updateConversationInStore]);
+  }, [conversationId, tripContext, updateConversationInStore, prependConversationInStore]);
 
   const sendMessage = useCallback((overrideText?: unknown) => {
     const resolvedText = typeof overrideText === 'string' ? overrideText : inputText;
@@ -794,7 +796,9 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowOverflow(false)}>
           <View style={styles.overflowMenu}>
             <TouchableOpacity style={styles.overflowItem} onPress={handleDeleteChat} activeOpacity={0.8}>
-              <Text style={[styles.overflowItemText, { color: '#ef4444' }]}>Delete chat</Text>
+              <Text style={[styles.overflowItemText, { color: '#ef4444' }]}>
+                {conversationId ? 'Delete chat' : 'Close chat'}
+              </Text>
             </TouchableOpacity>
             <View style={styles.overflowDivider} />
             <TouchableOpacity style={styles.overflowItem} onPress={openReportModal} activeOpacity={0.8}>
@@ -899,7 +903,10 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             </Text>
             <Text style={styles.aboutDisclaimer}>
               Swee may occasionally make mistakes. Always verify critical travel information
-              from official sources.
+              from official sources.{'\n\n'}
+              Fair use limits apply so everyone gets a smooth experience — if you send many
+              messages in a short time, Swee may ask you to wait a minute, an hour, or until
+              tomorrow.
             </Text>
           </View>
         </View>

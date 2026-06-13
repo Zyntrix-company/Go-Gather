@@ -1,5 +1,7 @@
 const aiService = require('./ai.service');
 const conversationsService = require('./conversations.service');
+const sweeMetrics = require('./swee.metrics');
+const { geminiRateLimitMessage, serviceBusyMessage } = require('./swee.messages');
 const logger = require('../../utils/logger');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,9 +32,32 @@ const chat = async (req, res, next) => {
       tripContext,
     });
 
+    sweeMetrics.recordChatResult(true);
     return res.status(200).json(result);
   } catch (error) {
-    logger.error('Swee chat error', { error: error.message, userId: req.user?.id });
+    sweeMetrics.recordChatResult(false, error.sweeErrorCode || error.name || 'error');
+
+    if (error.sweeErrorCode === 'GEMINI_RATE_LIMIT') {
+      logger.warn('Swee chat Gemini rate limit', { userId: req.user?.id, statusCode: 429 });
+      return res.status(429).json({
+        error: 'GeminiRateLimit',
+        limitType: 'gemini',
+        message: error.message || geminiRateLimitMessage(),
+      });
+    }
+    if (error.sweeErrorCode === 'SERVICE_UNAVAILABLE' || error.sweeErrorCode === 'CIRCUIT_OPEN') {
+      logger.warn('Swee chat service unavailable', {
+        userId: req.user?.id,
+        statusCode: 503,
+        code: error.sweeErrorCode,
+      });
+      return res.status(503).json({
+        error: 'ServiceBusy',
+        limitType: 'service',
+        message: error.message || serviceBusyMessage(),
+      });
+    }
+    logger.error('Swee chat error', { error: error.message, userId: req.user?.id, statusCode: error.statusCode });
     if (error.statusCode) {
       return res.status(error.statusCode).json({ error: 'ChatError', message: error.message });
     }

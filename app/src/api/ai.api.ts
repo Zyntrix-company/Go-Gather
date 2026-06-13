@@ -77,14 +77,31 @@ export type ConversationMessagesResponse = {
 /** Per-character delay for Swee reply typing (slightly faster than welcome). */
 const REPLY_CHAR_MS = 22;
 
-/**
- * Send a message to Swee.
- * Uses the axios client (auto-refreshes expired tokens via interceptor).
- * Reveals the reply character-by-character for a human typing effect.
- *
- * onDone receives the pendingAction from the backend (non-null when Swee
- * is showing a recap and waiting for explicit confirmation).
- */
+/** User-facing copy when Swee or usage limits are hit. */
+function resolveSweeChatError(err: any): string {
+  const data = err?.response?.data;
+  const serverMsg: string = data?.message ?? '';
+  if (serverMsg.trim()) return serverMsg;
+
+  const code: string = data?.error ?? '';
+  switch (code) {
+    case 'GeminiRateLimit':
+      return 'Swee is handling many requests at once. Please wait about a minute and try again — this is a temporary AI limit.';
+    case 'UserHourlyLimit':
+      return "You've reached Swee's hourly message limit. Please wait a bit before sending more.";
+    case 'UserDailyLimit':
+      return "You've reached Swee's daily message limit. Come back tomorrow to continue — your chats are saved.";
+    case 'ServiceBusy':
+      return 'Swee is temporarily unavailable due to high demand. Please try again in a couple of minutes.';
+    default:
+      break;
+  }
+
+  const msg: string = err?.message ?? '';
+  if (msg.toLowerCase().includes('cancel')) return 'Request cancelled.';
+  return 'Network error. Please try again.';
+}
+
 export async function listConversations(page = 1, limit = 20): Promise<ConversationListResponse> {
   const response = await client.get('/ai/conversations', { params: { page, limit } });
   return response.data as ConversationListResponse;
@@ -169,8 +186,7 @@ export function sendMessageStream(
 
     } catch (err: any) {
       if (!aborted) {
-        const msg: string = err?.response?.data?.message ?? err?.message ?? '';
-        onError(msg.toLowerCase().includes('cancel') ? 'Request cancelled.' : 'Network error. Please try again.');
+        onError(resolveSweeChatError(err));
       }
     }
   })();

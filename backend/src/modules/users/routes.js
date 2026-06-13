@@ -186,6 +186,46 @@ router.delete(
   controller.deleteGalleryExtraPhoto,
 );
 
+router.get(
+  '/me/gallery-items/:parentType/:parentId/engagement',
+  authenticateJWT,
+  validators.galleryItemParams,
+  validate,
+  controller.getGalleryEngagement,
+);
+
+router.post(
+  '/me/gallery-items/:parentType/:parentId/like',
+  authenticateJWT,
+  validators.galleryItemParams,
+  validate,
+  controller.toggleGalleryLike,
+);
+
+router.post(
+  '/me/gallery-items/:parentType/:parentId/comments',
+  authenticateJWT,
+  [...validators.galleryItemParams, ...validators.galleryCommentBody],
+  validate,
+  controller.addGalleryComment,
+);
+
+router.patch(
+  '/me/gallery-items/comments/:commentId',
+  authenticateJWT,
+  [...validators.galleryCommentIdParam, ...validators.galleryCommentBody],
+  validate,
+  controller.updateGalleryComment,
+);
+
+router.delete(
+  '/me/gallery-items/comments/:commentId',
+  authenticateJWT,
+  validators.galleryCommentIdParam,
+  validate,
+  controller.deleteGalleryComment,
+);
+
 // ── Per-user routes ────────────────────────────────────────────────────────────
 
 // GET /users/:id/profile — Enhanced profile with friendship status + stats (requires auth)

@@ -1,6 +1,7 @@
 const usersService = require('./service');
 const galleryAlbumsService = require('./galleryAlbums.service');
 const galleryOverlayService = require('./galleryOverlay.service');
+const galleryEngagementService = require('./galleryEngagement.service');
 const logger = require('../../utils/logger');
 
 /**
@@ -394,6 +395,69 @@ const deleteGalleryExtraPhoto = async (req, res, next) => {
   }
 };
 
+const getGalleryEngagement = async (req, res, next) => {
+  try {
+    const { parentType, parentId } = req.params;
+    const result = await galleryEngagementService.getEngagement(req.user.id, parentType, parentId);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const toggleGalleryLike = async (req, res, next) => {
+  try {
+    const { parentType, parentId } = req.params;
+    const result = await galleryEngagementService.toggleLike(req.user.id, parentType, parentId);
+    const engagement = await galleryEngagementService.getEngagement(req.user.id, parentType, parentId);
+    return res.status(200).json({ ...result, likeCount: engagement.likeCount });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const addGalleryComment = async (req, res, next) => {
+  try {
+    const { parentType, parentId } = req.params;
+    const comment = await galleryEngagementService.addComment(
+      req.user.id,
+      parentType,
+      parentId,
+      req.body.text,
+    );
+    return res.status(201).json({ comment });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const updateGalleryComment = async (req, res, next) => {
+  try {
+    const comment = await galleryEngagementService.updateComment(
+      req.user.id,
+      req.params.commentId,
+      req.body.text,
+    );
+    return res.status(200).json({ comment });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const deleteGalleryComment = async (req, res, next) => {
+  try {
+    const result = await galleryEngagementService.deleteComment(req.user.id, req.params.commentId);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
 /**
  * PATCH /users/device
  */
@@ -438,5 +502,10 @@ module.exports = {
   uploadGalleryItemPhotos,
   hideGallerySharedPhoto,
   deleteGalleryExtraPhoto,
+  getGalleryEngagement,
+  toggleGalleryLike,
+  addGalleryComment,
+  updateGalleryComment,
+  deleteGalleryComment,
   updateDeviceToken,
 };

@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const ctrl = require('./ai.controller');
 const authenticateJWT = require('../../middleware/authenticate');
+const { sweeChatHourlyLimit, sweeChatDailyLimit } = require('./ai.rateLimit');
 
 const router = Router();
 
@@ -14,8 +15,8 @@ router.get('/conversations/:id', ctrl.getConversation);
 router.get('/conversations/:id/messages', ctrl.getConversationMessages);
 router.delete('/conversations/:id', ctrl.deleteConversation);
 
-// POST /ai/chat — Non-streaming chat with Swee; returns { reply, pendingAction, conversationId }
-router.post('/chat', ctrl.chat);
+// POST /ai/chat — Non-streaming chat with Swee; per-user rate limits apply
+router.post('/chat', sweeChatHourlyLimit, sweeChatDailyLimit, ctrl.chat);
 
 // POST /ai/chat/stream — SSE streaming chat with Swee
 router.post('/chat/stream', ctrl.chatStream);

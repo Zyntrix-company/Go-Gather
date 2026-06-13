@@ -30,12 +30,26 @@ import { updateTrip, listDrivePhotoFiles, importDrivePhotosToGallery, type Drive
 import { checkDriveConnected, promptConnectDrive, watchDriveConnect } from '../../utils/drivePickerFlow';
 import { updateEvent } from '../../api/events.api';
 import Toast from 'react-native-toast-message';
-import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
+import { albumChromeStyles as acs, GALLERY_ALBUM_HERO_H } from '../../constants/albumPhotosLayout';
 import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
 import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
 import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
+import GalleryAlbumSubHeader from '../../components/gallery/GalleryAlbumSubHeader';
+import GalleryUploadSheet from '../../components/gallery/GalleryUploadSheet';
+import GalleryTravelersRow, { type GalleryTraveler } from '../../components/gallery/GalleryTravelersRow';
+import GalleryEngagementSection from '../../components/gallery/GalleryEngagementSection';
+import {
+  getGalleryEngagement,
+  toggleGalleryLike,
+  addGalleryComment,
+  updateGalleryComment,
+  deleteGalleryComment,
+  type GalleryComment,
+} from '../../api/gallery.api';
+import { getTripMembers } from '../../api/trips.api';
+import { getEventMembers } from '../../api/events.api';
 import { focusAlbumPhotosAtEnd, sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import useUploadLimits from '../../hooks/useUploadLimits';
 
@@ -310,6 +324,7 @@ function GalleryHeroPhoto({ photo }: { photo: PhotoItem }) {
 function PhotosModal({
   visible,
   title,
+  location,
   onClose,
   parentId,
   parentType,
@@ -324,6 +339,7 @@ function PhotosModal({
 }: {
   visible: boolean;
   title: string;
+  location?: string | null;
   onClose: () => void;
   parentId: string;
   parentType: 'trip' | 'event';
@@ -343,7 +359,6 @@ function PhotosModal({
   const [editMode, setEditMode] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [heroIndex, setHeroIndex] = useState(0);
-  const [descExpanded, setDescExpanded] = useState(false);
   const heroFlatListRef = useRef<any>(null);
   const [nameDraft, setNameDraft] = useState(title);
   const [subtitleDraft, setSubtitleDraft] = useState('');
@@ -357,6 +372,12 @@ function PhotosModal({
   const [selectedDriveFileIds, setSelectedDriveFileIds] = useState<Set<string>>(new Set());
   const [driveImporting, setDriveImporting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showUploadSheet, setShowUploadSheet] = useState(false);
+  const [members, setMembers] = useState<GalleryTraveler[]>([]);
+  const [likeCount, setLikeCount] = useState(0);
+  const [likedByMe, setLikedByMe] = useState(false);
+  const [comments, setComments] = useState<GalleryComment[]>([]);
+  const [liking, setLiking] = useState(false);
 
   useEffect(() => {
     if (!visible || userId) return;
@@ -375,7 +396,6 @@ function PhotosModal({
     if (visible) {
       setEditMode(false);
       setHeroIndex(0);
-      setDescExpanded(false);
       setNameDraft(title);
       setSubtitleDraft(initialSubtitle ?? '');
     }
@@ -427,6 +447,56 @@ function PhotosModal({
     return loadPhotos();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, parentId, parentType, userId]);
+
+  useEffect(() => {
+    if (!visible || !parentId || userId) return;
+    let cancelled = false;
+
+    const membersFetcher = parentType === 'trip'
+      ? getTripMembers(parentId).then((r) => r.members.map((m) => ({
+          userId: m.userId,
+          fullName: m.fullName,
+          avatarUrl: m.avatarUrl,
+        })))
+      : getEventMembers(parentId).then((r) => r.members.map((m) => ({
+          userId: m.userId,
+          fullName: m.fullName,
+          avatarUrl: m.avatarUrl,
+        })));
+
+    Promise.all([membersFetcher, getGalleryEngagement(parentType, parentId)])
+      .then(([memberList, engagement]) => {
+        if (cancelled) return;
+        setMembers(memberList);
+        setLikeCount(engagement.likeCount);
+        setLikedByMe(engagement.likedByMe);
+        setComments(engagement.comments);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMembers([]);
+          setLikeCount(0);
+          setLikedByMe(false);
+          setComments([]);
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [visible, parentId, parentType, userId]);
+
+  const handleToggleLike = async () => {
+    if (userId || liking) return;
+    setLiking(true);
+    try {
+      const res = await toggleGalleryLike(parentType, parentId);
+      setLikedByMe(res.liked);
+      setLikeCount(res.likeCount);
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not update like' });
+    } finally {
+      setLiking(false);
+    }
+  };
 
   const pickPhotos = (cam: boolean) => {
     const fn = cam ? launchCamera : launchImageLibrary;
@@ -634,6 +704,10 @@ function PhotosModal({
     });
   };
 
+  const currentPhoto = photos[heroIndex];
+  const activityLabel = currentPhoto?.activityTitle?.trim() || null;
+  const displaySubtitle = editMode ? subtitleDraft : (initialSubtitle?.trim() ?? '');
+
   return (
     <>
       <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
@@ -641,138 +715,113 @@ function PhotosModal({
           navigation={navigation}
           activeTab="gallery"
           galleryChrome
+          scrollable
           onClose={onClose}
-          photoIndex={heroIndex}
-          photoTotal={photos.length}
-          heroOverlay={
-            !userId ? (
-              editMode ? (
-                <TouchableOpacity onPress={handleDoneEdit} style={acs.heroOverlayBtnLight} disabled={saving}>
-                  {saving ? <ActivityIndicator size="small" color="#0d9488" /> : <CheckIcon />}
-                </TouchableOpacity>
-              ) : (
-                <>
-                  <TouchableOpacity onPress={() => setEditMode(true)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                    <Pen size={15} color="#0d9488" />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={handleArchiveAlbum} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                    <Archive size={15} color="#64748b" />
-                  </TouchableOpacity>
-                </>
-              )
-            ) : null
-          }
-          footer={
-            !userId ? (
-              <AlbumPhotosFooter
-                galleryChrome
-                aboveTabBar
-                onUpload={() => pickPhotos(false)}
-                onCamera={() => pickPhotos(true)}
-                onDrive={openPhotoDrivePicker}
-                uploading={uploading}
-                driveImporting={driveImporting}
-              />
-            ) : (
-              <AlbumPhotosFooter viewOnly aboveTabBar />
-            )
+          subHeader={
+            <GalleryAlbumSubHeader
+              title={title}
+              location={location}
+              editMode={editMode}
+              viewOnly={!!userId}
+              nameDraft={nameDraft}
+              subtitleDraft={subtitleDraft}
+              onNameChange={setNameDraft}
+              onSubtitleChange={setSubtitleDraft}
+              onBack={onClose}
+              onEdit={() => setEditMode(true)}
+              onArchive={handleArchiveAlbum}
+              onUpload={() => setShowUploadSheet(true)}
+              onDoneEdit={handleDoneEdit}
+              saving={saving}
+            />
           }
         >
-          <AlbumPhotosBody>
-            <AlbumPhotosHeroCarousel
-              galleryChrome
-              photos={photos}
-              heroIndex={heroIndex}
-              onIndexChange={setHeroIndex}
-              heroRef={heroFlatListRef}
-              loading={loading}
-              scrollEnabled={!editMode}
-              renderPhoto={(item) => <GalleryHeroPhoto photo={item} />}
-            />
-            <AlbumPhotosThumbStrip
-              photos={photos}
-              heroIndex={heroIndex}
-              scrollEnabled={!editMode}
-              transparent
-              galleryChrome
-              onSelect={(idx) => {
-                setHeroIndex(idx);
-                heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
+          <AlbumPhotosHeroCarousel
+            galleryChrome
+            photos={photos}
+            heroIndex={heroIndex}
+            onIndexChange={setHeroIndex}
+            heroRef={heroFlatListRef}
+            loading={loading}
+            scrollEnabled={!editMode}
+            fixedHeight={GALLERY_ALBUM_HERO_H}
+            showPagerDots={false}
+            activityLabel={activityLabel}
+            renderPhoto={(item) => <GalleryHeroPhoto photo={item} />}
+          />
+          <AlbumPhotosThumbStrip
+            photos={photos}
+            heroIndex={heroIndex}
+            scrollEnabled={!editMode}
+            transparent
+            galleryChrome
+            onSelect={(idx) => {
+              setHeroIndex(idx);
+              heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
+            }}
+            renderOverlay={(ph, _idx) => {
+              if (!editMode || userId) return null;
+              const isExtra = ph.source === 'extra';
+              return (
+                <TouchableOpacity
+                  onPress={() => {
+                    showConfirm({
+                      title: isExtra ? 'Delete photo?' : 'Remove from my gallery?',
+                      message: isExtra
+                        ? 'This photo will be permanently removed from your gallery.'
+                        : 'This photo stays in the trip/event album for other members.',
+                      destructive: true,
+                      confirmText: isExtra ? 'Delete' : 'Remove',
+                      onConfirm: () => removePhotoFromGallery(ph as PhotoItem),
+                    });
+                  }}
+                  style={styles.thumbDeleteBtn}
+                  hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                  disabled={deletingId === ph.id}
+                >
+                  {deletingId === ph.id
+                    ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
+                    : <Trash2 size={11} color="#fff" strokeWidth={2.5} />}
+                </TouchableOpacity>
+              );
+            }}
+          />
+          {!editMode && displaySubtitle ? (
+            <Text style={styles.galleryDescription}>{displaySubtitle}</Text>
+          ) : null}
+          {parentType === 'trip' ? <GalleryTravelersRow members={members} /> : null}
+          {!userId ? (
+            <GalleryEngagementSection
+              likeCount={likeCount}
+              likedByMe={likedByMe}
+              comments={comments}
+              onToggleLike={handleToggleLike}
+              liking={liking}
+              onAddComment={async (text) => {
+                const comment = await addGalleryComment(parentType, parentId, text);
+                setComments((prev) => [...prev, comment]);
               }}
-              renderOverlay={(ph, _idx) => {
-                if (!editMode || userId) return null;
-                const isExtra = ph.source === 'extra';
-                return (
-                  <TouchableOpacity
-                    onPress={() => {
-                      showConfirm({
-                        title: isExtra ? 'Delete photo?' : 'Remove from my gallery?',
-                        message: isExtra
-                          ? 'This photo will be permanently removed from your gallery.'
-                          : 'This photo stays in the trip/event album for other members.',
-                        destructive: true,
-                        confirmText: isExtra ? 'Delete' : 'Remove',
-                        onConfirm: () => removePhotoFromGallery(ph as PhotoItem),
-                      });
-                    }}
-                    style={styles.thumbDeleteBtn}
-                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                    disabled={deletingId === ph.id}
-                  >
-                    {deletingId === ph.id
-                      ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
-                      : <Trash2 size={11} color="#fff" strokeWidth={2.5} />}
-                  </TouchableOpacity>
-                );
+              onEditComment={async (commentId, text) => {
+                const updated = await updateGalleryComment(commentId, text);
+                setComments((prev) => prev.map((c) => (c.id === commentId ? updated : c)));
+              }}
+              onDeleteComment={async (commentId) => {
+                await deleteGalleryComment(commentId);
+                setComments((prev) => prev.filter((c) => c.id !== commentId));
               }}
             />
-            <View style={acs.metaCardTransparent}>
-              {(editMode && !userId) ? (
-                <>
-                  <TextInput
-                    value={nameDraft}
-                    onChangeText={setNameDraft}
-                    style={[styles.titleEditInput, { fontSize: 14, marginBottom: 4, paddingVertical: 4 }]}
-                    placeholderTextColor="#94a3b8"
-                    placeholder="Album title"
-                    returnKeyType="next"
-                  />
-                  <TextInput
-                    value={subtitleDraft}
-                    onChangeText={setSubtitleDraft}
-                    placeholder="Short description…"
-                    placeholderTextColor="#94a3b8"
-                    style={[styles.modalSubtitleInput, { marginBottom: 4, fontSize: 12, paddingVertical: 4 }]}
-                    maxLength={80}
-                    returnKeyType="done"
-                    onSubmitEditing={handleDoneEdit}
-                  />
-                </>
-              ) : (
-                <>
-                  <Text style={acs.metaTitle} numberOfLines={1}>{title}</Text>
-                  {initialSubtitle?.trim() ? (
-                    <Text style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }} numberOfLines={1}>
-                      {initialSubtitle}
-                    </Text>
-                  ) : null}
-                </>
-              )}
-              <View style={acs.metaRow}>
-                <View style={{ backgroundColor: parentType === 'trip' ? '#f0fdf4' : '#fdf2f8', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '600', color: parentType === 'trip' ? '#0d9488' : '#db2777' }}>
-                    {parentType === 'trip' ? 'Trip' : 'Event'}
-                  </Text>
-                </View>
-                <Text style={acs.metaCount}>
-                  {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
-                </Text>
-              </View>
-            </View>
-          </AlbumPhotosBody>
+          ) : null}
         </AlbumPhotosScreenLayout>
       </Modal>
-      <Modal visible={showDrivePicker} transparent animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
+      <GalleryUploadSheet
+        visible={showUploadSheet}
+        onClose={() => setShowUploadSheet(false)}
+        onGallery={() => pickPhotos(false)}
+        onCamera={() => pickPhotos(true)}
+        onDrive={openPhotoDrivePicker}
+        busy={uploading || driveImporting}
+      />
+      <Modal visible={showDrivePicker}  animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
         <View style={styles.overlay}>
           <View style={[styles.dialog, { maxHeight: '85%' }]}>
             <View style={styles.dialogHeader}>
@@ -1302,6 +1351,7 @@ export default function GalleryTab({
     name: string;
     type: 'trip' | 'event';
     subtitle: string | null;
+    location?: string | null;
     bannerImageUrl?: string | null;
   } | null>(null);
 
@@ -1493,7 +1543,7 @@ export default function GalleryTab({
                 <GridCard
                   key={trip.id}
                   item={trip}
-                  onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null, bannerImageUrl: trip.bannerImageUrl ?? null })}
+                  onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null, location: trip.location ?? null, bannerImageUrl: trip.bannerImageUrl ?? null })}
                 />
               ))}
               {customTripCards.map((card) => (
@@ -1522,7 +1572,7 @@ export default function GalleryTab({
                 <GridCard
                   key={ev.id}
                   item={ev}
-                  onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null, bannerImageUrl: ev.bannerImageUrl ?? null })}
+                  onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null, location: ev.location ?? null, bannerImageUrl: ev.bannerImageUrl ?? null })}
                 />
               ))}
               {customEventCards.map((card) => (
@@ -1547,6 +1597,7 @@ export default function GalleryTab({
         <PhotosModal
           visible
           title={photoModal.name}
+          location={photoModal.location}
           parentId={photoModal.id}
           parentType={photoModal.type}
           isOwner
@@ -1845,5 +1896,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     marginTop: 6,
+  },
+  galleryDescription: {
+    fontSize: 14,
+    color: '#0f172a',
+    lineHeight: 21,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
 });

@@ -69,6 +69,19 @@ describe('conversations.service helpers', () => {
     expect(conversationsService.titleFromFirstMessage(long).length).toBeLessThanOrEqual(50);
   });
 
+  it('buildMemoryBlock summarizes older turns', () => {
+    const block = conversationsService.buildMemoryBlock([
+      { role: 'user', content: 'Plan a trip to Mumbai', metadata: {} },
+      {
+        role: 'assistant',
+        content: 'What dates work?',
+        metadata: { pendingAction: { intent: 'create_trip', draft: { destination: 'Mumbai' } } },
+      },
+    ]);
+    expect(block).toContain('User:');
+    expect(block).toContain('Mumbai');
+  });
+
   it('listMessages returns user before assistant when timestamps match', async () => {
     const ts = '2026-06-08T10:00:00.000Z';
     db.query

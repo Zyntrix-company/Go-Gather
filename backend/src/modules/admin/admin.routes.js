@@ -259,7 +259,22 @@ router.get('/health', async (_req, res) => {
     microsoftOAuth: cfg.microsoft.clientId && cfg.microsoft.clientSecret ? 'configured' : 'not_configured',
 
     // Integrations (config checks)
-    gemini: cfg.gemini.apiKey                  ? 'configured' : 'not_configured',
+    gemini: cfg.gemini.apiKey ? 'configured' : 'not_configured',
+    geminiOpsNote: cfg.gemini.apiKey
+      ? 'Check Google AI Studio → Rate limits weekly (RPM/RPD/TPM). Watch logs for swee rate_limited and ALERT swee.chat.error_rate_high.'
+      : null,
+    sweeCircuit: (() => {
+      try {
+        const cb = require('../ai/swee.circuitBreaker');
+        return cb.getStatus();
+      } catch { return null; }
+    })(),
+    sweeMetrics: (() => {
+      try {
+        const m = require('../ai/swee.metrics');
+        return m.getSnapshot();
+      } catch { return null; }
+    })(),
     branch: cfg.branch.key && cfg.branch.secret ? 'configured' : 'not_configured',
   };
 

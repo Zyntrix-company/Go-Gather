@@ -182,6 +182,56 @@ async function deleteConversation(userId, conversationId) {
 // Tie-break so reversed DESC results always read user → assistant chronologically.
 const MESSAGE_ORDER_DESC = `created_at DESC, CASE role WHEN 'assistant' THEN 0 ELSE 1 END`;
 
+function buildMemoryBlock(olderRows) {
+  if (!olderRows?.length) return '';
+  const lines = [];
+  for (const row of olderRows) {
+    const text = stripMarkdown(row.content).replace(/\s+/g, ' ').trim();
+    if (!text) continue;
+    const label = row.role === 'user' ? 'User' : 'Swee';
+    lines.push(`- ${label}: ${truncate(text, 120)}`);
+    const draft = row.metadata?.pendingAction?.draft;
+    if (draft?.destination) lines.push(`  (trip: ${draft.destination})`);
+    if (draft?.name && row.metadata?.pendingAction?.intent?.includes('event')) {
+      lines.push(`  (event: ${draft.name})`);
+    }
+  }
+  if (!lines.length) return '';
+  return truncate(lines.join('\n'), 1500);
+}
+
+async function countMessages(conversationId) {
+  const result = await db(
+    `SELECT COUNT(*)::int AS total FROM ai_messages WHERE conversation_id = $1`,
+    [conversationId],
+  );
+  return result.rows[0]?.total ?? 0;
+}
+
+async function loadOlderMessagesForMemory(conversationId, skipLastN) {
+  if (!skipLastN) return [];
+  const result = await db(
+    `SELECT role, content, metadata FROM ai_messages
+     WHERE conversation_id = $1
+     ORDER BY ${MESSAGE_ORDER_DESC}
+     OFFSET $2`,
+    [conversationId, skipLastN],
+  );
+  return result.rows.reverse();
+}
+
+/** Recent turns for Gemini plus a compact summary of older messages in the thread. */
+async function loadHistoryForGemini(conversationId, maxRecent = 10) {
+  const total = await countMessages(conversationId);
+  const history = await loadMessageHistory(conversationId, maxRecent);
+  let memoryBlock = '';
+  if (total > maxRecent) {
+    const older = await loadOlderMessagesForMemory(conversationId, maxRecent);
+    memoryBlock = buildMemoryBlock(older);
+  }
+  return { history, memoryBlock, total };
+}
+
 async function loadMessageHistory(conversationId, limit = 10) {
   const result = await db(
     `SELECT role, content FROM ai_messages
@@ -348,6 +398,9 @@ module.exports = {
   inferCategory,
   buildPreview,
   categoryFromTripContext,
+  buildMemoryBlock,
+  countMessages,
+  loadHistoryForGemini,
   listConversations,
   createConversation,
   getConversation,

@@ -105,8 +105,9 @@ async function loadUserContext(userId) {
  * @param {object} userContext  - { profile, trips, events }
  * @param {object|null} tripContext - active trip/event context from detail screen
  * @param {number} historyLength - number of prior messages in this session (0 = first turn)
+ * @param {string} memoryBlock - summary of older messages when thread exceeds history window
  */
-function buildSweetSystemPrompt(userContext, tripContext, historyLength = 0) {
+function buildSweetSystemPrompt(userContext, tripContext, historyLength = 0, memoryBlock = '') {
   const {
     profile, trips = [], events = [], frequentCompanions = [], budgetTier,
   } = userContext || {};
@@ -161,6 +162,10 @@ function buildSweetSystemPrompt(userContext, tripContext, historyLength = 0) {
   const greetingRule = historyLength === 0
     ? `This is the FIRST message in this session. If the user is just greeting, reply with a single warm line (max 12 words). If they immediately ask about a trip/event, skip the greeting and go straight to the relevant response.`
     : `This is NOT the first message. DO NOT start with "Hello", "Hi", the user's name, "Great!", "Sure!", "Of course!", "Wonderful!", "Absolutely!", or any filler opener. Start your reply directly with the substance — first word should be meaningful content.`;
+
+  const memorySection = memoryBlock
+    ? `\n\nEARLIER IN THIS CONVERSATION (for continuity — do not repeat verbatim):\n${memoryBlock}`
+    : '';
 
   return `You are Swee — a female AI travel and event planning assistant built into GatherGo. Use she/her tone and personality naturally.
 
@@ -351,7 +356,7 @@ Use only data from the user context below. Never invent data.
 - Use typical spending tier to calibrate price ranges (see TYPE B rules).
 - Avoid suggesting duplicate destinations the user already has upcoming trips for.
 - Use timezone for scheduling activity times.
-${userBlock}${contextBlock}
+${userBlock}${contextBlock}${memorySection}
 
 ────────────────────────────────────────────
 ACTION TRACKING (CRITICAL)

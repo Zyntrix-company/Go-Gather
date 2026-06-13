@@ -3,11 +3,24 @@ import {
   View, Text, TouchableOpacity, ScrollView,
   Dimensions, StyleSheet, ActivityIndicator, Modal, Animated,
 } from 'react-native';
-import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
+import { albumChromeStyles as acs, GALLERY_ALBUM_HERO_H } from '../../constants/albumPhotosLayout';
 import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
 import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
 import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
+import GalleryAlbumSubHeader from '../../components/gallery/GalleryAlbumSubHeader';
+import GalleryTravelersRow, { type GalleryTraveler } from '../../components/gallery/GalleryTravelersRow';
+import GalleryEngagementSection from '../../components/gallery/GalleryEngagementSection';
+import {
+  getGalleryEngagement,
+  toggleGalleryLike,
+  addGalleryComment,
+  updateGalleryComment,
+  deleteGalleryComment,
+  type GalleryComment,
+} from '../../api/gallery.api';
+import { getTripMembers } from '../../api/trips.api';
+import { getEventMembers } from '../../api/events.api';
 import { sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
@@ -268,20 +281,24 @@ function FriendHeroPhoto({ photo }: { photo: PhotoItem }) {
   );
 }
 
-function PhotosModal({ visible, title, onClose, parentId, parentType, userId, gallerySubtitle }: {
-  visible: boolean; title: string; onClose: () => void;
+function PhotosModal({ visible, title, location, onClose, parentId, parentType, userId, gallerySubtitle }: {
+  visible: boolean; title: string; location?: string | null; onClose: () => void;
   parentId: string; parentType: 'trip' | 'event'; userId?: string; gallerySubtitle?: string | null;
 }) {
   const navigation = useNavigation<any>();
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [heroIndex, setHeroIndex] = useState(0);
-  const [descExpanded, setDescExpanded] = useState(false);
   const heroFlatListRef = useRef<any>(null);
   const localUriCache = useRef<Record<string, string>>({});
+  const [members, setMembers] = useState<GalleryTraveler[]>([]);
+  const [likeCount, setLikeCount] = useState(0);
+  const [likedByMe, setLikedByMe] = useState(false);
+  const [comments, setComments] = useState<GalleryComment[]>([]);
+  const [liking, setLiking] = useState(false);
 
   useEffect(() => {
-    if (visible) { setHeroIndex(0); setDescExpanded(false); }
+    if (visible) setHeroIndex(0);
   }, [visible]);
 
   useEffect(() => {
@@ -316,56 +333,119 @@ function PhotosModal({ visible, title, onClose, parentId, parentType, userId, ga
     return () => { cancelled = true; };
   }, [visible, parentId, parentType, userId]);
 
+  useEffect(() => {
+    if (!visible || !parentId) return;
+    let cancelled = false;
+
+    const membersFetcher = parentType === 'trip'
+      ? getTripMembers(parentId).then((r) => r.members.map((m) => ({
+          userId: m.userId,
+          fullName: m.fullName,
+          avatarUrl: m.avatarUrl,
+        })))
+      : getEventMembers(parentId).then((r) => r.members.map((m) => ({
+          userId: m.userId,
+          fullName: m.fullName,
+          avatarUrl: m.avatarUrl,
+        })));
+
+    Promise.all([membersFetcher, getGalleryEngagement(parentType, parentId)])
+      .then(([memberList, engagement]) => {
+        if (cancelled) return;
+        setMembers(memberList);
+        setLikeCount(engagement.likeCount);
+        setLikedByMe(engagement.likedByMe);
+        setComments(engagement.comments);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMembers([]);
+          setLikeCount(0);
+          setLikedByMe(false);
+          setComments([]);
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [visible, parentId, parentType]);
+
+  const currentPhoto = photos[heroIndex];
+  const activityLabel = currentPhoto?.activityTitle?.trim() || null;
+
   return (
     <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
       <AlbumPhotosScreenLayout
         navigation={navigation}
         activeTab="friends"
         galleryChrome
+        scrollable
         onClose={onClose}
-        photoIndex={heroIndex}
-        photoTotal={photos.length}
-        footer={<AlbumPhotosFooter viewOnly aboveTabBar />}
+        subHeader={
+          <GalleryAlbumSubHeader
+            title={title}
+            location={location}
+            viewOnly
+            onBack={onClose}
+          />
+        }
       >
-        <AlbumPhotosBody>
-          <AlbumPhotosHeroCarousel
-            galleryChrome
-            photos={photos}
-            heroIndex={heroIndex}
-            onIndexChange={setHeroIndex}
-            heroRef={heroFlatListRef}
-            loading={loading}
-            renderPhoto={(item) => <FriendHeroPhoto photo={item} />}
-          />
-          <AlbumPhotosThumbStrip
-            photos={photos}
-            heroIndex={heroIndex}
-            transparent
-            galleryChrome
-            onSelect={(idx) => {
-              setHeroIndex(idx);
-              heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
-            }}
-          />
-          <View style={acs.metaCardTransparent}>
-            <Text style={acs.metaTitle} numberOfLines={1}>{title}</Text>
-            {gallerySubtitle?.trim() ? (
-              <Text style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }} numberOfLines={1}>
-                {gallerySubtitle}
-              </Text>
-            ) : null}
-            <View style={acs.metaRow}>
-              <View style={{ backgroundColor: parentType === 'trip' ? '#f0fdf4' : '#fdf2f8', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
-                <Text style={{ fontSize: 10, fontWeight: '600', color: parentType === 'trip' ? '#0d9488' : '#db2777' }}>
-                  {parentType === 'trip' ? 'Trip' : 'Event'}
-                </Text>
-              </View>
-              <Text style={acs.metaCount}>
-                {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
-              </Text>
-            </View>
-          </View>
-        </AlbumPhotosBody>
+        <AlbumPhotosHeroCarousel
+          galleryChrome
+          photos={photos}
+          heroIndex={heroIndex}
+          onIndexChange={setHeroIndex}
+          heroRef={heroFlatListRef}
+          loading={loading}
+          fixedHeight={GALLERY_ALBUM_HERO_H}
+          showPagerDots={false}
+          activityLabel={activityLabel}
+          renderPhoto={(item) => <FriendHeroPhoto photo={item} />}
+        />
+        <AlbumPhotosThumbStrip
+          photos={photos}
+          heroIndex={heroIndex}
+          transparent
+          galleryChrome
+          onSelect={(idx) => {
+            setHeroIndex(idx);
+            heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
+          }}
+        />
+        {gallerySubtitle?.trim() ? (
+          <Text style={fpGalleryStyles.description}>{gallerySubtitle}</Text>
+        ) : null}
+        {parentType === 'trip' ? <GalleryTravelersRow members={members} /> : null}
+        <GalleryEngagementSection
+          likeCount={likeCount}
+          likedByMe={likedByMe}
+          comments={comments}
+          liking={liking}
+          onToggleLike={async () => {
+            if (liking) return;
+            setLiking(true);
+            try {
+              const res = await toggleGalleryLike(parentType, parentId);
+              setLikedByMe(res.liked);
+              setLikeCount(res.likeCount);
+            } catch {
+              Toast.show({ type: 'error', text1: 'Could not update like' });
+            } finally {
+              setLiking(false);
+            }
+          }}
+          onAddComment={async (text) => {
+            const comment = await addGalleryComment(parentType, parentId, text);
+            setComments((prev) => [...prev, comment]);
+          }}
+          onEditComment={async (commentId, text) => {
+            const updated = await updateGalleryComment(commentId, text);
+            setComments((prev) => prev.map((c) => (c.id === commentId ? updated : c)));
+          }}
+          onDeleteComment={async (commentId) => {
+            await deleteGalleryComment(commentId);
+            setComments((prev) => prev.filter((c) => c.id !== commentId));
+          }}
+        />
       </AlbumPhotosScreenLayout>
     </Modal>
   );
@@ -387,7 +467,7 @@ export default function FriendProfileScreen() {
   const [customEventAlbums, setCustomEventAlbums] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [avatarError, setAvatarError] = useState(false);
-  const [photoModal, setPhotoModal] = useState<{ id: string; name: string; type: 'trip' | 'event'; subtitle?: string | null } | null>(null);
+  const [photoModal, setPhotoModal] = useState<{ id: string; name: string; type: 'trip' | 'event'; subtitle?: string | null; location?: string | null } | null>(null);
   const [customAlbumModal, setCustomAlbumModal] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => { setAvatarError(false); }, [profile?.avatarUrl, paramAvatarUrl]);
@@ -506,7 +586,7 @@ export default function FriendProfileScreen() {
             />
             <View style={styles.grid}>
               {galleryTrips.map((trip: any) => (
-                <GridCard key={trip.id} item={trip} onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null })} />
+                <GridCard key={trip.id} item={trip} onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null, location: trip.location ?? null })} />
               ))}
               {customTripAlbums.map((album: any) => (
                 <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name })} />
@@ -525,7 +605,7 @@ export default function FriendProfileScreen() {
             />
             <View style={styles.grid}>
               {galleryEvents.map((ev: any) => (
-                <GridCard key={ev.id} item={ev} onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null })} />
+                <GridCard key={ev.id} item={ev} onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null, location: ev.location ?? null })} />
               ))}
               {customEventAlbums.map((album: any) => (
                 <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name })} />
@@ -543,6 +623,7 @@ export default function FriendProfileScreen() {
         <PhotosModal
           visible
           title={photoModal.name}
+          location={photoModal.location}
           parentId={photoModal.id}
           parentType={photoModal.type}
           userId={userId}
@@ -565,6 +646,17 @@ export default function FriendProfileScreen() {
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
+
+const fpGalleryStyles = StyleSheet.create({
+  description: {
+    fontSize: 14,
+    color: '#0f172a',
+    lineHeight: 21,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },

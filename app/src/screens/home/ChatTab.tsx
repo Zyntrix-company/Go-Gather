@@ -13,11 +13,11 @@ import ChatConversationRow from '../../components/chat/ChatConversationRow';
 import ChatListSkeleton from '../../components/chat/ChatListSkeleton';
 import SweeIcon from '../../components/common/SweeIcon';
 import useChatStore from '../../store/chatStore';
-import { createConversation, type AiConversation } from '../../api/ai.api';
+import { type AiConversation } from '../../api/ai.api';
 
 type Props = {
   onOpenConversation: (conversationId: string) => void;
-  onOpenNewConversation: (conversationId: string) => void;
+  onOpenNewChat: () => void;
 };
 
 function PlusIcon() {
@@ -28,15 +28,13 @@ function PlusIcon() {
   );
 }
 
-function ChatTab({ onOpenConversation, onOpenNewConversation }: Props) {
+function ChatTab({ onOpenConversation, onOpenNewChat }: Props) {
   const conversations = useChatStore((s) => s.conversations);
   const loading = useChatStore((s) => s.loading);
   const hasMore = useChatStore((s) => s.hasMore);
   const fetchConversations = useChatStore((s) => s.fetchConversations);
-  const prependConversation = useChatStore((s) => s.prependConversation);
 
   const [refreshing, setRefreshing] = useState(false);
-  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     fetchConversations(true);
@@ -48,19 +46,9 @@ function ChatTab({ onOpenConversation, onOpenNewConversation }: Props) {
     setRefreshing(false);
   }, [fetchConversations]);
 
-  const handleNewChat = useCallback(async () => {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const conversation = await createConversation();
-      prependConversation(conversation);
-      onOpenNewConversation(conversation.id);
-    } catch {
-      // silent — user can retry
-    } finally {
-      setCreating(false);
-    }
-  }, [creating, onOpenNewConversation, prependConversation]);
+  const handleNewChat = useCallback(() => {
+    onOpenNewChat();
+  }, [onOpenNewChat]);
 
   const renderItem = useCallback(({ item }: { item: AiConversation }) => (
     <ChatConversationRow
@@ -77,16 +65,9 @@ function ChatTab({ onOpenConversation, onOpenNewConversation }: Props) {
         style={styles.newChatBtn}
         onPress={handleNewChat}
         activeOpacity={0.85}
-        disabled={creating}
       >
-        {creating ? (
-          <ActivityIndicator size="small" color="#fff" />
-        ) : (
-          <>
-            <PlusIcon />
-            <Text style={styles.newChatText}>Start New Chat</Text>
-          </>
-        )}
+        <PlusIcon />
+        <Text style={styles.newChatText}>Start New Chat</Text>
       </TouchableOpacity>
 
       {showInitialSkeleton ? (

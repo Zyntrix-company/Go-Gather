@@ -113,6 +113,19 @@ const extraPhotoIdParam = [
     .withMessage('photoId must be a valid UUID'),
 ];
 
+const galleryCommentIdParam = [
+  param('commentId')
+    .isUUID()
+    .withMessage('commentId must be a valid UUID'),
+];
+
+const galleryCommentBody = [
+  body('text')
+    .isLength({ min: 1, max: 20 })
+    .trim()
+    .withMessage('Comment must be 1–20 characters'),
+];
+
 module.exports = {
   saveProfileValidation,
   getPublicProfileValidation,
@@ -124,4 +137,6 @@ module.exports = {
   galleryItemParams,
   galleryPhotoIdParam,
   extraPhotoIdParam,
+  galleryCommentIdParam,
+  galleryCommentBody,
 };

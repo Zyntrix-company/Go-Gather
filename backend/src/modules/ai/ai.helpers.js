@@ -4,25 +4,95 @@
 
 const { EVENT_TYPE_MAP, APP_EVENT_TYPES } = require('./swee.config');
 
-// ─── Action block extraction ───────────────────────────────────────────────────
+const VALID_INTENTS = new Set([
+  'none',
+  'create_trip',
+  'create_event',
+  'update_trip',
+  'update_event',
+  'identify_update',
+  'add_note',
+]);
 
-function parseActionBlock(rawText) {
+const ACTION_FALLBACK_REPLY = 'I had a hiccup processing that — could you say it again in a few words?';
+
+function validatePendingAction(action) {
+  if (!action || typeof action !== 'object' || Array.isArray(action)) {
+    return { valid: false, reason: 'not_object' };
+  }
+  if (!VALID_INTENTS.has(action.intent)) {
+    return { valid: false, reason: 'invalid_intent' };
+  }
+  if (typeof action.readyToCreate !== 'boolean') {
+    return { valid: false, reason: 'missing_readyToCreate' };
+  }
+  if (action.draft != null && (typeof action.draft !== 'object' || Array.isArray(action.draft))) {
+    return { valid: false, reason: 'invalid_draft' };
+  }
+  if (action.readyToCreate && action.intent === 'none') {
+    return { valid: false, reason: 'ready_none_intent' };
+  }
+  if (action.readyToCreate && ['create_trip', 'create_event'].includes(action.intent)) {
+    const draft = action.draft || {};
+    if (action.intent === 'create_trip' && !draft.destination && !draft.name) {
+      return { valid: false, reason: 'create_trip_missing_draft' };
+    }
+    if (action.intent === 'create_event' && !draft.name && !draft.eventDate) {
+      return { valid: false, reason: 'create_event_missing_draft' };
+    }
+  }
+  return { valid: true };
+}
+
+function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
   const marker = '###ACTION';
   const idx = rawText.lastIndexOf(marker);
   if (idx === -1) return { reply: rawText.trim(), pendingAction: null };
 
-  const visibleReply = rawText.slice(0, idx).trim();
+  let visibleReply = rawText.slice(0, idx).trim();
   const jsonStr = rawText.slice(idx + marker.length).trim();
+  const hadMarker = true;
 
   try {
     const action = JSON.parse(jsonStr);
+    const validation = validatePendingAction(action);
+    if (!validation.valid) {
+      if (logInvalid && logger) {
+        logger.warn('Swee invalid ACTION block', {
+          reason: validation.reason,
+          intent: action?.intent,
+          preview: jsonStr.slice(0, 200),
+        });
+      }
+      if (!visibleReply) visibleReply = ACTION_FALLBACK_REPLY;
+      return {
+        reply: visibleReply,
+        pendingAction: null,
+        actionParseError: validation.reason,
+        hadActionMarker: hadMarker,
+      };
+    }
+
     const meaningful = action.readyToCreate || action.intent === 'identify_update';
     return {
-      reply: visibleReply,
+      reply: visibleReply || (meaningful ? ACTION_FALLBACK_REPLY : ''),
       pendingAction: meaningful ? action : null,
+      hadActionMarker: hadMarker,
     };
-  } catch {
-    return { reply: visibleReply, pendingAction: null };
+  } catch (parseErr) {
+    if (logInvalid && logger) {
+      logger.warn('Swee ACTION JSON parse failed', {
+        error: parseErr.message,
+        preview: jsonStr.slice(0, 200),
+      });
+    }
+    if (!visibleReply) visibleReply = ACTION_FALLBACK_REPLY;
+    return {
+      reply: visibleReply,
+      pendingAction: null,
+      actionParseError: 'json_parse_failed',
+      hadActionMarker: hadMarker,
+    };
   }
 }
 
@@ -144,6 +214,9 @@ function buildPlanningMetadata(draft = {}) {
 }
 
 module.exports = {
+  VALID_INTENTS,
+  ACTION_FALLBACK_REPLY,
+  validatePendingAction,
   parseActionBlock,
   generateTripName,
   resolveEventType,

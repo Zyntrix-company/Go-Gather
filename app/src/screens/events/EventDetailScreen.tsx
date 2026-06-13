@@ -25,8 +25,6 @@ import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
 import DetailTabBar from '../../components/details/DetailTabBar';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import SweeFab from '../../components/details/SweeFab';
-import useChatStore from '../../store/chatStore';
-import { createConversation } from '../../api/ai.api';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
 import AppHeader from '../../components/common/AppHeader';
 import {
@@ -1505,22 +1503,15 @@ export default function EventDetailScreen({ route, navigation }: any) {
         </ScrollView>
 
         <SweeFab
-          onPress={async () => {
-            const tripContext = {
+          onPress={() => navigation.navigate('ChatDetail', {
+            tripContext: {
               name: event?.name,
               destination: formatLocationsLabelFull(event),
               startDate: event?.dateLine ?? undefined,
               memberCount: members?.length,
               contextType: 'event' as const,
-            };
-            try {
-              const conversation = await createConversation(tripContext);
-              useChatStore.getState().prependConversation(conversation);
-              navigation.navigate('ChatDetail', { conversationId: conversation.id, tripContext });
-            } catch {
-              // user can open chat from home tab
-            }
-          }}
+            },
+          })}
           fabStyle={{ bottom: 78 }}
         />
 

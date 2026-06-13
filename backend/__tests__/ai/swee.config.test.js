@@ -41,4 +41,10 @@ describe('swee.config buildSweetSystemPrompt', () => {
     const prompt = buildSweetSystemPrompt(baseContext, null, 1);
     expect(prompt).toMatch(/Saver.*Comfort.*Premium.*Luxury/s);
   });
+
+  it('injects conversation memory block when provided', () => {
+    const prompt = buildSweetSystemPrompt(baseContext, null, 4, '- User: Plan Mumbai trip');
+    expect(prompt).toMatch(/EARLIER IN THIS CONVERSATION/i);
+    expect(prompt).toMatch(/Plan Mumbai trip/);
+  });
 });
