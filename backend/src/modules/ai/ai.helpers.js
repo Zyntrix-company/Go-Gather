@@ -2,7 +2,7 @@
  * Pure Swee AI helpers — testable without Gemini or DB.
  */
 
-const { EVENT_TYPE_MAP, APP_EVENT_TYPES } = require('./swee.config');
+const { EVENT_TYPE_MAP, APP_EVENT_TYPES, APP_BRAND_NAME } = require('./swee.config');
 
 const VALID_INTENTS = new Set([
   'none',
@@ -15,6 +15,90 @@ const VALID_INTENTS = new Set([
 ]);
 
 const ACTION_FALLBACK_REPLY = 'I had a hiccup processing that — could you say it again in a few words?';
+
+function stripHtmlTableArtifacts(text) {
+  return text
+    .replace(/<\/?t[rhd][^>]*>/gi, '')
+    .replace(/<\/?table[^>]*>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?tbody[^>]*>/gi, '')
+    .replace(/<\/?thead[^>]*>/gi, '');
+}
+
+function fixBrandName(text) {
+  return text.replace(/GatherGo/gi, APP_BRAND_NAME);
+}
+
+function isTableLine(line) {
+  return line.trim().startsWith('|') && line.trim().endsWith('|');
+}
+
+function isSeparatorLine(line) {
+  return /^\|[\s\-|:]+\|$/.test(line.trim());
+}
+
+function parseTableCells(line) {
+  const parts = line.trim().split('|');
+  return parts.slice(1, parts.length - 1).map((c) => c.trim());
+}
+
+function normalizeTableBlock(lines) {
+  const dataLines = lines.filter((l) => !isSeparatorLine(l));
+  if (dataLines.length === 0) return ['| Field | Details |', '| --- | --- |'];
+
+  const rows = dataLines.map(parseTableCells);
+  const firstLabel = (rows[0]?.[0] || '').toLowerCase();
+  const isConfirmationTable = firstLabel === 'field'
+    || rows.some((r) => /^(trip name|event name|destination|start date|end date|date|type|location)$/i.test(r[0] || ''));
+
+  if (!isConfirmationTable) {
+    const header = `| ${rows[0].join(' | ')} |`;
+    const sep = `| ${rows[0].map(() => '---').join(' | ')} |`;
+    const body = rows.slice(1).map((r) => `| ${r.join(' | ')} |`);
+    return [header, sep, ...body];
+  }
+
+  const out = ['| Field | Details |', '| --- | --- |'];
+  const startIdx = firstLabel === 'field' ? 1 : 0;
+  for (let i = startIdx; i < rows.length; i++) {
+    const cells = rows[i];
+    if (cells.length >= 2) {
+      out.push(`| ${cells[0]} | ${cells.slice(1).join(' · ')} |`);
+    } else if (cells.length === 1 && cells[0]) {
+      out.push(`| ${cells[0]} | |`);
+    }
+  }
+  return out;
+}
+
+function normalizeMarkdownTables(text) {
+  const lines = text.split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (isTableLine(lines[i]) || isSeparatorLine(lines[i])) {
+      const block = [];
+      while (i < lines.length && (isTableLine(lines[i]) || isSeparatorLine(lines[i]))) {
+        block.push(lines[i]);
+        i++;
+      }
+      out.push(...normalizeTableBlock(block));
+      continue;
+    }
+    out.push(lines[i]);
+    i++;
+  }
+  return out.join('\n');
+}
+
+/** Normalize Swee reply text before parsing ACTION / sending to client. */
+function normalizeSweeReply(rawText) {
+  if (!rawText || typeof rawText !== 'string') return rawText;
+  let text = stripHtmlTableArtifacts(rawText);
+  text = fixBrandName(text);
+  text = normalizeMarkdownTables(text);
+  return text.replace(/\n{3,}/g, '\n\n').trim();
+}
 
 function validatePendingAction(action) {
   if (!action || typeof action !== 'object' || Array.isArray(action)) {
@@ -45,12 +129,13 @@ function validatePendingAction(action) {
 }
 
 function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
+  const normalized = normalizeSweeReply(rawText);
   const marker = '###ACTION';
-  const idx = rawText.lastIndexOf(marker);
-  if (idx === -1) return { reply: rawText.trim(), pendingAction: null };
+  const idx = normalized.lastIndexOf(marker);
+  if (idx === -1) return { reply: normalized.trim(), pendingAction: null };
 
-  let visibleReply = rawText.slice(0, idx).trim();
-  const jsonStr = rawText.slice(idx + marker.length).trim();
+  let visibleReply = normalized.slice(0, idx).trim();
+  const jsonStr = normalized.slice(idx + marker.length).trim();
   const hadMarker = true;
 
   try {
@@ -216,6 +301,7 @@ function buildPlanningMetadata(draft = {}) {
 module.exports = {
   VALID_INTENTS,
   ACTION_FALLBACK_REPLY,
+  normalizeSweeReply,
   validatePendingAction,
   parseActionBlock,
   generateTripName,

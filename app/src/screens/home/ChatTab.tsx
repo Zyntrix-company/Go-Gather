@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import ChatConversationRow from '../../components/chat/ChatConversationRow';
 import ChatListSkeleton from '../../components/chat/ChatListSkeleton';
@@ -36,9 +37,11 @@ function ChatTab({ onOpenConversation, onOpenNewChat }: Props) {
 
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchConversations(true);
-  }, [fetchConversations]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchConversations(true);
+    }, [fetchConversations]),
+  );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);

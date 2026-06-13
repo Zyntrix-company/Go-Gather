@@ -1,7 +1,32 @@
 import React, { useEffect, useRef } from 'react';
 import { Text, View, StyleSheet, Animated } from 'react-native';
+import { colors } from '../../theme/colors';
+
+const APP_BRAND_NAME = 'GatherrGo';
+const BRAND_SPLIT = new RegExp(`(${APP_BRAND_NAME})`, 'gi');
+
+function sanitizeSweeDisplayText(text: string): string {
+  return text
+    .replace(/<\/?t[rhd][^>]*>/gi, '')
+    .replace(/<\/?table[^>]*>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/GatherGo/gi, APP_BRAND_NAME);
+}
 
 type Segment = { type: 'bold' | 'italic' | 'bolditalic' | 'plain'; text: string };
+
+function renderBrandAwarePlain(text: string, baseStyle?: object) {
+  const parts = text.split(BRAND_SPLIT);
+  return (
+    <Text style={baseStyle}>
+      {parts.map((part, i) =>
+        /^GatherrGo$/i.test(part)
+          ? <Text key={i} style={styles.brandName}>{part}</Text>
+          : part,
+      )}
+    </Text>
+  );
+}
 
 function parseInline(raw: string): Segment[] {
   const segments: Segment[] = [];
@@ -33,10 +58,28 @@ function InlineText({ segments, baseStyle }: { segments: Segment[]; baseStyle?: 
   return (
     <Text style={baseStyle}>
       {segments.map((seg, i) => {
-        if (seg.type === 'bold') return <Text key={i} style={styles.bold}>{seg.text}</Text>;
-        if (seg.type === 'italic') return <Text key={i} style={styles.italic}>{seg.text}</Text>;
-        if (seg.type === 'bolditalic') return <Text key={i} style={styles.boldItalic}>{seg.text}</Text>;
-        return <Text key={i}>{seg.text}</Text>;
+        if (seg.type === 'bold') {
+          return (
+            <Text key={i} style={styles.bold}>
+              {renderBrandAwarePlain(seg.text)}
+            </Text>
+          );
+        }
+        if (seg.type === 'italic') {
+          return (
+            <Text key={i} style={styles.italic}>
+              {renderBrandAwarePlain(seg.text)}
+            </Text>
+          );
+        }
+        if (seg.type === 'bolditalic') {
+          return (
+            <Text key={i} style={styles.boldItalic}>
+              {renderBrandAwarePlain(seg.text)}
+            </Text>
+          );
+        }
+        return <Text key={i}>{renderBrandAwarePlain(seg.text)}</Text>;
       })}
     </Text>
   );
@@ -146,7 +189,8 @@ type Props = {
 
 /** Split streaming buffer: prose before table vs table block (hide partial pipes). */
 function splitStreamingContent(text: string): { beforeTable: string; inTable: boolean } {
-  const lines = text.split('\n');
+  const sanitized = sanitizeSweeDisplayText(text);
+  const lines = sanitized.split('\n');
   let tableStart = -1;
   for (let i = 0; i < lines.length; i++) {
     if (isTableLine(lines[i])) {
@@ -154,7 +198,12 @@ function splitStreamingContent(text: string): { beforeTable: string; inTable: bo
       break;
     }
   }
-  if (tableStart === -1) return { beforeTable: text, inTable: false };
+  if (tableStart === -1) {
+    const looksLikeTable = /\|\s*(field|trip name|event name|destination)\b/i.test(sanitized)
+      || /^\s*\|/.test(sanitized);
+    if (looksLikeTable) return { beforeTable: '', inTable: true };
+    return { beforeTable: sanitized, inTable: false };
+  }
   return {
     beforeTable: lines.slice(0, tableStart).join('\n').trimEnd(),
     inTable: true,
@@ -162,19 +211,18 @@ function splitStreamingContent(text: string): { beforeTable: string; inTable: bo
 }
 
 export default function MarkdownText({ text, streaming, baseStyle }: Props) {
-  const safeText = text ?? '';
+  const safeText = sanitizeSweeDisplayText(text ?? '');
 
   if (streaming) {
     const { beforeTable, inTable } = splitStreamingContent(safeText);
     if (inTable) {
-      // Stream prose, show one static table skeleton (not streaming row-by-row)
       return (
         <View>
           {beforeTable ? (
-            <Text style={baseStyle}>
-              {beforeTable}
+            <View>
+              {renderBrandAwarePlain(beforeTable, baseStyle)}
               <Text style={styles.cursor}>▌</Text>
-            </Text>
+            </View>
           ) : (
             <TableSkeleton />
           )}
@@ -184,7 +232,7 @@ export default function MarkdownText({ text, streaming, baseStyle }: Props) {
     }
     return (
       <Text style={baseStyle}>
-        {safeText}
+        {renderBrandAwarePlain(safeText, baseStyle)}
         <Text style={styles.cursor}>▌</Text>
       </Text>
     );
@@ -258,7 +306,7 @@ export default function MarkdownText({ text, streaming, baseStyle }: Props) {
 
     // Normal paragraph
     elements.push(
-      <InlineText key={i} segments={parseInline(line)} baseStyle={baseStyle} />,
+      <View key={i}>{renderBrandAwarePlain(line, baseStyle)}</View>,
     );
     i++;
   }
@@ -272,6 +320,7 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '700' },
   italic: { fontStyle: 'italic' },
   boldItalic: { fontWeight: '700', fontStyle: 'italic' },
+  brandName: { color: colors.accent, fontWeight: '600' },
   h1: { fontSize: 17, fontWeight: '700', marginTop: 4, marginBottom: 2 },
   h2: { fontSize: 15, fontWeight: '700', marginTop: 4, marginBottom: 2 },
   h3: { fontSize: 14, fontWeight: '700', marginTop: 4, marginBottom: 2 },

@@ -1,5 +1,6 @@
 const {
   parseActionBlock,
+  normalizeSweeReply,
   generateTripName,
   resolveEventType,
   parseActivityTime,
@@ -12,6 +13,28 @@ const {
 } = require('../../src/modules/ai/ai.helpers');
 
 describe('ai.helpers', () => {
+
+  describe('normalizeSweeReply', () => {
+    it('strips HTML table tags and fixes brand name', () => {
+      const raw = '<table>| Field | Details |\n| Trip | Bali |</table>\nBuilt into GatherGo';
+      const out = normalizeSweeReply(raw);
+      expect(out).not.toMatch(/<table>/i);
+      expect(out).toMatch(/GatherrGo/);
+      expect(out).not.toMatch(/GatherGo/i);
+    });
+
+    it('normalizes confirmation tables to two columns with standard separator', () => {
+      const raw = [
+        '| Field | Details | Extra |',
+        '|---|---|---|',
+        '| Trip Name | Bali Jun | ignore |',
+      ].join('\n');
+      const out = normalizeSweeReply(raw);
+      expect(out).toMatch(/\| Field \| Details \|/);
+      expect(out).toMatch(/\| --- \| --- \|/);
+      expect(out).toMatch(/\| Trip Name \| Bali Jun · ignore \|/);
+    });
+  });
 
   describe('parseActionBlock', () => {
     it('strips ###ACTION and returns pendingAction when readyToCreate', () => {

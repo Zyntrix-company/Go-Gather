@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     marginBottom: 3,
     gap: 8,
   },
-  title: { flex: 1, fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  title: { flex: 1, fontSize: 14, fontWeight: '400', color: '#009788' },
   time: { fontSize: 11, color: '#94a3b8', flexShrink: 0 },
   preview: { fontSize: 13, color: '#64748b' },
 });

@@ -9,6 +9,19 @@ describe('swee.config buildSweetSystemPrompt', () => {
     budgetTier: 'Comfort',
   };
 
+  it('uses GatherrGo brand name in prompt', () => {
+    const prompt = buildSweetSystemPrompt(baseContext, null, 1);
+    expect(prompt).toMatch(/GatherrGo/);
+    expect(prompt).not.toMatch(/built into GatherGo/i);
+  });
+
+  it('injects today date context for relative scheduling', () => {
+    const prompt = buildSweetSystemPrompt(baseContext, null, 1);
+    expect(prompt).toMatch(/TODAY'S DATE/i);
+    expect(prompt).toMatch(/next weekend/i);
+    expect(prompt).toMatch(/Asia\/Kolkata/);
+  });
+
   it('includes female persona and conversational trip flow', () => {
     const prompt = buildSweetSystemPrompt(baseContext, null, 1);
     expect(prompt).toMatch(/female AI/i);

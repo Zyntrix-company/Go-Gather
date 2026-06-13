@@ -19,6 +19,7 @@ import AppScreenLayout, { TAB_BAR_SCROLL_PADDING, tabBarContentPadding } from '.
 import MarkdownText from '../../components/common/MarkdownText';
 import SweeIcon from '../../components/common/SweeIcon';
 import useChatStore from '../../store/chatStore';
+import useAuthStore from '../../store/authStore';
 import {
   sendMessageStream,
   reportMessage,
@@ -51,13 +52,25 @@ type Message = {
 
 // ─── Welcome message variants (picked randomly, typed on screen open) ───────
 
-const WELCOME_VARIANTS = [
-  "Hi! I'm Swee. Let's plan your next trip or event!",
-  "Hey — I'm Swee. Where should we go next?",
-  "Hi! I'm Swee. Trip or event on your mind?",
-  "Hello! I'm Swee — ready when you are.",
-  "Hi! I'm Swee. Tell me what you're planning.",
-];
+function buildWelcomeVariants(firstName?: string | null): string[] {
+  const name = firstName?.trim();
+  if (!name) {
+    return [
+      "Hi! I'm Swee. Let's plan your next trip or event!",
+      "Hey — I'm Swee. Where should we go next?",
+      "Hi! I'm Swee. Trip or event on your mind?",
+      "Hello! I'm Swee — ready when you are.",
+      "Hi! I'm Swee. Tell me what you're planning.",
+    ];
+  }
+  return [
+    `Hi ${name}! I'm Swee. Let's plan your next trip or event!`,
+    `Hey ${name} — I'm Swee. Where should we go next?`,
+    `Hi ${name}! I'm Swee. Trip or event on your mind?`,
+    `Hello ${name}! I'm Swee — ready when you are.`,
+    `Hi ${name}! I'm Swee. Tell me what you're planning.`,
+  ];
+}
 
 const WELCOME_ID = 'welcome';
 
@@ -117,15 +130,27 @@ const AFFIRMATIVE_PHRASES = new Set([
   'go ahead', 'create it', 'do it', 'yes please', 'yeah go', 'yes done',
   'yes create it', 'yes, create it', 'save', 'save changes', 'save it',
   'looks good', 'perfect', 'sounds good', 'that works', 'go for it',
+  'please do', 'please create', 'lets do it', "let's do it", 'all good',
+  'sounds great', 'thats fine', "that's fine", 'fine', 'absolutely',
+  'definitely', 'correct', 'right', 'agreed', 'proceed',
 ]);
 
+function normalizeConfirmationInput(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[!.?,]+$/, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\bgo\s+a\s+head\b/g, 'go ahead')
+    .replace(/\bya\b/g, 'yeah');
+}
+
 function isAffirmativeConfirmation(text: string): boolean {
-  const normalized = text.trim().toLowerCase().replace(/[!.]+$/, '');
+  const normalized = normalizeConfirmationInput(text);
   if (!normalized || normalized === 'no' || normalized.startsWith('no ')) return false;
-  // "yes but change dates" should continue the conversation, not execute
-  if (/\b(but|except|wait|change|actually|instead|not)\b/.test(normalized)) return false;
+  if (/\b(but|except|wait|change|actually|instead|not|unless|although)\b/.test(normalized)) return false;
   if (AFFIRMATIVE_PHRASES.has(normalized)) return true;
-  return /^(yes|yeah|yep|sure|ok|confirm|save|go ahead)\b/.test(normalized);
+  return /^(yes|yeah|yep|yup|sure|ok|okay|confirm|save|go ahead|go for it|do it|create it|sounds good|looks good|that works|perfect|please|proceed|absolutely|definitely)\b/.test(normalized);
 }
 
 // ─── Icons ─────────────────────────────────────────────────────────────────
@@ -212,6 +237,8 @@ export default function ChatDetailScreen({ route, navigation }: any) {
   const updateConversationInStore = useChatStore((s) => s.updateConversation);
   const removeConversationFromStore = useChatStore((s) => s.removeConversation);
   const prependConversationInStore = useChatStore((s) => s.prependConversation);
+  const rawUser = useAuthStore((s) => s.user) as { fullName?: string; full_name?: string } | null;
+  const userFirstName = (rawUser?.fullName ?? rawUser?.full_name ?? '').split(' ')[0] || null;
 
   const [conversationId, setConversationId] = useState<string | null>(paramConversationId ?? null);
   const [conversationTitle, setConversationTitle] = useState('New chat');
@@ -246,7 +273,8 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
   const startWelcomeAnimation = useCallback(() => {
     welcomeAnimRef.current?.();
-    const text = WELCOME_VARIANTS[Math.floor(Math.random() * WELCOME_VARIANTS.length)];
+    const variants = buildWelcomeVariants(userFirstName);
+    const text = variants[Math.floor(Math.random() * variants.length)];
     setIsWelcomeTyping(true);
     setMessages([{
       id: WELCOME_ID,
@@ -269,7 +297,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         if (done) setIsWelcomeTyping(false);
       },
     );
-  }, []);
+  }, [userFirstName]);
 
   const loadOlderMessages = useCallback(async () => {
     if (!conversationId || loadingOlderRef.current || !hasMoreOlder) return;
@@ -494,17 +522,19 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
     setInputText('');
 
-    // Typed confirmation → execute pending action instead of sending to Gemini
-    const pending = findPendingConfirmation(messages);
-    if (pending && isAffirmativeConfirmation(text)) {
-      setMessages((prev) => [...prev, userMsg]);
-      handleConfirmAction(pending.action, pending.msgId);
-      return;
-    }
+    setMessages((prev) => {
+      const pending = findPendingConfirmation(prev);
+      const withUser = [...prev, userMsg];
 
-    setMessages((prev) => [...prev, userMsg]);
-    streamToSwee(text, messages, userMsg);
-  }, [inputText, isTyping, isExecuting, isWelcomeTyping, messages, tripContext, handleConfirmAction, streamToSwee]);
+      if (pending && isAffirmativeConfirmation(text)) {
+        queueMicrotask(() => handleConfirmAction(pending.action, pending.msgId));
+        return withUser;
+      }
+
+      queueMicrotask(() => streamToSwee(text, prev, userMsg));
+      return withUser;
+    });
+  }, [inputText, isTyping, isExecuting, isWelcomeTyping, handleConfirmAction, streamToSwee]);
 
   const handleIdentifyResponse = useCallback((msgId: string, affirmative: boolean) => {
     if (isTyping || isExecuting) return;
@@ -577,20 +607,18 @@ export default function ChatDetailScreen({ route, navigation }: any) {
       return <TypingIndicator />;
     }
 
-    // Use a wider bubble when the message contains a markdown table
     const hasTable = !isUser && /\|.+\|/.test(item.text);
-    const bubbleWidthStyle = hasTable ? styles.msgBubbleWide : null;
 
     const showConfirmChips = !isUser && !item.streaming && item.pendingAction?.readyToCreate === true;
     const showIdentifyChips = !isUser && !item.streaming && item.pendingAction?.intent === 'identify_update';
     const showViewBtn = !isUser && !item.streaming && item.createdResult;
 
     return (
-      <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowSwee]}>
+      <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowSwee, hasTable && styles.msgRowWide]}>
         <View style={[
           styles.msgBubble,
           isUser ? styles.msgBubbleUser : styles.msgBubbleSwee,
-          !isUser && bubbleWidthStyle,
+          hasTable && styles.msgBubbleWide,
         ]}>
           {isUser ? (
             <Text style={textStyle}>{item.text}</Text>
@@ -962,9 +990,10 @@ const styles = StyleSheet.create({
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 4 },
   msgRowUser: { flexDirection: 'row-reverse', justifyContent: 'flex-start' },
   msgRowSwee: { justifyContent: 'flex-start' },
+  msgRowWide: { alignSelf: 'stretch', width: '100%' },
 
   msgBubble: { maxWidth: '82%', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14 },
-  msgBubbleWide: { maxWidth: '100%' },
+  msgBubbleWide: { maxWidth: '100%', alignSelf: 'stretch', width: '100%' },
   msgBubbleUser: { backgroundColor: '#0d9488', borderBottomRightRadius: 4 },
   msgBubbleSwee: {
     backgroundColor: '#f0fdfa', borderBottomLeftRadius: 4,
