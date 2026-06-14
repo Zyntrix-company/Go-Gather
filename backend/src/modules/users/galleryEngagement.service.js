@@ -77,6 +77,18 @@ const formatComment = (row) => ({
   updatedAt: row.updated_at,
 });
 
+const fetchUserDisplay = async (userId) => {
+  const userResult = await db.query(
+    `SELECT COALESCE(p.full_name, u.username, 'Traveler') AS user_name,
+            p.avatar_url AS avatar_url
+     FROM users u
+     LEFT JOIN profiles p ON p.user_id = u.id
+     WHERE u.id = $1`,
+    [userId],
+  );
+  return userResult.rows[0];
+};
+
 const getEngagement = async (userId, parentType, parentId, { galleryOwnerId } = {}) => {
   await verifyEngagementAccess(userId, parentType, parentId, { galleryOwnerId });
 
@@ -93,10 +105,11 @@ const getEngagement = async (userId, parentType, parentId, { galleryOwnerId } = 
     ),
     db.query(
       `SELECT c.id, c.user_id, c.text, c.created_at, c.updated_at,
-              COALESCE(u.full_name, u.username, 'Traveler') AS user_name,
-              u.photo_url AS avatar_url
+              COALESCE(p.full_name, u.username, 'Traveler') AS user_name,
+              p.avatar_url AS avatar_url
        FROM gallery_item_comments c
        JOIN users u ON u.id = c.user_id
+       LEFT JOIN profiles p ON p.user_id = u.id
        WHERE c.parent_type = $1 AND c.parent_id = $2
        ORDER BY c.created_at ASC
        LIMIT 100`,
@@ -155,16 +168,12 @@ const addComment = async (userId, parentType, parentId, text, { galleryOwnerId }
     [parentType, parentId, userId, clean],
   );
 
-  const userResult = await db.query(
-    `SELECT COALESCE(full_name, username, 'Traveler') AS user_name, photo_url AS avatar_url
-     FROM users WHERE id = $1`,
-    [userId],
-  );
+  const profile = await fetchUserDisplay(userId);
 
   return formatComment({
     ...result.rows[0],
-    user_name: userResult.rows[0]?.user_name,
-    avatar_url: userResult.rows[0]?.avatar_url,
+    user_name: profile?.user_name,
+    avatar_url: profile?.avatar_url,
   });
 };
 
@@ -208,16 +217,12 @@ const updateComment = async (userId, commentId, text) => {
     [clean, commentId, userId],
   );
 
-  const userResult = await db.query(
-    `SELECT COALESCE(full_name, username, 'Traveler') AS user_name, photo_url AS avatar_url
-     FROM users WHERE id = $1`,
-    [userId],
-  );
+  const profile = await fetchUserDisplay(userId);
 
   return formatComment({
     ...result.rows[0],
-    user_name: userResult.rows[0]?.user_name,
-    avatar_url: userResult.rows[0]?.avatar_url,
+    user_name: profile?.user_name,
+    avatar_url: profile?.avatar_url,
   });
 };
 
