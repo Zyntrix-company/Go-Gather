@@ -201,6 +201,14 @@ const deleteAlbum = async (userId, albumId) => {
     `DELETE FROM photos WHERE parent_type = $1 AND parent_id = $2`,
     [PARENT_TYPE, albumId],
   );
+  await db.query(
+    `DELETE FROM gallery_item_likes WHERE parent_type = $1 AND parent_id = $2`,
+    [PARENT_TYPE, albumId],
+  );
+  await db.query(
+    `DELETE FROM gallery_item_comments WHERE parent_type = $1 AND parent_id = $2`,
+    [PARENT_TYPE, albumId],
+  );
   await db.query('DELETE FROM user_gallery_albums WHERE id = $1', [albumId]);
 
   return { deleted: true, id: album.id };

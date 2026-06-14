@@ -40,18 +40,11 @@ import GalleryAlbumSubHeader from '../../components/gallery/GalleryAlbumSubHeade
 import GalleryUploadSheet from '../../components/gallery/GalleryUploadSheet';
 import GalleryTravelersRow, { type GalleryTraveler } from '../../components/gallery/GalleryTravelersRow';
 import GalleryEngagementSection from '../../components/gallery/GalleryEngagementSection';
-import {
-  getGalleryEngagement,
-  toggleGalleryLike,
-  addGalleryComment,
-  updateGalleryComment,
-  deleteGalleryComment,
-  type GalleryComment,
-} from '../../api/gallery.api';
 import { getTripMembers } from '../../api/trips.api';
 import { getEventMembers } from '../../api/events.api';
 import { focusAlbumPhotosAtEnd, sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import useUploadLimits from '../../hooks/useUploadLimits';
+import { useGalleryEngagement } from '../../hooks/useGalleryEngagement';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = (SCREEN_W - 52) / 2;
@@ -374,10 +367,13 @@ function PhotosModal({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showUploadSheet, setShowUploadSheet] = useState(false);
   const [members, setMembers] = useState<GalleryTraveler[]>([]);
-  const [likeCount, setLikeCount] = useState(0);
-  const [likedByMe, setLikedByMe] = useState(false);
-  const [comments, setComments] = useState<GalleryComment[]>([]);
-  const [liking, setLiking] = useState(false);
+
+  const engagement = useGalleryEngagement({
+    kind: 'trip-event',
+    enabled: visible && !!parentId && !userId,
+    parentType,
+    parentId,
+  });
 
   useEffect(() => {
     if (!visible || userId) return;
@@ -464,39 +460,16 @@ function PhotosModal({
           avatarUrl: m.avatarUrl,
         })));
 
-    Promise.all([membersFetcher, getGalleryEngagement(parentType, parentId)])
-      .then(([memberList, engagement]) => {
-        if (cancelled) return;
-        setMembers(memberList);
-        setLikeCount(engagement.likeCount);
-        setLikedByMe(engagement.likedByMe);
-        setComments(engagement.comments);
+    membersFetcher
+      .then((memberList) => {
+        if (!cancelled) setMembers(memberList);
       })
       .catch(() => {
-        if (!cancelled) {
-          setMembers([]);
-          setLikeCount(0);
-          setLikedByMe(false);
-          setComments([]);
-        }
+        if (!cancelled) setMembers([]);
       });
 
     return () => { cancelled = true; };
   }, [visible, parentId, parentType, userId]);
-
-  const handleToggleLike = async () => {
-    if (userId || liking) return;
-    setLiking(true);
-    try {
-      const res = await toggleGalleryLike(parentType, parentId);
-      setLikedByMe(res.liked);
-      setLikeCount(res.likeCount);
-    } catch {
-      Toast.show({ type: 'error', text1: 'Could not update like' });
-    } finally {
-      setLiking(false);
-    }
-  };
 
   const pickPhotos = (cam: boolean) => {
     const fn = cam ? launchCamera : launchImageLibrary;
@@ -792,23 +765,15 @@ function PhotosModal({
           {parentType === 'trip' ? <GalleryTravelersRow members={members} /> : null}
           {!userId ? (
             <GalleryEngagementSection
-              likeCount={likeCount}
-              likedByMe={likedByMe}
-              comments={comments}
-              onToggleLike={handleToggleLike}
-              liking={liking}
-              onAddComment={async (text) => {
-                const comment = await addGalleryComment(parentType, parentId, text);
-                setComments((prev) => [...prev, comment]);
-              }}
-              onEditComment={async (commentId, text) => {
-                const updated = await updateGalleryComment(commentId, text);
-                setComments((prev) => prev.map((c) => (c.id === commentId ? updated : c)));
-              }}
-              onDeleteComment={async (commentId) => {
-                await deleteGalleryComment(commentId);
-                setComments((prev) => prev.filter((c) => c.id !== commentId));
-              }}
+              likeCount={engagement.likeCount}
+              likedByMe={engagement.likedByMe}
+              comments={engagement.comments}
+              canModerateComments
+              onToggleLike={engagement.handleToggleLike}
+              liking={engagement.liking}
+              onAddComment={engagement.handleAddComment}
+              onEditComment={engagement.handleEditComment}
+              onDeleteComment={engagement.handleDeleteComment}
             />
           ) : null}
         </AlbumPhotosScreenLayout>
@@ -1031,6 +996,12 @@ function CustomCardPhotosModal({
   const [heroIndex, setHeroIndex] = useState(0);
   const heroFlatListRef = useRef<any>(null);
 
+  const engagement = useGalleryEngagement({
+    kind: 'custom',
+    enabled: visible && !!card?.id,
+    albumId: card?.id ?? '',
+  });
+
   const loadPhotos = () => {
     if (!card?.id) return;
     setLoading(true);
@@ -1166,6 +1137,7 @@ function CustomCardPhotosModal({
           navigation={navigation}
           activeTab="gallery"
           galleryChrome
+          scrollable
           onClose={onClose}
           photoIndex={heroIndex}
           photoTotal={photos.length}
@@ -1317,6 +1289,17 @@ function CustomCardPhotosModal({
                 </Text>
               </View>
             </View>
+            <GalleryEngagementSection
+              likeCount={engagement.likeCount}
+              likedByMe={engagement.likedByMe}
+              comments={engagement.comments}
+              canModerateComments
+              onToggleLike={engagement.handleToggleLike}
+              liking={engagement.liking}
+              onAddComment={engagement.handleAddComment}
+              onEditComment={engagement.handleEditComment}
+              onDeleteComment={engagement.handleDeleteComment}
+            />
           </AlbumPhotosBody>
         </AlbumPhotosScreenLayout>
       </Modal>

@@ -14,6 +14,7 @@ import {
   Animated,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING, tabBarContentPadding } from '../../components/common/AppScreenLayout';
 import MarkdownText from '../../components/common/MarkdownText';

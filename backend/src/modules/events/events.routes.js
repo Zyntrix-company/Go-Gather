@@ -66,7 +66,7 @@ router.get('/:eventId/docs', eventMemberMW, ctrl.getDocs);
 router.post(
   '/:eventId/docs',
   eventMemberMW,
-  (req, res, next) => docUpload.single('file')(req, res, (err) => {
+  (req, res, next) => docUpload.array('file', limits.eventDoc.maxBatchFiles)(req, res, (err) => {
     if (err) return handleMulterError(err, req, res, next);
     next();
   }),

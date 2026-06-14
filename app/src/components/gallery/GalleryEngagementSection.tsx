@@ -52,6 +52,7 @@ type GalleryEngagementSectionProps = {
   likedByMe: boolean;
   comments: GalleryComment[];
   viewOnly?: boolean;
+  canModerateComments?: boolean;
   onToggleLike: () => void;
   onAddComment: (text: string) => Promise<void>;
   onEditComment: (commentId: string, text: string) => Promise<void>;
@@ -64,6 +65,7 @@ export default function GalleryEngagementSection({
   likedByMe,
   comments,
   viewOnly = false,
+  canModerateComments = false,
   onToggleLike,
   onAddComment,
   onEditComment,
@@ -74,6 +76,7 @@ export default function GalleryEngagementSection({
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
   const [menuCommentId, setMenuCommentId] = useState<string | null>(null);
+  const [menuModeratorOnly, setMenuModeratorOnly] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
 
@@ -141,6 +144,7 @@ export default function GalleryEngagementSection({
       {comments.map((c) => {
         const isOwn = c.userId === currentUserId;
         const isEditing = editingId === c.id;
+        const showMenu = !viewOnly && (isOwn || canModerateComments);
 
         return (
           <View key={c.id} style={styles.commentRow}>
@@ -155,8 +159,14 @@ export default function GalleryEngagementSection({
               <View style={styles.commentTop}>
                 <Text style={styles.commentName} numberOfLines={1}>{c.userName}</Text>
                 <Text style={styles.commentTime}>{getRelativeTime(c.createdAt)}</Text>
-                {isOwn && !viewOnly ? (
-                  <TouchableOpacity onPress={() => setMenuCommentId(c.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                {showMenu ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setMenuModeratorOnly(!isOwn && canModerateComments);
+                      setMenuCommentId(c.id);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
                     <DotsIcon />
                   </TouchableOpacity>
                 ) : null}
@@ -184,17 +194,19 @@ export default function GalleryEngagementSection({
       <Modal visible={!!menuCommentId} transparent animationType="fade" onRequestClose={() => setMenuCommentId(null)}>
         <Pressable style={styles.menuOverlay} onPress={() => setMenuCommentId(null)}>
           <View style={styles.menuSheet}>
+            {!menuModeratorOnly ? (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  const c = comments.find((x) => x.id === menuCommentId);
+                  if (c) startEdit(c);
+                }}
+              >
+                <Text style={styles.menuItemText}>Edit</Text>
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                const c = comments.find((x) => x.id === menuCommentId);
-                if (c) startEdit(c);
-              }}
-            >
-              <Text style={styles.menuItemText}>Edit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.menuItem, styles.menuItemDanger]}
+              style={[styles.menuItem, styles.menuItemDanger, menuModeratorOnly && { borderBottomWidth: 0 }]}
               onPress={() => {
                 const id = menuCommentId;
                 setMenuCommentId(null);

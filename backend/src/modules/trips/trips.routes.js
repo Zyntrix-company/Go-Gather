@@ -117,7 +117,7 @@ router.get('/:id/docs', tripMemberMW, docsCtrl.getDocs);
 router.post(
   '/:id/docs',
   tripMemberMW,
-  (req, res, next) => docUpload.single('file')(req, res, (err) => {
+  (req, res, next) => docUpload.array('file', limits.tripDoc.maxBatchFiles)(req, res, (err) => {
     if (err) return handleMulterError(err, req, res, next);
     next();
   }),

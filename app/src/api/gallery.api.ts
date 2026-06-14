@@ -224,16 +224,27 @@ export type GalleryEngagement = {
 export async function getGalleryEngagement(
   parentType: 'trip' | 'event',
   parentId: string,
+  galleryOwnerId?: string,
 ): Promise<GalleryEngagement> {
-  const { data } = await client.get(`/users/me/gallery-items/${parentType}/${parentId}/engagement`);
+  const params = galleryOwnerId ? { galleryOwnerId } : undefined;
+  const { data } = await client.get(
+    `/users/me/gallery-items/${parentType}/${parentId}/engagement`,
+    { params },
+  );
   return data as GalleryEngagement;
 }
 
 export async function toggleGalleryLike(
   parentType: 'trip' | 'event',
   parentId: string,
+  galleryOwnerId?: string,
 ): Promise<{ liked: boolean; likeCount: number }> {
-  const { data } = await client.post(`/users/me/gallery-items/${parentType}/${parentId}/like`);
+  const params = galleryOwnerId ? { galleryOwnerId } : undefined;
+  const { data } = await client.post(
+    `/users/me/gallery-items/${parentType}/${parentId}/like`,
+    undefined,
+    { params },
+  );
   return data;
 }
 
@@ -241,8 +252,14 @@ export async function addGalleryComment(
   parentType: 'trip' | 'event',
   parentId: string,
   text: string,
+  galleryOwnerId?: string,
 ): Promise<GalleryComment> {
-  const { data } = await client.post(`/users/me/gallery-items/${parentType}/${parentId}/comments`, { text });
+  const params = galleryOwnerId ? { galleryOwnerId } : undefined;
+  const { data } = await client.post(
+    `/users/me/gallery-items/${parentType}/${parentId}/comments`,
+    { text },
+    { params },
+  );
   return data.comment;
 }
 
@@ -253,4 +270,21 @@ export async function updateGalleryComment(commentId: string, text: string): Pro
 
 export async function deleteGalleryComment(commentId: string): Promise<void> {
   await client.delete(`/users/me/gallery-items/comments/${commentId}`);
+}
+
+export async function getCustomAlbumEngagement(albumId: string): Promise<GalleryEngagement> {
+  const { data } = await client.get(`/users/me/gallery/albums/${albumId}/engagement`);
+  return data as GalleryEngagement;
+}
+
+export async function toggleCustomAlbumLike(
+  albumId: string,
+): Promise<{ liked: boolean; likeCount: number }> {
+  const { data } = await client.post(`/users/me/gallery/albums/${albumId}/like`);
+  return data;
+}
+
+export async function addCustomAlbumComment(albumId: string, text: string): Promise<GalleryComment> {
+  const { data } = await client.post(`/users/me/gallery/albums/${albumId}/comments`, { text });
+  return data.comment;
 }

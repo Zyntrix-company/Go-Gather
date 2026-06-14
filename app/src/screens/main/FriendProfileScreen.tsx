@@ -11,18 +11,12 @@ import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery
 import GalleryAlbumSubHeader from '../../components/gallery/GalleryAlbumSubHeader';
 import GalleryTravelersRow, { type GalleryTraveler } from '../../components/gallery/GalleryTravelersRow';
 import GalleryEngagementSection from '../../components/gallery/GalleryEngagementSection';
-import {
-  getGalleryEngagement,
-  toggleGalleryLike,
-  addGalleryComment,
-  updateGalleryComment,
-  deleteGalleryComment,
-  type GalleryComment,
-} from '../../api/gallery.api';
 import { getTripMembers } from '../../api/trips.api';
 import { getEventMembers } from '../../api/events.api';
 import { sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useGalleryEngagement } from '../../hooks/useGalleryEngagement';
+import useAuthStore from '../../store/authStore';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { UserMinus } from 'lucide-react-native';
 import CachedImage from '../../components/common/CachedImage';
@@ -187,6 +181,12 @@ function CustomAlbumPhotosModal({
   const [heroIndex, setHeroIndex] = useState(0);
   const heroFlatListRef = useRef<any>(null);
 
+  const engagement = useGalleryEngagement({
+    kind: 'custom',
+    enabled: visible && !!albumId,
+    albumId,
+  });
+
   useEffect(() => {
     if (visible) setHeroIndex(0);
   }, [visible]);
@@ -206,6 +206,7 @@ function CustomAlbumPhotosModal({
         navigation={navigation}
         activeTab="friends"
         galleryChrome
+        scrollable
         onClose={onClose}
         photoIndex={heroIndex}
         photoTotal={photos.length}
@@ -242,6 +243,16 @@ function CustomAlbumPhotosModal({
               </Text>
             </View>
           </View>
+          <GalleryEngagementSection
+            likeCount={engagement.likeCount}
+            likedByMe={engagement.likedByMe}
+            comments={engagement.comments}
+            onToggleLike={engagement.handleToggleLike}
+            liking={engagement.liking}
+            onAddComment={engagement.handleAddComment}
+            onEditComment={engagement.handleEditComment}
+            onDeleteComment={engagement.handleDeleteComment}
+          />
         </AlbumPhotosBody>
       </AlbumPhotosScreenLayout>
     </Modal>
@@ -286,16 +297,23 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
   parentId: string; parentType: 'trip' | 'event'; userId?: string; gallerySubtitle?: string | null;
 }) {
   const navigation = useNavigation<any>();
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [heroIndex, setHeroIndex] = useState(0);
   const heroFlatListRef = useRef<any>(null);
   const localUriCache = useRef<Record<string, string>>({});
   const [members, setMembers] = useState<GalleryTraveler[]>([]);
-  const [likeCount, setLikeCount] = useState(0);
-  const [likedByMe, setLikedByMe] = useState(false);
-  const [comments, setComments] = useState<GalleryComment[]>([]);
-  const [liking, setLiking] = useState(false);
+
+  const engagement = useGalleryEngagement({
+    kind: 'trip-event',
+    enabled: visible && !!parentId,
+    parentType,
+    parentId,
+    galleryOwnerId: userId,
+  });
+
+  const canModerateComments = members.some((m) => m.userId === currentUserId);
 
   useEffect(() => {
     if (visible) setHeroIndex(0);
@@ -349,21 +367,12 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
           avatarUrl: m.avatarUrl,
         })));
 
-    Promise.all([membersFetcher, getGalleryEngagement(parentType, parentId)])
-      .then(([memberList, engagement]) => {
-        if (cancelled) return;
-        setMembers(memberList);
-        setLikeCount(engagement.likeCount);
-        setLikedByMe(engagement.likedByMe);
-        setComments(engagement.comments);
+    membersFetcher
+      .then((memberList) => {
+        if (!cancelled) setMembers(memberList);
       })
       .catch(() => {
-        if (!cancelled) {
-          setMembers([]);
-          setLikeCount(0);
-          setLikedByMe(false);
-          setComments([]);
-        }
+        if (!cancelled) setMembers([]);
       });
 
     return () => { cancelled = true; };
@@ -416,35 +425,15 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
         ) : null}
         {parentType === 'trip' ? <GalleryTravelersRow members={members} /> : null}
         <GalleryEngagementSection
-          likeCount={likeCount}
-          likedByMe={likedByMe}
-          comments={comments}
-          liking={liking}
-          onToggleLike={async () => {
-            if (liking) return;
-            setLiking(true);
-            try {
-              const res = await toggleGalleryLike(parentType, parentId);
-              setLikedByMe(res.liked);
-              setLikeCount(res.likeCount);
-            } catch {
-              Toast.show({ type: 'error', text1: 'Could not update like' });
-            } finally {
-              setLiking(false);
-            }
-          }}
-          onAddComment={async (text) => {
-            const comment = await addGalleryComment(parentType, parentId, text);
-            setComments((prev) => [...prev, comment]);
-          }}
-          onEditComment={async (commentId, text) => {
-            const updated = await updateGalleryComment(commentId, text);
-            setComments((prev) => prev.map((c) => (c.id === commentId ? updated : c)));
-          }}
-          onDeleteComment={async (commentId) => {
-            await deleteGalleryComment(commentId);
-            setComments((prev) => prev.filter((c) => c.id !== commentId));
-          }}
+          likeCount={engagement.likeCount}
+          likedByMe={engagement.likedByMe}
+          comments={engagement.comments}
+          canModerateComments={canModerateComments}
+          liking={engagement.liking}
+          onToggleLike={engagement.handleToggleLike}
+          onAddComment={engagement.handleAddComment}
+          onEditComment={engagement.handleEditComment}
+          onDeleteComment={engagement.handleDeleteComment}
         />
       </AlbumPhotosScreenLayout>
     </Modal>

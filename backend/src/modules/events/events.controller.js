@@ -194,15 +194,20 @@ const removeMember = async (req, res, next) => {
 
 const uploadDoc = async (req, res, next) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'A file is required', statusCode: 400 });
+    const files = req.files?.length ? req.files : (req.file ? [req.file] : []);
+    if (!files.length) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'At least one file is required', statusCode: 400 });
     }
-    const doc = await sharedDocsService.uploadDoc(
+    const result = await sharedDocsService.uploadDocs(
       { parentType: 'event', parentId: req.params.eventId },
       req.user.id,
-      req.file,
+      files,
     );
-    res.status(201).json({ doc });
+    res.status(201).json({
+      doc: result.docs[0] ?? null,
+      docs: result.docs,
+      total: result.total,
+    });
   } catch (e) {
     if (e.statusCode) return res.status(e.statusCode).json({ error: e.error, message: e.message, statusCode: e.statusCode });
     next(e);

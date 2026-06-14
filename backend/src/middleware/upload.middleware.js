@@ -3,6 +3,8 @@ const {
   limits,
   docMaxBytes,
   photoMaxBytes,
+  videoMaxBytes,
+  mediaUploadMaxBytes,
   avatarMaxBytes,
   promoVideoMaxBytes,
   blogImageMaxBytes,
@@ -72,12 +74,14 @@ const PHOTO_ALLOWED_TYPES = [
 
 const createPhotoUpload = () => multer({
   storage: memoryStorage,
-  limits: { fileSize: photoMaxBytes },
+  limits: { fileSize: Math.max(photoMaxBytes, videoMaxBytes) },
   fileFilter: (_req, file, cb) => {
     if (PHOTO_ALLOWED_TYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      const err = new Error(`Photos must be JPEG, PNG, HEIC, MP4, or MOV (max ${formatMb(photoMaxBytes)} each)`);
+      const err = new Error(
+        `Photos must be JPEG, PNG, HEIC (max ${formatMb(photoMaxBytes)}) or MP4/MOV (max ${formatMb(videoMaxBytes)})`,
+      );
       err.statusCode = 400;
       err.error = 'INVALID_FILE_TYPE';
       cb(err, false);
@@ -138,13 +142,15 @@ const createActivityPhotoUpload = () => multer({
 
 const createTripFilesUpload = () => multer({
   storage: memoryStorage,
-  limits: { fileSize: Math.max(photoMaxBytes, docMaxBytes) },
+  limits: { fileSize: mediaUploadMaxBytes },
   fileFilter: (_req, file, cb) => {
     if (file.fieldname === 'photos') {
       if (PHOTO_ALLOWED_TYPES.includes(file.mimetype)) {
         cb(null, true);
       } else {
-        const err = new Error(`Photos must be JPEG, PNG, HEIC, MP4, or MOV (max ${formatMb(photoMaxBytes)} each)`);
+        const err = new Error(
+          `Photos must be JPEG, PNG, HEIC (max ${formatMb(photoMaxBytes)}) or MP4/MOV (max ${formatMb(videoMaxBytes)})`,
+        );
         err.statusCode = 400;
         err.error = 'INVALID_FILE_TYPE';
         cb(err, false);

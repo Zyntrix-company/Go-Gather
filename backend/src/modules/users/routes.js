@@ -153,6 +153,30 @@ router.delete(
 );
 
 router.get(
+  '/me/gallery/albums/:albumId/engagement',
+  authenticateJWT,
+  validators.albumIdParam,
+  validate,
+  controller.getCustomAlbumEngagement,
+);
+
+router.post(
+  '/me/gallery/albums/:albumId/like',
+  authenticateJWT,
+  validators.albumIdParam,
+  validate,
+  controller.toggleCustomAlbumLike,
+);
+
+router.post(
+  '/me/gallery/albums/:albumId/comments',
+  authenticateJWT,
+  [...validators.albumIdParam, ...validators.galleryCommentBody],
+  validate,
+  controller.addCustomAlbumComment,
+);
+
+router.get(
   '/me/gallery-items/:parentType/:parentId/photos',
   authenticateJWT,
   validators.galleryItemParams,
@@ -189,7 +213,7 @@ router.delete(
 router.get(
   '/me/gallery-items/:parentType/:parentId/engagement',
   authenticateJWT,
-  validators.galleryItemParams,
+  [...validators.galleryItemParams, ...validators.galleryOwnerIdQuery],
   validate,
   controller.getGalleryEngagement,
 );
@@ -197,7 +221,7 @@ router.get(
 router.post(
   '/me/gallery-items/:parentType/:parentId/like',
   authenticateJWT,
-  validators.galleryItemParams,
+  [...validators.galleryItemParams, ...validators.galleryOwnerIdQuery],
   validate,
   controller.toggleGalleryLike,
 );
@@ -205,7 +229,7 @@ router.post(
 router.post(
   '/me/gallery-items/:parentType/:parentId/comments',
   authenticateJWT,
-  [...validators.galleryItemParams, ...validators.galleryCommentBody],
+  [...validators.galleryItemParams, ...validators.galleryCommentBody, ...validators.galleryOwnerIdQuery],
   validate,
   controller.addGalleryComment,
 );

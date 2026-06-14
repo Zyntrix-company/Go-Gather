@@ -1,16 +1,70 @@
 const db = require('../../config/database');
+const { verifyViewerAccess } = require('./galleryOverlay.service');
+const galleryAlbumsService = require('./galleryAlbums.service');
 
-const verifyMembership = async (userId, parentType, parentId) => {
-  const memberCheck = parentType === 'trip'
-    ? await db.query('SELECT 1 FROM trip_members WHERE trip_id = $1 AND user_id = $2', [parentId, userId])
-    : await db.query('SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2', [parentId, userId]);
+const PARENT_TYPE_GALLERY_ALBUM = 'gallery_album';
 
-  if (memberCheck.rowCount === 0) {
-    const e = new Error('Not a member of this trip/event');
-    e.statusCode = 403;
-    e.error = 'FORBIDDEN';
+const isMember = async (userId, parentType, parentId) => {
+  if (parentType === 'trip') {
+    const result = await db.query(
+      'SELECT 1 FROM trip_members WHERE trip_id = $1 AND user_id = $2',
+      [parentId, userId],
+    );
+    return result.rowCount > 0;
+  }
+  if (parentType === 'event') {
+    const result = await db.query(
+      'SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2',
+      [parentId, userId],
+    );
+    return result.rowCount > 0;
+  }
+  return false;
+};
+
+const verifyEngagementAccess = async (userId, parentType, parentId, { galleryOwnerId } = {}) => {
+  if (parentType === PARENT_TYPE_GALLERY_ALBUM) {
+    const album = await galleryAlbumsService.getAlbumById(parentId);
+    if (album.user_id === userId) return;
+    await verifyViewerAccess(userId, album.user_id);
+    return;
+  }
+
+  if (!['trip', 'event'].includes(parentType)) {
+    const e = new Error('Invalid parent type');
+    e.statusCode = 400;
+    e.error = 'VALIDATION_ERROR';
     throw e;
   }
+
+  if (await isMember(userId, parentType, parentId)) return;
+
+  if (galleryOwnerId) {
+    if (!(await isMember(galleryOwnerId, parentType, parentId))) {
+      const e = new Error('Gallery owner is not a member of this trip/event');
+      e.statusCode = 403;
+      e.error = 'FORBIDDEN';
+      throw e;
+    }
+    await verifyViewerAccess(userId, galleryOwnerId);
+    return;
+  }
+
+  const e = new Error('Not authorized to engage with this gallery item');
+  e.statusCode = 403;
+  e.error = 'FORBIDDEN';
+  throw e;
+};
+
+const canModerateComment = async (userId, parentType, parentId) => {
+  if (parentType === PARENT_TYPE_GALLERY_ALBUM) {
+    const album = await galleryAlbumsService.getAlbumById(parentId);
+    return album.user_id === userId;
+  }
+  if (parentType === 'trip' || parentType === 'event') {
+    return isMember(userId, parentType, parentId);
+  }
+  return false;
 };
 
 const formatComment = (row) => ({
@@ -23,8 +77,8 @@ const formatComment = (row) => ({
   updatedAt: row.updated_at,
 });
 
-const getEngagement = async (userId, parentType, parentId) => {
-  await verifyMembership(userId, parentType, parentId);
+const getEngagement = async (userId, parentType, parentId, { galleryOwnerId } = {}) => {
+  await verifyEngagementAccess(userId, parentType, parentId, { galleryOwnerId });
 
   const [likesResult, likedResult, commentsResult] = await Promise.all([
     db.query(
@@ -57,8 +111,8 @@ const getEngagement = async (userId, parentType, parentId) => {
   };
 };
 
-const toggleLike = async (userId, parentType, parentId) => {
-  await verifyMembership(userId, parentType, parentId);
+const toggleLike = async (userId, parentType, parentId, { galleryOwnerId } = {}) => {
+  await verifyEngagementAccess(userId, parentType, parentId, { galleryOwnerId });
 
   const existing = await db.query(
     `SELECT 1 FROM gallery_item_likes
@@ -83,8 +137,8 @@ const toggleLike = async (userId, parentType, parentId) => {
   return { liked: true };
 };
 
-const addComment = async (userId, parentType, parentId, text) => {
-  await verifyMembership(userId, parentType, parentId);
+const addComment = async (userId, parentType, parentId, text, { galleryOwnerId } = {}) => {
+  await verifyEngagementAccess(userId, parentType, parentId, { galleryOwnerId });
 
   const clean = (text ?? '').trim();
   if (!clean || clean.length > 20) {
@@ -123,6 +177,29 @@ const updateComment = async (userId, commentId, text) => {
     throw e;
   }
 
+  const existing = await db.query(
+    `SELECT id, user_id, parent_type, parent_id, text, created_at, updated_at
+     FROM gallery_item_comments WHERE id = $1`,
+    [commentId],
+  );
+
+  if (existing.rowCount === 0) {
+    const e = new Error('Comment not found');
+    e.statusCode = 404;
+    e.error = 'NOT_FOUND';
+    throw e;
+  }
+
+  const row = existing.rows[0];
+  if (row.user_id !== userId) {
+    const e = new Error('Comment not found');
+    e.statusCode = 404;
+    e.error = 'NOT_FOUND';
+    throw e;
+  }
+
+  await verifyEngagementAccess(userId, row.parent_type, row.parent_id);
+
   const result = await db.query(
     `UPDATE gallery_item_comments
      SET text = $1, updated_at = NOW()
@@ -131,16 +208,6 @@ const updateComment = async (userId, commentId, text) => {
     [clean, commentId, userId],
   );
 
-  if (result.rowCount === 0) {
-    const e = new Error('Comment not found');
-    e.statusCode = 404;
-    e.error = 'NOT_FOUND';
-    throw e;
-  }
-
-  const row = result.rows[0];
-  await verifyMembership(userId, row.parent_type, row.parent_id);
-
   const userResult = await db.query(
     `SELECT COALESCE(full_name, username, 'Traveler') AS user_name, photo_url AS avatar_url
      FROM users WHERE id = $1`,
@@ -148,27 +215,37 @@ const updateComment = async (userId, commentId, text) => {
   );
 
   return formatComment({
-    ...row,
+    ...result.rows[0],
     user_name: userResult.rows[0]?.user_name,
     avatar_url: userResult.rows[0]?.avatar_url,
   });
 };
 
 const deleteComment = async (userId, commentId) => {
-  const result = await db.query(
-    `DELETE FROM gallery_item_comments
-     WHERE id = $1 AND user_id = $2
-     RETURNING id`,
-    [commentId, userId],
+  const existing = await db.query(
+    `SELECT id, user_id, parent_type, parent_id FROM gallery_item_comments WHERE id = $1`,
+    [commentId],
   );
 
-  if (result.rowCount === 0) {
+  if (existing.rowCount === 0) {
     const e = new Error('Comment not found');
     e.statusCode = 404;
     e.error = 'NOT_FOUND';
     throw e;
   }
 
+  const row = existing.rows[0];
+  const isAuthor = row.user_id === userId;
+  const isModerator = await canModerateComment(userId, row.parent_type, row.parent_id);
+
+  if (!isAuthor && !isModerator) {
+    const e = new Error('Comment not found');
+    e.statusCode = 404;
+    e.error = 'NOT_FOUND';
+    throw e;
+  }
+
+  await db.query('DELETE FROM gallery_item_comments WHERE id = $1', [commentId]);
   return { success: true };
 };
 
@@ -178,4 +255,5 @@ module.exports = {
   addComment,
   updateComment,
   deleteComment,
+  PARENT_TYPE_GALLERY_ALBUM,
 };

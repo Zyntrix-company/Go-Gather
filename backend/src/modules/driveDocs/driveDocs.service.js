@@ -10,7 +10,7 @@ const driveProvider              = require('../emailDocs/providers/drive.provide
 const emailDocsService = require('../emailDocs/emailDocs.service');
 
 const config = require('../../config');
-const { docMaxBytes, docMaxCount, photoMaxBytes } = require('../../config/uploadLimits');
+const { docMaxBytes, docMaxCount, photoMaxBytes, videoMaxBytes } = require('../../config/uploadLimits');
 
 const MAX_FILE_BYTES = docMaxBytes;
 const MAX_PHOTO_BYTES = photoMaxBytes;

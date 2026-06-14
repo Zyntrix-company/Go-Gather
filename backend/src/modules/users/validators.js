@@ -126,6 +126,13 @@ const galleryCommentBody = [
     .withMessage('Comment must be 1–20 characters'),
 ];
 
+const galleryOwnerIdQuery = [
+  query('galleryOwnerId')
+    .optional()
+    .isUUID()
+    .withMessage('galleryOwnerId must be a valid UUID'),
+];
+
 module.exports = {
   saveProfileValidation,
   getPublicProfileValidation,
@@ -139,4 +146,5 @@ module.exports = {
   extraPhotoIdParam,
   galleryCommentIdParam,
   galleryCommentBody,
+  galleryOwnerIdQuery,
 };

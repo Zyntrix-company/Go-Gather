@@ -398,7 +398,13 @@ const deleteGalleryExtraPhoto = async (req, res, next) => {
 const getGalleryEngagement = async (req, res, next) => {
   try {
     const { parentType, parentId } = req.params;
-    const result = await galleryEngagementService.getEngagement(req.user.id, parentType, parentId);
+    const galleryOwnerId = req.query.galleryOwnerId || undefined;
+    const result = await galleryEngagementService.getEngagement(
+      req.user.id,
+      parentType,
+      parentId,
+      { galleryOwnerId },
+    );
     return res.status(200).json(result);
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
@@ -409,8 +415,20 @@ const getGalleryEngagement = async (req, res, next) => {
 const toggleGalleryLike = async (req, res, next) => {
   try {
     const { parentType, parentId } = req.params;
-    const result = await galleryEngagementService.toggleLike(req.user.id, parentType, parentId);
-    const engagement = await galleryEngagementService.getEngagement(req.user.id, parentType, parentId);
+    const galleryOwnerId = req.query.galleryOwnerId || undefined;
+    const opts = { galleryOwnerId };
+    const result = await galleryEngagementService.toggleLike(
+      req.user.id,
+      parentType,
+      parentId,
+      opts,
+    );
+    const engagement = await galleryEngagementService.getEngagement(
+      req.user.id,
+      parentType,
+      parentId,
+      opts,
+    );
     return res.status(200).json({ ...result, likeCount: engagement.likeCount });
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
@@ -421,11 +439,13 @@ const toggleGalleryLike = async (req, res, next) => {
 const addGalleryComment = async (req, res, next) => {
   try {
     const { parentType, parentId } = req.params;
+    const galleryOwnerId = req.query.galleryOwnerId || undefined;
     const comment = await galleryEngagementService.addComment(
       req.user.id,
       parentType,
       parentId,
       req.body.text,
+      { galleryOwnerId },
     );
     return res.status(201).json({ comment });
   } catch (error) {
@@ -452,6 +472,48 @@ const deleteGalleryComment = async (req, res, next) => {
   try {
     const result = await galleryEngagementService.deleteComment(req.user.id, req.params.commentId);
     return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const getCustomAlbumEngagement = async (req, res, next) => {
+  try {
+    const result = await galleryEngagementService.getEngagement(
+      req.user.id,
+      galleryEngagementService.PARENT_TYPE_GALLERY_ALBUM,
+      req.params.albumId,
+    );
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const toggleCustomAlbumLike = async (req, res, next) => {
+  try {
+    const parentType = galleryEngagementService.PARENT_TYPE_GALLERY_ALBUM;
+    const { albumId } = req.params;
+    const result = await galleryEngagementService.toggleLike(req.user.id, parentType, albumId);
+    const engagement = await galleryEngagementService.getEngagement(req.user.id, parentType, albumId);
+    return res.status(200).json({ ...result, likeCount: engagement.likeCount });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
+const addCustomAlbumComment = async (req, res, next) => {
+  try {
+    const comment = await galleryEngagementService.addComment(
+      req.user.id,
+      galleryEngagementService.PARENT_TYPE_GALLERY_ALBUM,
+      req.params.albumId,
+      req.body.text,
+    );
+    return res.status(201).json({ comment });
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
     next(error);
@@ -507,5 +569,8 @@ module.exports = {
   addGalleryComment,
   updateGalleryComment,
   deleteGalleryComment,
+  getCustomAlbumEngagement,
+  toggleCustomAlbumLike,
+  addCustomAlbumComment,
   updateDeviceToken,
 };

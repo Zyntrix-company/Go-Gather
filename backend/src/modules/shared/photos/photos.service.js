@@ -2,8 +2,11 @@ const { query: db } = require('../../../config/database');
 const { uploadToS3, deleteFromS3, sanitiseFilename, getPresignedDownloadUrl } = require('../../../utils/s3.util');
 const config = require('../../../config');
 const { v4: uuidv4 } = require('uuid');
+const { assertPhotoVideoUploadAllowed } = require('./photoLimits.util');
 
 const uploadPhotos = async ({ parentType, parentId }, userId, files, { activityId = null } = {}) => {
+  await assertPhotoVideoUploadAllowed({ parentType, parentId }, files, { activityId });
+
   const uploaded = [];
 
   for (const file of files) {

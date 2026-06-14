@@ -228,6 +228,7 @@ const deleteExtraPhoto = async (userId, photoId) => {
 };
 
 module.exports = {
+  verifyViewerAccess,
   getCuratedAlbumPhotos,
   getCuratedPhotoCount,
   hideSharedPhoto,

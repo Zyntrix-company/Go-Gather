@@ -3,7 +3,7 @@ const { deleteFromS3, getPresignedDownloadUrl, uploadToS3, sanitiseFilename } = 
 const { validateMimeFromBuffer } = require('../../../middleware/upload.middleware');
 const { createAndSendNotifications } = require('../../../utils/fcm.util');
 const { v4: uuidv4 } = require('uuid');
-const { docMaxCount } = require('../../../config/uploadLimits');
+const { docMaxCount, docMaxBatch } = require('../../../config/uploadLimits');
 
 const uploadDoc = async ({ parentType, parentId }, userId, file) => {
   const validTypes = [
@@ -78,6 +78,35 @@ const uploadDoc = async ({ parentType, parentId }, userId, file) => {
   return formatDoc(doc, downloadUrl, userId, actorName, profile?.avatar_url || null);
 };
 
+const uploadDocs = async ({ parentType, parentId }, userId, files) => {
+  if (!files?.length) {
+    const e = new Error('At least one file is required');
+    e.statusCode = 400;
+    e.error = 'VALIDATION_ERROR';
+    throw e;
+  }
+
+  const countResult = await db(
+    'SELECT COUNT(*) FROM docs WHERE parent_type = $1 AND parent_id = $2',
+    [parentType, parentId],
+  );
+  const currentCount = parseInt(countResult.rows[0].count, 10);
+  if (currentCount + files.length > docMaxCount) {
+    const e = new Error(
+      `Maximum ${docMaxCount} documents allowed. You have ${currentCount}; tried to add ${files.length}.`,
+    );
+    e.statusCode = 422;
+    e.error = 'LIMIT_EXCEEDED';
+    throw e;
+  }
+
+  const uploaded = [];
+  for (const file of files) {
+    uploaded.push(await uploadDoc({ parentType, parentId }, userId, file));
+  }
+  return { docs: uploaded, total: uploaded.length };
+};
+
 const getDocs = async ({ parentType, parentId }) => {
   const result = await db(
     `SELECT d.*, p.full_name AS uploader_name, p.avatar_url AS uploader_avatar
@@ -133,4 +162,4 @@ const formatDoc = (doc, downloadUrl, uploadedById, uploaderName, uploaderAvatar)
   createdAt: doc.created_at,
 });
 
-module.exports = { uploadDoc, getDocs, deleteDoc };
+module.exports = { uploadDoc, uploadDocs, getDocs, deleteDoc };
