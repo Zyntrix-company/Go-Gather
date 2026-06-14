@@ -1,4 +1,5 @@
 const db = require('../../config/database');
+const { notifyGalleryLiked, notifyGalleryComment } = require('./galleryEngagementNotifications');
 const { verifyViewerAccess } = require('./galleryOverlay.service');
 const galleryAlbumsService = require('./galleryAlbums.service');
 
@@ -147,6 +148,7 @@ const toggleLike = async (userId, parentType, parentId, { galleryOwnerId } = {})
      VALUES ($1, $2, $3)`,
     [parentType, parentId, userId],
   );
+  notifyGalleryLiked(userId, parentType, parentId);
   return { liked: true };
 };
 
@@ -170,11 +172,14 @@ const addComment = async (userId, parentType, parentId, text, { galleryOwnerId }
 
   const profile = await fetchUserDisplay(userId);
 
-  return formatComment({
+  const comment = formatComment({
     ...result.rows[0],
     user_name: profile?.user_name,
     avatar_url: profile?.avatar_url,
   });
+
+  notifyGalleryComment(userId, parentType, parentId, clean, comment.id);
+  return comment;
 };
 
 const updateComment = async (userId, commentId, text) => {

@@ -98,6 +98,24 @@ const seeds = [
     body: 'Your event "Holi Bash" is tomorrow. Get ready!',
     data: { eventId: FAKE_EVENT_ID, eventName: 'Holi Bash', reminderType: '1_day_before' },
   },
+  {
+    type: 'GALLERY_LIKED',
+    title: 'Gallery Activity',
+    body: 'Priya Mehta liked "Bali Trip 2025"',
+    data: { parentType: 'trip', tripId: FAKE_TRIP_ID, tripName: 'Bali Trip 2025', screen: 'gallery' },
+  },
+  {
+    type: 'GALLERY_COMMENT',
+    title: 'New Gallery Comment',
+    body: 'Rohan Kapoor commented on "Summer BBQ": Great shots!',
+    data: {
+      parentType: 'gallery_album',
+      parentId: '00000000-0000-0000-0003-000000000003',
+      albumOwnerId: '00000000-0000-0000-0099-000000000099',
+      albumOwnerName: 'You',
+      screen: 'gallery',
+    },
+  },
 ];
 
 async function seed(userId) {

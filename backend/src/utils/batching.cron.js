@@ -16,6 +16,10 @@ const BATCH_MESSAGES = {
     title: 'Expenses Added',
     body: `${count} expense(s) added to "${name}"`,
   }),
+  GALLERY_LIKED: (count, name) => ({
+    title: 'Gallery Activity',
+    body: `${count} new like(s) on "${name}"`,
+  }),
 };
 
 const processBatchedPushes = async () => {

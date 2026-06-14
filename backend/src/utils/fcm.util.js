@@ -79,6 +79,35 @@ const isInQuietHours = (notificationSettings, timezone) => {
 };
 
 // Queue a batched FCM push — increments event_count if an open window already exists
+const resolveBatchTarget = (data = {}) => {
+  if (data.parentKind === 'gallery_album' || data.parentType === 'gallery_album') {
+    return {
+      parentId: data.parentId,
+      parentName: data.albumName || data.parentName || '',
+      parentKind: 'gallery_album',
+    };
+  }
+  if (data.tripId) {
+    return {
+      parentId: data.tripId,
+      parentName: data.tripName || data.parentName || '',
+      parentKind: 'trip',
+    };
+  }
+  if (data.eventId) {
+    return {
+      parentId: data.eventId,
+      parentName: data.eventName || data.parentName || '',
+      parentKind: 'event',
+    };
+  }
+  return {
+    parentId: data.parentId,
+    parentName: data.parentName || data.albumName || '',
+    parentKind: data.parentKind || 'trip',
+  };
+};
+
 const queueBatchedPush = async (userId, type, parentId, parentName, parentKind = 'trip') => {
   if (!userId || !parentId) return;
   try {
@@ -262,8 +291,8 @@ const createAndSendNotification = async (userId, notification, type, data = {}, 
   }
 
   if (options.batched) {
-    const parentKind = data.tripId ? 'trip' : 'event';
-    await queueBatchedPush(userId, type, data.tripId || data.eventId, data.tripName || data.parentName, parentKind);
+    const { parentId, parentName, parentKind } = resolveBatchTarget(data);
+    await queueBatchedPush(userId, type, parentId, parentName, parentKind);
     return;
   }
 
@@ -338,9 +367,7 @@ const createAndSendNotifications = async (users, notification, type, data = {}, 
   }
 
   if (options.batched) {
-    const parentId = data.tripId || data.eventId;
-    const parentName = data.tripName || data.parentName;
-    const parentKind = data.tripId ? 'trip' : 'event';
+    const { parentId, parentName, parentKind } = resolveBatchTarget(data);
     await Promise.allSettled(
       users.map((u) => queueBatchedPush(u.id, type, parentId, parentName, parentKind)),
     );

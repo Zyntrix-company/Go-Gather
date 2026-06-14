@@ -12,6 +12,7 @@ import {
 import Svg, { Path, Circle } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import useNotificationStore from '../../store/notificationStore';
+import useAuthStore from '../../store/authStore';
 import { getRelativeTime } from '../../utils/relativeTime';
 
 // Notification types that live in the Requests tab
@@ -77,6 +78,32 @@ function getNotificationIcon(type: string, data?: Record<string, string>) {
       return (
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
           <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#f59e0b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+
+    case 'GALLERY_LIKED':
+      return (
+        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"
+            stroke="#ef4444"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+
+    case 'GALLERY_COMMENT':
+      return (
+        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"
+            stroke="#0d9488"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </Svg>
       );
 
@@ -146,6 +173,8 @@ function getIconBg(type: string) {
     case 'TRIP_CANCELLED':                        return '#fef2f2';
     case 'EXPENSE_ADDED':
     case 'expense_added':                         return '#fffbeb';
+    case 'GALLERY_LIKED':                         return '#fef2f2';
+    case 'GALLERY_COMMENT':                       return '#f0fdfa';
     case 'poll_created':                          return '#eef2ff';
     case 'member_joined':
     case 'EVENT_MEMBER_ADDED':
@@ -160,6 +189,7 @@ function getIconBg(type: string) {
 
 export default function NotificationsScreen({ navigation }: any) {
   const [activeTab, setActiveTab] = useState<'notifications' | 'requests'>('notifications');
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const {
     notifications,
     loading,
@@ -224,6 +254,7 @@ export default function NotificationsScreen({ navigation }: any) {
       type === 'TRIP_REMINDER' || type === 'TRIP_MEMBER_ADDED' || type === 'TRIP_INVITE_ACCEPTED' ||
       type === 'TRIP_CANCELLED' || type === 'ITINERARY_UPDATED' || type === 'EXPENSE_ADDED' ||
       type === 'NEW_MEMBER_JOINED' || type === 'TRIP_MILESTONE' ||
+      type === 'GALLERY_LIKED' || type === 'GALLERY_COMMENT' ||
       (type === 'DOCUMENT_UPLOADED' && data.tripId)
     )) {
       navigation.navigate('TripDetail', { trip: { id: data.tripId } });
@@ -233,9 +264,26 @@ export default function NotificationsScreen({ navigation }: any) {
     // Event-scoped notifications (including event document uploads)
     if (data?.eventId && (
       type === 'EVENT_REMINDER' || type === 'EVENT_MEMBER_ADDED' || type === 'EVENT_INVITE_ACCEPTED' ||
+      type === 'GALLERY_LIKED' || type === 'GALLERY_COMMENT' ||
       (type === 'DOCUMENT_UPLOADED' && data.eventId)
     )) {
       navigation.navigate('EventDetail', { event: { id: data.eventId } });
+      return;
+    }
+
+    // Custom gallery album notifications
+    if (
+      (type === 'GALLERY_LIKED' || type === 'GALLERY_COMMENT')
+      && (data?.parentType === 'gallery_album' || data?.albumOwnerId)
+    ) {
+      if (data.albumOwnerId && data.albumOwnerId === currentUserId) {
+        navigation.navigate('Home', { initialTab: 'gallery' });
+      } else if (data.albumOwnerId) {
+        navigation.navigate('FriendProfile', {
+          userId: data.albumOwnerId,
+          friendName: data.albumOwnerName || 'Friend',
+        });
+      }
       return;
     }
 

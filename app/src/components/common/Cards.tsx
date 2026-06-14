@@ -31,19 +31,21 @@ export type CardData = {
 
 // ─── Menu dropdown (shared) ───────────────────────────────────────────────────
 
-function CardMenu({
-  archiveLabel,
+export function CardMenu({
+  archiveLabel = 'Archive',
   onArchive,
   onDelete,
   extraItems,
+  containerStyle,
 }: {
-  archiveLabel: string;
+  archiveLabel?: string;
   onArchive?: () => void;
   onDelete?: () => void;
-  extraItems?: { label: string; onPress: () => void; color?: string }[];
+  extraItems?: { label: string; onPress: () => void; color?: string; icon?: React.ReactNode }[];
+  containerStyle?: object;
 }) {
   return (
-    <View style={s.menuDropdown} onStartShouldSetResponder={() => true}>
+    <View style={[s.menuDropdown, containerStyle]} onStartShouldSetResponder={() => true}>
       {extraItems?.map((item, i) => (
         <TouchableOpacity
           key={i}
@@ -51,6 +53,7 @@ function CardMenu({
           onPress={item.onPress}
           activeOpacity={0.8}
         >
+          {item.icon}
           <Text style={[s.menuItemText, item.color ? { color: item.color } : null]}>{item.label}</Text>
         </TouchableOpacity>
       ))}

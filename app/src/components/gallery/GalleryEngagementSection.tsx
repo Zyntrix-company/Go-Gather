@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator, Modal, Pressable,
+  View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { MoreVertical, Pen } from 'lucide-react-native';
 import CachedImage from '../common/CachedImage';
+import { CardMenu } from '../common/Cards';
 import { getRelativeTime } from '../../utils/relativeTime';
 import type { GalleryComment } from '../../api/gallery.api';
 import useAuthStore from '../../store/authStore';
@@ -39,14 +41,6 @@ function CommentIcon() {
   );
 }
 
-function DotsIcon() {
-  return (
-    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-      <Path d="M12 13a1 1 0 100-2 1 1 0 000 2zM19 13a1 1 0 100-2 1 1 0 000 2zM5 13a1 1 0 100-2 1 1 0 000 2z" fill="#94a3b8" />
-    </Svg>
-  );
-}
-
 type GalleryEngagementSectionProps = {
   likeCount: number;
   likedByMe: boolean;
@@ -75,8 +69,7 @@ export default function GalleryEngagementSection({
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
-  const [menuCommentId, setMenuCommentId] = useState<string | null>(null);
-  const [menuModeratorOnly, setMenuModeratorOnly] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
 
@@ -93,7 +86,7 @@ export default function GalleryEngagementSection({
   };
 
   const startEdit = (c: GalleryComment) => {
-    setMenuCommentId(null);
+    setOpenMenuId(null);
     setEditingId(c.id);
     setEditDraft(c.text);
   };
@@ -105,6 +98,17 @@ export default function GalleryEngagementSection({
     await onEditComment(editingId, text);
     setEditingId(null);
     setEditDraft('');
+  };
+
+  const confirmDelete = (commentId: string) => {
+    setOpenMenuId(null);
+    showConfirm({
+      title: 'Delete comment?',
+      message: 'This cannot be undone.',
+      destructive: true,
+      confirmText: 'Delete',
+      onConfirm: () => onDeleteComment(commentId),
+    });
   };
 
   return (
@@ -145,9 +149,11 @@ export default function GalleryEngagementSection({
         const isOwn = c.userId === currentUserId;
         const isEditing = editingId === c.id;
         const showMenu = !viewOnly && (isOwn || canModerateComments);
+        const moderatorOnly = !isOwn && canModerateComments;
+        const menuOpen = openMenuId === c.id;
 
         return (
-          <View key={c.id} style={styles.commentRow}>
+          <View key={c.id} style={[styles.commentRow, menuOpen && styles.commentRowRaised]}>
             {c.avatarUrl ? (
               <CachedImage uri={c.avatarUrl} style={styles.commentAvatar} resizeMode="cover" />
             ) : (
@@ -160,15 +166,27 @@ export default function GalleryEngagementSection({
                 <Text style={styles.commentName} numberOfLines={1}>{c.userName}</Text>
                 <Text style={styles.commentTime}>{getRelativeTime(c.createdAt)}</Text>
                 {showMenu ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setMenuModeratorOnly(!isOwn && canModerateComments);
-                      setMenuCommentId(c.id);
-                    }}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <DotsIcon />
-                  </TouchableOpacity>
+                  <View style={styles.menuAnchor}>
+                    <TouchableOpacity
+                      style={styles.moreBtn}
+                      onPress={() => setOpenMenuId((prev) => (prev === c.id ? null : c.id))}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <MoreVertical size={12} color="#64748b" strokeWidth={1.6} />
+                    </TouchableOpacity>
+                    {menuOpen ? (
+                      <CardMenu
+                        containerStyle={styles.commentMenuDropdown}
+                        extraItems={moderatorOnly ? undefined : [{
+                          label: 'Edit',
+                          icon: <Pen size={15} color="#64748b" strokeWidth={2} />,
+                          onPress: () => startEdit(c),
+                        }]}
+                        onDelete={() => confirmDelete(c.id)}
+                      />
+                    ) : null}
+                  </View>
                 ) : null}
               </View>
               {isEditing ? (
@@ -190,41 +208,6 @@ export default function GalleryEngagementSection({
           </View>
         );
       })}
-
-      <Modal visible={!!menuCommentId} transparent animationType="fade" onRequestClose={() => setMenuCommentId(null)}>
-        <Pressable style={styles.menuOverlay} onPress={() => setMenuCommentId(null)}>
-          <View style={styles.menuSheet}>
-            {!menuModeratorOnly ? (
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  const c = comments.find((x) => x.id === menuCommentId);
-                  if (c) startEdit(c);
-                }}
-              >
-                <Text style={styles.menuItemText}>Edit</Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity
-              style={[styles.menuItem, styles.menuItemDanger, menuModeratorOnly && { borderBottomWidth: 0 }]}
-              onPress={() => {
-                const id = menuCommentId;
-                setMenuCommentId(null);
-                if (!id) return;
-                showConfirm({
-                  title: 'Delete comment?',
-                  message: 'This cannot be undone.',
-                  destructive: true,
-                  confirmText: 'Delete',
-                  onConfirm: () => onDeleteComment(id),
-                });
-              }}
-            >
-              <Text style={[styles.menuItemText, styles.menuItemDangerText]}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -290,6 +273,9 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 14,
   },
+  commentRowRaised: {
+    zIndex: 100,
+  },
   commentAvatar: {
     width: 34,
     height: 34,
@@ -327,6 +313,25 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginLeft: 'auto',
   },
+  menuAnchor: {
+    position: 'relative',
+    flexShrink: 0,
+  },
+  moreBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentMenuDropdown: {
+    position: 'absolute',
+    top: 28,
+    right: 0,
+    width: 132,
+    zIndex: 200,
+  },
   commentText: {
     fontSize: 14,
     color: '#0f172a',
@@ -357,33 +362,5 @@ const styles = StyleSheet.create({
   editCancel: {
     fontSize: 13,
     color: '#94a3b8',
-  },
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'flex-end',
-  },
-  menuSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingBottom: 28,
-  },
-  menuItem: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#f1f5f9',
-  },
-  menuItemDanger: {
-    borderBottomWidth: 0,
-  },
-  menuItemText: {
-    fontSize: 16,
-    color: '#0f172a',
-    fontWeight: '500',
-  },
-  menuItemDangerText: {
-    color: '#ef4444',
   },
 });
