@@ -325,7 +325,7 @@ const getActivityPhotos = async (tripId, actId) => {
      FROM photos ph
      LEFT JOIN profiles p ON p.user_id = ph.uploaded_by
      WHERE ph.activity_id = $1
-     ORDER BY ph.created_at ASC`,
+     ORDER BY ph.display_order ASC, ph.created_at ASC`,
     [actId],
   );
 
@@ -362,6 +362,22 @@ const deleteActivityPhoto = async (tripId, actId, photoId, userId, userRole) => 
   await db('DELETE FROM photos WHERE id = $1', [photoId]);
 };
 
+const reorderActivityPhotos = async (tripId, actId, items) => {
+  const actCheck = await db(
+    'SELECT id FROM trip_activities WHERE id = $1 AND trip_id = $2',
+    [actId, tripId],
+  );
+  if (actCheck.rowCount === 0) {
+    const e = new Error('Activity not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
+  }
+  return sharedPhotos.reorderPhotos({
+    parentType: 'trip',
+    parentId: tripId,
+    activityId: actId,
+    items,
+  });
+};
+
 module.exports = {
   createActivity,
   updateActivity,
@@ -370,4 +386,5 @@ module.exports = {
   uploadActivityPhotos,
   getActivityPhotos,
   deleteActivityPhoto,
+  reorderActivityPhotos,
 };

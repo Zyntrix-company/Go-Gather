@@ -214,6 +214,11 @@ export async function deleteEventPhoto(eventId: string, photoId: string) {
   return res.data as { success: boolean };
 }
 
+export async function reorderEventPhotos(eventId: string, items: { id: string; displayOrder: number }[]) {
+  const res = await client.patch(`/events/${eventId}/photos/reorder`, { items });
+  return res.data as { success: boolean };
+}
+
 // ─── 5. Expenses ──────────────────────────────────────────────────────────────
 
 export async function getEventExpenses(eventId: string) {

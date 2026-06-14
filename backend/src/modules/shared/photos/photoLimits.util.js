@@ -5,6 +5,7 @@ const {
   videoMaxCount,
   isVideoMime,
   formatMb,
+  limits,
 } = require('../../../config/uploadLimits');
 
 /**
@@ -35,6 +36,29 @@ const assertPhotoVideoUploadAllowed = async (
       }
     }
     return;
+  }
+
+  const photoCap = parentType === 'trip'
+    ? limits.tripPhoto.maxFilesTotal
+    : parentType === 'event'
+      ? limits.eventPhoto.maxFilesTotal
+      : null;
+
+  if (photoCap != null) {
+    const countResult = await db(
+      `SELECT COUNT(*)::int AS count FROM photos
+       WHERE parent_type = $1 AND parent_id = $2 AND activity_id IS NULL`,
+      [parentType, parentId],
+    );
+    const existing = countResult.rows[0]?.count ?? 0;
+    if (existing + files.length > photoCap) {
+      const e = new Error(`Maximum ${photoCap} media files allowed for this ${parentType}`);
+      e.statusCode = 400;
+      e.error = 'MAX_PHOTOS_EXCEEDED';
+      e.limit = photoCap;
+      e.current = existing;
+      throw e;
+    }
   }
 
   const incomingVideos = files.filter((f) => isVideoMime(f.mimetype));

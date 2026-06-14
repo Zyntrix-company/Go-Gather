@@ -11,4 +11,16 @@ const getPhotos = (tripId, opts) =>
 const deletePhoto = (photoId, tripId, requesterId, requesterRole) =>
   sharedPhotos.deletePhoto({ photoId, parentType: PARENT_TYPE, parentId: tripId, requesterId, requesterRole });
 
-module.exports = { uploadPhotos, getPhotos, deletePhoto };
+const reorderTripPhotos = (tripId, items) =>
+  sharedPhotos.reorderPhotos({ parentType: PARENT_TYPE, parentId: tripId, activityId: null, items });
+
+const reorderActivityPhotos = (tripId, actId, items) =>
+  sharedPhotos.reorderPhotos({ parentType: PARENT_TYPE, parentId: tripId, activityId: actId, items });
+
+module.exports = {
+  uploadPhotos,
+  getPhotos,
+  deletePhoto,
+  reorderTripPhotos,
+  reorderActivityPhotos,
+};

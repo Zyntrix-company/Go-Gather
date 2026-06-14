@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Toast from 'react-native-toast-message';
 import {
   getGalleryEngagement,
@@ -32,7 +32,7 @@ export function useGalleryEngagement(params: UseGalleryEngagementParams) {
   const [likeCount, setLikeCount] = useState(0);
   const [likedByMe, setLikedByMe] = useState(false);
   const [comments, setComments] = useState<GalleryComment[]>([]);
-  const [liking, setLiking] = useState(false);
+  const likeInFlight = useRef(false);
 
   const enabled = params.enabled;
   const parentType = params.kind === 'trip-event' ? params.parentType : undefined;
@@ -67,8 +67,17 @@ export function useGalleryEngagement(params: UseGalleryEngagementParams) {
   }, [enabled, params.kind, parentType, parentId, galleryOwnerId, albumId]);
 
   const handleToggleLike = useCallback(async () => {
-    if (liking || !enabled) return;
-    setLiking(true);
+    if (likeInFlight.current || !enabled) return;
+
+    const prevLiked = likedByMe;
+    const prevCount = likeCount;
+    const nextLiked = !prevLiked;
+    const nextCount = Math.max(0, prevCount + (nextLiked ? 1 : -1));
+
+    setLikedByMe(nextLiked);
+    setLikeCount(nextCount);
+    likeInFlight.current = true;
+
     try {
       const res = params.kind === 'custom'
         ? await toggleCustomAlbumLike(params.albumId)
@@ -76,11 +85,13 @@ export function useGalleryEngagement(params: UseGalleryEngagementParams) {
       setLikedByMe(res.liked);
       setLikeCount(res.likeCount);
     } catch {
+      setLikedByMe(prevLiked);
+      setLikeCount(prevCount);
       Toast.show({ type: 'error', text1: 'Could not update like' });
     } finally {
-      setLiking(false);
+      likeInFlight.current = false;
     }
-  }, [liking, enabled, params]);
+  }, [enabled, likedByMe, likeCount, params]);
 
   const handleAddComment = useCallback(async (text: string) => {
     const comment = params.kind === 'custom'
@@ -103,7 +114,6 @@ export function useGalleryEngagement(params: UseGalleryEngagementParams) {
     likeCount,
     likedByMe,
     comments,
-    liking,
     handleToggleLike,
     handleAddComment,
     handleEditComment,

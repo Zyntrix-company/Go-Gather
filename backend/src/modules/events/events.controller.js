@@ -283,6 +283,26 @@ const deletePhoto = async (req, res, next) => {
   }
 };
 
+const reorderPhotos = async (req, res, next) => {
+  try {
+    const items = req.body?.items;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'items array is required', statusCode: 400 });
+    }
+    const normalized = items.map((i) => ({ id: i.id, displayOrder: i.displayOrder }));
+    await sharedPhotosService.reorderPhotos({
+      parentType: 'event',
+      parentId: req.params.eventId,
+      activityId: undefined,
+      items: normalized,
+    });
+    res.status(200).json({ success: true });
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.error, message: e.message, statusCode: e.statusCode });
+    next(e);
+  }
+};
+
 // ─── EXPENSES ─────────────────────────────────────────────────────────────────
 
 const addExpense = async (req, res, next) => {
@@ -571,6 +591,7 @@ module.exports = {
   uploadPhotos,
   getPhotos,
   deletePhoto,
+  reorderPhotos,
   // Expenses
   addExpense,
   getExpenses,

@@ -149,7 +149,9 @@ export type Photo = {
   url?: string;
   mimeType?: string;
   uploadedBy: string;
-  uploadedAt: string;
+  uploadedAt?: string;
+  createdAt?: string | null;
+  displayOrder?: number | null;
   activityId?: string | null;
   activityTitle?: string | null;
 };
@@ -594,6 +596,16 @@ export async function uploadTripPhotos(tripId: string, assets: Array<{ uri: stri
 
 export async function deleteTripPhoto(tripId: string, photoId: string) {
   const res = await client.delete(`/trips/${tripId}/photos/${photoId}`);
+  return res.data as { success: boolean };
+}
+
+export async function reorderTripPhotos(tripId: string, items: { id: string; displayOrder: number }[]) {
+  const res = await client.patch(`/trips/${tripId}/photos/reorder`, { items });
+  return res.data as { success: boolean };
+}
+
+export async function reorderActivityPhotos(tripId: string, actId: string, items: { id: string; displayOrder: number }[]) {
+  const res = await client.patch(`/trips/${tripId}/activities/${actId}/photos/reorder`, { items });
   return res.data as { success: boolean };
 }
 

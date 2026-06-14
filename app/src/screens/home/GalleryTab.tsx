@@ -770,7 +770,6 @@ function PhotosModal({
               comments={engagement.comments}
               canModerateComments
               onToggleLike={engagement.handleToggleLike}
-              liking={engagement.liking}
               onAddComment={engagement.handleAddComment}
               onEditComment={engagement.handleEditComment}
               onDeleteComment={engagement.handleDeleteComment}
@@ -1295,7 +1294,6 @@ function CustomCardPhotosModal({
               comments={engagement.comments}
               canModerateComments
               onToggleLike={engagement.handleToggleLike}
-              liking={engagement.liking}
               onAddComment={engagement.handleAddComment}
               onEditComment={engagement.handleEditComment}
               onDeleteComment={engagement.handleDeleteComment}

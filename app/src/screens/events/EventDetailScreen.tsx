@@ -7,8 +7,6 @@ import {
 import Toast from 'react-native-toast-message';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { Pen, Check, Trash2 } from 'lucide-react-native';
-import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { WebView } from 'react-native-webview';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -40,8 +38,6 @@ import {
   uploadEventDoc,
   deleteEventDoc,
   getEventPhotos,
-  uploadEventPhotos,
-  deleteEventPhoto,
   getEventExpenses,
   createEventExpense,
   updateEventExpense,
@@ -83,14 +79,10 @@ import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdo
 import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
 import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
 import typography from '../../theme/typography';
-import { albumChromeStyles as acs, ALBUM_DIALOG_HERO_H } from '../../constants/albumPhotosLayout';
-import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
-import AlbumPhotosDialogLayout from '../../components/gallery/AlbumPhotosDialogLayout';
-import AlbumPhotosDialogSkeleton from '../../components/gallery/AlbumPhotosDialogSkeleton';
-import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
-import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
-import { focusAlbumPhotosAtEnd, sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
+import MediaModuleDialog from '../../components/media/MediaModuleDialog';
+import { useMediaDialog, mapApiPhoto } from '../../hooks/useMediaDialog';
+import { sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import { checkDriveConnected, promptConnectDrive, watchDriveConnect } from '../../utils/drivePickerFlow';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -438,8 +430,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [driveStatus, setDriveStatus] = useState({ connected: false });
   const [showMembers, setShowMembers] = useState(false);
   const [showPhotos, setShowPhotos] = useState(false);
-  const [photosEditMode, setPhotosEditMode] = useState(false);
-  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [showExpenses, setShowExpenses] = useState(false);
   const showExpensesRef = useRef(showExpenses);
   showExpensesRef.current = showExpenses;
@@ -447,9 +437,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [showNotes, setShowNotes] = useState(false);
   const [showEditEvent, setShowEditEvent] = useState(false);
   const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
-  const [albumHeroIndex, setAlbumHeroIndex] = useState(0);
   const [albumDescExpanded, setAlbumDescExpanded] = useState(false);
-  const albumHeroRef = useRef<any>(null);
   const pendingDrivePickerRef = useRef<'docs' | 'photos' | null>(null);
 
   // ── Data state ──
@@ -463,7 +451,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
   membersRef.current = members;
   const [apiFriends, setApiFriends] = useState<{ id: string; name: string; avatar: string }[]>([]);
   const [docs, setDocs] = useState<DocItem[]>([]);
-  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [expenses, setExpenses] = useState<ExpenseLocal[]>([]);
   const [balances, setBalances] = useState<DebtLocal[]>([]);
   const [myBalances, setMyBalances] = useState<Record<string, number>>({});
@@ -471,6 +458,14 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [polls, setPolls] = useState<PollLocal[]>([]);
   const [notes, setNotes] = useState<NoteLocal[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+
+  const media = useMediaDialog({
+    mode: 'event',
+    entityId: event.id,
+    bannerImageUrl: (event as { bannerImageUrl?: string | null }).bannerImageUrl ?? null,
+    onBannerUpdated: (url) => setEvent((prev) => ({ ...prev, bannerImageUrl: url } as typeof prev)),
+    onError: handleApiError,
+  });
 
   const myMemberRole = members.find(m => m.userId === currentUserId)?.role ?? 'member';
 
@@ -517,18 +512,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
             // Update docs
             setDocs(docsData.docs.map(d => ({ id: d.id, name: d.fileName, uri: d.downloadUrl ?? d.fileUrl ?? '', mimeType: d.mimeType })));
 
-            // Update photos (preserve localUri from previous session state)
-            setPhotos(prev => {
-              const cache: Record<string, string> = {};
-              prev.forEach(p => { if ((p as any).localUri) cache[p.id] = (p as any).localUri; });
-              return sortAlbumPhotosOldestFirst(photosData.photos.map(p => ({
-                id: p.id,
-                uri: p.url ?? p.fileUrl ?? '',
-                localUri: cache[p.id],
-                name: 'photo.jpg',
-                createdAt: (p as { createdAt?: string }).createdAt ?? null,
-              })));
-            });
+            media.mergeApiPhotos(photosData.photos);
 
             // Update expenses and balances
             const membersForMap: EventMemberLocal[] = eventData.members.map((m: any) => ({
@@ -710,7 +694,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
     .filter(f => !memberIdSet.has(f.id) && f.name.toLowerCase().includes(memberSearch.toLowerCase()));
   const dayLabel = event.dayCount > 0 ? 'Days to go' : event.dayCount === 0 ? 'Today' : 'Days ago';
   const statusOnly = event.dayCount === 0;
-  const photosModalLoading = loadingDetail && photos.length === 0;
+  const photosModalLoading = loadingDetail && media.items.length === 0;
 
   const dismissExpenseOverlays = useCallback(() => {
     closeExpenseOverlays({
@@ -868,17 +852,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
       let res: { imported: unknown[]; failed?: { fileName: string; reason: string }[] };
       if (drivePickerTarget === 'photos') {
         res = await importDrivePhotos('event', event.id, selected);
-        setPhotos(p => {
-          const imported = res.imported.map((ph: any) => ({
-            id: ph.id,
-            uri: ph.url ?? ph.fileUrl ?? '',
-            localUri: undefined,
-            name: ph.fileName,
-            createdAt: (ph as { createdAt?: string }).createdAt ?? new Date().toISOString(),
-          }));
-          focusAlbumPhotosAtEnd(p.length, imported.length, setAlbumHeroIndex, albumHeroRef);
-          return [...p, ...imported];
-        });
+        const imported = res.imported.map((ph: any) => mapApiPhoto(ph));
+        media.setItems((p) => sortAlbumPhotosOldestFirst([...p, ...imported]));
       } else {
         res = await importDriveFiles('event', event.id, selected);
         setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl }))]);
@@ -901,67 +876,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
     }
   }
 
-  function handlePickPhoto(cam: boolean) {
-    const fn = cam ? launchCamera : launchImageLibrary;
-    const opts = cam ? { mediaType: 'photo' as const, maxWidth: 1280, maxHeight: 1280, quality: 0.7 } : { mediaType: 'photo' as const, maxWidth: 1280, maxHeight: 1280, quality: 0.7, selectionLimit: uploadLimits.eventPhoto.maxBatchFiles };
-    fn(opts, async res => {
-      if (res.didCancel || res.errorCode) return;
-      const assets = (res.assets || []).filter(a => a.uri);
-      if (!assets.length) return;
-
-      // Optimistic: add temp photos with local URIs so they display immediately
-      const tempIds = assets.map((_, i) => `temp-${Date.now()}-${i}`);
-      const tempPhotos = assets.map((a, i) => ({
-        id: tempIds[i],
-        uri: a.uri!,
-        localUri: a.uri!,
-        name: a.fileName ?? 'photo.jpg',
-        createdAt: new Date().toISOString(),
-      }));
-      setPhotos(prev => {
-        focusAlbumPhotosAtEnd(prev.length, tempPhotos.length, setAlbumHeroIndex, albumHeroRef);
-        return [...prev, ...tempPhotos];
-      });
-
-      try {
-        const result = await uploadEventPhotos(event.id, assets.map(a => ({ uri: a.uri!, type: a.type, name: a.fileName ?? 'photo.jpg' })));
-        setPhotos(prev => {
-          const withoutTemps = prev.filter(ph => !tempIds.includes(ph.id));
-          const newPhotos = result.photos.map((ph, i) => ({
-            id: ph.id,
-            uri: ph.url ?? ph.fileUrl ?? assets[i]?.uri ?? '',
-            localUri: assets[i]?.uri,
-            name: 'photo.jpg',
-            createdAt: (ph as { createdAt?: string }).createdAt ?? new Date().toISOString(),
-          }));
-          focusAlbumPhotosAtEnd(withoutTemps.length, newPhotos.length, setAlbumHeroIndex, albumHeroRef);
-          return [...withoutTemps, ...newPhotos];
-        });
-      } catch (err) {
-        // Remove temp entries on failure
-        setPhotos(prev => prev.filter(ph => !tempIds.includes(ph.id)));
-        handleApiError(err);
-      }
-    });
-  }
-
-  async function handleDeletePhoto(photoId: string) {
-    try {
-      setDeletingPhotoId(photoId);
-      await deleteEventPhoto(event.id, photoId);
-      setPhotos(p => {
-        const next = p.filter(ph => ph.id !== photoId);
-        setAlbumHeroIndex(hi => Math.min(hi, Math.max(0, next.length - 1)));
-        return next;
-      });
-    } catch (err) { handleApiError(err); }
-    finally { setDeletingPhotoId(null); }
-  }
-
   function closePhotosModal() {
     setShowPhotos(false);
-    setPhotosEditMode(false);
-    setDeletingPhotoId(null);
+    media.setPreviewItem(null);
   }
 
   async function handleAddExpense() {
@@ -1299,7 +1216,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
               .map(m => ({ id: m.userId, uri: m.avatarUrl ?? '' }))
               .filter(m => m.uri)}
             docCount={docs.length}
-            photoCount={photos.length}
+            photoCount={media.items.length}
             totalExpenses={expenseLabel}
             onEdit={openEditEvent}
           />
@@ -1311,7 +1228,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
               {[
                 { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => { setShowDocs(true); setUnreadCounts(p => ({ ...p, docs: 0 })); markEventSectionViewed(event.id, 'docs'); }, count: badgeCounts.docs },
                 { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => { setShowMembers(true); setUnreadCounts(p => ({ ...p, members: 0 })); markEventSectionViewed(event.id, 'members'); }, count: badgeCounts.members },
-                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => { setShowPhotos(true); setAlbumHeroIndex(0); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); }, count: badgeCounts.photos },
+                { label: 'Media', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => { setShowPhotos(true); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); }, count: badgeCounts.photos },
                 { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => { setShowExpenses(true); setUnreadCounts(p => ({ ...p, expenses: 0 })); markEventSectionViewed(event.id, 'expenses'); }, count: badgeCounts.expenses },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
@@ -1438,9 +1355,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Photos</Text>
             </View>
 
-            {photos.length === 0 ? (
+            {media.items.length === 0 ? (
               <TouchableOpacity
-                onPress={() => { setShowPhotos(true); setAlbumHeroIndex(0); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); }}
+                onPress={() => { setShowPhotos(true); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); }}
                 activeOpacity={0.8}
                 style={{ borderWidth: 1.5, borderColor: '#e2e8f0', borderStyle: 'dashed', borderRadius: 12, paddingVertical: 20, alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
@@ -1452,23 +1369,23 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 <Text style={[styles.emptySub, { marginTop: 2 }]}>Tap to add photos and capture memories</Text>
               </TouchableOpacity>
             ) : (() => {
-              const openAt = (idx: number) => { setShowPhotos(true); setAlbumHeroIndex(idx); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); };
-              const remaining = photos.length - 3;
+              const openAt = (_idx: number) => { setShowPhotos(true); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); };
+              const remaining = media.items.length - 3;
               return (
                 <View style={{ borderRadius: 14, overflow: 'hidden' }}>
-                  {photos.length === 1 ? (
+                  {media.items.length === 1 ? (
                     /* ── Single photo ── */
                     <TouchableOpacity onPress={() => openAt(0)} activeOpacity={0.88}>
                       <CachedImage
-                        uri={photos[0].localUri ?? photos[0].uri}
+                        uri={media.items[0].localUri ?? media.items[0].uri}
                         style={{ width: '100%', height: 220, backgroundColor: '#e2e8f0' }}
                         resizeMode="cover"
                       />
                     </TouchableOpacity>
-                  ) : photos.length === 2 ? (
+                  ) : media.items.length === 2 ? (
                     /* ── Two photos side by side ── */
                     <View style={{ flexDirection: 'row', gap: 2, height: 180 }}>
-                      {photos.slice(0, 2).map((p, idx) => (
+                      {media.items.slice(0, 2).map((p, idx) => (
                         <TouchableOpacity key={p.id} style={{ flex: 1 }} onPress={() => openAt(idx)} activeOpacity={0.88}>
                           <CachedImage uri={p.localUri ?? p.uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
                         </TouchableOpacity>
@@ -1478,14 +1395,14 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     /* ── 3+ photos: large left + 2 stacked right ── */
                     <View style={{ flexDirection: 'row', gap: 2, height: 210 }}>
                       <TouchableOpacity style={{ flex: 2 }} onPress={() => openAt(0)} activeOpacity={0.88}>
-                        <CachedImage uri={photos[0].localUri ?? photos[0].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
+                        <CachedImage uri={media.items[0].localUri ?? media.items[0].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
                       </TouchableOpacity>
                       <View style={{ flex: 1, gap: 2 }}>
                         <TouchableOpacity style={{ flex: 1 }} onPress={() => openAt(1)} activeOpacity={0.88}>
-                          <CachedImage uri={photos[1].localUri ?? photos[1].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
+                          <CachedImage uri={media.items[1].localUri ?? media.items[1].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
                         </TouchableOpacity>
                         <TouchableOpacity style={{ flex: 1 }} onPress={() => openAt(2)} activeOpacity={0.88}>
-                          <CachedImage uri={photos[2].localUri ?? photos[2].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
+                          <CachedImage uri={media.items[2].localUri ?? media.items[2].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
                           {remaining > 0 && (
                             <View style={{ ...StyleSheet.absoluteFillObject as any, backgroundColor: 'rgba(15,23,42,0.58)', alignItems: 'center', justifyContent: 'center' }}>
                               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 18 }}>+{remaining}</Text>
@@ -1803,132 +1720,34 @@ export default function EventDetailScreen({ route, navigation }: any) {
         </Modal>
 
         {/* ═══════════════════════════════════════════════════
-            MODAL 3 — Photos
+            MODAL 3 — Media
         ═══════════════════════════════════════════════════ */}
-        <AlbumPhotosDialogLayout
+        <MediaModuleDialog
           visible={showPhotos}
           onClose={closePhotosModal}
-          photoIndex={albumHeroIndex}
-          photoTotal={photos.length}
+          mode="event"
           loading={photosModalLoading}
-          heroOverlay={
-            photos.length > 0 ? (
-              photosEditMode ? (
-                <TouchableOpacity onPress={() => setPhotosEditMode(false)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Check size={17} color="#0d9488" />
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity onPress={() => setPhotosEditMode(true)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Pen size={15} color="#0d9488" />
-                </TouchableOpacity>
-              )
-            ) : null
-          }
-          actions={
-            <AlbumPhotosFooter
-              variant="primary"
-              placement="top"
-              onUpload={() => handlePickPhoto(false)}
-              onCamera={() => handlePickPhoto(true)}
-              onDrive={() => openDrivePicker('photos')}
-              driveImporting={driveImporting}
-            />
-          }
-        >
-          {photosModalLoading ? (
-            <AlbumPhotosDialogSkeleton />
-          ) : (
-          <AlbumPhotosBody compact>
-            <AlbumPhotosHeroCarousel
-              photos={photos}
-              heroIndex={albumHeroIndex}
-              onIndexChange={setAlbumHeroIndex}
-              heroRef={albumHeroRef}
-              scrollEnabled={!photosEditMode}
-              fixedHeight={ALBUM_DIALOG_HERO_H}
-              renderPhoto={(item) => <EventAlbumHeroPhoto photo={item} />}
-            />
-            <AlbumPhotosThumbStrip
-              photos={photos}
-              heroIndex={albumHeroIndex}
-              scrollEnabled={!photosEditMode}
-              onSelect={(idx) => {
-                setAlbumHeroIndex(idx);
-                albumHeroRef.current?.scrollToIndex({ index: idx, animated: true });
-              }}
-              renderOverlay={(ph) => {
-                if (!photosEditMode) return null;
-                return (
-                  <TouchableOpacity
-                    onPress={() => {
-                      showConfirm({
-                        title: 'Delete Photo',
-                        message: 'Remove this photo for everyone on this event?',
-                        destructive: true,
-                        onConfirm: () => handleDeletePhoto(ph.id),
-                      });
-                    }}
-                    style={acs.thumbDeleteBtn}
-                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                    disabled={deletingPhotoId === ph.id}
-                  >
-                    {deletingPhotoId === ph.id
-                      ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
-                      : <Trash2 size={9} color="#fff" />}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-            <View style={acs.metaCard}>
-              <Text style={acs.metaTitle} numberOfLines={1}>{event.name}</Text>
-              <View style={acs.metaRow}>
-                {!!event.location && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '42%' }}>
-                    <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                      <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
-                    </Svg>
-                    <Text style={acs.metaTextAccent} numberOfLines={2}>{formatLocationsHeroLabel(event)}</Text>
-                  </View>
-                )}
-                {!!event.dateLine && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                    <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                      <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#64748b" strokeWidth={2} />
-                      <Path d="M16 2v4M8 2v4M3 10h18" stroke="#64748b" strokeWidth={2} strokeLinecap="round" />
-                    </Svg>
-                    <Text style={acs.metaText} numberOfLines={1}>{event.dateLine}</Text>
-                  </View>
-                )}
-                <Text style={acs.metaCount}>
-                  {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
-                </Text>
-              </View>
-              {members.length > 0 && (
-                <View style={acs.metaMembers}>
-                  {members.slice(0, 4).map((m, idx) => (
-                    <View key={m.userId} style={{ marginLeft: idx === 0 ? 0 : -8, zIndex: 4 - idx }}>
-                      <EventFriendAvatar
-                        uri={m.avatarUrl || ''}
-                        name={m.fullName}
-                        style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#fff' }}
-                      />
-                    </View>
-                  ))}
-                  {members.length > 4 && (
-                    <View style={[acs.metaAvatar, { marginLeft: -8, alignItems: 'center', justifyContent: 'center' }]}>
-                      <Text style={{ fontSize: 8, fontWeight: '700', color: '#475569' }}>+{members.length - 4}</Text>
-                    </View>
-                  )}
-                  <Text style={{ marginLeft: 6, fontSize: 10, color: '#94a3b8' }} numberOfLines={1}>
-                    {members.length} {members.length === 1 ? 'member' : 'members'}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </AlbumPhotosBody>
-          )}
-        </AlbumPhotosDialogLayout>
+          uploading={media.uploading}
+          driveImporting={driveImporting}
+          uploadDisabled={media.uploadDisabled}
+          capTotal={media.capTotal}
+          mediaCount={media.mediaCount}
+          cellSize={media.cellSize}
+          bannerImageUrl={media.bannerImageUrl}
+          eventItems={media.eventItems}
+          previewItem={media.previewItem}
+          deletingId={media.deletingId}
+          settingBanner={media.settingBanner}
+          onUpload={() => media.handlePick(false)}
+          onCamera={() => media.handlePick(true)}
+          onDrive={() => openDrivePicker('photos')}
+          onPressItem={(item) => media.setPreviewItem(item)}
+          onDeleteItem={(item) => media.handleDelete(item.id)}
+          onReorderEvent={media.handleReorderEvent}
+          onClosePreview={() => media.setPreviewItem(null)}
+          onSetBanner={media.handleSetBanner}
+          deleteMessage="Remove this media for everyone on this event?"
+        />
 
         {/* Document preview modal */}
         <Modal visible={!!docPreviewUrl} transparent={false} animationType="slide" onRequestClose={() => setDocPreviewUrl(null)}>

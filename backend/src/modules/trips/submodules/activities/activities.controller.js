@@ -90,6 +90,21 @@ const deleteActivityPhoto = async (req, res, next) => {
   }
 };
 
+const reorderActivityPhotos = async (req, res, next) => {
+  try {
+    const items = req.body?.items;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'items array is required', statusCode: 400 });
+    }
+    const normalized = items.map((i) => ({ id: i.id, displayOrder: i.displayOrder }));
+    await service.reorderActivityPhotos(req.tripMember.tripId, req.params.actId, normalized);
+    res.status(200).json({ success: true });
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.error, message: e.message, statusCode: e.statusCode });
+    next(e);
+  }
+};
+
 module.exports = {
   createActivity,
   updateActivity,
@@ -98,4 +113,5 @@ module.exports = {
   uploadActivityPhotos,
   getActivityPhotos,
   deleteActivityPhoto,
+  reorderActivityPhotos,
 };

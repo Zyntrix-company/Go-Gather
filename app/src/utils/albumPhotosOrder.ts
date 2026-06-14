@@ -3,12 +3,16 @@ import type { FlatList } from 'react-native';
 
 export type OrderedAlbumPhoto = {
   id: string;
+  displayOrder?: number | null;
   createdAt?: string | null;
 };
 
-/** Oldest first so new uploads appear on the right in the carousel / thumb strip. */
+/** Sort by displayOrder (server source of truth), then createdAt, then id. */
 export function sortAlbumPhotosOldestFirst<T extends OrderedAlbumPhoto>(photos: T[]): T[] {
   return [...photos].sort((a, b) => {
+    const oa = a.displayOrder ?? Number.MAX_SAFE_INTEGER;
+    const ob = b.displayOrder ?? Number.MAX_SAFE_INTEGER;
+    if (oa !== ob) return oa - ob;
     const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     if (ta !== tb) return ta - tb;
@@ -36,4 +40,8 @@ export function focusAlbumPhotosAtEnd(
 ) {
   if (addedCount <= 0) return;
   focusAlbumPhotoAtIndex(previousCount + addedCount - 1, setHeroIndex, heroRef);
+}
+
+export function buildReorderPayload<T extends { id: string }>(items: T[]): { id: string; displayOrder: number }[] {
+  return items.map((item, index) => ({ id: item.id, displayOrder: index }));
 }

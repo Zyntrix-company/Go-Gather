@@ -110,6 +110,7 @@ router.post(
   activitiesCtrl.uploadActivityPhotos,
 );
 router.get('/:id/activities/:actId/photos', tripMemberMW, activitiesCtrl.getActivityPhotos);
+router.patch('/:id/activities/:actId/photos/reorder', tripMemberMW, activitiesCtrl.reorderActivityPhotos);
 router.delete('/:id/activities/:actId/photos/:photoId', tripMemberMW, activitiesCtrl.deleteActivityPhoto);
 
 // ─── Docs ─────────────────────────────────────────────────────────────────────
@@ -140,6 +141,7 @@ router.post(
   }),
   photosCtrl.uploadPhotos,
 );
+router.patch('/:id/photos/reorder', tripMemberMW, photosCtrl.reorderPhotos);
 router.delete('/:id/photos/:photoId', tripMemberMW, photosCtrl.deletePhoto);
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────

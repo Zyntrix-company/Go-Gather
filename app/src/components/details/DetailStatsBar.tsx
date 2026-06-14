@@ -112,7 +112,7 @@ export default function DetailStatsBar({
       <View style={styles.divider} />
       <StatItem
         icon={<PhotosIcon />}
-        label={`${photoCount} photos`}
+        label={`${photoCount} media`}
       />
       {expenseLabel != null && (
         <>

@@ -248,7 +248,6 @@ function CustomAlbumPhotosModal({
             likedByMe={engagement.likedByMe}
             comments={engagement.comments}
             onToggleLike={engagement.handleToggleLike}
-            liking={engagement.liking}
             onAddComment={engagement.handleAddComment}
             onEditComment={engagement.handleEditComment}
             onDeleteComment={engagement.handleDeleteComment}
@@ -429,7 +428,6 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
           likedByMe={engagement.likedByMe}
           comments={engagement.comments}
           canModerateComments={canModerateComments}
-          liking={engagement.liking}
           onToggleLike={engagement.handleToggleLike}
           onAddComment={engagement.handleAddComment}
           onEditComment={engagement.handleEditComment}

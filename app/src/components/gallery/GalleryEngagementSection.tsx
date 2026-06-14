@@ -51,7 +51,6 @@ type GalleryEngagementSectionProps = {
   onAddComment: (text: string) => Promise<void>;
   onEditComment: (commentId: string, text: string) => Promise<void>;
   onDeleteComment: (commentId: string) => Promise<void>;
-  liking?: boolean;
 };
 
 export default function GalleryEngagementSection({
@@ -64,7 +63,6 @@ export default function GalleryEngagementSection({
   onAddComment,
   onEditComment,
   onDeleteComment,
-  liking = false,
 }: GalleryEngagementSectionProps) {
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [draft, setDraft] = useState('');
@@ -114,8 +112,8 @@ export default function GalleryEngagementSection({
   return (
     <View style={styles.wrap}>
       <View style={styles.statsRow}>
-        <TouchableOpacity style={styles.stat} onPress={onToggleLike} disabled={liking} activeOpacity={0.8}>
-          {liking ? <ActivityIndicator size="small" color="#ef4444" /> : <HeartIcon filled={likedByMe} />}
+        <TouchableOpacity style={styles.stat} onPress={onToggleLike} activeOpacity={0.7}>
+          <HeartIcon filled={likedByMe} />
           <Text style={[styles.statText, likedByMe && styles.statTextLiked]}>
             {likeCount} {likeCount === 1 ? 'Like' : 'Likes'}
           </Text>

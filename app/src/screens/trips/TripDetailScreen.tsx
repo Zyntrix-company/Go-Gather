@@ -10,9 +10,8 @@ const EXPENSES_MODAL_HEIGHT = Math.round(SCREEN_H * 0.78);
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { Pen, Check, Trash2 } from 'lucide-react-native';
 import SweeIcon from '../../components/common/SweeIcon';
-import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { WebView } from 'react-native-webview';
 // DocumentPicker loaded dynamically to avoid crash if native module not yet linked
@@ -66,8 +65,6 @@ import {
   importDrivePhotos,
   type EmailAttachment,
   type DriveFile,
-  uploadTripPhotos,
-  deleteTripPhoto,
   getNotes,
   createNote,
   updateNote,
@@ -101,14 +98,10 @@ import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdo
 import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
 import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
 import typography from '../../theme/typography';
-import { albumChromeStyles as acs, ALBUM_DIALOG_HERO_H } from '../../constants/albumPhotosLayout';
-import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
-import AlbumPhotosDialogLayout from '../../components/gallery/AlbumPhotosDialogLayout';
-import AlbumPhotosDialogSkeleton from '../../components/gallery/AlbumPhotosDialogSkeleton';
-import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
-import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
-import { focusAlbumPhotosAtEnd, sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
+import MediaModuleDialog from '../../components/media/MediaModuleDialog';
+import { useMediaDialog, mapApiPhoto } from '../../hooks/useMediaDialog';
+import { sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import { checkDriveConnected, promptConnectDrive, watchDriveConnect } from '../../utils/drivePickerFlow';
 
 
@@ -716,7 +709,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── Data state ──
   const [activities, setActivities] = useState<Activity[]>([]);
   const [docs, setDocs] = useState<DocItem[]>([]);
-  const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [polls, setPolls] = useState<Poll[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -727,6 +719,15 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [tripDetailReady, setTripDetailReady] = useState(false);
 
   const tripId: string = trip?.id ?? '';
+
+  const media = useMediaDialog({
+    mode: 'trip',
+    entityId: tripId,
+    activities: activities.map((a) => ({ id: a.id, title: a.title })),
+    bannerImageUrl: trip?.bannerImageUrl ?? null,
+    onBannerUpdated: (url) => setTrip((t) => (t ? { ...t, bannerImageUrl: url } : t)),
+    onError: handleApiError,
+  });
 
   // ── Modal visibility ──
   const [showAddAct, setShowAddAct] = useState(false);
@@ -749,17 +750,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [driveStatus, setDriveStatus] = useState({ connected: false });
   const [showMembers, setShowMembers] = useState(false);
   const [showPhotos, setShowPhotos] = useState(false);
-  const [photosEditMode, setPhotosEditMode] = useState(false);
-  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
   const [showExpenses, setShowExpenses] = useState(false);
   const showExpensesRef = useRef(showExpenses);
   showExpensesRef.current = showExpenses;
   const [showPolls, setShowPolls] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
-  const [albumHeroIndex, setAlbumHeroIndex] = useState(0);
   const [albumDescExpanded, setAlbumDescExpanded] = useState(false);
-  const albumHeroRef = useRef<any>(null);
   const pendingDrivePickerRef = useRef<'docs' | 'photos' | null>(null);
   const [actDateError, setActDateError] = useState<string>('');
 
@@ -1010,22 +1007,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       setIsLoadingPhotos(true);
       try {
         const res = await getTripPhotos(tripId);
-        setPhotos(prev => {
-          // Preserve any localUri we already have for photos in this session
-          const cache: Record<string, string> = {};
-          prev.forEach(p => { if (p.localUri) cache[p.id] = p.localUri; });
-          const mapped = res.photos.map(p => ({
-            id: p.id,
-            uri: p.url ?? p.fileUrl ?? '',
-            localUri: cache[p.id],
-            name: p.id,
-            uploadedBy: p.uploadedBy,
-            activityId: p.activityId ?? null,
-            activityTitle: p.activityTitle ?? null,
-            createdAt: p.createdAt ?? null,
-          }));
-          return sortAlbumPhotosOldestFirst(mapped);
-        });
+        media.mergeApiPhotos(res.photos);
         setUnreadCounts(prev => ({ ...prev, photos: 0 }));
         markTripSectionViewed(tripId, 'photos');
       } catch (err) {
@@ -1299,22 +1281,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
           const assets = actPhotos.map((uri, i) => ({ uri, name: `photo_${i}.jpg`, type: 'image/jpeg' }));
           const photoRes = await uploadActivityPhotos(tripId, a.id, assets).catch(() => null);
           if (photoRes?.photos?.length) {
-            // Cache activity photos in state with localUri so they display correctly in the gallery
-            const actPhotoItems: PhotoItem[] = (photoRes.photos as any[]).map((ph, i) => ({
-              id: ph.id,
-              uri: ph.url ?? ph.fileUrl ?? assets[i]?.uri ?? '',
-              localUri: assets[i]?.uri,
-              name: ph.id,
-              uploadedBy: ph.uploadedBy ?? currentUserId,
+            const newItems = photoRes.photos.map((ph, i) => ({
+              ...mapApiPhoto(ph, assets[i]?.uri),
               activityId: a.id,
               activityTitle: a.title,
-              createdAt: ph.createdAt ?? new Date().toISOString(),
             }));
-            setPhotos(p => {
-              const without = p.filter(e => !actPhotoItems.find(n => n.id === e.id));
-              const next = sortAlbumPhotosOldestFirst([...without, ...actPhotoItems]);
-              focusAlbumPhotosAtEnd(without.length, actPhotoItems.length, setAlbumHeroIndex, albumHeroRef);
-              return next;
+            media.setItems((prev) => {
+              const without = prev.filter((e) => !newItems.find((n) => n.id === e.id));
+              return sortAlbumPhotosOldestFirst([...without, ...newItems]);
             });
           }
         }
@@ -1356,75 +1330,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   // ── Photo handlers (API-backed) ──
 
-  function handlePickPhoto(cam: boolean) {
-    const fn = cam ? launchCamera : launchImageLibrary;
-    const opts = cam ? { mediaType: 'mixed' as const } : { mediaType: 'mixed' as const, selectionLimit: uploadLimits.tripPhoto.maxBatchFiles };
-    fn(opts, async res => {
-      if (res.didCancel || res.errorCode) return;
-      const assets = (res.assets || []).map(a => ({
-        uri: a.uri ?? '',
-        type: a.type ?? 'image/jpeg',
-        name: a.fileName ?? 'photo.jpg',
-      })).filter(a => a.uri);
-      if (!assets.length) return;
-      // Optimistic: add with local URIs immediately so thumbnails show right away
-      const tempIds = assets.map((_, i) => `temp_${Date.now()}_${i}`);
-      const optimistic = assets.map((a, i) => ({
-        id: tempIds[i],
-        uri: a.uri,
-        localUri: a.uri,
-        name: a.name,
-        uploadedBy: currentUserId,
-        activityId: null,
-        activityTitle: null,
-        createdAt: new Date().toISOString(),
-      }));
-      setPhotos(p => {
-        focusAlbumPhotosAtEnd(p.length, optimistic.length, setAlbumHeroIndex, albumHeroRef);
-        return [...p, ...optimistic];
-      });
-      try {
-        const data = await uploadTripPhotos(tripId, assets);
-        setPhotos(p => {
-          const withoutTemps = p.filter(ph => !tempIds.includes(ph.id));
-          const newPhotos = data.photos.map((ph, i) => ({
-            id: ph.id,
-            uri: ph.url ?? ph.fileUrl ?? assets[i]?.uri ?? '',
-            localUri: assets[i]?.uri,
-            name: ph.id,
-            uploadedBy: ph.uploadedBy,
-            activityId: null,
-            activityTitle: null,
-            createdAt: ph.createdAt ?? new Date().toISOString(),
-          }));
-          focusAlbumPhotosAtEnd(withoutTemps.length, newPhotos.length, setAlbumHeroIndex, albumHeroRef);
-          return [...withoutTemps, ...newPhotos];
-        });
-      } catch (err) {
-        // Remove optimistic entries on failure
-        setPhotos(p => p.filter(ph => !tempIds.includes(ph.id)));
-        handleApiError(err);
-      }
-    });
-  }
-
-  async function handleDeletePhoto(photoId: string) {
-    try {
-      setDeletingPhotoId(photoId);
-      await deleteTripPhoto(tripId, photoId);
-      setPhotos(p => {
-        const next = p.filter(ph => ph.id !== photoId);
-        setAlbumHeroIndex(hi => Math.min(hi, Math.max(0, next.length - 1)));
-        return next;
-      });
-    } catch (err) { handleApiError(err); }
-    finally { setDeletingPhotoId(null); }
-  }
-
   function closePhotosModal() {
     setShowPhotos(false);
-    setPhotosEditMode(false);
-    setDeletingPhotoId(null);
+    media.setPreviewItem(null);
   }
 
   // ── Doc handlers (API-backed) ──
@@ -1534,20 +1442,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
       let res: { imported: unknown[]; failed?: { fileName: string; reason: string }[] };
       if (drivePickerTarget === 'photos') {
         res = await importDrivePhotos('trip', tripId, selected);
-        const imported = res.imported.map((ph: any) => ({
-          id: ph.id,
-          uri: ph.url ?? ph.fileUrl ?? '',
-          localUri: undefined,
-          name: ph.fileName,
-          uploadedBy: currentUserId,
-          activityId: null,
-          activityTitle: null,
-          createdAt: ph.createdAt ?? new Date().toISOString(),
-        }));
-        setPhotos(p => {
-          focusAlbumPhotosAtEnd(p.length, imported.length, setAlbumHeroIndex, albumHeroRef);
-          return [...p, ...imported];
-        });
+        const imported = res.imported.map((ph: any) => mapApiPhoto(ph));
+        media.setItems((p) => sortAlbumPhotosOldestFirst([...p, ...imported]));
       } else {
         res = await importDriveFiles('trip', tripId, selected);
         setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl, uploadedBy: currentUserId }))]);
@@ -1938,7 +1834,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
               .map(m => ({ id: m.userId, uri: m.avatarUrl ?? '' }))
               .filter(m => m.uri)}
             docCount={docs.length > 0 ? docs.length : (apiStats?.docCount ?? 0)}
-            photoCount={photos.length > 0 ? photos.length : (apiStats?.photoVideoCount ?? 0)}
+            photoCount={media.items.length > 0 ? media.items.length : (apiStats?.photoVideoCount ?? 0)}
             totalExpenses={expenseLabel}
             onEdit={openEditTrip}
           />
@@ -1966,7 +1862,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 { label: 'Activity', bg: '#E7F8F2', ic: '#0D9488', p: 'plus', fn: () => setShowAddAct(true), count: 0 },
                 { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true), count: badgeCounts.docs },
                 { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true), count: badgeCounts.members },
-                { label: 'Photos', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => { setShowPhotos(true); setAlbumHeroIndex(0); setAlbumDescExpanded(false); }, count: badgeCounts.photos },
+                { label: 'Media', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => { setShowPhotos(true); setAlbumDescExpanded(false); }, count: badgeCounts.photos },
               ].map(btn => (
                 <TouchableOpacity key={btn.p} style={styles.actionBtn} onPress={btn.fn} activeOpacity={0.8}>
                   <View style={{ position: 'relative' }}>
@@ -2687,143 +2583,36 @@ export default function TripDetailScreen({ route, navigation }: any) {
         </Modal>
 
         {/* ═══════════════════════════════════════════════════
-          MODAL 4 — Photos
+          MODAL 4 — Media
       ═══════════════════════════════════════════════════ */}
-        <AlbumPhotosDialogLayout
+        <MediaModuleDialog
           visible={showPhotos}
           onClose={closePhotosModal}
-          photoIndex={albumHeroIndex}
-          photoTotal={photos.length}
-          loading={isLoadingPhotos && photos.length === 0}
-          heroOverlay={
-            photos.length > 0 ? (
-              photosEditMode ? (
-                <TouchableOpacity onPress={() => setPhotosEditMode(false)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Check size={17} color="#0d9488" />
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity onPress={() => setPhotosEditMode(true)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Pen size={15} color="#0d9488" />
-                </TouchableOpacity>
-              )
-            ) : null
-          }
-          actions={
-            <AlbumPhotosFooter
-              variant="primary"
-              placement="top"
-              onUpload={() => handlePickPhoto(false)}
-              onCamera={() => handlePickPhoto(true)}
-              onDrive={() => openDrivePicker('photos')}
-              driveImporting={driveImporting}
-            />
-          }
-        >
-          {isLoadingPhotos && photos.length === 0 ? (
-            <AlbumPhotosDialogSkeleton />
-          ) : (
-          <AlbumPhotosBody compact>
-            <AlbumPhotosHeroCarousel
-              photos={photos}
-              heroIndex={albumHeroIndex}
-              onIndexChange={setAlbumHeroIndex}
-              heroRef={albumHeroRef}
-              scrollEnabled={!photosEditMode}
-              fixedHeight={ALBUM_DIALOG_HERO_H}
-              renderPhoto={(item) => <TripAlbumHeroPhoto photo={item} />}
-            />
-            <AlbumPhotosThumbStrip
-              photos={photos}
-              heroIndex={albumHeroIndex}
-              scrollEnabled={!photosEditMode}
-              onSelect={(idx) => {
-                setAlbumHeroIndex(idx);
-                albumHeroRef.current?.scrollToIndex({ index: idx, animated: true });
-              }}
-              renderOverlay={(ph) => {
-                if (!photosEditMode) return null;
-                return (
-                  <TouchableOpacity
-                    onPress={() => {
-                      showConfirm({
-                        title: 'Delete Photo',
-                        message: 'Remove this photo for everyone on this trip?',
-                        destructive: true,
-                        onConfirm: () => handleDeletePhoto(ph.id),
-                      });
-                    }}
-                    style={acs.thumbDeleteBtn}
-                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                    disabled={deletingPhotoId === ph.id}
-                  >
-                    {deletingPhotoId === ph.id
-                      ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
-                      : <Trash2 size={9} color="#fff" />}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-            <View style={acs.metaCard}>
-              <Text style={acs.metaTitle} numberOfLines={1}>{trip?.name ?? 'Trip'}</Text>
-
-              <View style={acs.metaRow}>
-                {!!formatLocationsLabelFull(trip ?? {}) && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: '42%' }}>
-                    <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                      <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      <Circle cx={12} cy={10} r={3} stroke="#0d9488" strokeWidth={2} />
-                    </Svg>
-                    <Text style={acs.metaTextAccent} numberOfLines={1}>
-                      {formatLocationsLabelFull(trip ?? {})}
-                    </Text>
-                  </View>
-                )}
-                {!!(trip?.startDateISO || trip?.startDate) && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                    <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                      <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#64748b" strokeWidth={2} />
-                      <Path d="M16 2v4M8 2v4M3 10h18" stroke="#64748b" strokeWidth={2} strokeLinecap="round" />
-                    </Svg>
-                    <Text style={acs.metaText} numberOfLines={1}>
-                      {trip?.startDateISO ? new Date(trip.startDateISO).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : trip?.startDate}
-                      {(trip?.endDateISO || trip?.endDate) ? ` — ${trip?.endDateISO ? new Date(trip.endDateISO).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : trip?.endDate}` : ''}
-                    </Text>
-                  </View>
-                )}
-                <Text style={acs.metaCount}>
-                  {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
-                </Text>
-              </View>
-
-              {members.length > 0 && (
-                <View style={acs.metaMembers}>
-                  {members.slice(0, 4).map((m: TripMember, idx: number) => (
-                    <View key={m.userId} style={{ marginLeft: idx === 0 ? 0 : -8, zIndex: 4 - idx }}>
-                      <View style={acs.metaAvatar}>
-                        {m.avatarUrl ? (
-                          <CachedImage uri={m.avatarUrl} style={{ width: 18, height: 18, borderRadius: 9 }} resizeMode="cover" />
-                        ) : (
-                          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                            <Text style={{ fontSize: 9, fontWeight: '600', color: '#64748b' }}>{(m.fullName ?? '?')[0]?.toUpperCase()}</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-                  {members.length > 4 && (
-                    <View style={[acs.metaAvatar, { marginLeft: -8, alignItems: 'center', justifyContent: 'center' }]}>
-                      <Text style={{ fontSize: 8, fontWeight: '700', color: '#475569' }}>+{members.length - 4}</Text>
-                    </View>
-                  )}
-                  <Text style={{ marginLeft: 6, fontSize: 10, color: '#94a3b8' }} numberOfLines={1}>
-                    {members.length} {members.length === 1 ? 'member' : 'members'}
-                  </Text>
-                </View>
-              )}
-            </View>
-          </AlbumPhotosBody>
-          )}
-        </AlbumPhotosDialogLayout>
+          mode="trip"
+          loading={isLoadingPhotos && media.items.length === 0}
+          uploading={media.uploading}
+          driveImporting={driveImporting}
+          uploadDisabled={media.uploadDisabled}
+          capTotal={media.capTotal}
+          mediaCount={media.mediaCount}
+          cellSize={media.cellSize}
+          bannerImageUrl={media.bannerImageUrl}
+          tripLevelItems={media.tripLevelItems}
+          activitySections={media.activitySections}
+          previewItem={media.previewItem}
+          deletingId={media.deletingId}
+          settingBanner={media.settingBanner}
+          onUpload={() => media.handlePick(false)}
+          onCamera={() => media.handlePick(true)}
+          onDrive={() => openDrivePicker('photos')}
+          onPressItem={(item) => media.setPreviewItem(item)}
+          onDeleteItem={(item) => media.handleDelete(item.id)}
+          onReorderTripLevel={media.handleReorderTripLevel}
+          onReorderActivity={media.handleReorderActivity}
+          onClosePreview={() => media.setPreviewItem(null)}
+          onSetBanner={media.handleSetBanner}
+          deleteMessage="Remove this media for everyone on this trip?"
+        />
 
         {/* Document preview modal — in-app WebView */}
         <Modal visible={!!docPreviewUrl} transparent={false} animationType="slide" onRequestClose={() => setDocPreviewUrl(null)}>

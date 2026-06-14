@@ -45,9 +45,14 @@ const photoRow = {
   parent_type: 'trip',
   parent_id: TRIP_ID,
   s3_key: 'trips/uuid/photos/uuid-photo.jpg',
+  file_url: 'https://cdn.test.com/photo.jpg',
   url: 'https://cdn.test.com/photo.jpg',
   mime_type: 'image/jpeg',
   uploaded_by: USER_ID,
+  display_order: 0,
+  activity_id: null,
+  uploader_name: 'Alice',
+  total_count: 1,
   created_at: new Date().toISOString(),
 };
 
@@ -73,6 +78,51 @@ describe('Photos Routes', () => {
       expect(res.statusCode).toBe(200);
       expect(Array.isArray(res.body.photos)).toBe(true);
       expect(res.body.photos[0].mimeType).toBe('image/jpeg');
+      expect(res.body.photos[0].displayOrder).toBe(0);
+    });
+  });
+
+  // ── PATCH /trips/:id/photos/reorder ────────────────────────────────────────
+
+  describe('PATCH /trips/:id/photos/reorder', () => {
+    it('returns 401 without auth', async () => {
+      const res = await request(app)
+        .patch(`/trips/${TRIP_ID}/photos/reorder`)
+        .send({ items: [{ id: PHOTO_ID, displayOrder: 0 }] });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('returns 200 on successful reorder', async () => {
+      mockTripMember();
+      db.query
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: PHOTO_ID }] });
+      db.getClient.mockResolvedValueOnce({
+        query: jest.fn()
+          .mockResolvedValueOnce(undefined)
+          .mockResolvedValueOnce(undefined)
+          .mockResolvedValueOnce(undefined),
+        release: jest.fn(),
+      });
+
+      const res = await request(app)
+        .patch(`/trips/${TRIP_ID}/photos/reorder`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ items: [{ id: PHOTO_ID, displayOrder: 0 }] });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('returns 400 when photo not in trip-level scope', async () => {
+      mockTripMember();
+      db.query.mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+      const res = await request(app)
+        .patch(`/trips/${TRIP_ID}/photos/reorder`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ items: [{ id: PHOTO_ID, displayOrder: 0 }] });
+
+      expect(res.statusCode).toBe(400);
     });
   });
 
@@ -92,7 +142,9 @@ describe('Photos Routes', () => {
 
     it('returns 201 after uploading a JPEG photo', async () => {
       mockTripMember();
-      db.query.mockResolvedValueOnce({ rows: [photoRow] }); // INSERT photo
+      db.query
+        .mockResolvedValueOnce({ rows: [{ next_order: 0 }] })
+        .mockResolvedValueOnce({ rows: [photoRow] });
 
       // Minimal JPEG: starts with FF D8 FF bytes
       const jpegBuffer = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, ...Buffer.from(' JFIF minimal')]);

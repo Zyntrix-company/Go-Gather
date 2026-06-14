@@ -78,15 +78,31 @@ const getCuratedAlbumPhotos = async (targetUserId, parentType, parentId, viewerI
 
   const [sharedResult, extraResult] = await Promise.all([
     db.query(
-      `SELECT ph.id, ph.file_url, ph.s3_key, ph.mime_type, ph.activity_id,
-              ph.created_at, ta.title AS activity_title, 'shared' AS source
-       FROM photos ph
-       LEFT JOIN trip_activities ta ON ta.id = ph.activity_id
-       WHERE ph.parent_type = $1 AND ph.parent_id = $2
-         AND ph.id NOT IN (
-           SELECT photo_id FROM user_gallery_hidden_photos WHERE user_id = $3
-         )
-       ORDER BY ph.created_at ASC`,
+      parentType === 'trip'
+        ? `SELECT ph.id, ph.file_url, ph.s3_key, ph.mime_type, ph.activity_id,
+                  ph.display_order, ph.created_at, ta.title AS activity_title,
+                  ta.activity_date, ta.activity_time, 'shared' AS source
+           FROM photos ph
+           LEFT JOIN trip_activities ta ON ta.id = ph.activity_id
+           WHERE ph.parent_type = $1 AND ph.parent_id = $2
+             AND ph.id NOT IN (
+               SELECT photo_id FROM user_gallery_hidden_photos WHERE user_id = $3
+             )
+           ORDER BY
+             CASE WHEN ph.activity_id IS NULL THEN 0 ELSE 1 END ASC,
+             ta.activity_date ASC NULLS LAST,
+             ta.activity_time ASC NULLS LAST,
+             ph.display_order ASC,
+             ph.created_at ASC`
+        : `SELECT ph.id, ph.file_url, ph.s3_key, ph.mime_type, ph.activity_id,
+                  ph.display_order, ph.created_at, ta.title AS activity_title, 'shared' AS source
+           FROM photos ph
+           LEFT JOIN trip_activities ta ON ta.id = ph.activity_id
+           WHERE ph.parent_type = $1 AND ph.parent_id = $2
+             AND ph.id NOT IN (
+               SELECT photo_id FROM user_gallery_hidden_photos WHERE user_id = $3
+             )
+           ORDER BY ph.display_order ASC, ph.created_at ASC`,
       [parentType, parentId, targetUserId],
     ),
     db.query(
@@ -99,8 +115,7 @@ const getCuratedAlbumPhotos = async (targetUserId, parentType, parentId, viewerI
     ),
   ]);
 
-  const merged = [...sharedResult.rows, ...extraResult.rows]
-    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const merged = [...sharedResult.rows, ...extraResult.rows];
 
   const photos = await Promise.all(merged.map(formatPhoto));
   return { photos, total: photos.length };

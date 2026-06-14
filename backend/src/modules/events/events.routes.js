@@ -85,6 +85,7 @@ router.post(
   }),
   ctrl.uploadPhotos,
 );
+router.patch('/:eventId/photos/reorder', eventMemberMW, ctrl.reorderPhotos);
 router.delete('/:eventId/photos/:photoId', eventMemberMW, ctrl.deletePhoto);
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────

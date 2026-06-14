@@ -11,6 +11,8 @@
  * UPLOAD_PHOTO_MAX_BATCH           — photos+videos per request (default 20)
  * UPLOAD_ACTIVITY_PHOTO_MAX_COUNT  — max photos per activity (default 5)
  * UPLOAD_ACTIVITY_PHOTO_MAX_BATCH  — activity photos per request (default 5)
+ * UPLOAD_TRIP_PHOTO_MAX_COUNT      — max trip-level media per trip (optional, unset = unlimited)
+ * UPLOAD_EVENT_PHOTO_MAX_COUNT     — max media per event (optional, unset = unlimited)
  * UPLOAD_TRIP_CREATE_PHOTO_BATCH   — multipart trip create photos (default 10)
  * UPLOAD_TRIP_CREATE_DOC_BATCH     — multipart trip create docs (default 10)
  * UPLOAD_AVATAR_MAX_MB             — profile photo (default 10)
@@ -23,6 +25,12 @@ const MB = 1024 * 1024;
 const envInt = (name, fallback) => {
   const n = parseInt(process.env[name], 10);
   return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+/** Returns positive int or null when env unset/invalid (unlimited). */
+const envIntOptional = (name) => {
+  const n = parseInt(process.env[name], 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
 };
 
 const envMb = (name, fallbackMb) => envInt(name, fallbackMb) * MB;
@@ -41,6 +49,8 @@ const tripCreateDocBatch = envInt('UPLOAD_TRIP_CREATE_DOC_BATCH', 10);
 const avatarMaxBytes = envMb('UPLOAD_AVATAR_MAX_MB', 10);
 const promoVideoMaxBytes = envMb('UPLOAD_PROMO_VIDEO_MAX_MB', 500);
 const blogImageMaxBytes = envMb('UPLOAD_BLOG_IMAGE_MAX_MB', 10);
+const tripPhotoMaxCount = envIntOptional('UPLOAD_TRIP_PHOTO_MAX_COUNT');
+const eventPhotoMaxCount = envIntOptional('UPLOAD_EVENT_PHOTO_MAX_COUNT');
 
 /** Multer ceiling — must accept the largest allowed single file (video or doc). */
 const mediaUploadMaxBytes = Math.max(photoMaxBytes, videoMaxBytes, docMaxBytes);
@@ -52,7 +62,7 @@ const limits = {
   tripPhoto: {
     maxFileBytes: photoMaxBytes,
     maxBatchFiles: photoMaxBatch,
-    maxFilesTotal: null,
+    maxFilesTotal: tripPhotoMaxCount,
   },
   tripVideo: {
     maxFileBytes: videoMaxBytes,
@@ -79,7 +89,7 @@ const limits = {
   eventPhoto: {
     maxFileBytes: photoMaxBytes,
     maxBatchFiles: photoMaxBatch,
-    maxFilesTotal: null,
+    maxFilesTotal: eventPhotoMaxCount,
   },
   eventVideo: {
     maxFileBytes: videoMaxBytes,
