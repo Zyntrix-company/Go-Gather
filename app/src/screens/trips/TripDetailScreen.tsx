@@ -101,7 +101,7 @@ import typography from '../../theme/typography';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
 import MediaModuleDialog from '../../components/media/MediaModuleDialog';
 import { useMediaDialog, mapApiPhoto } from '../../hooks/useMediaDialog';
-import { sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
+import { organizeTripMediaItems } from '../../utils/albumPhotosOrder';
 import { checkDriveConnected, promptConnectDrive, watchDriveConnect } from '../../utils/drivePickerFlow';
 
 
@@ -1003,8 +1003,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── Load photos when photos modal opens ──
   useEffect(() => {
     if (!showPhotos || !tripId) return;
+    const isInitialLoad = media.items.length === 0;
     (async () => {
-      setIsLoadingPhotos(true);
+      if (isInitialLoad) setIsLoadingPhotos(true);
       try {
         const res = await getTripPhotos(tripId);
         media.mergeApiPhotos(res.photos);
@@ -1288,7 +1289,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
             }));
             media.setItems((prev) => {
               const without = prev.filter((e) => !newItems.find((n) => n.id === e.id));
-              return sortAlbumPhotosOldestFirst([...without, ...newItems]);
+              return [...without, ...newItems];
             });
           }
         }
@@ -1443,7 +1444,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       if (drivePickerTarget === 'photos') {
         res = await importDrivePhotos('trip', tripId, selected);
         const imported = res.imported.map((ph: any) => mapApiPhoto(ph));
-        media.setItems((p) => sortAlbumPhotosOldestFirst([...p, ...imported]));
+        media.setItems((p) => organizeTripMediaItems([...p, ...imported], activities.map((a) => a.id)));
       } else {
         res = await importDriveFiles('trip', tripId, selected);
         setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl, uploadedBy: currentUserId }))]);

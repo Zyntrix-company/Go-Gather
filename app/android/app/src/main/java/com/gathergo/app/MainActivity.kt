@@ -11,7 +11,8 @@ class MainActivity : ReactActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     setTheme(R.style.AppTheme)
-    super.onCreate(savedInstanceState)
+    // Required for react-native-gesture-handler (drag in modals, nested scroll).
+    super.onCreate(null)
   }
 
   override fun getMainComponentName(): String = "Demo"

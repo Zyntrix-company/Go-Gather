@@ -5,6 +5,7 @@ export type OrderedAlbumPhoto = {
   id: string;
   displayOrder?: number | null;
   createdAt?: string | null;
+  activityId?: string | null;
 };
 
 /** Sort by displayOrder (server source of truth), then createdAt, then id. */
@@ -18,6 +19,42 @@ export function sortAlbumPhotosOldestFirst<T extends OrderedAlbumPhoto>(photos: 
     if (ta !== tb) return ta - tb;
     return a.id.localeCompare(b.id);
   });
+}
+
+/** Assign displayOrder from array index (row-major sequence within a section). */
+export function applyDisplayOrder<T extends OrderedAlbumPhoto>(photos: T[]): T[] {
+  return photos.map((photo, index) => ({ ...photo, displayOrder: index }));
+}
+
+/**
+ * Flatten trip media: main trip photos first, then each activity's photos in activity order.
+ * displayOrder is scoped per section (trip-level vs each activity).
+ */
+export function organizeTripMediaItems<T extends OrderedAlbumPhoto & { activityId?: string | null }>(
+  photos: T[],
+  activityOrder: string[] = [],
+): T[] {
+  const trip = sortAlbumPhotosOldestFirst(photos.filter((p) => !p.activityId));
+  const byAct = new Map<string, T[]>();
+  photos.forEach((p) => {
+    if (!p.activityId) return;
+    const list = byAct.get(p.activityId) ?? [];
+    list.push(p);
+    byAct.set(p.activityId, list);
+  });
+
+  const result: T[] = [...trip];
+  for (const actId of activityOrder) {
+    const list = byAct.get(actId);
+    if (list?.length) {
+      result.push(...sortAlbumPhotosOldestFirst(list));
+      byAct.delete(actId);
+    }
+  }
+  byAct.forEach((list) => {
+    result.push(...sortAlbumPhotosOldestFirst(list));
+  });
+  return result;
 }
 
 export function focusAlbumPhotoAtIndex(

@@ -16,7 +16,12 @@ import {
 import { updateTrip } from '../api/trips.api';
 import { updateEvent } from '../api/events.api';
 import useUploadLimits from './useUploadLimits';
-import { sortAlbumPhotosOldestFirst, buildReorderPayload } from '../utils/albumPhotosOrder';
+import {
+  applyDisplayOrder,
+  buildReorderPayload,
+  organizeTripMediaItems,
+  sortAlbumPhotosOldestFirst,
+} from '../utils/albumPhotosOrder';
 import type { MediaThumbnailItem } from '../components/media/MediaThumbnail';
 
 const GRID_H_PADDING = 32;
@@ -118,19 +123,29 @@ export function useMediaDialog({
   const mediaCount = mode === 'trip' ? tripLevelItems.length : eventItems.length;
   const uploadDisabled = capTotal != null && mediaCount >= capTotal;
 
+  const activityIds = useMemo(() => activities.map((a) => a.id), [activities]);
+
+  const organizeItems = useCallback((mapped: MediaItem[], prev: MediaItem[] = []) => {
+    const temps = prev.filter((p) => p.id.startsWith('temp_'));
+    const organized = mode === 'trip'
+      ? organizeTripMediaItems(mapped, activityIds)
+      : sortAlbumPhotosOldestFirst(mapped);
+    return [...organized, ...temps];
+  }, [mode, activityIds]);
+
   const setFromApiPhotos = useCallback((photos: Photo[], localCache: Record<string, string> = {}) => {
     const mapped = photos.map((p) => mapApiPhoto(p, localCache[p.id]));
-    setItems(sortAlbumPhotosOldestFirst(mapped));
-  }, []);
+    setItems(organizeItems(mapped));
+  }, [organizeItems]);
 
   const mergeApiPhotos = useCallback((photos: Photo[]) => {
     setItems((prev) => {
       const cache: Record<string, string> = {};
       prev.forEach((p) => { if (p.localUri) cache[p.id] = p.localUri; });
       const mapped = photos.map((p) => mapApiPhoto(p, cache[p.id]));
-      return sortAlbumPhotosOldestFirst(mapped);
+      return organizeItems(mapped, prev);
     });
-  }, []);
+  }, [organizeItems]);
 
   const handlePick = useCallback((cam: boolean) => {
     if (uploadDisabled) return;
@@ -162,7 +177,7 @@ export function useMediaDialog({
         createdAt: new Date().toISOString(),
       }));
 
-      setItems((prev) => sortAlbumPhotosOldestFirst([...prev, ...optimistic]));
+      setItems((prev) => [...prev.filter((p) => !p.id.startsWith('temp_')), ...optimistic]);
       setUploading(true);
       try {
         const data = mode === 'trip'
@@ -171,7 +186,8 @@ export function useMediaDialog({
         setItems((prev) => {
           const withoutTemps = prev.filter((ph) => !tempIds.includes(ph.id));
           const newPhotos = data.photos.map((ph, i) => mapApiPhoto(ph, assets[i]?.uri));
-          return sortAlbumPhotosOldestFirst([...withoutTemps, ...newPhotos]);
+          const merged = withoutTemps.filter((p) => !newPhotos.some((n) => n.id === p.id));
+          return organizeItems([...merged, ...newPhotos], prev);
         });
       } catch (err) {
         setItems((prev) => prev.filter((ph) => !tempIds.includes(ph.id)));
@@ -201,11 +217,12 @@ export function useMediaDialog({
   }, [mode, entityId, previewItem, onError]);
 
   const handleReorderTripLevel = useCallback(async (reordered: MediaItem[]) => {
-    const payload = buildReorderPayload(reordered);
+    const withOrder = applyDisplayOrder(reordered);
+    const payload = buildReorderPayload(withOrder);
     const prev = items;
     setItems((p) => {
       const activity = p.filter((x) => x.activityId);
-      return sortAlbumPhotosOldestFirst([...reordered, ...activity]);
+      return [...withOrder, ...activity];
     });
     try {
       await reorderTripPhotos(entityId, payload);
@@ -216,11 +233,12 @@ export function useMediaDialog({
   }, [items, entityId, onError]);
 
   const handleReorderActivity = useCallback(async (activityId: string, reordered: MediaItem[]) => {
-    const payload = buildReorderPayload(reordered);
+    const withOrder = applyDisplayOrder(reordered);
+    const payload = buildReorderPayload(withOrder);
     const prev = items;
     setItems((p) => {
       const other = p.filter((x) => x.activityId !== activityId);
-      return sortAlbumPhotosOldestFirst([...other, ...reordered]);
+      return [...other, ...withOrder];
     });
     try {
       await reorderActivityPhotos(entityId, activityId, payload);
@@ -231,9 +249,10 @@ export function useMediaDialog({
   }, [items, entityId, onError]);
 
   const handleReorderEvent = useCallback(async (reordered: MediaItem[]) => {
-    const payload = buildReorderPayload(reordered);
+    const withOrder = applyDisplayOrder(reordered);
+    const payload = buildReorderPayload(withOrder);
     const prev = items;
-    setItems(sortAlbumPhotosOldestFirst(reordered));
+    setItems(withOrder);
     try {
       await reorderEventPhotos(entityId, payload);
     } catch (err) {

@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import Sortable, { type SortableGridDragEndParams, type SortableGridRenderItem } from 'react-native-sortables';
 import MediaThumbnail, { MediaThumbnailItem } from './MediaThumbnail';
+import { useMediaDialogScroll } from './mediaDialogScrollContext';
 import { buildMediaRows, isRowCentered } from '../../utils/mediaGridLayout';
 
 type MediaGridSectionProps = {
@@ -69,40 +69,63 @@ export default function MediaGridSection({
   onLongPressItem,
   onReorder,
 }: MediaGridSectionProps) {
+  const { scrollableRef, onSectionDragStart, onSectionDragEnd } = useMediaDialogScroll();
   const canDrag = reorderEnabled && items.length > 1 && !!onReorder;
 
-  const renderDraggableItem = ({ item, drag, isActive }: RenderItemParams<MediaThumbnailItem>) => (
-    <ScaleDecorator>
-      <View style={{ width: cellSize, marginBottom: gap }}>
+  const renderSortableItem = useCallback<SortableGridRenderItem<MediaThumbnailItem>>(
+    ({ item }) => (
+      <View style={styles.sortableCell}>
         <MediaThumbnail
           item={item}
           size={cellSize}
+          layoutMode="fluid"
           bannerImageUrl={bannerImageUrl}
           onPress={() => onPressItem?.(item)}
-          onLongPress={drag}
-          isActive={isActive}
           deleting={deletingId === item.id}
+          imagePointerEvents="none"
         />
       </View>
-    </ScaleDecorator>
+    ),
+    [bannerImageUrl, cellSize, deletingId, onPressItem],
   );
+
+  const handleDragEnd = useCallback(
+    ({ data }: SortableGridDragEndParams<MediaThumbnailItem>) => {
+      onSectionDragEnd();
+      onReorder?.(data);
+    },
+    [onReorder, onSectionDragEnd],
+  );
+
+  const handleDragStart = useCallback(() => {
+    onSectionDragStart();
+  }, [onSectionDragStart]);
 
   return (
     <View style={styles.section}>
       {!!title && <Text style={styles.sectionTitle}>{title}</Text>}
+      {canDrag && <Text style={styles.reorderHint}>Hold & drag to reorder</Text>}
       {canDrag ? (
-        <GestureHandlerRootView>
-          <DraggableFlatList
+        <Sortable.Layer>
+          <Sortable.Grid
+            columns={3}
             data={items}
             keyExtractor={(item) => item.id}
-            numColumns={3}
-            scrollEnabled={false}
-            onDragEnd={({ data }) => onReorder?.(data)}
-            renderItem={renderDraggableItem}
-            columnWrapperStyle={[styles.draggableRow, { gap, marginBottom: gap }]}
-            containerStyle={styles.draggableContainer}
+            rowGap={gap}
+            columnGap={gap}
+            scrollableRef={scrollableRef}
+            hapticsEnabled
+            activeItemScale={1.05}
+            inactiveItemOpacity={0.72}
+            activationAnimationDuration={200}
+            dragActivationDelay={200}
+            overflow="visible"
+            bringToFrontWhenActive
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            renderItem={renderSortableItem}
           />
-        </GestureHandlerRootView>
+        </Sortable.Layer>
       ) : (
         <StaticGrid
           items={items}
@@ -131,17 +154,19 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginTop: 4,
   },
+  reorderHint: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  sortableCell: {
+    width: '100%',
+  },
   row: {
     flexDirection: 'row',
   },
   rowCentered: {
     justifyContent: 'center',
-  },
-  draggableContainer: {
-    flexGrow: 0,
-  },
-  draggableRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
   },
 });

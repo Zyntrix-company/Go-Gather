@@ -1,6 +1,9 @@
-import React from 'react';
-import { View, Modal, ScrollView, StyleSheet } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Modal, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, { useAnimatedRef } from 'react-native-reanimated';
 import DetailDialogHeader from '../details/DetailDialogHeader';
+import MediaDialogScrollContext from './mediaDialogScrollContext';
 
 type MediaDialogLayoutProps = {
   visible: boolean;
@@ -29,31 +32,60 @@ export default function MediaDialogLayout({
   children,
   maxHeight = '85%',
 }: MediaDialogLayoutProps) {
+  const scrollableRef = useAnimatedRef<Animated.ScrollView>();
+  const [isSorting, setIsSorting] = useState(false);
+
+  const onSectionDragStart = useCallback(() => {
+    setIsSorting(true);
+  }, []);
+
+  const onSectionDragEnd = useCallback(() => {
+    setIsSorting(false);
+  }, []);
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={[styles.dialog, { maxHeight }]}>
-          <DetailDialogHeader
-            title="Media"
-            subtitle={loading ? undefined : buildCounterSubtitle(mediaCount, capTotal)}
-            onClose={onClose}
-          />
-          {actions}
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {children}
-          </ScrollView>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      hardwareAccelerated
+      onRequestClose={onClose}
+    >
+      <GestureHandlerRootView style={styles.root}>
+        <View style={styles.overlay}>
+          <View style={[styles.dialog, { maxHeight }]}>
+            <DetailDialogHeader
+              title="Media"
+              subtitle={loading ? undefined : buildCounterSubtitle(mediaCount, capTotal)}
+              onClose={onClose}
+            />
+            {actions}
+            <MediaDialogScrollContext.Provider
+              value={{ scrollableRef, onSectionDragStart, onSectionDragEnd }}
+            >
+              <Animated.ScrollView
+                ref={scrollableRef}
+                style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                scrollEnabled={!isSorting}
+                nestedScrollEnabled
+              >
+                {children}
+              </Animated.ScrollView>
+            </MediaDialogScrollContext.Provider>
+          </View>
         </View>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.52)',
@@ -65,7 +97,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     borderRadius: 20,
     width: '100%',
-    overflow: 'hidden',
   },
   scroll: {
     flexShrink: 1,

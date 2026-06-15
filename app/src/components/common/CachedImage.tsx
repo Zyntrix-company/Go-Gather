@@ -1,6 +1,6 @@
 import React from 'react';
 import FastImage, { FastImageProps, ResizeMode } from '@d11/react-native-fast-image';
-import { StyleProp, ImageStyle } from 'react-native';
+import { StyleProp, ImageStyle, type ViewProps } from 'react-native';
 
 export type CachedImageProps = {
   uri: string | undefined | null;
@@ -11,6 +11,7 @@ export type CachedImageProps = {
   onLoad?: () => void;
   onLoadEnd?: () => void;
   onError?: () => void;
+  pointerEvents?: ViewProps['pointerEvents'];
 };
 
 const PRIORITY_MAP = {
@@ -34,6 +35,7 @@ export default function CachedImage({
   onLoad,
   onLoadEnd,
   onError,
+  pointerEvents,
 }: CachedImageProps) {
   if (!uri) return null;
 
@@ -55,6 +57,7 @@ export default function CachedImage({
       source={source}
       style={style as FastImageProps['style']}
       resizeMode={rm}
+      pointerEvents={pointerEvents}
       onLoad={onLoad}
       onLoadEnd={onLoadEnd}
       onError={onError}

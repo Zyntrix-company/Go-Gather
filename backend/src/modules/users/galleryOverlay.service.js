@@ -59,6 +59,7 @@ const formatPhoto = async (row) => ({
   activityId: row.activity_id || null,
   activityTitle: row.activity_title || null,
   source: row.source,
+  displayOrder: row.display_order ?? 0,
   createdAt: row.created_at,
 });
 

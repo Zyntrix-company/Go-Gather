@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import CachedImage from '../common/CachedImage';
 import colors from '../../theme/colors';
@@ -15,13 +15,17 @@ export type MediaThumbnailItem = {
 type MediaThumbnailProps = {
   item: MediaThumbnailItem;
   size: number;
+  layoutMode?: 'fixed' | 'fluid';
   bannerImageUrl?: string | null;
   onPress?: () => void;
+  onPressIn?: () => void;
+  onPressOut?: () => void;
   onLongPress?: () => void;
-  /** Separate long-press handler when drag also uses long press (shows delete confirm). */
-  onLongPressDelete?: () => void;
+  longPressDelay?: number;
   isActive?: boolean;
+  disabled?: boolean;
   deleting?: boolean;
+  imagePointerEvents?: 'auto' | 'none' | 'box-none';
 };
 
 function PlayIcon() {
@@ -38,46 +42,53 @@ function PlayIcon() {
 export default function MediaThumbnail({
   item,
   size,
+  layoutMode = 'fixed',
   bannerImageUrl,
   onPress,
+  onPressIn,
+  onPressOut,
   onLongPress,
-  onLongPressDelete,
+  longPressDelay = 400,
   isActive,
+  disabled,
   deleting,
+  imagePointerEvents = 'auto',
 }: MediaThumbnailProps) {
   const uri = item.localUri || item.uri;
   const isVideo = isVideoMime(item.mimeType);
   const isBanner = !!bannerImageUrl && (uri === bannerImageUrl || item.uri === bannerImageUrl);
 
-  const handleLongPress = () => {
-    if (onLongPressDelete) {
-      onLongPressDelete();
-      return;
-    }
-    onLongPress?.();
-  };
-
   return (
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={onPress}
-      onLongPress={onLongPress ? onLongPress : onLongPressDelete ? handleLongPress : undefined}
-      delayLongPress={onLongPress ? 200 : 400}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      onLongPress={onLongPress}
+      delayLongPress={onLongPress ? longPressDelay : undefined}
+      disabled={disabled}
       style={[
         styles.wrap,
-        { width: size, height: size * 0.82 },
+        layoutMode === 'fluid'
+          ? { width: '100%', aspectRatio: 1 / 0.82 }
+          : { width: size, height: size * 0.82 },
         isActive && styles.active,
       ]}
     >
-      <CachedImage uri={uri} style={styles.image} resizeMode="cover" />
+      <CachedImage
+        uri={uri}
+        style={styles.image}
+        resizeMode="cover"
+        pointerEvents={imagePointerEvents}
+      />
       {isVideo && (
-        <View style={styles.playOverlay}>
+        <View style={styles.playOverlay} pointerEvents="none">
           <PlayIcon />
         </View>
       )}
-      {isBanner && <View style={styles.bannerDot} />}
+      {isBanner && <View style={styles.bannerDot} pointerEvents="none" />}
       {deleting && (
-        <View style={styles.deletingOverlay}>
+        <View style={styles.deletingOverlay} pointerEvents="none">
           <ActivityIndicator size="small" color="#fff" />
         </View>
       )}
@@ -90,13 +101,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: '#e2e8f0',
+    flexShrink: 0,
   },
   image: {
     width: '100%',
     height: '100%',
   },
   active: {
-    opacity: 0.85,
+    opacity: 0.92,
     transform: [{ scale: 1.03 }],
   },
   playOverlay: {

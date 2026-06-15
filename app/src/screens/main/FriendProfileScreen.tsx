@@ -13,7 +13,6 @@ import GalleryTravelersRow, { type GalleryTraveler } from '../../components/gall
 import GalleryEngagementSection from '../../components/gallery/GalleryEngagementSection';
 import { getTripMembers } from '../../api/trips.api';
 import { getEventMembers } from '../../api/events.api';
-import { sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useGalleryEngagement } from '../../hooks/useGalleryEngagement';
 import useAuthStore from '../../store/authStore';
@@ -341,9 +340,10 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
           localUri: capturedCache[ph.id],
           activityId: ph.activityId ?? null,
           activityTitle: ph.activityTitle ?? null,
+          displayOrder: ph.displayOrder ?? null,
           createdAt: ph.createdAt ?? null,
         }));
-        setPhotos(sortAlbumPhotosOldestFirst(mapped));
+        setPhotos(mapped);
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });

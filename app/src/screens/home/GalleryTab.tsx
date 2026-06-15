@@ -213,6 +213,7 @@ type PhotoItem = {
   activityId?: string | null;
   activityTitle?: string | null;
   source?: 'shared' | 'extra';
+  displayOrder?: number | null;
   createdAt?: string | null;
 };
 
@@ -407,9 +408,12 @@ function PhotosModal({
     // Snapshot the localUri map BEFORE clearing photos so it is available
     // inside the async callback (setPhotos([]) would wipe it from prev otherwise).
     const capturedCache = { ...localUriCache.current };
+    const hasCachedPhotos = photos.length > 0;
 
-    setLoading(true);
-    setPhotos([]);
+    if (!hasCachedPhotos) {
+      setLoading(true);
+      setPhotos([]);
+    }
 
     let fetcher: Promise<{ photos?: any[] }>;
     if (userId) {
@@ -428,9 +432,11 @@ function PhotosModal({
           activityId: ph.activityId ?? null,
           activityTitle: ph.activityTitle ?? null,
           source: ph.source ?? 'shared',
+          displayOrder: ph.displayOrder ?? null,
           createdAt: ph.createdAt ?? null,
         }));
-        setPhotos(sortAlbumPhotosOldestFirst(mapped));
+        // API returns photos in gallery order (trip main → activities → display_order).
+        setPhotos(mapped);
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
