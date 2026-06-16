@@ -246,19 +246,27 @@ export async function getUserGallery(userId: string): Promise<{
 }
 
 /**
- * Upsert a per-user subtitle for a trip/event gallery tile (owner only).
- * Pass subtitle = null or '' to clear it.
+ * Upsert per-user gallery presentation for a trip/event album (subtitle, hideTravelers).
  */
+export async function upsertGalleryItemMeta(
+  parentType: 'trip' | 'event',
+  parentId: string,
+  patch: { subtitle?: string | null; hideTravelers?: boolean },
+): Promise<{ subtitle: string | null; hideTravelers: boolean }> {
+  const res = await client.patch(
+    `/users/me/gallery-items/${parentType}/${parentId}/subtitle`,
+    patch,
+  );
+  return res.data;
+}
+
+/** @deprecated Use upsertGalleryItemMeta */
 export async function upsertGallerySubtitle(
   parentType: 'trip' | 'event',
   parentId: string,
   subtitle: string | null,
 ): Promise<{ subtitle: string | null }> {
-  const res = await client.patch(
-    `/users/me/gallery-items/${parentType}/${parentId}/subtitle`,
-    { subtitle },
-  );
-  return res.data;
+  return upsertGalleryItemMeta(parentType, parentId, { subtitle });
 }
 
 export async function getArchivedUserGallery(): Promise<{

@@ -272,9 +272,10 @@ function CustomAlbumPhotosModal({
   );
 }
 
-function PhotosModal({ visible, title, location, onClose, parentId, parentType, userId, gallerySubtitle }: {
+function PhotosModal({ visible, title, location, onClose, parentId, parentType, userId, gallerySubtitle, galleryHideTravelers = false }: {
   visible: boolean; title: string; location?: string | null; onClose: () => void;
   parentId: string; parentType: 'trip' | 'event'; userId?: string; gallerySubtitle?: string | null;
+  galleryHideTravelers?: boolean;
 }) {
   const navigation = useNavigation<any>();
   const currentUserId = useAuthStore((s) => s.user?.id);
@@ -360,11 +361,12 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
     return () => { cancelled = true; };
   }, [visible, parentId, parentType]);
 
+  const showTravelersRow = parentType === 'trip' && members.length > 0 && !galleryHideTravelers;
   const currentPhoto = photos[heroIndex];
   const activityLabel = currentPhoto?.activityTitle?.trim() || null;
   const hasDescription = !!gallerySubtitle?.trim();
   const heroHeight = useGalleryViewportHeroHeight({
-    hasTravelers: parentType === 'trip',
+    hasTravelers: showTravelersRow,
     hasDescription,
   });
 
@@ -412,7 +414,7 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
           {gallerySubtitle?.trim() ? (
             <Text style={fpGalleryStyles.description} numberOfLines={2}>{gallerySubtitle}</Text>
           ) : null}
-          {parentType === 'trip' ? <GalleryTravelersRow members={members} /> : null}
+          {showTravelersRow ? <GalleryTravelersRow members={members} /> : null}
           <GalleryEngagementSection
             likeCount={engagement.likeCount}
             likedByMe={engagement.likedByMe}
@@ -446,7 +448,14 @@ export default function FriendProfileScreen() {
   const [customEventAlbums, setCustomEventAlbums] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [avatarError, setAvatarError] = useState(false);
-  const [photoModal, setPhotoModal] = useState<{ id: string; name: string; type: 'trip' | 'event'; subtitle?: string | null; location?: string | null } | null>(null);
+  const [photoModal, setPhotoModal] = useState<{
+    id: string;
+    name: string;
+    type: 'trip' | 'event';
+    subtitle?: string | null;
+    hideTravelers?: boolean;
+    location?: string | null;
+  } | null>(null);
   const [customAlbumModal, setCustomAlbumModal] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => { setAvatarError(false); }, [profile?.avatarUrl, paramAvatarUrl]);
@@ -565,7 +574,14 @@ export default function FriendProfileScreen() {
             />
             <View style={styles.grid}>
               {galleryTrips.map((trip: any) => (
-                <GridCard key={trip.id} item={trip} onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null, location: trip.location ?? null })} />
+                <GridCard key={trip.id} item={trip} onPress={() => setPhotoModal({
+                  id: trip.id,
+                  name: trip.name,
+                  type: 'trip',
+                  subtitle: trip.gallerySubtitle ?? null,
+                  hideTravelers: trip.galleryHideTravelers ?? false,
+                  location: trip.location ?? null,
+                })} />
               ))}
               {customTripAlbums.map((album: any) => (
                 <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name })} />
@@ -607,6 +623,7 @@ export default function FriendProfileScreen() {
           parentType={photoModal.type}
           userId={userId}
           gallerySubtitle={photoModal.subtitle}
+          galleryHideTravelers={photoModal.hideTravelers ?? false}
           onClose={() => setPhotoModal(null)}
         />
       )}

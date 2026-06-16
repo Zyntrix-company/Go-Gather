@@ -508,12 +508,14 @@ const getUserGallery = async (targetId) => {
          t.location_name   AS location,
          t.end_date        AS "endDate",
          (SELECT COUNT(*)::int FROM trip_members WHERE trip_id = t.id)                        AS "memberCount",
-         m.subtitle        AS "gallerySubtitle"
+         m.subtitle        AS "gallerySubtitle",
+         COALESCE(m.hide_travelers, FALSE) AS "galleryHideTravelers"
        FROM trips t
        JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = $1
        LEFT JOIN user_gallery_item_meta m
          ON m.user_id = $1 AND m.parent_type = 'trip' AND m.parent_id = t.id
        WHERE t.archived_at IS NULL
+         AND t.end_date < CURRENT_DATE
        ORDER BY t.end_date DESC
        LIMIT 50`,
       [targetId],
@@ -526,12 +528,14 @@ const getUserGallery = async (targetId) => {
          e.location_name                           AS location,
          e.event_date                              AS "endDate",
          (SELECT COUNT(*)::int FROM event_members  WHERE event_id = e.id)                         AS "memberCount",
-         m.subtitle        AS "gallerySubtitle"
+         m.subtitle        AS "gallerySubtitle",
+         FALSE             AS "galleryHideTravelers"
        FROM events e
        JOIN event_members em ON em.event_id = e.id AND em.user_id = $1
        LEFT JOIN user_gallery_item_meta m
          ON m.user_id = $1 AND m.parent_type = 'event' AND m.parent_id = e.id
        WHERE e.archived_at IS NULL
+         AND e.event_date < CURRENT_DATE
        ORDER BY e.event_date DESC
        LIMIT 50`,
       [targetId],
@@ -829,24 +833,42 @@ const verifyGalleryMembership = async (userId, parentType, parentId) => {
 
 /**
  * PATCH /users/me/gallery-items/:parentType/:parentId/subtitle
- * Upsert a per-user gallery subtitle for a trip or event the caller is a member of.
- * Pass subtitle = null / empty string to clear it.
+ * Upsert per-user gallery presentation meta (subtitle, hideTravelers for trips).
  */
-const upsertGallerySubtitle = async (userId, parentType, parentId, subtitle) => {
+const upsertGalleryItemMeta = async (userId, parentType, parentId, patch = {}) => {
   await verifyGalleryMembership(userId, parentType, parentId);
 
-  const cleanSubtitle = subtitle && subtitle.trim() ? subtitle.trim() : null;
+  const existing = await db.query(
+    `SELECT subtitle, hide_travelers FROM user_gallery_item_meta
+     WHERE user_id = $1 AND parent_type = $2 AND parent_id = $3`,
+    [userId, parentType, parentId],
+  );
+  const row = existing.rows[0];
+
+  const subtitle = patch.subtitle !== undefined
+    ? (patch.subtitle && String(patch.subtitle).trim() ? String(patch.subtitle).trim() : null)
+    : (row?.subtitle ?? null);
+
+  const hideTravelers = patch.hideTravelers !== undefined
+    ? Boolean(patch.hideTravelers)
+    : (row?.hide_travelers ?? false);
 
   await db.query(
-    `INSERT INTO user_gallery_item_meta (user_id, parent_type, parent_id, subtitle, updated_at)
-     VALUES ($1, $2, $3, $4, NOW())
+    `INSERT INTO user_gallery_item_meta (user_id, parent_type, parent_id, subtitle, hide_travelers, updated_at)
+     VALUES ($1, $2, $3, $4, $5, NOW())
      ON CONFLICT (user_id, parent_type, parent_id)
-     DO UPDATE SET subtitle = EXCLUDED.subtitle, updated_at = NOW()`,
-    [userId, parentType, parentId, cleanSubtitle],
+     DO UPDATE SET
+       subtitle = EXCLUDED.subtitle,
+       hide_travelers = EXCLUDED.hide_travelers,
+       updated_at = NOW()`,
+    [userId, parentType, parentId, subtitle, hideTravelers],
   );
 
-  return { subtitle: cleanSubtitle };
+  return { subtitle, hideTravelers };
 };
+
+const upsertGallerySubtitle = async (userId, parentType, parentId, subtitle) =>
+  upsertGalleryItemMeta(userId, parentType, parentId, { subtitle });
 
 /**
  * GET /users/me/gallery/archived — Archived custom gallery albums only.
@@ -884,6 +906,7 @@ module.exports = {
   getLegalStatus,
   acknowledgeLegal,
   upsertGallerySubtitle,
+  upsertGalleryItemMeta,
   getArchivedUserGallery,
   updateDeviceToken,
 };

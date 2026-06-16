@@ -179,8 +179,17 @@ const upsertGallerySubtitle = async (req, res, next) => {
     if (!['trip', 'event'].includes(parentType)) {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'parentType must be trip or event' });
     }
-    const { subtitle } = req.body;
-    const result = await usersService.upsertGallerySubtitle(req.user.id, parentType, parentId, subtitle ?? null);
+    const { subtitle, hideTravelers } = req.body;
+    const patch = {};
+    if (subtitle !== undefined) patch.subtitle = subtitle ?? null;
+    if (hideTravelers !== undefined) patch.hideTravelers = hideTravelers;
+    if (!Object.keys(patch).length) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Provide subtitle and/or hideTravelers' });
+    }
+    if (parentType !== 'trip' && hideTravelers !== undefined) {
+      return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'hideTravelers applies to trip albums only' });
+    }
+    const result = await usersService.upsertGalleryItemMeta(req.user.id, parentType, parentId, patch);
     return res.status(200).json(result);
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });

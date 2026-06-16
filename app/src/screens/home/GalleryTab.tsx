@@ -22,7 +22,7 @@ import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { PencilLine, Pen, Archive, Trash2 } from 'lucide-react-native';
 import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
-import { getUserGallery, upsertGallerySubtitle } from '../../api/ai.api';
+import { getUserGallery, upsertGalleryItemMeta } from '../../api/ai.api';
 import {
   updateTrip,
   listDrivePhotoFiles,
@@ -45,6 +45,7 @@ import { drivePhotoSelectCap, toggleDriveFileSelection } from '../../utils/drive
 import GalleryAlbumSubHeader from '../../components/gallery/GalleryAlbumSubHeader';
 import GalleryUploadSheet from '../../components/gallery/GalleryUploadSheet';
 import GalleryTravelersRow, { type GalleryTraveler } from '../../components/gallery/GalleryTravelersRow';
+import GalleryTravelersVisibilityToggle from '../../components/gallery/GalleryTravelersVisibilityToggle';
 import GalleryEngagementSection from '../../components/gallery/GalleryEngagementSection';
 import GalleryHeroMedia from '../../components/gallery/GalleryHeroMedia';
 import { getTripMembers } from '../../api/trips.api';
@@ -303,8 +304,10 @@ function PhotosModal({
   userId,
   isOwner,
   gallerySubtitle: initialSubtitle,
+  galleryHideTravelers: initialHideTravelers = false,
   bannerImageUrl,
   onSubtitleSaved,
+  onHideTravelersSaved,
   onNameSaved,
   onBannerSaved,
 }: {
@@ -317,8 +320,10 @@ function PhotosModal({
   userId?: string;
   isOwner?: boolean;
   gallerySubtitle?: string | null;
+  galleryHideTravelers?: boolean;
   bannerImageUrl?: string | null;
   onSubtitleSaved?: (subtitle: string | null) => void;
+  onHideTravelersSaved?: (hidden: boolean) => void;
   onNameSaved?: (name: string) => void;
   onBannerSaved?: (uri: string) => void;
 }) {
@@ -332,6 +337,8 @@ function PhotosModal({
   const heroFlatListRef = useRef<any>(null);
   const [nameDraft, setNameDraft] = useState(title);
   const [subtitleDraft, setSubtitleDraft] = useState('');
+  const [hideTravelers, setHideTravelers] = useState(false);
+  const [savingTravelers, setSavingTravelers] = useState(false);
   const [saving, setSaving] = useState(false);
   const localUriCache = useRef<Record<string, string>>({});
   const pendingDrivePickerRef = useRef(false);
@@ -377,12 +384,16 @@ function PhotosModal({
       setHeroIndex(0);
       setNameDraft(title);
       setSubtitleDraft(initialSubtitle ?? '');
+      setHideTravelers(initialHideTravelers);
     }
   }, [visible]);
 
   useEffect(() => {
-    if (visible) setSubtitleDraft(initialSubtitle ?? '');
-  }, [initialSubtitle, visible]);
+    if (visible) {
+      setSubtitleDraft(initialSubtitle ?? '');
+      setHideTravelers(initialHideTravelers);
+    }
+  }, [initialSubtitle, initialHideTravelers, visible]);
 
   const loadPhotos = () => {
     if (!parentId) return;
@@ -595,7 +606,7 @@ function PhotosModal({
       const clean = subtitleDraft.trim();
       const prev = initialSubtitle?.trim() ?? '';
       if (clean !== prev) {
-        const result = await upsertGallerySubtitle(parentType, parentId, clean || null);
+        const result = await upsertGalleryItemMeta(parentType, parentId, { subtitle: clean || null });
         onSubtitleSaved?.(result.subtitle);
       }
     } catch {
@@ -626,11 +637,27 @@ function PhotosModal({
     }
   };
 
+  const toggleTravelersVisibility = async () => {
+    if (parentType !== 'trip' || userId) return;
+    const next = !hideTravelers;
+    setSavingTravelers(true);
+    try {
+      const result = await upsertGalleryItemMeta(parentType, parentId, { hideTravelers: next });
+      setHideTravelers(result.hideTravelers);
+      onHideTravelersSaved?.(result.hideTravelers);
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not update setting', text2: 'Please try again.' });
+    } finally {
+      setSavingTravelers(false);
+    }
+  };
+
+  const showTravelersRow = parentType === 'trip' && members.length > 0 && !hideTravelers;
   const currentPhoto = photos[heroIndex];
   const activityLabel = currentPhoto?.activityTitle?.trim() || null;
   const displaySubtitle = editMode ? subtitleDraft : (initialSubtitle?.trim() ?? '');
   const heroHeight = useGalleryViewportHeroHeight({
-    hasTravelers: parentType === 'trip',
+    hasTravelers: showTravelersRow || (parentType === 'trip' && !userId),
     hasDescription: !editMode && !!displaySubtitle,
     editMode,
     viewOnly: !!userId,
@@ -713,7 +740,14 @@ function PhotosModal({
             {!editMode && displaySubtitle ? (
               <Text style={styles.galleryDescription} numberOfLines={2}>{displaySubtitle}</Text>
             ) : null}
-            {parentType === 'trip' ? <GalleryTravelersRow members={members} /> : null}
+            {parentType === 'trip' && !userId ? (
+              <GalleryTravelersVisibilityToggle
+                hidden={hideTravelers}
+                onToggle={toggleTravelersVisibility}
+                saving={savingTravelers}
+              />
+            ) : null}
+            {showTravelersRow ? <GalleryTravelersRow members={members} /> : null}
             {!userId ? (
               <GalleryEngagementSection
                 likeCount={engagement.likeCount}
@@ -1288,6 +1322,7 @@ export default function GalleryTab({
     name: string;
     type: 'trip' | 'event';
     subtitle: string | null;
+    hideTravelers?: boolean;
     location?: string | null;
     bannerImageUrl?: string | null;
   } | null>(null);
@@ -1369,6 +1404,13 @@ export default function GalleryTab({
     } catch {
       Toast.show({ type: 'error', text1: 'Could not archive', text2: 'Please try again.' });
     }
+  };
+
+  const handleHideTravelersSaved = (parentId: string, parentType: 'trip' | 'event', hidden: boolean) => {
+    if (parentType === 'trip') {
+      setGalleryTrips((prev) => prev.map((t) => t.id === parentId ? { ...t, galleryHideTravelers: hidden } : t));
+    }
+    setPhotoModal((prev) => prev?.id === parentId ? { ...prev, hideTravelers: hidden } : prev);
   };
 
   const handleSubtitleSaved = (parentId: string, parentType: 'trip' | 'event', subtitle: string | null) => {
@@ -1480,7 +1522,15 @@ export default function GalleryTab({
                 <GridCard
                   key={trip.id}
                   item={trip}
-                  onPress={() => setPhotoModal({ id: trip.id, name: trip.name, type: 'trip', subtitle: trip.gallerySubtitle ?? null, location: trip.location ?? null, bannerImageUrl: trip.bannerImageUrl ?? null })}
+                  onPress={() => setPhotoModal({
+                    id: trip.id,
+                    name: trip.name,
+                    type: 'trip',
+                    subtitle: trip.gallerySubtitle ?? null,
+                    hideTravelers: trip.galleryHideTravelers ?? false,
+                    location: trip.location ?? null,
+                    bannerImageUrl: trip.bannerImageUrl ?? null,
+                  })}
                 />
               ))}
               {customTripCards.map((card) => (
@@ -1539,8 +1589,10 @@ export default function GalleryTab({
           parentType={photoModal.type}
           isOwner
           gallerySubtitle={photoModal.subtitle}
+          galleryHideTravelers={photoModal.hideTravelers ?? false}
           bannerImageUrl={photoModal.bannerImageUrl}
           onSubtitleSaved={(subtitle) => handleSubtitleSaved(photoModal.id, photoModal.type, subtitle)}
+          onHideTravelersSaved={(hidden) => handleHideTravelersSaved(photoModal.id, photoModal.type, hidden)}
           onNameSaved={(name) => handleNameSaved(photoModal.id, photoModal.type, name)}
           onBannerSaved={(uri) => handleBannerSaved(photoModal.id, photoModal.type, uri)}
           onClose={() => setPhotoModal(null)}
