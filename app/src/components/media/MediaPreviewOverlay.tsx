@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Modal,
@@ -9,8 +9,9 @@ import {
   Text,
   PanResponder,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Video, { type OnLoadData, type OnProgressData, type VideoRef } from 'react-native-video';
-import { Play, Pause, Volume2, VolumeX, Bookmark, Trash2 } from 'lucide-react-native';
+import { Play, Pause, Volume2, VolumeX, Bookmark, Trash2, X } from 'lucide-react-native';
 import CachedImage from '../common/CachedImage';
 import { isVideoMime } from '../../api/uploadLimits.api';
 import type { MediaThumbnailItem } from './MediaThumbnail';
@@ -67,55 +68,87 @@ export default function MediaPreviewOverlay({
     setCurrentTime(t);
   }, [duration]);
 
-  const seekPanResponder = useRef(
-    PanResponder.create({
+  const seekPanResponder = useMemo(
+    () => PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (evt) => handleSeek(evt.nativeEvent.locationX),
       onPanResponderMove: (evt) => handleSeek(evt.nativeEvent.locationX),
     }),
-  ).current;
+    [handleSeek],
+  );
 
   if (!item) return null;
+
+  const showBannerAction = !!onSetBanner && !isVideo;
+  const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Text style={styles.closeText}>✕</Text>
-        </TouchableOpacity>
+        <SafeAreaView edges={['top']} style={styles.topSafe}>
+          <View style={styles.toolbar}>
+            <TouchableOpacity
+              style={styles.toolbarClose}
+              onPress={onClose}
+              activeOpacity={0.75}
+              accessibilityLabel="Close preview"
+            >
+              <X size={18} color="#f8fafc" strokeWidth={2.5} />
+              <Text style={styles.toolbarCloseLabel}>Close</Text>
+            </TouchableOpacity>
 
-        {onDelete && (
-          <TouchableOpacity
-            style={styles.deleteBtn}
-            onPress={onDelete}
-            disabled={deleting}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityLabel="Delete media"
-          >
-            {deleting ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Trash2 size={20} color="#fff" />
-            )}
-          </TouchableOpacity>
-        )}
+            {(showBannerAction || onDelete) && (
+              <View style={styles.toolbarActions}>
+                {showBannerAction && (
+                  <TouchableOpacity
+                    style={[styles.toolbarAction, isBanner && styles.toolbarActionActive]}
+                    onPress={() => onSetBanner(item)}
+                    disabled={settingBanner}
+                    activeOpacity={0.75}
+                    accessibilityLabel="Set as banner"
+                  >
+                    {settingBanner ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Bookmark
+                          size={17}
+                          color="#fff"
+                          fill={isBanner ? colors.success : 'transparent'}
+                        />
+                        <Text style={styles.toolbarActionLabel}>
+                          {isBanner ? 'Banner' : 'Set banner'}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
 
-        {onSetBanner && !isVideo && (
-          <TouchableOpacity
-            style={[styles.bannerBtn, isBanner && styles.bannerBtnActive]}
-            onPress={() => onSetBanner(item)}
-            disabled={settingBanner}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            accessibilityLabel="Set as banner"
-          >
-            {settingBanner ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Bookmark size={20} color="#fff" fill={isBanner ? colors.success : 'transparent'} />
+                {onDelete && (
+                  <TouchableOpacity
+                    style={[styles.toolbarAction, styles.toolbarActionDanger]}
+                    onPress={onDelete}
+                    disabled={deleting}
+                    activeOpacity={0.75}
+                    accessibilityLabel="Delete media"
+                  >
+                    {deleting ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Trash2 size={17} color="#fecaca" />
+                        <Text style={[styles.toolbarActionLabel, styles.toolbarActionLabelDanger]}>
+                          Delete
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
-          </TouchableOpacity>
-        )}
+          </View>
+        </SafeAreaView>
 
         <View style={styles.content}>
           {isVideo ? (
@@ -141,23 +174,34 @@ export default function MediaPreviewOverlay({
                 </View>
               )}
               {!loading && (
-                <View style={styles.videoControls}>
-                  <TouchableOpacity onPress={() => setPaused((p) => !p)} hitSlop={8}>
-                    {paused ? <Play size={22} color="#fff" fill="#fff" /> : <Pause size={22} color="#fff" fill="#fff" />}
-                  </TouchableOpacity>
-                  <Text style={styles.timeText}>{formatVideoTime(currentTime)}</Text>
-                  <View
-                    style={styles.seekTrack}
-                    onLayout={(e) => { seekTrackWidthRef.current = e.nativeEvent.layout.width; }}
-                    {...seekPanResponder.panHandlers}
-                  >
-                    <View style={[styles.seekFill, { width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' }]} />
+                <SafeAreaView edges={['bottom']} style={styles.videoControlsWrap}>
+                  <View style={styles.videoControls}>
+                    <TouchableOpacity onPress={() => setPaused((p) => !p)} hitSlop={8}>
+                      {paused ? <Play size={22} color="#fff" fill="#fff" /> : <Pause size={22} color="#fff" fill="#fff" />}
+                    </TouchableOpacity>
+                    <Text style={styles.timeText}>{formatVideoTime(currentTime)}</Text>
+                    <View
+                      style={styles.seekTrackHit}
+                      onLayout={(e) => { seekTrackWidthRef.current = e.nativeEvent.layout.width; }}
+                      {...seekPanResponder.panHandlers}
+                    >
+                      <View style={styles.seekTrack}>
+                        <View
+                          style={[styles.seekFill, { width: `${progressPct}%` }]}
+                          pointerEvents="none"
+                        />
+                        <View
+                          style={[styles.seekThumb, { left: `${progressPct}%` }]}
+                          pointerEvents="none"
+                        />
+                      </View>
+                    </View>
+                    <Text style={styles.timeText}>{formatVideoTime(duration)}</Text>
+                    <TouchableOpacity onPress={() => setMuted((m) => !m)} hitSlop={8}>
+                      {muted ? <VolumeX size={20} color="#fff" /> : <Volume2 size={20} color="#fff" />}
+                    </TouchableOpacity>
                   </View>
-                  <Text style={styles.timeText}>{formatVideoTime(duration)}</Text>
-                  <TouchableOpacity onPress={() => setMuted((m) => !m)} hitSlop={8}>
-                    {muted ? <VolumeX size={20} color="#fff" /> : <Volume2 size={20} color="#fff" />}
-                  </TouchableOpacity>
-                </View>
+                </SafeAreaView>
               )}
             </>
           ) : (
@@ -172,60 +216,73 @@ export default function MediaPreviewOverlay({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.72)',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.88)',
   },
-  closeBtn: {
-    position: 'absolute',
-    top: 48,
-    left: 20,
-    zIndex: 10,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+  topSafe: {
+    backgroundColor: 'rgba(15,23,42,0.92)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.12)',
+  },
+  toolbar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 12,
   },
-  closeText: {
-    color: '#fff',
-    fontSize: 16,
+  toolbarClose: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  toolbarCloseLabel: {
+    color: '#f8fafc',
+    fontSize: 15,
     fontWeight: '600',
   },
-  bannerBtn: {
-    position: 'absolute',
-    top: 48,
-    right: 20,
-    zIndex: 10,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+  toolbarActions: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+    flexShrink: 1,
+    justifyContent: 'flex-end',
   },
-  bannerBtnActive: {
-    backgroundColor: 'rgba(16,185,129,0.35)',
-  },
-  deleteBtn: {
-    position: 'absolute',
-    top: 48,
-    right: 64,
-    zIndex: 10,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+  toolbarAction: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  toolbarActionActive: {
+    backgroundColor: 'rgba(16,185,129,0.22)',
+    borderColor: 'rgba(16,185,129,0.45)',
+  },
+  toolbarActionDanger: {
+    backgroundColor: 'rgba(239,68,68,0.18)',
+    borderColor: 'rgba(239,68,68,0.35)',
+  },
+  toolbarActionLabel: {
+    color: '#f1f5f9',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  toolbarActionLabelDanger: {
+    color: '#fecaca',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingTop: 80,
-    paddingBottom: 40,
+    paddingVertical: 16,
   },
   photo: {
     width: SCREEN_W - 24,
@@ -240,13 +297,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  videoControlsWrap: {
+    width: '100%',
+    marginTop: 12,
+  },
   videoControls: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: 16,
-    paddingHorizontal: 8,
-    width: '100%',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(15,23,42,0.75)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   timeText: {
     color: '#fff',
@@ -254,15 +319,33 @@ const styles = StyleSheet.create({
     minWidth: 36,
     textAlign: 'center',
   },
-  seekTrack: {
+  seekTrackHit: {
     flex: 1,
+    justifyContent: 'center',
+    minHeight: 32,
+    paddingVertical: 12,
+  },
+  seekTrack: {
     height: 4,
     backgroundColor: 'rgba(255,255,255,0.25)',
     borderRadius: 2,
-    overflow: 'hidden',
+    overflow: 'visible',
+    position: 'relative',
   },
   seekFill: {
     height: '100%',
     backgroundColor: colors.accent,
+    borderRadius: 2,
+  },
+  seekThumb: {
+    position: 'absolute',
+    top: -4,
+    width: 12,
+    height: 12,
+    marginLeft: -6,
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: colors.accent,
   },
 });

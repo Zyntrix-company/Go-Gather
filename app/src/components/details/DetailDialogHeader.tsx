@@ -9,6 +9,8 @@ import Svg, { Path } from 'react-native-svg';
 interface DetailDialogHeaderProps {
   title: string;
   subtitle?: string;
+  /** Renders on the same line as the title (e.g. "24/30" beside "Media"). */
+  inlineSubtitle?: string;
   leading?: React.ReactNode;
   onClose: () => void;
 }
@@ -30,6 +32,7 @@ function CloseX() {
 export default function DetailDialogHeader({
   title,
   subtitle,
+  inlineSubtitle,
   leading,
   onClose,
 }: DetailDialogHeaderProps) {
@@ -40,11 +43,19 @@ export default function DetailDialogHeader({
           <View style={styles.titleRow}>
             {leading}
             <Text style={styles.title}>{title}</Text>
+            {!!inlineSubtitle && (
+              <Text style={styles.inlineSubtitle}>{inlineSubtitle}</Text>
+            )}
           </View>
         ) : (
-          <Text style={styles.title}>{title}</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>{title}</Text>
+            {!!inlineSubtitle && (
+              <Text style={styles.inlineSubtitle}>{inlineSubtitle}</Text>
+            )}
+          </View>
         )}
-        {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+        {!!subtitle && !inlineSubtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       </View>
       <TouchableOpacity
         onPress={onClose}
@@ -76,6 +87,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#0f172a',
+  },
+  inlineSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b',
   },
   subtitle: {
     fontSize: 12,

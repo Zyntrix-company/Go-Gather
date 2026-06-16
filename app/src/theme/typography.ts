@@ -48,7 +48,7 @@ const scale = {
   expAction: { fontSize: 11, fontWeight: '400' as const, lineHeight: 14 },
 
   /** Expense form field label */
-  expFieldLabel: { fontSize: 11, fontWeight: '400' as const, lineHeight: 15 },
+  expFieldLabel: { fontSize: 12, fontWeight: '400' as const, lineHeight: 16 },
 
   /** Expense totals — currency code & amount */
   expTotalValue: { fontSize: 12, fontWeight: '500' as const, lineHeight: 17 },
@@ -57,7 +57,7 @@ const scale = {
   expSectionHeading: { fontSize: 13, fontWeight: '500' as const, lineHeight: 18 },
 
   /** Expense totals — breakdown row text */
-  expBreakdownRow: { fontSize: 12, fontWeight: '400' as const, lineHeight: 17 },
+  expBreakdownRow: { fontSize: 12, fontWeight: '500' as const, lineHeight: 17 },
 } satisfies Record<string, TextStyle>;
 
 export type TypographyToken = keyof typeof scale;

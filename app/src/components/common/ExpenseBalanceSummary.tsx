@@ -45,6 +45,7 @@ export default function ExpenseBalanceSummary({ totalExpensesByCurrency, myBalan
       <View style={styles.emptyWrap}>
         <Text style={styles.cardTitle}>Total</Text>
         <Text style={styles.emptyLine}>No expenses yet</Text>
+        <Text style={styles.emptySubLine}>Balances will show up once you add expenses</Text>
       </View>
     );
   }
@@ -164,6 +165,12 @@ const styles = StyleSheet.create({
   }),
   emptyLine: {
     fontSize: 13,
+    fontWeight: '500',
+    color: '#64748b',
+    marginTop: 4,
+  },
+  emptySubLine: {
+    fontSize: 12,
     color: '#94a3b8',
     marginTop: 4,
   },

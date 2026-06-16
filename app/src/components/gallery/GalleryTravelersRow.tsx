@@ -50,14 +50,14 @@ const AVATAR = 36;
 const styles = StyleSheet.create({
   wrap: {
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 6,
+    paddingTop: 10,
+    paddingBottom: 4,
   },
   heading: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#334155',
-    marginBottom: 10,
+    color: '#64748b',
+    marginBottom: 8,
   },
   avatarRow: {
     flexDirection: 'row',

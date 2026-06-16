@@ -116,13 +116,14 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     marginTop: 10,
   },
   infoText: {
-    flex: 1,
     fontSize: 11,
     color: '#94a3b8',
     lineHeight: 15,
+    textAlign: 'center',
   },
 });

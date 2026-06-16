@@ -3,7 +3,6 @@ const rateLimit = require('express-rate-limit');
 
 const authenticateJWT = require('../../middleware/authenticate');
 const eventMemberMW = require('../../middleware/eventMember.middleware');
-const eventAdminMW = require('../../middleware/eventAdmin.middleware');
 const validate = require('../../middleware/validate');
 const { docUpload, photoUpload, handleMulterError } = require('../../middleware/upload.middleware');
 const { limits } = require('../../config/uploadLimits');
@@ -36,16 +35,16 @@ router.post(
 );
 router.get('/', validators.getEventsQuery, validate, ctrl.getEvents);
 router.get('/:eventId', validators.eventIdParam, validate, eventMemberMW, ctrl.getEventById);
-router.put('/:eventId', validators.updateEventValidation, validate, eventMemberMW, eventAdminMW, ctrl.updateEvent);
-router.delete('/:eventId', validators.eventIdParam, validate, eventMemberMW, eventAdminMW, ctrl.deleteEvent);
+router.put('/:eventId', validators.updateEventValidation, validate, eventMemberMW, ctrl.updateEvent);
+router.delete('/:eventId', validators.eventIdParam, validate, eventMemberMW, ctrl.deleteEvent);
 
 // ─── Description ──────────────────────────────────────────────────────────────
-router.post('/:eventId/description', validators.descriptionValidation, validate, eventMemberMW, eventAdminMW, ctrl.setDescription);
-router.put('/:eventId/description', validators.descriptionValidation, validate, eventMemberMW, eventAdminMW, ctrl.updateDescription);
+router.post('/:eventId/description', validators.descriptionValidation, validate, eventMemberMW, ctrl.setDescription);
+router.put('/:eventId/description', validators.descriptionValidation, validate, eventMemberMW, ctrl.updateDescription);
 
 // ─── Archive ──────────────────────────────────────────────────────────────────
-router.post('/:eventId/archive', validators.eventIdParam, validate, eventMemberMW, eventAdminMW, ctrl.archiveEvent);
-router.post('/:eventId/unarchive', validators.eventIdParam, validate, eventMemberMW, eventAdminMW, ctrl.unarchiveEvent);
+router.post('/:eventId/archive', validators.eventIdParam, validate, eventMemberMW, ctrl.archiveEvent);
+router.post('/:eventId/unarchive', validators.eventIdParam, validate, eventMemberMW, ctrl.unarchiveEvent);
 
 // ─── Invites ──────────────────────────────────────────────────────────────────
 router.post(
@@ -59,7 +58,7 @@ router.post(
 
 // ─── Members ──────────────────────────────────────────────────────────────────
 router.get('/:eventId/members', eventMemberMW, ctrl.getMembers);
-router.delete('/:eventId/members/:userId', eventMemberMW, eventAdminMW, ctrl.removeMember);
+router.delete('/:eventId/members/:userId', eventMemberMW, ctrl.removeMember);
 
 // ─── Docs ─────────────────────────────────────────────────────────────────────
 router.get('/:eventId/docs', eventMemberMW, ctrl.getDocs);

@@ -104,7 +104,6 @@ export default function MediaGridSection({
   return (
     <View style={styles.section}>
       {!!title && <Text style={styles.sectionTitle}>{title}</Text>}
-      {canDrag && <Text style={styles.reorderHint}>Hold & drag to reorder</Text>}
       {canDrag ? (
         <Sortable.Layer>
           <Sortable.Grid
@@ -149,16 +148,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     textAlign: 'center',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '500',
     color: '#0f172a',
     marginBottom: 10,
     marginTop: 4,
-  },
-  reorderHint: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: '#64748b',
-    marginBottom: 8,
   },
   sortableCell: {
     width: '100%',

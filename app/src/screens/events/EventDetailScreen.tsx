@@ -74,16 +74,18 @@ import {
 } from '../../components/common/CategoryIcons';
 import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
 import { formatCurrencyFull, buildExpenseLabel } from '../../utils/currency';
-import { getExpenseRowBalanceLabel } from '../../utils/expenseDisplay';
+import { getExpenseRowBalanceLabel, hasRecordedGroupExpenses } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
 import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
 import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
 import typography from '../../theme/typography';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
+import DrivePhotoPickerGrid from '../../components/gallery/DrivePhotoPickerGrid';
 import MediaModuleDialog from '../../components/media/MediaModuleDialog';
 import { useMediaDialog, mapApiPhoto } from '../../hooks/useMediaDialog';
 import { sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import { checkDriveConnected, promptConnectDrive, watchDriveConnect } from '../../utils/drivePickerFlow';
+import { drivePhotoSelectCap, toggleDriveFileSelection } from '../../utils/drivePickerSelection';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -466,6 +468,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
     onBannerUpdated: (url) => setEvent((prev) => ({ ...prev, bannerImageUrl: url } as typeof prev)),
     onError: handleApiError,
   });
+
+  const drivePhotoSelectLimit = drivePhotoSelectCap(
+    uploadLimits.eventPhoto.maxBatchFiles,
+    media.mediaCount,
+    media.capTotal,
+  );
 
   const myMemberRole = members.find(m => m.userId === currentUserId)?.role ?? 'member';
 
@@ -1576,6 +1584,15 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       : 'No compatible files found in your Drive root.'}
                   </Text>
                 </View>
+              ) : drivePickerTarget === 'photos' ? (
+                <DrivePhotoPickerGrid
+                  files={driveFiles}
+                  selectedIds={selectedDriveFileIds}
+                  maxSelectable={drivePhotoSelectLimit}
+                  onToggle={(fileId) => setSelectedDriveFileIds((prev) => (
+                    toggleDriveFileSelection(prev, fileId, drivePhotoSelectLimit)
+                  ))}
+                />
               ) : (
                 <FlatList
                   data={driveFiles}
@@ -1585,7 +1602,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     <DrivePickerRow
                       file={item}
                       selected={selectedDriveFileIds.has(item.fileId)}
-                      showThumbnail={drivePickerTarget === 'photos'}
                       onToggle={() => setSelectedDriveFileIds((prev) => {
                         const n = new Set(prev);
                         if (n.has(item.fileId)) n.delete(item.fileId);
@@ -1605,7 +1621,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     activeOpacity={0.85}>
                     {driveImporting
                       ? <ActivityIndicator color="#fff" />
-                      : <Text style={styles.tealBtnTxt}>Import</Text>}
+                      : <Text style={styles.tealBtnTxt}>
+                          {selectedDriveFileIds.size > 0 ? `Import (${selectedDriveFileIds.size})` : 'Import'}
+                        </Text>}
                   </TouchableOpacity>
                 </View>
               )}
@@ -1817,7 +1835,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                           <TextInput style={[styles.fInput, { flex: 1 }]} placeholder="0.00" placeholderTextColor="#94a3b8" value={expAmount} onChangeText={setExpAmount} keyboardType="numeric" />
                           <TouchableOpacity style={[styles.fInputTouch, { minWidth: 64, justifyContent: 'center' }]} onPress={() => { setShowExpCurrencyDrop(p => !p); setShowExpCatDrop(false); setShowPaidByDrop(false); }} activeOpacity={0.8}>
-                            <Text style={{ fontSize: 13, color: '#0f172a', fontWeight: '500' }}>{expCurrency}</Text>
+                            <Text style={{ fontSize: 13, color: '#0f172a', fontWeight: '400' }}>{expCurrency}</Text>
                           </TouchableOpacity>
                         </View>
                         <CurrencyPickerDropdown
@@ -1906,8 +1924,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
                           <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                         </Svg>
-                        <Text style={styles.emptyTitle}>No expenses tracked yet</Text>
-                        <Text style={styles.emptySub}>Start adding expenses to split with your group</Text>
+                        <Text style={styles.emptyTitle}>No expenses yet</Text>
+                        <Text style={styles.emptySub}>Add your first expense to start splitting costs</Text>
                       </View>
                     ) : (
                       <View style={{ marginTop: 12 }}>
@@ -1978,13 +1996,15 @@ export default function EventDetailScreen({ route, navigation }: any) {
                           myBalances={myBalances}
                         />
                         {balances.length === 0 ? (
-                          <View style={styles.emptyCenter}>
-                            <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
-                              <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                            </Svg>
-                            <Text style={styles.emptyTitle}>All settled up!</Text>
-                            <Text style={styles.emptySub}>No outstanding balances</Text>
-                          </View>
+                          hasRecordedGroupExpenses(totalExpensesByCurrency) || expenses.length > 0 ? (
+                            <View style={styles.emptyCenter}>
+                              <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
+                                <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                              </Svg>
+                              <Text style={styles.emptyTitle}>All settled up!</Text>
+                              <Text style={styles.emptySub}>No one owes anyone right now</Text>
+                            </View>
+                          ) : null
                         ) : (
                           <OutstandingDebtsList
                             debts={balances}

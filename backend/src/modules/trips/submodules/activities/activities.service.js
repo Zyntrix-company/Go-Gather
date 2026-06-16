@@ -133,11 +133,6 @@ const updateActivity = async (actId, tripId, requesterId, requesterRole, updates
   }
   const act = actResult.rows[0];
 
-  if (act.created_by !== requesterId && requesterRole !== 'admin') {
-    const e = new Error('Only the creator or a trip admin can edit this activity');
-    e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
-  }
-
   // Validate time object
   if (updates.time !== undefined && updates.time !== null) {
     const h = updates.time.hour;
@@ -219,11 +214,6 @@ const deleteActivity = async (actId, tripId, requesterId, requesterRole) => {
     const e = new Error('Activity not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
   }
   const act = actResult.rows[0];
-
-  if (act.created_by !== requesterId && requesterRole !== 'admin') {
-    const e = new Error('Only the creator or a trip admin can delete this activity');
-    e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
-  }
 
   // Delete activity photos from S3 first (DB cascade via activity_id FK handles rows)
   const photosResult = await db('SELECT s3_key FROM photos WHERE activity_id = $1', [actId]);
@@ -353,10 +343,6 @@ const deleteActivityPhoto = async (tripId, actId, photoId, userId, userRole) => 
   }
 
   const photo = photoResult.rows[0];
-  if (photo.uploaded_by !== userId && userRole !== 'admin') {
-    const e = new Error('Only the uploader or a trip admin can delete this photo');
-    e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
-  }
 
   await deleteFromS3(photo.s3_key);
   await db('DELETE FROM photos WHERE id = $1', [photoId]);

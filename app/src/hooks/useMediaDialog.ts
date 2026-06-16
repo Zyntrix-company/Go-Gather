@@ -125,12 +125,15 @@ export function useMediaDialog({
 
   const activityIds = useMemo(() => activities.map((a) => a.id), [activities]);
 
-  const organizeItems = useCallback((mapped: MediaItem[], prev: MediaItem[] = []) => {
-    const temps = prev.filter((p) => p.id.startsWith('temp_'));
+  const organizeItems = useCallback((
+    mapped: MediaItem[],
+    options?: { preservePendingUploadsFrom?: MediaItem[] },
+  ) => {
+    const pending = options?.preservePendingUploadsFrom?.filter((p) => p.id.startsWith('temp_')) ?? [];
     const organized = mode === 'trip'
       ? organizeTripMediaItems(mapped, activityIds)
       : sortAlbumPhotosOldestFirst(mapped);
-    return [...organized, ...temps];
+    return pending.length > 0 ? [...organized, ...pending] : organized;
   }, [mode, activityIds]);
 
   const setFromApiPhotos = useCallback((photos: Photo[], localCache: Record<string, string> = {}) => {
@@ -143,7 +146,7 @@ export function useMediaDialog({
       const cache: Record<string, string> = {};
       prev.forEach((p) => { if (p.localUri) cache[p.id] = p.localUri; });
       const mapped = photos.map((p) => mapApiPhoto(p, cache[p.id]));
-      return organizeItems(mapped, prev);
+      return organizeItems(mapped, { preservePendingUploadsFrom: prev });
     });
   }, [organizeItems]);
 
@@ -187,7 +190,8 @@ export function useMediaDialog({
           const withoutTemps = prev.filter((ph) => !tempIds.includes(ph.id));
           const newPhotos = data.photos.map((ph, i) => mapApiPhoto(ph, assets[i]?.uri));
           const merged = withoutTemps.filter((p) => !newPhotos.some((n) => n.id === p.id));
-          return organizeItems([...merged, ...newPhotos], prev);
+          // Do not preserve temp_* from prev — upload succeeded, replace optimistic rows only.
+          return organizeItems([...merged, ...newPhotos]);
         });
       } catch (err) {
         setItems((prev) => prev.filter((ph) => !tempIds.includes(ph.id)));
@@ -196,7 +200,7 @@ export function useMediaDialog({
         setUploading(false);
       }
     });
-  }, [uploadDisabled, mode, entityId, uploadLimits, onError]);
+  }, [uploadDisabled, mode, entityId, uploadLimits, onError, organizeItems]);
 
   const handleDelete = useCallback(async (photoId: string) => {
     if (photoId.startsWith('temp_')) return;

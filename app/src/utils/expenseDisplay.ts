@@ -27,3 +27,10 @@ export function getExpenseRowBalanceLabel(exp: {
 export function isSignificantAmount(amount: number): boolean {
   return Number.isFinite(amount) && amount > EPS;
 }
+
+/** True when the group has at least one recorded expense total. */
+export function hasRecordedGroupExpenses(
+  totalExpensesByCurrency: Record<string, string>,
+): boolean {
+  return Object.values(totalExpensesByCurrency).some(v => isSignificantAmount(parseFloat(v) || 0));
+}

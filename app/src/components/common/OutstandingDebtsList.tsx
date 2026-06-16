@@ -42,7 +42,7 @@ export default function OutstandingDebtsList({ debts, currentUserId, onSettle, s
               <Text style={s.expName}>
                 {debt.fromName || 'Someone'} owes {debt.toName || 'Someone'}
               </Text>
-              <Text style={s.expMeta} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+              <Text style={local.debtAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
                 {formatCurrencyFull(debt.amount, debt.currency)}
               </Text>
             </View>
@@ -72,5 +72,11 @@ const local = StyleSheet.create({
     fontWeight: '600',
     color: '#0f172a',
     marginBottom: 10,
+  },
+  debtAmount: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#475569',
+    marginBottom: 1,
   },
 });

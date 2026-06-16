@@ -3,14 +3,16 @@ import {
   View, Text, TouchableOpacity, ScrollView,
   Dimensions, StyleSheet, ActivityIndicator, Modal, Animated,
 } from 'react-native';
-import { albumChromeStyles as acs, GALLERY_ALBUM_HERO_H } from '../../constants/albumPhotosLayout';
+import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
+import { useGalleryViewportHeroHeight } from '../../hooks/useGalleryViewportHeroHeight';
 import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
 import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
-import AlbumPhotosThumbStrip, { AlbumPhotosBody } from '../../components/gallery/AlbumPhotosThumbStrip';
+import AlbumPhotosThumbStrip from '../../components/gallery/AlbumPhotosThumbStrip';
 import GalleryAlbumSubHeader from '../../components/gallery/GalleryAlbumSubHeader';
 import GalleryTravelersRow, { type GalleryTraveler } from '../../components/gallery/GalleryTravelersRow';
 import GalleryEngagementSection from '../../components/gallery/GalleryEngagementSection';
+import GalleryHeroMedia from '../../components/gallery/GalleryHeroMedia';
 import { getTripMembers } from '../../api/trips.api';
 import { getEventMembers } from '../../api/events.api';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -159,7 +161,7 @@ function FriendProfileSkeleton() {
   );
 }
 
-type PhotoItem = { id: string; uri: string; localUri?: string; activityId?: string | null; activityTitle?: string | null; createdAt?: string | null };
+type PhotoItem = { id: string; uri: string; localUri?: string; mimeType?: string | null; activityId?: string | null; activityTitle?: string | null; createdAt?: string | null };
 
 function CustomAlbumPhotosModal({
   visible,
@@ -186,6 +188,11 @@ function CustomAlbumPhotosModal({
     albumId,
   });
 
+  const heroHeight = useGalleryViewportHeroHeight({
+    hasFooter: true,
+    hasMetaCard: true,
+  });
+
   useEffect(() => {
     if (visible) setHeroIndex(0);
   }, [visible]);
@@ -194,7 +201,11 @@ function CustomAlbumPhotosModal({
     if (!visible || !albumId) return;
     setLoading(true);
     getUserGalleryAlbumPhotos(userId, albumId)
-      .then((res) => setPhotos(res.photos.map((p) => ({ id: p.id, uri: p.uri ?? '' }))))
+      .then((res) => setPhotos(res.photos.map((p) => ({
+        id: p.id,
+        uri: p.uri ?? '',
+        mimeType: (p as { mimeType?: string }).mimeType ?? null,
+      }))))
       .catch(() => setPhotos([]))
       .finally(() => setLoading(false));
   }, [visible, albumId, userId]);
@@ -205,13 +216,12 @@ function CustomAlbumPhotosModal({
         navigation={navigation}
         activeTab="friends"
         galleryChrome
-        scrollable
         onClose={onClose}
         photoIndex={heroIndex}
         photoTotal={photos.length}
         footer={<AlbumPhotosFooter viewOnly aboveTabBar />}
       >
-        <AlbumPhotosBody>
+        <View style={fpGalleryStyles.albumBody}>
           <AlbumPhotosHeroCarousel
             galleryChrome
             photos={photos}
@@ -219,7 +229,11 @@ function CustomAlbumPhotosModal({
             onIndexChange={setHeroIndex}
             heroRef={heroFlatListRef}
             loading={loading}
-            renderPhoto={(item) => <FriendHeroPhoto photo={item} />}
+            fixedHeight={heroHeight}
+            showPagerDots={false}
+            renderPhoto={(item, index) => (
+              <GalleryHeroMedia photo={item} active={index === heroIndex} />
+            )}
           />
           <AlbumPhotosThumbStrip
             photos={photos}
@@ -246,47 +260,15 @@ function CustomAlbumPhotosModal({
             likeCount={engagement.likeCount}
             likedByMe={engagement.likedByMe}
             comments={engagement.comments}
+            scrollableComments
             onToggleLike={engagement.handleToggleLike}
             onAddComment={engagement.handleAddComment}
             onEditComment={engagement.handleEditComment}
             onDeleteComment={engagement.handleDeleteComment}
           />
-        </AlbumPhotosBody>
+        </View>
       </AlbumPhotosScreenLayout>
     </Modal>
-  );
-}
-
-function FriendHeroPhoto({ photo }: { photo: PhotoItem }) {
-  const [loading, setLoading] = useState(true);
-  const [localUriFailed, setLocalUriFailed] = useState(false);
-  const uri = (photo.localUri && !localUriFailed) ? photo.localUri : photo.uri;
-  const prevId = useRef(photo.id);
-  useEffect(() => {
-    if (prevId.current !== photo.id) {
-      prevId.current = photo.id;
-      setLocalUriFailed(false);
-      setLoading(true);
-    }
-  }, [photo.id]);
-  return (
-    <View style={{ flex: 1 }}>
-      <CachedImage
-        uri={uri}
-        style={{ width: '100%', height: '100%' }}
-        resizeMode="cover"
-        onLoad={() => setLoading(false)}
-        onError={() => {
-          if (photo.localUri && !localUriFailed) { setLocalUriFailed(true); setLoading(true); }
-          else setLoading(false);
-        }}
-      />
-      {loading && (
-        <View style={{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent' }}>
-          <ActivityIndicator size="large" color="#0d9488" />
-        </View>
-      )}
-    </View>
   );
 }
 
@@ -338,6 +320,7 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
           id: ph.id,
           uri: ph.uri ?? ph.url ?? ph.fileUrl ?? '',
           localUri: capturedCache[ph.id],
+          mimeType: ph.mimeType ?? null,
           activityId: ph.activityId ?? null,
           activityTitle: ph.activityTitle ?? null,
           displayOrder: ph.displayOrder ?? null,
@@ -379,6 +362,11 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
 
   const currentPhoto = photos[heroIndex];
   const activityLabel = currentPhoto?.activityTitle?.trim() || null;
+  const hasDescription = !!gallerySubtitle?.trim();
+  const heroHeight = useGalleryViewportHeroHeight({
+    hasTravelers: parentType === 'trip',
+    hasDescription,
+  });
 
   return (
     <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
@@ -386,7 +374,6 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
         navigation={navigation}
         activeTab="friends"
         galleryChrome
-        scrollable
         onClose={onClose}
         subHeader={
           <GalleryAlbumSubHeader
@@ -397,42 +384,47 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
           />
         }
       >
-        <AlbumPhotosHeroCarousel
-          galleryChrome
-          photos={photos}
-          heroIndex={heroIndex}
-          onIndexChange={setHeroIndex}
-          heroRef={heroFlatListRef}
-          loading={loading}
-          fixedHeight={GALLERY_ALBUM_HERO_H}
-          showPagerDots={false}
-          activityLabel={activityLabel}
-          renderPhoto={(item) => <FriendHeroPhoto photo={item} />}
-        />
-        <AlbumPhotosThumbStrip
-          photos={photos}
-          heroIndex={heroIndex}
-          transparent
-          galleryChrome
-          onSelect={(idx) => {
-            setHeroIndex(idx);
-            heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
-          }}
-        />
-        {gallerySubtitle?.trim() ? (
-          <Text style={fpGalleryStyles.description}>{gallerySubtitle}</Text>
-        ) : null}
-        {parentType === 'trip' ? <GalleryTravelersRow members={members} /> : null}
-        <GalleryEngagementSection
-          likeCount={engagement.likeCount}
-          likedByMe={engagement.likedByMe}
-          comments={engagement.comments}
-          canModerateComments={canModerateComments}
-          onToggleLike={engagement.handleToggleLike}
-          onAddComment={engagement.handleAddComment}
-          onEditComment={engagement.handleEditComment}
-          onDeleteComment={engagement.handleDeleteComment}
-        />
+        <View style={fpGalleryStyles.albumBody}>
+          <AlbumPhotosHeroCarousel
+            galleryChrome
+            photos={photos}
+            heroIndex={heroIndex}
+            onIndexChange={setHeroIndex}
+            heroRef={heroFlatListRef}
+            loading={loading}
+            fixedHeight={heroHeight}
+            showPagerDots={false}
+            activityLabel={activityLabel}
+            renderPhoto={(item, index) => (
+              <GalleryHeroMedia photo={item} active={index === heroIndex} />
+            )}
+          />
+          <AlbumPhotosThumbStrip
+            photos={photos}
+            heroIndex={heroIndex}
+            transparent
+            galleryChrome
+            onSelect={(idx) => {
+              setHeroIndex(idx);
+              heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
+            }}
+          />
+          {gallerySubtitle?.trim() ? (
+            <Text style={fpGalleryStyles.description} numberOfLines={2}>{gallerySubtitle}</Text>
+          ) : null}
+          {parentType === 'trip' ? <GalleryTravelersRow members={members} /> : null}
+          <GalleryEngagementSection
+            likeCount={engagement.likeCount}
+            likedByMe={engagement.likedByMe}
+            comments={engagement.comments}
+            canModerateComments={canModerateComments}
+            scrollableComments
+            onToggleLike={engagement.handleToggleLike}
+            onAddComment={engagement.handleAddComment}
+            onEditComment={engagement.handleEditComment}
+            onDeleteComment={engagement.handleDeleteComment}
+          />
+        </View>
       </AlbumPhotosScreenLayout>
     </Modal>
   );
@@ -635,13 +627,19 @@ export default function FriendProfileScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const fpGalleryStyles = StyleSheet.create({
+  albumBody: {
+    flex: 1,
+    minHeight: 0,
+  },
   description: {
-    fontSize: 14,
-    color: '#0f172a',
-    lineHeight: 21,
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#64748b',
+    lineHeight: 20,
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
+    paddingTop: 10,
+    paddingBottom: 0,
+    flexShrink: 0,
   },
 });
 

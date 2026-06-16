@@ -29,17 +29,16 @@ const USER_ID = '123e4567-e89b-12d3-a456-426614174000';
 const FRIEND_ID = '223e4567-e89b-12d3-a456-426614174001';
 const TRIP_ID = 'aaaa0001-0000-4000-8000-000000000001';
 const SHARED_PHOTO_ID = 'ffff0001-0000-4000-8000-000000000001';
-const EXTRA_PHOTO_ID = 'ffff0002-0000-4000-8000-000000000002';
 const token = generateAccessToken({ id: USER_ID, email: 'alice@test.com' });
 const friendToken = generateAccessToken({ id: FRIEND_ID, email: 'bob@test.com' });
 
-describe('Gallery overlay routes', () => {
+describe('Shared gallery item routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   describe('GET /users/me/gallery-items/trip/:parentId/photos', () => {
-    it('returns curated photos excluding hidden and including extras', async () => {
+    it('returns shared photos from the photos table only', async () => {
       db.query
         .mockResolvedValueOnce({ rowCount: 1, rows: [{ '?column?': 1 }] })
         .mockResolvedValueOnce({ rows: [{
@@ -48,19 +47,9 @@ describe('Gallery overlay routes', () => {
           s3_key: 'trips/x/photos/a.jpg',
           mime_type: 'image/jpeg',
           activity_id: null,
+          display_order: 0,
           created_at: new Date().toISOString(),
           activity_title: null,
-          source: 'shared',
-        }] })
-        .mockResolvedValueOnce({ rows: [{
-          id: EXTRA_PHOTO_ID,
-          file_url: 'https://cdn.test.com/extra.jpg',
-          s3_key: 'users/x/gallery/trip/y/z.jpg',
-          mime_type: 'image/jpeg',
-          activity_id: null,
-          activity_title: null,
-          created_at: new Date().toISOString(),
-          source: 'extra',
         }] });
 
       const res = await request(app)
@@ -68,48 +57,8 @@ describe('Gallery overlay routes', () => {
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body.total).toBe(2);
-      expect(res.body.photos.map((p) => p.id)).toEqual(
-        expect.arrayContaining([SHARED_PHOTO_ID, EXTRA_PHOTO_ID]),
-      );
-    });
-  });
-
-  describe('POST /users/me/gallery-items/trip/:parentId/photos/hide/:photoId', () => {
-    it('returns 200 when hiding a shared photo', async () => {
-      db.query
-        .mockResolvedValueOnce({ rowCount: 1, rows: [{ '?column?': 1 }] })
-        .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: SHARED_PHOTO_ID }] })
-        .mockResolvedValueOnce({ rowCount: 1, rows: [] });
-
-      const res = await request(app)
-        .post(`/users/me/gallery-items/trip/${TRIP_ID}/photos/hide/${SHARED_PHOTO_ID}`)
-        .set('Authorization', `Bearer ${token}`);
-
-      expect(res.statusCode).toBe(200);
-      expect(res.body.success).toBe(true);
-    });
-  });
-
-  describe('DELETE /users/me/gallery-items/extra-photos/:photoId', () => {
-    it('returns 200 when deleting own gallery-only photo', async () => {
-      db.query
-        .mockResolvedValueOnce({
-          rowCount: 1,
-          rows: [{
-            id: EXTRA_PHOTO_ID,
-            user_id: USER_ID,
-            s3_key: 'users/x/gallery/trip/y/z.jpg',
-          }],
-        })
-        .mockResolvedValueOnce({ rowCount: 1, rows: [] });
-
-      const res = await request(app)
-        .delete(`/users/me/gallery-items/extra-photos/${EXTRA_PHOTO_ID}`)
-        .set('Authorization', `Bearer ${token}`);
-
-      expect(res.statusCode).toBe(200);
-      expect(res.body.success).toBe(true);
+      expect(res.body.total).toBe(1);
+      expect(res.body.photos.map((p) => p.id)).toEqual([SHARED_PHOTO_ID]);
     });
   });
 

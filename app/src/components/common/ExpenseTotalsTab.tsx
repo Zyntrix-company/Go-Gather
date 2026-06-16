@@ -42,7 +42,7 @@ export default function ExpenseTotalsTab({ totals, styles: s }: Props) {
           />
         </Svg>
         <Text style={s.emptyTitle}>No expenses yet</Text>
-        <Text style={s.emptySub}>Totals will appear once expenses are added</Text>
+        <Text style={s.emptySub}>Add expenses to see totals and breakdowns here</Text>
       </View>
     );
   }
@@ -93,6 +93,6 @@ const local = StyleSheet.create({
   },
   sectionLabel: typeStyle('expSectionHeading', { color: '#0f172a', marginBottom: 10 }),
   breakdownName: typeStyle('expBreakdownRow', { color: '#0f172a' }),
-  breakdownMeta: typeStyle('expBreakdownRow', { color: '#94a3b8' }),
+  breakdownMeta: typeStyle('expBreakdownRow', { color: '#64748b', fontWeight: '400' }),
   breakdownAmt: typeStyle('expBreakdownRow', { color: '#0f172a' }),
 });

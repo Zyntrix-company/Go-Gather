@@ -228,7 +228,11 @@ export default function AlbumPhotosThumbStrip<T extends ThumbPhoto>({
 
   return (
     <View
-      style={[acs.thumbStrip, transparent && acs.thumbStripTransparent]}
+      style={[
+        acs.thumbStrip,
+        transparent && acs.thumbStripTransparent,
+        galleryChrome && styles.thumbStripGalleryCompact,
+      ]}
       onLayout={(e) => {
         const w = Math.round(e.nativeEvent.layout.width);
         if (w > 0 && w !== stripWidth) setStripWidth(w);
@@ -288,6 +292,9 @@ const styles = StyleSheet.create({
   },
   bodyCompact: {
     flex: 0,
+  },
+  thumbStripGalleryCompact: {
+    paddingVertical: 3,
   },
   thumbSlot: {
     width: THUMB_SLOT,

@@ -75,18 +75,6 @@ router.patch(
 router.get('/me/gallery/archived', authenticateJWT, controller.getArchivedUserGallery);
 
 router.post(
-  '/me/gallery-items/:parentType/:parentId/archive',
-  authenticateJWT,
-  controller.archiveGalleryItem,
-);
-
-router.post(
-  '/me/gallery-items/:parentType/:parentId/unarchive',
-  authenticateJWT,
-  controller.unarchiveGalleryItem,
-);
-
-router.post(
   '/me/gallery/albums',
   authenticateJWT,
   validators.createGalleryAlbumValidation,
@@ -192,22 +180,6 @@ router.post(
   photoUpload.array('photos', limits.galleryPhoto.maxBatchFiles),
   handleMulterError,
   controller.uploadGalleryItemPhotos,
-);
-
-router.post(
-  '/me/gallery-items/:parentType/:parentId/photos/hide/:photoId',
-  authenticateJWT,
-  [...validators.galleryItemParams, ...validators.galleryPhotoIdParam],
-  validate,
-  controller.hideGallerySharedPhoto,
-);
-
-router.delete(
-  '/me/gallery-items/extra-photos/:photoId',
-  authenticateJWT,
-  validators.extraPhotoIdParam,
-  validate,
-  controller.deleteGalleryExtraPhoto,
 );
 
 router.get(

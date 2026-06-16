@@ -80,7 +80,7 @@ export default function GalleryAlbumSubHeader({
           </>
         ) : (
           <>
-            <Text style={styles.title} numberOfLines={2}>{title}</Text>
+            <Text style={styles.title} numberOfLines={1}>{title}</Text>
             {location?.trim() ? (
               <View style={styles.locationRow}>
                 <PinIcon />
@@ -104,9 +104,11 @@ export default function GalleryAlbumSubHeader({
               <TouchableOpacity onPress={onEdit} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
                 <Pen size={15} color="#0d9488" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={onArchive} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Archive size={15} color="#64748b" />
-              </TouchableOpacity>
+              {onArchive ? (
+                <TouchableOpacity onPress={onArchive} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                  <Archive size={15} color="#64748b" />
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity onPress={onUpload} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
                 <Upload size={15} color="#0d9488" />
               </TouchableOpacity>
@@ -125,22 +127,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     paddingHorizontal: 14,
-    paddingTop: 4,
-    paddingBottom: 10,
+    paddingTop: 2,
+    paddingBottom: 6,
     gap: 10,
     flexShrink: 0,
   },
   center: {
     flex: 1,
     minWidth: 0,
-    paddingTop: 4,
+    paddingTop: 2,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#0d9488',
-    letterSpacing: -0.3,
-    lineHeight: 24,
+    letterSpacing: -0.2,
+    lineHeight: 20,
   },
   titleInput: {
     fontSize: 16,
@@ -164,10 +166,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: 4,
+    marginTop: 2,
   },
   location: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748b',
     flex: 1,
   },

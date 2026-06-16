@@ -56,7 +56,7 @@ export default function MediaDialogLayout({
           <View style={[styles.dialog, { maxHeight }]}>
             <DetailDialogHeader
               title="Media"
-              subtitle={loading ? undefined : buildCounterSubtitle(mediaCount, capTotal)}
+              inlineSubtitle={loading ? undefined : buildCounterSubtitle(mediaCount, capTotal)}
               onClose={onClose}
             />
             {actions}

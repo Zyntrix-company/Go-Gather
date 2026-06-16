@@ -119,10 +119,6 @@ const deleteNote = async ({ parentType, parentId }, noteId, userId, userRole) =>
   }
 
   const note = noteResult.rows[0];
-  if (note.created_by !== userId && userRole !== 'admin') {
-    const e = new Error('Only the note creator or an admin can delete this note');
-    e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
-  }
 
   await db('DELETE FROM notes WHERE id = $1', [noteId]);
 };

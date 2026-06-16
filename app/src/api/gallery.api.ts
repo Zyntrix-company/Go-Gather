@@ -25,7 +25,6 @@ export type GalleryPhoto = {
   url?: string;
   fileUrl?: string;
   uri?: string;
-  source?: 'shared' | 'extra';
   activityId?: string | null;
   activityTitle?: string | null;
   createdAt?: string | null;
@@ -143,7 +142,6 @@ function mapGalleryItemPhoto(ph: any): GalleryPhoto {
     uri: ph.url ?? ph.fileUrl ?? '',
     fileUrl: ph.fileUrl,
     url: ph.url,
-    source: ph.source,
     activityId: ph.activityId ?? null,
     activityTitle: ph.activityTitle ?? null,
   };
@@ -166,39 +164,6 @@ export async function getUserGalleryItemPhotos(
   const { data } = await client.get(`/users/${userId}/gallery-items/${parentType}/${parentId}/photos`);
   const photos = (data.photos ?? []).map(mapGalleryItemPhoto);
   return { photos, total: data.total ?? photos.length };
-}
-
-export async function uploadGalleryItemPhotos(
-  parentType: 'trip' | 'event',
-  parentId: string,
-  assets: Array<{ uri: string; type?: string; name?: string }>,
-): Promise<{ photos: GalleryPhoto[] }> {
-  const formData = new FormData();
-  assets.forEach((asset) => {
-    formData.append('photos', {
-      uri: asset.uri,
-      type: asset.type ?? 'image/jpeg',
-      name: asset.name ?? 'photo.jpg',
-    } as any);
-  });
-  const data = await uploadMultipart(
-    `/users/me/gallery-items/${parentType}/${parentId}/photos`,
-    formData,
-  );
-  const photos = (data.photos ?? []).map(mapGalleryItemPhoto);
-  return { photos };
-}
-
-export async function hideGallerySharedPhoto(
-  parentType: 'trip' | 'event',
-  parentId: string,
-  photoId: string,
-) {
-  await client.post(`/users/me/gallery-items/${parentType}/${parentId}/photos/hide/${photoId}`);
-}
-
-export async function deleteGalleryExtraPhoto(photoId: string) {
-  await client.delete(`/users/me/gallery-items/extra-photos/${photoId}`);
 }
 
 export function emptyCustomAlbums(): GalleryAlbumsBySection {

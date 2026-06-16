@@ -44,6 +44,8 @@ import {
   updateActivity,
   deleteActivity,
   uploadActivityPhotos,
+  getActivityPhotos,
+  deleteActivityPhoto,
 
   getExpenses,
   createExpense,
@@ -93,16 +95,18 @@ import {
 } from '../../components/common/CategoryIcons';
 import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
 import { formatCurrencyFull, formatCurrencyCompact, buildExpenseLabel } from '../../utils/currency';
-import { getExpenseRowBalanceLabel } from '../../utils/expenseDisplay';
+import { getExpenseRowBalanceLabel, hasRecordedGroupExpenses } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
 import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
 import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
 import typography from '../../theme/typography';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
+import DrivePhotoPickerGrid from '../../components/gallery/DrivePhotoPickerGrid';
 import MediaModuleDialog from '../../components/media/MediaModuleDialog';
 import { useMediaDialog, mapApiPhoto } from '../../hooks/useMediaDialog';
 import { organizeTripMediaItems } from '../../utils/albumPhotosOrder';
 import { checkDriveConnected, promptConnectDrive, watchDriveConnect } from '../../utils/drivePickerFlow';
+import { drivePhotoSelectCap, toggleDriveFileSelection } from '../../utils/drivePickerSelection';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -111,7 +115,9 @@ type Activity = {
   id: string; title: string; date: string; hour: string; minute: string;
   location?: string; description?: string; completed?: boolean;
   linkedExpense?: { id: string; description: string; amount: number } | null;
+  photoCount?: number;
 };
+type ActExistingPhoto = { id: string; uri: string };
 type DocItem = { id: string; name: string; uri: string; mimeType?: string };
 type PhotoItem = { id: string; uri: string; localUri?: string; name: string; uploadedBy?: string; activityId?: string | null; activityTitle?: string | null; createdAt?: string | null };
 type Expense = {
@@ -729,6 +735,65 @@ export default function TripDetailScreen({ route, navigation }: any) {
     onError: handleApiError,
   });
 
+  const activityPhotoCap = uploadLimits.tripActivityPhoto.maxFilesTotal;
+  const activityPhotoBatch = uploadLimits.tripActivityPhoto.maxBatchFiles;
+  const drivePhotoSelectLimit = drivePhotoSelectCap(
+    uploadLimits.tripPhoto.maxBatchFiles,
+    media.mediaCount,
+    media.capTotal,
+  );
+
+  const mergeActivityPhotosIntoMedia = useCallback((
+    activityId: string,
+    activityTitle: string,
+    added: ReturnType<typeof mapApiPhoto>[],
+    removedIds: string[] = [],
+  ) => {
+    media.setItems((prev) => {
+      const activityOrder = activities.map((a) => a.id);
+      const filtered = prev.filter((p) => !removedIds.includes(p.id));
+      const withoutDupes = filtered.filter((p) => !added.some((n) => n.id === p.id));
+      const withActivityMeta = added.map((p) => ({
+        ...p,
+        activityId,
+        activityTitle,
+      }));
+      return organizeTripMediaItems([...withoutDupes, ...withActivityMeta], activityOrder);
+    });
+  }, [media, activities]);
+
+  const refreshMediaFromServer = useCallback(async () => {
+    if (!tripId) return;
+    try {
+      const res = await getTripPhotos(tripId);
+      media.mergeApiPhotos(res.photos);
+    } catch {
+      // Non-blocking — local merge already applied
+    }
+  }, [tripId, media]);
+
+  const uploadNewActivityPhotos = useCallback(async (
+    activityId: string,
+    activityTitle: string,
+    localUris: string[],
+  ) => {
+    if (localUris.length === 0) return;
+    const assets = localUris.map((uri, i) => ({
+      uri,
+      name: `photo_${i}.jpg`,
+      type: 'image/jpeg',
+    }));
+    const photoRes = await uploadActivityPhotos(tripId, activityId, assets);
+    if (photoRes.photos.length > 0) {
+      const newItems = photoRes.photos.map((ph, i) => ({
+        ...mapApiPhoto(ph, assets[i]?.uri),
+        activityId,
+        activityTitle,
+      }));
+      mergeActivityPhotosIntoMedia(activityId, activityTitle, newItems);
+    }
+  }, [tripId, mergeActivityPhotosIntoMedia]);
+
   // ── Modal visibility ──
   const [showAddAct, setShowAddAct] = useState(false);
   const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set());
@@ -823,7 +888,28 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [viewingNote, setViewingNote] = useState<Note | null>(null);
 
   // ── Activity photos ──
-  const [actPhotos, setActPhotos] = useState<string[]>([]);
+  const [actExistingPhotos, setActExistingPhotos] = useState<ActExistingPhoto[]>([]);
+  const [actNewPhotos, setActNewPhotos] = useState<string[]>([]);
+  const [actPhotosLoading, setActPhotosLoading] = useState(false);
+
+  const actPhotoUi = useMemo(() => {
+    const count = actExistingPhotos.length + actNewPhotos.length;
+    const remaining = activityPhotoCap != null
+      ? Math.max(0, activityPhotoCap - count)
+      : activityPhotoBatch;
+    return {
+      count,
+      remaining,
+      canAdd: remaining > 0,
+      selectionLimit: Math.min(remaining, activityPhotoBatch),
+      label: activityPhotoCap != null ? `Photos (${count}/${activityPhotoCap})` : `Photos (${count})`,
+    };
+  }, [
+    actExistingPhotos.length,
+    actNewPhotos.length,
+    activityPhotoCap,
+    activityPhotoBatch,
+  ]);
   // ── Edit activity ──
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
   // ── Edit expense ──
@@ -919,7 +1005,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
         setTotalExpensesByCurrency(balParsed.totalExpensesByCurrency);
         const mapActivity = (a: any, completed: boolean) => {
           const { hour, minute } = parseActivityTime(a.time);
-          return { id: a.id, title: a.title, date: a.date ?? '', hour, minute, location: a.location, description: a.description, completed, createdBy: a.createdBy, linkedExpense: a.linkedExpense ?? null };
+          return {
+            id: a.id,
+            title: a.title,
+            date: a.date ?? '',
+            hour,
+            minute,
+            location: a.location,
+            description: a.description,
+            completed,
+            createdBy: a.createdBy,
+            linkedExpense: a.linkedExpense ?? null,
+            photoCount: a.photoCount ?? 0,
+          };
         };
         setActivities([
           ...(activitiesRes.upcoming ?? []).map((a: any) => mapActivity(a, false)),
@@ -1163,7 +1261,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
   // ── Handlers ──
   function resetActForm() {
     setActTitle(''); setActDate(undefined); setActHour(''); setActMin(''); setActTime(undefined); setShowHourDrop(false); setShowMinDrop(false);
-    setActLocation(''); setActDesc(''); setShowActExp(false); setActPhotos([]);
+    setActLocation(''); setActDesc(''); setShowActExp(false);
+    setActExistingPhotos([]); setActNewPhotos([]); setActPhotosLoading(false);
     setActExpDesc(''); setActExpAmount(''); setActExpCurrency('INR'); setActExpCategory(EXPENSE_CATEGORY_OPTIONS[0]);
     setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']);
     setActExpSplitDetails({}); setActExpConfirmed(false);
@@ -1188,6 +1287,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
       }
     }
     setActDateError('');
+    const totalActPhotos = actExistingPhotos.length + actNewPhotos.length;
+    if (activityPhotoCap != null && totalActPhotos > activityPhotoCap) {
+      showAlert({
+        title: 'Photo limit reached',
+        message: `This activity can have at most ${activityPhotoCap} photos.`,
+      });
+      return;
+    }
     setIsSubmitting(true);
     try {
       const timeHr = actTime ? actTime.getHours() : (actHour !== '' ? parseInt(actHour, 10) : null);
@@ -1246,15 +1353,24 @@ export default function TripDetailScreen({ route, navigation }: any) {
           location: actLocation || undefined,
         });
         const { hour: updH, minute: updM } = parseActivityTime(res.activity.time);
+        const updatedTitle = res.activity.title;
         setActivities(p => p.map(a => a.id === editingActivityId ? {
           ...a,
-          title: res.activity.title,
+          title: updatedTitle,
           date: res.activity.date ?? '',
           hour: updH,
           minute: updM,
           location: res.activity.location,
           description: res.activity.description,
+          photoCount: actExistingPhotos.length + actNewPhotos.length,
         } : a));
+        if (actNewPhotos.length > 0) {
+          await uploadNewActivityPhotos(editingActivityId, updatedTitle, actNewPhotos);
+          setActivities(p => p.map(a => a.id === editingActivityId
+            ? { ...a, photoCount: actExistingPhotos.length + actNewPhotos.length }
+            : a));
+        }
+        await refreshMediaFromServer();
       } else {
         const res = await createActivity(tripId, {
           title: actTitle.trim(),
@@ -1278,21 +1394,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
           createdBy: a.createdBy,
           linkedExpense: (a as any).linkedExpense ?? null,
         }]);
-        if (actPhotos.length > 0) {
-          const assets = actPhotos.map((uri, i) => ({ uri, name: `photo_${i}.jpg`, type: 'image/jpeg' }));
-          const photoRes = await uploadActivityPhotos(tripId, a.id, assets).catch(() => null);
-          if (photoRes?.photos?.length) {
-            const newItems = photoRes.photos.map((ph, i) => ({
-              ...mapApiPhoto(ph, assets[i]?.uri),
-              activityId: a.id,
-              activityTitle: a.title,
-            }));
-            media.setItems((prev) => {
-              const without = prev.filter((e) => !newItems.find((n) => n.id === e.id));
-              return [...without, ...newItems];
-            });
-          }
+        if (actNewPhotos.length > 0) {
+          await uploadNewActivityPhotos(a.id, a.title, actNewPhotos);
+          setActivities(p => p.map(item => item.id === a.id
+            ? { ...item, photoCount: actNewPhotos.length }
+            : item));
         }
+        await refreshMediaFromServer();
       }
       resetActForm();
       setShowAddAct(false);
@@ -1303,7 +1411,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     }
   }
 
-  function startEditActivity(act: Activity) {
+  async function startEditActivity(act: Activity) {
     setActTitle(act.title);
     setActDate((act as any).date ? new Date((act as any).date) : undefined);
     setActHour((act as any).hour ?? '');
@@ -1311,8 +1419,47 @@ export default function TripDetailScreen({ route, navigation }: any) {
     setActLocation(act.location || '');
     setActDesc(act.description || '');
     setEditingActivityId(act.id);
+    setActExistingPhotos([]);
+    setActNewPhotos([]);
     setShowHourDrop(false); setShowMinDrop(false); setShowActExp(false);
     setShowAddAct(true);
+
+    setActPhotosLoading(true);
+    try {
+      const fromMedia = media.items
+        .filter((p) => p.activityId === act.id && !p.id.startsWith('temp_'))
+        .map((p) => ({ id: p.id, uri: p.localUri || p.uri }));
+      if (fromMedia.length > 0) {
+        setActExistingPhotos(fromMedia);
+      } else {
+        const res = await getActivityPhotos(tripId, act.id);
+        setActExistingPhotos(
+          res.photos.map((p) => ({
+            id: p.id,
+            uri: p.url ?? p.fileUrl ?? '',
+          })),
+        );
+      }
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setActPhotosLoading(false);
+    }
+  }
+
+  async function handleRemoveExistingActPhoto(photoId: string) {
+    if (!editingActivityId) return;
+    try {
+      await deleteActivityPhoto(tripId, editingActivityId, photoId);
+      const nextExisting = actExistingPhotos.filter((ph) => ph.id !== photoId);
+      setActExistingPhotos(nextExisting);
+      setActivities((acts) => acts.map((a) => a.id === editingActivityId
+        ? { ...a, photoCount: nextExisting.length + actNewPhotos.length }
+        : a));
+      media.setItems((prev) => prev.filter((p) => p.id !== photoId));
+    } catch (err) {
+      handleApiError(err);
+    }
   }
 
   async function handleDeleteActivity(actId: string) {
@@ -1324,6 +1471,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         try {
           await deleteActivity(tripId, actId);
           setActivities(p => p.filter(a => a.id !== actId));
+          media.setItems((prev) => prev.filter((p) => p.activityId !== actId));
         } catch (err) { handleApiError(err); }
       },
     });
@@ -2121,27 +2269,59 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <TextInput style={[styles.fInput, { height: 76, textAlignVertical: 'top', paddingTop: 10 }]} placeholder="Add any additional details..." placeholderTextColor="#94a3b8" value={actDesc} onChangeText={setActDesc} multiline />
 
                   <View style={styles.actExtraRow}>
-                    <Text style={styles.actExtraLabel}>Photos (Max {uploadLimits.tripActivityPhoto.maxFilesTotal})</Text>
-                    {actPhotos.length < (uploadLimits.tripActivityPhoto.maxFilesTotal ?? 5) && (
-                      <TouchableOpacity onPress={() => {
-                        const activityMax = uploadLimits.tripActivityPhoto.maxFilesTotal ?? 5;
-                        launchImageLibrary({ mediaType: 'photo', selectionLimit: activityMax - actPhotos.length }, res => {
-                          if (res.didCancel || res.errorCode) return;
-                          const uris = (res.assets || []).map(a => a.uri || '').filter(Boolean);
-                          setActPhotos(p => [...p, ...uris].slice(0, activityMax));
-                        });
-                      }} activeOpacity={0.7}><Text style={styles.actExtraBtn}>+ Add Photos</Text></TouchableOpacity>
+                    <Text style={styles.actExtraLabel}>{actPhotoUi.label}</Text>
+                    {actPhotoUi.canAdd && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          launchImageLibrary(
+                            { mediaType: 'photo', selectionLimit: actPhotoUi.selectionLimit },
+                            (res) => {
+                              if (res.didCancel || res.errorCode) return;
+                              const uris = (res.assets || []).map((a) => a.uri || '').filter(Boolean);
+                              if (!uris.length) return;
+                              setActNewPhotos((p) => {
+                                const cap = activityPhotoCap ?? Number.MAX_SAFE_INTEGER;
+                                const room = cap - actExistingPhotos.length - p.length;
+                                return [...p, ...uris.slice(0, Math.max(0, room))];
+                              });
+                            },
+                          );
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.actExtraBtn}>
+                          + Add{actPhotoUi.remaining > 0 ? ` (${actPhotoUi.remaining} left)` : ''}
+                        </Text>
+                      </TouchableOpacity>
                     )}
                   </View>
-                  {actPhotos.length > 0 && (
+                  {actPhotosLoading && (
+                    <ActivityIndicator size="small" color="#0d9488" style={{ marginBottom: 8 }} />
+                  )}
+                  {(actExistingPhotos.length > 0 || actNewPhotos.length > 0) && (
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                      {actPhotos.map((uri, i) => (
-                        <View key={i} style={{ position: 'relative' }}>
+                      {actExistingPhotos.map((photo) => (
+                        <View key={photo.id} style={{ position: 'relative' }}>
+                          <CachedImage uri={photo.uri} style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#e2e8f0' }} resizeMode="cover" />
+                          {editingActivityId && (
+                            <TouchableOpacity
+                              onPress={() => handleRemoveExistingActPhoto(photo.id)}
+                              style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center' }}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>×</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ))}
+                      {actNewPhotos.map((uri, i) => (
+                        <View key={`new-${uri}-${i}`} style={{ position: 'relative' }}>
                           <CachedImage uri={uri} style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#e2e8f0' }} resizeMode="cover" />
                           <TouchableOpacity
-                            onPress={() => setActPhotos(p => p.filter((_, j) => j !== i))}
+                            onPress={() => setActNewPhotos((p) => p.filter((_, j) => j !== i))}
                             style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: 9, backgroundColor: '#ef4444', alignItems: 'center', justifyContent: 'center' }}
-                            activeOpacity={0.7}>
+                            activeOpacity={0.7}
+                          >
                             <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>×</Text>
                           </TouchableOpacity>
                         </View>
@@ -2452,6 +2632,15 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       : 'No compatible files found in your Drive root.'}
                   </Text>
                 </View>
+              ) : drivePickerTarget === 'photos' ? (
+                <DrivePhotoPickerGrid
+                  files={driveFiles}
+                  selectedIds={selectedDriveFileIds}
+                  maxSelectable={drivePhotoSelectLimit}
+                  onToggle={(fileId) => setSelectedDriveFileIds((prev) => (
+                    toggleDriveFileSelection(prev, fileId, drivePhotoSelectLimit)
+                  ))}
+                />
               ) : (
                 <FlatList
                   data={driveFiles}
@@ -2461,7 +2650,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <DrivePickerRow
                       file={item}
                       selected={selectedDriveFileIds.has(item.fileId)}
-                      showThumbnail={drivePickerTarget === 'photos'}
                       onToggle={() => setSelectedDriveFileIds((prev) => {
                         const n = new Set(prev);
                         if (n.has(item.fileId)) n.delete(item.fileId);
@@ -2481,7 +2669,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     activeOpacity={0.85}>
                     {driveImporting
                       ? <ActivityIndicator color="#fff" />
-                      : <Text style={styles.tealBtnTxt}>Import</Text>}
+                      : <Text style={styles.tealBtnTxt}>
+                          {selectedDriveFileIds.size > 0 ? `Import (${selectedDriveFileIds.size})` : 'Import'}
+                        </Text>}
                   </TouchableOpacity>
                 </View>
               )}
@@ -2684,7 +2874,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                           <TextInput style={[styles.fInput, { flex: 1 }]} placeholder="0.00" placeholderTextColor="#94a3b8" value={expAmount} onChangeText={setExpAmount} keyboardType="numeric" />
                           <TouchableOpacity style={[styles.fInputTouch, { minWidth: 64, justifyContent: 'center' }]} onPress={() => { setShowExpCurrencyDrop(p => !p); setShowExpCatDrop(false); setShowPaidByDrop(false); }} activeOpacity={0.8}>
-                            <Text style={{ fontSize: 13, color: '#0f172a', fontWeight: '500' }}>{expCurrency}</Text>
+                            <Text style={{ fontSize: 13, color: '#0f172a', fontWeight: '400' }}>{expCurrency}</Text>
                           </TouchableOpacity>
                         </View>
                         <CurrencyPickerDropdown
@@ -2788,8 +2978,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
                           <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                         </Svg>
-                        <Text style={styles.emptyTitle}>No expenses tracked yet</Text>
-                        <Text style={styles.emptySub}>Start adding expenses to split with your group</Text>
+                        <Text style={styles.emptyTitle}>No expenses yet</Text>
+                        <Text style={styles.emptySub}>Add your first expense to start splitting costs</Text>
                       </View>
                     ) : (
                       <View style={{ marginTop: 12 }}>
@@ -2903,13 +3093,15 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           myBalances={myBalances}
                         />
                         {balances.length === 0 ? (
-                          <View style={styles.emptyCenter}>
-                            <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
-                              <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
-                            </Svg>
-                            <Text style={styles.emptyTitle}>All settled up!</Text>
-                            <Text style={styles.emptySub}>No outstanding balances</Text>
-                          </View>
+                          hasRecordedGroupExpenses(totalExpensesByCurrency) || expenses.length > 0 ? (
+                            <View style={styles.emptyCenter}>
+                              <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
+                                <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                              </Svg>
+                              <Text style={styles.emptyTitle}>All settled up!</Text>
+                              <Text style={styles.emptySub}>No one owes anyone right now</Text>
+                            </View>
+                          ) : null
                         ) : (
                           <OutstandingDebtsList
                             debts={balances}
@@ -3389,7 +3581,7 @@ const styles = StyleSheet.create({
   // Expenses
   expRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   expIconBox: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
-  expName: { fontSize: 12, fontWeight: '500', color: '#0f172a', marginBottom: 2 },
+  expName: { fontSize: 13, fontWeight: '500', color: '#0f172a', marginBottom: 2 },
   expMeta: { fontSize: 11, color: '#94a3b8', marginBottom: 1 },
   expAmt: { fontSize: 13, fontWeight: '500', color: '#0f172a', marginBottom: 2 },
   dropdown: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, overflow: 'hidden', marginTop: 4 },

@@ -21,7 +21,7 @@ import {
   handleApiError,
 } from '../../api/trips.api';
 import { getArchivedEvents, unarchiveEvent, deleteEvent } from '../../api/events.api';
-import { getArchivedUserGallery, unarchiveGalleryItem } from '../../api/ai.api';
+import { getArchivedUserGallery } from '../../api/ai.api';
 import { unarchiveGalleryAlbum, deleteGalleryAlbum } from '../../api/gallery.api';
 import { showConfirm } from '../../store/alertStore';
 import { formatLocationsLabel } from '../../utils/locations';
@@ -149,23 +149,6 @@ export default function ArchivedScreen() {
         };
       }));
 
-      const apiGallery: ArchivedGalleryItem[] = [
-        ...(galleryRes.trips ?? []).map((t: any) => ({
-          id: t.id,
-          name: t.name,
-          type: 'trip' as const,
-          bannerImageUrl: t.bannerImageUrl,
-          location: t.location,
-        })),
-        ...(galleryRes.events ?? []).map((e: any) => ({
-          id: e.id,
-          name: e.name,
-          type: 'event' as const,
-          bannerImageUrl: e.bannerImageUrl,
-          location: e.location,
-        })),
-      ];
-
       const customArchived: ArchivedGalleryItem[] = [
         ...(galleryRes.customAlbums?.trip ?? []).map((a: any) => ({
           id: a.id,
@@ -183,7 +166,7 @@ export default function ArchivedScreen() {
         })),
       ];
 
-      setGalleryItems([...apiGallery, ...customArchived]);
+      setGalleryItems(customArchived);
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -287,13 +270,9 @@ export default function ArchivedScreen() {
       confirmText: 'Restore',
       onConfirm: async () => {
         try {
-          if (item.isCustom) {
-            await unarchiveGalleryAlbum(item.id);
-          } else {
-            await unarchiveGalleryItem(item.type, item.id);
-          }
+          await unarchiveGalleryAlbum(item.id);
           toast('Restored', `"${item.name}" is back in your gallery.`);
-          setGalleryItems((p) => p.filter((g) => !(g.id === item.id && !!g.isCustom === !!item.isCustom)));
+          setGalleryItems((p) => p.filter((g) => g.id !== item.id));
         } catch (err) {
           handleApiError(err);
         }
@@ -303,10 +282,6 @@ export default function ArchivedScreen() {
 
   function handleDeleteGalleryItem(item: ArchivedGalleryItem) {
     setOpenMenuId(null);
-    if (!item.isCustom) {
-      toast('Info', 'Remove trip/event albums from the Trips or Events sections below.');
-      return;
-    }
     showConfirm({
       title: 'Delete album',
       message: `Permanently delete "${item.name}"? This cannot be undone.`,
@@ -349,7 +324,7 @@ export default function ArchivedScreen() {
               />
             </Svg>
             <Text style={styles.emptyTitle}>No archived items</Text>
-            <Text style={styles.emptySub}>Archived trips, events, and gallery albums will appear here</Text>
+            <Text style={styles.emptySub}>Archived trips, events, and custom gallery albums will appear here</Text>
           </View>
         ) : (
           <ScrollView
@@ -430,7 +405,7 @@ export default function ArchivedScreen() {
                           )}
                           <View style={styles.galleryCardOverlay}>
                             <Text style={styles.galleryCardTitle} numberOfLines={1}>{item.name}</Text>
-                            <Text style={styles.galleryCardMeta}>{item.isCustom ? 'Custom album' : item.type === 'trip' ? 'Trip album' : 'Event album'}</Text>
+                            <Text style={styles.galleryCardMeta}>Custom album</Text>
                           </View>
                         </TouchableOpacity>
                         {openMenuId === menuKey && (
@@ -438,14 +413,10 @@ export default function ArchivedScreen() {
                             <TouchableOpacity style={styles.galleryMenuItem} onPress={() => handleRestoreGalleryItem(item)} activeOpacity={0.7}>
                               <Text style={styles.galleryMenuItemText}>Restore</Text>
                             </TouchableOpacity>
-                            {item.isCustom && (
-                              <>
-                                <View style={styles.galleryMenuDivider} />
-                                <TouchableOpacity style={styles.galleryMenuItem} onPress={() => handleDeleteGalleryItem(item)} activeOpacity={0.7}>
-                                  <Text style={[styles.galleryMenuItemText, { color: '#ef4444' }]}>Delete</Text>
-                                </TouchableOpacity>
-                              </>
-                            )}
+                            <View style={styles.galleryMenuDivider} />
+                            <TouchableOpacity style={styles.galleryMenuItem} onPress={() => handleDeleteGalleryItem(item)} activeOpacity={0.7}>
+                              <Text style={[styles.galleryMenuItemText, { color: '#ef4444' }]}>Delete</Text>
+                            </TouchableOpacity>
                           </View>
                         )}
                       </View>

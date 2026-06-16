@@ -3,7 +3,6 @@ const rateLimit = require('express-rate-limit');
 
 const authenticateJWT = require('../../middleware/authenticate');
 const tripMemberMW = require('../../middleware/tripMember.middleware');
-const tripAdminMW = require('../../middleware/tripAdmin.middleware');
 const validate = require('../../middleware/validate');
 const { docUpload, photoUpload, activityPhotoUpload, tripFilesUpload, handleMulterError } = require('../../middleware/upload.middleware');
 const { limits } = require('../../config/uploadLimits');
@@ -77,11 +76,11 @@ router.post(
 );
 router.get('/', validators.getTripsQuery, validate, tripsController.getTrips);
 router.get('/:id', validators.tripIdParam, validate, tripMemberMW, tripsController.getTripById);
-router.put('/:id', validators.updateTripValidation, validate, tripMemberMW, tripAdminMW, tripsController.updateTrip);
-router.post('/:id/confirm', validators.tripIdParam, validate, tripMemberMW, tripAdminMW, tripsController.confirmTrip);
-router.post('/:id/archive', validators.tripIdParam, validate, tripMemberMW, tripAdminMW, tripsController.archiveTrip);
-router.post('/:id/unarchive', validators.tripIdParam, validate, tripMemberMW, tripAdminMW, tripsController.unarchiveTrip);
-router.delete('/:id', validators.tripIdParam, validate, tripMemberMW, tripAdminMW, tripsController.deleteTrip);
+router.put('/:id', validators.updateTripValidation, validate, tripMemberMW, tripsController.updateTrip);
+router.post('/:id/confirm', validators.tripIdParam, validate, tripMemberMW, tripsController.confirmTrip);
+router.post('/:id/archive', validators.tripIdParam, validate, tripMemberMW, tripsController.archiveTrip);
+router.post('/:id/unarchive', validators.tripIdParam, validate, tripMemberMW, tripsController.unarchiveTrip);
+router.delete('/:id', validators.tripIdParam, validate, tripMemberMW, tripsController.deleteTrip);
 
 // ─── Invites ──────────────────────────────────────────────────────────────────
 router.post(
@@ -128,7 +127,7 @@ router.delete('/:id/docs/:docId', tripMemberMW, docsCtrl.deleteDoc);
 
 // ─── Members ──────────────────────────────────────────────────────────────────
 router.get('/:id/members', tripMemberMW, membersCtrl.getMembers);
-router.delete('/:id/members/:userId', tripMemberMW, tripAdminMW, membersCtrl.removeMember);
+router.delete('/:id/members/:userId', tripMemberMW, membersCtrl.removeMember);
 
 // ─── Photos ───────────────────────────────────────────────────────────────────
 router.get('/:id/photos', tripMemberMW, photosCtrl.getPhotos);

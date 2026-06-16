@@ -56,7 +56,7 @@ type AlbumPhotosHeroCarouselProps<T extends AlbumHeroPhoto> = {
   heroIndex: number;
   onIndexChange: (index: number) => void;
   heroRef?: React.RefObject<FlatList<T> | null>;
-  renderPhoto: (photo: T) => React.ReactNode;
+  renderPhoto: (photo: T, index: number) => React.ReactNode;
   loading?: boolean;
   emptyLabel?: string;
   scrollEnabled?: boolean;
@@ -97,7 +97,7 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
     : [styles.heroSlot, galleryChrome && styles.heroSlotGallery];
 
   const renderHeroPhoto = (item: T, index: number) => {
-    const photo = renderPhoto(item);
+    const photo = renderPhoto(item, index);
     if (!rounded) {
       return (
         <TouchableOpacity
@@ -118,9 +118,13 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
         onPress={() => onPhotoPress?.(index)}
         disabled={!onPhotoPress}
       >
-        <View style={styles.heroFrameOuter}>
-          <View style={styles.heroFrameInner}>{photo}</View>
-        </View>
+        {galleryChrome ? (
+          <View style={styles.heroFrameGallery}>{photo}</View>
+        ) : (
+          <View style={styles.heroFrameOuter}>
+            <View style={styles.heroFrameInner}>{photo}</View>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -172,8 +176,20 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
       ) : null}
 
       {activityLabel?.trim() ? (
-        <View style={[styles.activityStrip, rounded && styles.activityStripRounded]} pointerEvents="none">
-          <Text style={styles.activityStripText} numberOfLines={1}>{activityLabel}</Text>
+        <View
+          style={[
+            styles.activityStrip,
+            rounded && styles.activityStripRounded,
+            galleryChrome && styles.activityStripGallery,
+          ]}
+          pointerEvents="none"
+        >
+          <Text
+            style={[styles.activityStripText, galleryChrome && styles.activityStripTextGallery]}
+            numberOfLines={1}
+          >
+            {activityLabel}
+          </Text>
         </View>
       ) : null}
 
@@ -216,6 +232,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 3,
+  },
+  heroFrameGallery: {
+    flex: 1,
+    borderRadius: ALBUM_HERO_RADIUS,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
   },
   heroFrameInner: {
     flex: 1,
@@ -313,6 +335,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15,23,42,0.42)',
     zIndex: 8,
   },
+  activityStripGallery: {
+    backgroundColor: 'transparent',
+  },
   activityStripRounded: {
     left: ALBUM_HERO_H_PAD,
     right: ALBUM_HERO_H_PAD,
@@ -321,9 +346,14 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: ALBUM_HERO_RADIUS,
   },
   activityStripText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: '#fff',
     letterSpacing: 0.1,
+  },
+  activityStripTextGallery: {
+    textShadowColor: 'rgba(0,0,0,0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 });
