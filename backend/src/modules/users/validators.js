@@ -121,9 +121,9 @@ const galleryCommentIdParam = [
 
 const galleryCommentBody = [
   body('text')
-    .isLength({ min: 1, max: 20 })
+    .isLength({ min: 1, max: 30 })
     .trim()
-    .withMessage('Comment must be 1–20 characters'),
+    .withMessage('Comment must be 1–30 characters'),
 ];
 
 const galleryOwnerIdQuery = [
