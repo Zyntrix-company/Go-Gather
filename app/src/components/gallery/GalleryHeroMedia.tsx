@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ActivityIndicator, PanResponder, TouchableOpacity,
+  View, Text, StyleSheet, ActivityIndicator, PanResponder, TouchableOpacity, Animated,
 } from 'react-native';
 import Video, { type OnLoadData, type OnProgressData, type VideoRef } from 'react-native-video';
 import { Play, Pause, Volume2, VolumeX } from 'lucide-react-native';
@@ -42,6 +42,30 @@ export default function GalleryHeroMedia({ photo, active = true }: GalleryHeroMe
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const seekTrackWidthRef = useRef(0);
+  const controlsAnim = useRef(new Animated.Value(0)).current;
+  const [controlsVisible, setControlsVisible] = useState(false);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const hideControls = useCallback(() => {
+    Animated.timing(controlsAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
+      setControlsVisible(false);
+    });
+  }, [controlsAnim]);
+
+  const showControls = useCallback((isPaused: boolean) => {
+    setControlsVisible(true);
+    Animated.timing(controlsAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    if (!isPaused) {
+      hideTimerRef.current = setTimeout(hideControls, 3000);
+    } else {
+      hideTimerRef.current = null;
+    }
+  }, [controlsAnim, hideControls]);
+
+  React.useEffect(() => () => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+  }, []);
 
   const uri = (photo.localUri && !localUriFailed) ? photo.localUri : photo.uri;
   const isVideo = inferIsVideo(uri, photo.mimeType);
@@ -100,9 +124,10 @@ export default function GalleryHeroMedia({ photo, active = true }: GalleryHeroMe
             onLoad={(d: OnLoadData) => {
               setDuration(d.duration);
               setLoading(false);
+              showControls(!active);
             }}
             onProgress={(d: OnProgressData) => setCurrentTime(d.currentTime)}
-            onEnd={() => setPaused(true)}
+            onEnd={() => { setPaused(true); showControls(true); }}
             onError={() => {
               if (photo.localUri && !localUriFailed) {
                 setLocalUriFailed(true);
@@ -118,27 +143,37 @@ export default function GalleryHeroMedia({ photo, active = true }: GalleryHeroMe
             </View>
           )}
           {!loading && (
-            <View style={styles.videoControls} pointerEvents="box-none">
-              <TouchableOpacity onPress={() => setPaused((p) => !p)} hitSlop={8} activeOpacity={0.8}>
-                {paused
-                  ? <Play size={18} color="#fff" fill="#fff" />
-                  : <Pause size={18} color="#fff" fill="#fff" />}
-              </TouchableOpacity>
-              <Text style={styles.timeText}>{formatVideoTime(currentTime)}</Text>
-              <View
-                style={styles.seekTrackHit}
-                onLayout={(e) => { seekTrackWidthRef.current = e.nativeEvent.layout.width; }}
-                {...seekPanResponder.panHandlers}
+            <>
+              <TouchableOpacity
+                style={StyleSheet.absoluteFillObject}
+                onPress={() => showControls(paused)}
+                activeOpacity={1}
+              />
+              <Animated.View
+                style={[styles.videoControls, { opacity: controlsAnim }]}
+                pointerEvents={controlsVisible ? 'box-none' : 'none'}
               >
-                <View style={styles.seekTrack}>
-                  <View style={[styles.seekFill, { width: `${progressPct}%` }]} pointerEvents="none" />
+                <TouchableOpacity onPress={() => { const willPause = !paused; setPaused(willPause); showControls(willPause); }} hitSlop={8} activeOpacity={0.8}>
+                  {paused
+                    ? <Play size={18} color="#fff" fill="#fff" />
+                    : <Pause size={18} color="#fff" fill="#fff" />}
+                </TouchableOpacity>
+                <Text style={styles.timeText}>{formatVideoTime(currentTime)}</Text>
+                <View
+                  style={styles.seekTrackHit}
+                  onLayout={(e) => { seekTrackWidthRef.current = e.nativeEvent.layout.width; }}
+                  {...seekPanResponder.panHandlers}
+                >
+                  <View style={styles.seekTrack}>
+                    <View style={[styles.seekFill, { width: `${progressPct}%` }]} pointerEvents="none" />
+                  </View>
                 </View>
-              </View>
-              <Text style={styles.timeText}>{formatVideoTime(duration)}</Text>
-              <TouchableOpacity onPress={() => setMuted((m) => !m)} hitSlop={8} activeOpacity={0.8}>
-                {muted ? <VolumeX size={17} color="#fff" /> : <Volume2 size={17} color="#fff" />}
-              </TouchableOpacity>
-            </View>
+                <Text style={styles.timeText}>{formatVideoTime(duration)}</Text>
+                <TouchableOpacity onPress={() => { setMuted((m) => !m); showControls(paused); }} hitSlop={8} activeOpacity={0.8}>
+                  {muted ? <VolumeX size={17} color="#fff" /> : <Volume2 size={17} color="#fff" />}
+                </TouchableOpacity>
+              </Animated.View>
+            </>
           )}
         </>
       ) : (
@@ -146,7 +181,7 @@ export default function GalleryHeroMedia({ photo, active = true }: GalleryHeroMe
           <CachedImage
             uri={uri}
             style={styles.media}
-            resizeMode="contain"
+            resizeMode="cover"
             onLoad={() => setLoading(false)}
             onError={() => {
               if (photo.localUri && !localUriFailed) {
@@ -170,9 +205,8 @@ export default function GalleryHeroMedia({ photo, active = true }: GalleryHeroMe
 
 const styles = StyleSheet.create({
   frame: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
     backgroundColor: 'transparent',
     borderRadius: ALBUM_HERO_RADIUS,
     overflow: 'hidden',

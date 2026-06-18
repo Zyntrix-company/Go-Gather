@@ -11,8 +11,8 @@ export const ALBUM_THUMB_H = 50;
 /** Fixed hero height inside trip/event photos dialog. */
 export const ALBUM_DIALOG_HERO_H = 248;
 
-/** Rounded hero frame in photos dialog. */
-export const ALBUM_HERO_RADIUS = 16;
+/** Rounded hero frame in photos dialog and gallery album hero. */
+export const ALBUM_HERO_RADIUS = 18;
 export const ALBUM_HERO_H_PAD = 16;
 
 /** Square hero content width for full-screen gallery album detail (static fallback). */
@@ -21,9 +21,12 @@ export const GALLERY_ALBUM_HERO_CONTENT = Math.min(SCREEN_W - ALBUM_HERO_H_PAD *
 export const GALLERY_ALBUM_HERO_H = GALLERY_ALBUM_HERO_CONTENT + 10;
 
 /** Gallery viewport layout — comment list and hero sizing. */
+export const GALLERY_COMMENT_MAX = 30;
 export const GALLERY_COMMENT_ROW_H = 58;
+export const GALLERY_ALBUM_DESCRIPTION_MAX = 80;
+export const GALLERY_ALBUM_DESCRIPTION_PLACEHOLDER = 'Add a short caption for this album…';
 export const GALLERY_MAX_VISIBLE_COMMENTS = 3;
-export const GALLERY_HERO_CONTENT_MAX = 300;
+export const GALLERY_HERO_CONTENT_MAX = 320;
 export const GALLERY_HERO_CONTENT_MIN = 200;
 export const GALLERY_HERO_SLIDE_V_PAD = 10;
 
@@ -31,7 +34,7 @@ export const GALLERY_HERO_SLIDE_V_PAD = 10;
 export const GALLERY_CHROME = {
   appHeader: 56,
   subHeader: 40,
-  subHeaderEdit: 72,
+  subHeaderEdit: 48,
   thumbStrip: 58,
   description: 36,
   travelers: 48,

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Modal, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import AppModal from '../common/AppModal';
 import DetailDialogHeader from '../details/DetailDialogHeader';
 import {
   AlbumPhotosOverlayContext,
@@ -43,7 +44,7 @@ export default function AlbumPhotosDialogLayout({
   const [contentWidth, setContentWidth] = useState(0);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={[styles.dialog, { maxHeight }]}>
           <DetailDialogHeader
@@ -67,7 +68,7 @@ export default function AlbumPhotosDialogLayout({
           </View>
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

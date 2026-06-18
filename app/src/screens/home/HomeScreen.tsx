@@ -522,7 +522,7 @@ function mapApiTrip(t: any): Trip {
     bannerImageUrl: t.bannerImageUrl ?? null,
     bannerCropFraction: t.bannerCropFraction ?? null,
     members: (t.memberAvatars || []).slice(0, 2).map((av: any, idx: number) => {
-      const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
+      const rawUri = typeof av === 'string' ? av : (av.uri ?? av.avatarUrl ?? '');
       const memberId = typeof av === 'string' ? undefined : (av.id != null ? String(av.id) : undefined);
       const state = useAuthStore.getState();
       const user = state.user;
@@ -1321,7 +1321,7 @@ export default function HomeScreen({ navigation, route }: any) {
             const locName = formatLocationsLabel(ev);
             const rawAvatars: any[] = (ev.memberAvatars || []).slice(0, 2);
             const avatars: { id: string; uri: string }[] = rawAvatars.map((av: any, i: number) => {
-              const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
+              const rawUri = typeof av === 'string' ? av : (av.uri ?? av.avatarUrl ?? '');
               const memberId = typeof av === 'string' ? undefined : (av.id != null ? String(av.id) : undefined);
               const state = useAuthStore.getState();
               const user = state.user;

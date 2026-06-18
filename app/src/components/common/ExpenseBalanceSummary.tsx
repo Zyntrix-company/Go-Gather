@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { formatCurrencyFull, formatSignedCurrencyFull } from '../../utils/currency';
 import { typeStyle } from '../../theme/typography';
 
@@ -43,9 +44,17 @@ export default function ExpenseBalanceSummary({ totalExpensesByCurrency, myBalan
   if (totalRows.length === 0 && !hasBalanceBlocks) {
     return (
       <View style={styles.emptyWrap}>
-        <Text style={styles.cardTitle}>Total</Text>
+        <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6"
+            stroke="#cbd5e1"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
         <Text style={styles.emptyLine}>No expenses yet</Text>
-        <Text style={styles.emptySubLine}>Balances will show up once you add expenses</Text>
+        <Text style={styles.emptySubLine}>Add expenses to see totals and breakdowns here</Text>
       </View>
     );
   }
@@ -118,8 +127,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   emptyWrap: {
+    alignItems: 'center',
+    paddingVertical: 28,
     marginBottom: 18,
-    padding: 12,
   },
   card: {
     flex: 1,
@@ -168,11 +178,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#64748b',
     marginTop: 4,
+    textAlign: 'center',
   },
   emptySubLine: {
     fontSize: 12,
     color: '#94a3b8',
     marginTop: 4,
+    textAlign: 'center',
   },
   textPositive: {
     color: '#16a34a',

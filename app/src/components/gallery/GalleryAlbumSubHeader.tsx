@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
-import { Pen, Archive, Upload } from 'lucide-react-native';
+import { Pen, Archive, Trash2, Upload } from 'lucide-react-native';
 import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
 
 const BackIcon = () => (
@@ -23,12 +23,11 @@ type GalleryAlbumSubHeaderProps = {
   editMode?: boolean;
   viewOnly?: boolean;
   nameDraft?: string;
-  subtitleDraft?: string;
   onNameChange?: (v: string) => void;
-  onSubtitleChange?: (v: string) => void;
   onBack: () => void;
   onEdit?: () => void;
   onArchive?: () => void;
+  onDelete?: () => void;
   onUpload?: () => void;
   onDoneEdit?: () => void;
   saving?: boolean;
@@ -40,12 +39,11 @@ export default function GalleryAlbumSubHeader({
   editMode = false,
   viewOnly = false,
   nameDraft = '',
-  subtitleDraft = '',
   onNameChange,
-  onSubtitleChange,
   onBack,
   onEdit,
   onArchive,
+  onDelete,
   onUpload,
   onDoneEdit,
   saving = false,
@@ -63,17 +61,8 @@ export default function GalleryAlbumSubHeader({
               value={nameDraft}
               onChangeText={onNameChange}
               style={styles.titleInput}
-              placeholder="Trip name"
+              placeholder="Name"
               placeholderTextColor="#94a3b8"
-              returnKeyType="next"
-            />
-            <TextInput
-              value={subtitleDraft}
-              onChangeText={onSubtitleChange}
-              style={styles.subtitleInput}
-              placeholder="Description…"
-              placeholderTextColor="#94a3b8"
-              maxLength={80}
               returnKeyType="done"
               onSubmitEditing={onDoneEdit}
             />
@@ -109,6 +98,11 @@ export default function GalleryAlbumSubHeader({
                   <Archive size={15} color="#64748b" />
                 </TouchableOpacity>
               ) : null}
+              {onDelete ? (
+                <TouchableOpacity onPress={onDelete} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                  <Trash2 size={15} color="#ef4444" />
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity onPress={onUpload} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
                 <Upload size={15} color="#0d9488" />
               </TouchableOpacity>
@@ -125,7 +119,7 @@ export default function GalleryAlbumSubHeader({
 const styles = StyleSheet.create({
   wrap: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     paddingHorizontal: 14,
     paddingTop: 2,
     paddingBottom: 6,
@@ -135,7 +129,6 @@ const styles = StyleSheet.create({
   center: {
     flex: 1,
     minWidth: 0,
-    paddingTop: 2,
   },
   title: {
     fontSize: 16,
@@ -147,19 +140,10 @@ const styles = StyleSheet.create({
   titleInput: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0f172a',
-    backgroundColor: 'rgba(255,255,255,0.55)',
+    color: '#0d9488',
+    backgroundColor: 'transparent',
     borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: 4,
-  },
-  subtitleInput: {
-    fontSize: 13,
-    color: '#0f172a',
-    backgroundColor: 'rgba(255,255,255,0.55)',
-    borderRadius: 8,
-    paddingHorizontal: 10,
+    paddingHorizontal: 0,
     paddingVertical: 6,
   },
   locationRow: {

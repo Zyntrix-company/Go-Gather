@@ -55,7 +55,8 @@ export default function MediaThumbnail({
   imagePointerEvents = 'auto',
 }: MediaThumbnailProps) {
   const uri = item.localUri || item.uri;
-  const isVideo = isVideoMime(item.mimeType);
+  const isVideo = isVideoMime(item.mimeType)
+    || !!uri?.match(/\.(mp4|mov|mkv|webm|avi|3gp)(\?.*)?$/i);
   const isBanner = !!bannerImageUrl && (uri === bannerImageUrl || item.uri === bannerImageUrl);
 
   return (
@@ -75,16 +76,17 @@ export default function MediaThumbnail({
         isActive && styles.active,
       ]}
     >
-      <CachedImage
-        uri={uri}
-        style={styles.image}
-        resizeMode="cover"
-        pointerEvents={imagePointerEvents}
-      />
-      {isVideo && (
-        <View style={styles.playOverlay} pointerEvents="none">
+      {isVideo ? (
+        <View style={styles.videoPlaceholder} pointerEvents="none">
           <PlayIcon />
         </View>
+      ) : (
+        <CachedImage
+          uri={uri}
+          style={styles.image}
+          resizeMode="cover"
+          pointerEvents={imagePointerEvents}
+        />
       )}
       {isBanner && <View style={styles.bannerDot} pointerEvents="none" />}
       {deleting && (
@@ -111,11 +113,11 @@ const styles = StyleSheet.create({
     opacity: 0.92,
     transform: [{ scale: 1.03 }],
   },
-  playOverlay: {
+  videoPlaceholder: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.15)',
+    backgroundColor: '#1e293b',
   },
   playCircle: {
     alignItems: 'center',

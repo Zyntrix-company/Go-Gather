@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   },
   btnLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#334155',
     textAlign: 'center',
   },

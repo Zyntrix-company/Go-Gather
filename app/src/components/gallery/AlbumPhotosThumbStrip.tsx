@@ -10,7 +10,9 @@ import {
   ListRenderItemInfo,
 } from 'react-native';
 import FastImage from '@d11/react-native-fast-image';
+import Svg, { Path, Circle } from 'react-native-svg';
 import CachedImage from '../common/CachedImage';
+import { isVideoMime } from '../../api/uploadLimits.api';
 import { ALBUM_THUMB_H, ALBUM_THUMB_W, albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
 
 /** Thumb width + trailing gap — one snap slot per thumbnail. */
@@ -19,7 +21,7 @@ const THUMB_SLOT = ALBUM_THUMB_W + THUMB_GAP;
 const THUMB_INNER_W = ALBUM_THUMB_W - 4;
 const THUMB_INNER_H = ALBUM_THUMB_H - 4;
 
-type ThumbPhoto = { id: string; uri?: string; localUri?: string };
+type ThumbPhoto = { id: string; uri?: string; localUri?: string; mimeType?: string | null };
 
 /** Left inset for the thumb strip — thumbs start from the left edge. */
 const STRIP_H_PAD = 12;
@@ -42,6 +44,8 @@ const AlbumStripThumb = React.memo(function AlbumStripThumb({
   photo: ThumbPhoto;
   galleryChrome?: boolean;
 }) {
+  const isVideo = isVideoMime(photo.mimeType)
+    || /\.(mp4|mov|m4v|mkv|webm|avi|3gp)(\?|$)/i.test(photo.localUri || photo.uri || '');
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [localUriFailed, setLocalUriFailed] = useState(false);
@@ -89,6 +93,17 @@ const AlbumStripThumb = React.memo(function AlbumStripThumb({
       setFailed(true);
     }
   }, [photo.localUri, localUriFailed]);
+
+  if (isVideo) {
+    return (
+      <View style={[styles.thumbInner, styles.videoPlaceholder]}>
+        <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+          <Circle cx={12} cy={12} r={10} fill="rgba(255,255,255,0.18)" />
+          <Path d="M10 8l6 4-6 4V8z" fill="#fff" />
+        </Svg>
+      </View>
+    );
+  }
 
   if (!displayUri || failed) {
     return (
@@ -338,5 +353,10 @@ const styles = StyleSheet.create({
   },
   thumbLoaderGallery: {
     backgroundColor: 'rgba(248,250,252,0.6)',
+  },
+  videoPlaceholder: {
+    backgroundColor: '#1e293b',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

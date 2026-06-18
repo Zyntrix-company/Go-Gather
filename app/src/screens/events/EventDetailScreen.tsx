@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView,
   TextInput, Image, Platform, Dimensions, Linking,
   ActivityIndicator, FlatList,
 } from 'react-native';
+import AppModal from '../../components/common/AppModal';
 import Toast from 'react-native-toast-message';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
@@ -25,6 +26,8 @@ import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import SweeFab from '../../components/details/SweeFab';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
 import AppHeader from '../../components/common/AppHeader';
+import ProfileDropdown from '../home/ProfileDropdown';
+import useAuth from '../../hooks/useAuth';
 import {
   BackIcon, PencilIcon, TrashIcon, CheckIcon,
 } from '../../components/common/Icons';
@@ -190,6 +193,9 @@ function renderTextWithLinks(text: string, textStyle: any, linkStyle: any) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const EVENT_DESC_PLACEHOLDER =
+  'Add a description for your event — what\'s it about, what to expect, dress code, agenda...';
 
 function fmtDate(d: Date): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
@@ -410,6 +416,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   const currentUserId = useAuthStore(s => authUserId(s.user));
   const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
+  const rawUser = useAuthStore(s => s.user) as any;
+  const { logout, refreshProfile } = useAuth();
+  const firstName = rawUser?.fullName?.split(' ')[0] || 'Explorer';
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const uploadLimits = useUploadLimits();
   const [failedAvatarIds, setFailedAvatarIds] = useState<Set<string>>(new Set());
 
@@ -1202,8 +1212,27 @@ export default function EventDetailScreen({ route, navigation }: any) {
         <AppHeader
           onLogoPress={() => navigation.goBack()}
           onBellPress={() => navigation.navigate('Notifications')}
-          onMenuPress={() => navigation.goBack()}
+          onMenuPress={() => { refreshProfile(); setShowProfileMenu(true); }}
         />
+        {showProfileMenu && (
+          <ProfileDropdown
+            user={rawUser}
+            firstName={firstName}
+            onClose={() => setShowProfileMenu(false)}
+            onNavigateToSettings={() => navigation.navigate('Settings')}
+            onNavigateToArchived={() => navigation.navigate('Archived')}
+            onLogout={() => {
+              setShowProfileMenu(false);
+              showConfirm({
+                title: 'Log out?',
+                message: 'Are you sure you want to log out of your account?',
+                confirmText: 'Log out',
+                destructive: true,
+                onConfirm: logout,
+              });
+            }}
+          />
+        )}
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
@@ -1311,7 +1340,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   multiline
                   autoFocus
                   placeholderTextColor="#94a3b8"
-                  placeholder={"Description\nGet ready for an amazing event! Use the action buttons above to manage documents, invite members, share photos, track expenses, create polls, and add notes."}
+                  placeholder={EVENT_DESC_PLACEHOLDER}
                 />
                 <View style={styles.descEditFooter}>
                   <Text style={[styles.descWordCount, countWords(descDraft) >= 100 && { color: '#ef4444' }]}>
@@ -1346,7 +1375,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 activeOpacity={0.8}
               >
                 <Text style={[styles.descText, !event.description && { color: '#94a3b8', fontStyle: 'italic' }]}>
-                  {event.description || 'Add a description for your event — what\'s it about, what to expect, dress code, agenda...'}
+                  {event.description || EVENT_DESC_PLACEHOLDER}
                 </Text>
               </TouchableOpacity>
             )}
@@ -1364,18 +1393,16 @@ export default function EventDetailScreen({ route, navigation }: any) {
             </View>
 
             {media.items.length === 0 ? (
-              <TouchableOpacity
-                onPress={() => { setShowPhotos(true); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); }}
-                activeOpacity={0.8}
-                style={{ borderWidth: 1.5, borderColor: '#e2e8f0', borderStyle: 'dashed', borderRadius: 12, paddingVertical: 20, alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              <View
+                style={{ paddingVertical: 20, alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
                 <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
                   <Rect x={3} y={3} width={18} height={18} rx={2} stroke="#cbd5e1" strokeWidth={1.5} />
                   <Circle cx={8.5} cy={8.5} r={1.5} fill="#cbd5e1" />
                   <Path d="M21 15l-5-5L5 21" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
-                <Text style={[styles.emptySub, { marginTop: 2 }]}>Tap to add photos and capture memories</Text>
-              </TouchableOpacity>
+                <Text style={[styles.emptySub, { marginTop: 2 }]}>Photos shared in the Media section will appear here</Text>
+              </View>
             ) : (() => {
               const openAt = (_idx: number) => { setShowPhotos(true); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); };
               const remaining = media.items.length - 3;
@@ -1445,7 +1472,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         {/* ═══════════════════════════════════════════════════
             MODAL 1 — Documents
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showDocs} transparent animationType="fade" onRequestClose={() => setShowDocs(false)}>
+        <AppModal visible={showDocs} transparent animationType="fade" onRequestClose={() => setShowDocs(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '80%' }]}>
               <DHeader title="Documents" onClose={() => setShowDocs(false)} />
@@ -1496,12 +1523,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
             MODAL 1b — Email Attachment Picker
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showEmailPicker} transparent animationType="slide" onRequestClose={() => setShowEmailPicker(false)}>
+        <AppModal visible={showEmailPicker} transparent animationType="slide" onRequestClose={() => setShowEmailPicker(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '85%' }]}>
               <DHeader
@@ -1558,12 +1585,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
               )}
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
             MODAL 1c — Google Drive File Picker
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showDrivePicker} transparent animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
+        <AppModal visible={showDrivePicker} transparent animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '85%' }]}>
               <DHeader
@@ -1629,12 +1656,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
               )}
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
             MODAL 2 — Members
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showMembers} transparent animationType="fade" onRequestClose={() => setShowMembers(false)}>
+        <AppModal visible={showMembers} transparent animationType="fade" onRequestClose={() => setShowMembers(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
               <DHeader title="Event Members" subtitle={`Current members: ${memberCount}`} onClose={() => setShowMembers(false)} />
@@ -1735,7 +1762,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
             MODAL 3 — Media
@@ -1768,7 +1795,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         />
 
         {/* Document preview modal */}
-        <Modal visible={!!docPreviewUrl} transparent={false} animationType="slide" onRequestClose={() => setDocPreviewUrl(null)}>
+        <AppModal visible={!!docPreviewUrl} transparent={false} animationType="slide" onRequestClose={() => setDocPreviewUrl(null)}>
           <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#1e293b' }}>
               <TouchableOpacity onPress={() => setDocPreviewUrl(null)} activeOpacity={0.7} style={{ marginRight: 12 }}>
@@ -1789,12 +1816,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 />;
             })()}
           </SafeAreaView>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
             MODAL 4 — Expenses
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={closeExpensesModal}>
+        <AppModal visible={showExpenses} transparent animationType="fade" onRequestClose={closeExpensesModal}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, styles.expensesDialog]}>
               <DHeader title="Expenses" onClose={closeExpensesModal} />
@@ -2027,12 +2054,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
             MODAL 5 — Polls
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showPolls} transparent animationType="fade" onRequestClose={() => setShowPolls(false)}>
+        <AppModal visible={showPolls} transparent animationType="fade" onRequestClose={() => setShowPolls(false)}>
           <Toast />
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
@@ -2126,12 +2153,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
             MODAL 6 — Notes
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showNotes} transparent animationType="fade" onRequestClose={() => setShowNotes(false)}>
+        <AppModal visible={showNotes} transparent animationType="fade" onRequestClose={() => setShowNotes(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
               <DHeader title="Event Notes" onClose={() => setShowNotes(false)} />
@@ -2208,12 +2235,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
             MODAL 6b — Note Detail View
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={!!viewingNote} transparent animationType="slide" onRequestClose={() => setViewingNote(null)}>
+        <AppModal visible={!!viewingNote} transparent animationType="slide" onRequestClose={() => setViewingNote(null)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
               {/* Header */}
@@ -2284,12 +2311,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
             MODAL 7 — Edit Event
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={showEditEvent} transparent animationType="fade" onRequestClose={() => setShowEditEvent(false)}>
+        <AppModal visible={showEditEvent} transparent animationType="fade" onRequestClose={() => setShowEditEvent(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
               <DHeader title="Edit Event" onClose={() => setShowEditEvent(false)} />
@@ -2351,7 +2378,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
               </View>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
       </SafeAreaView>
     </BlobBackground>
@@ -2393,7 +2420,7 @@ const styles = StyleSheet.create({
 
   emptyBox: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#e2e8f0', paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center' },
   emptyCenter: { alignItems: 'center', paddingVertical: 28 },
-  emptyTitle: { fontSize: 13, color: '#64748b', fontWeight: '500', marginTop: 10 },
+  emptyTitle: { fontSize: 13, color: '#64748b', fontWeight: '500', marginTop: 10, textAlign: 'center' },
   emptySub: { fontSize: 12, color: '#94a3b8', marginTop: 4, textAlign: 'center' },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },

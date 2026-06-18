@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(Get-ChildItem \"E:\\\\Go Gather\\\\backend\" | Where-Object { $_.Name -ne 'node_modules' } | Select-Object Name)"
+      "PowerShell(Get-ChildItem \"E:\\\\Go Gather\\\\backend\" | Where-Object { $_.Name -ne 'node_modules' } | Select-Object Name)",
+      "PowerShell(adb tcpip *)",
+      "PowerShell(adb shell *)",
+      "PowerShell(adb connect *)"
     ]
   }
 }

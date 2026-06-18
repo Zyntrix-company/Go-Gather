@@ -149,7 +149,7 @@ export default function ChangePasswordScreen({ navigation }: { navigation: any }
 
   if (isDone) {
     return (
-      <AppScreenLayout navigation={navigation}>
+      <AppScreenLayout navigation={navigation} title="Change Password" onBack={() => navigation.goBack()}>
         <View style={styles.centered}>
           <View style={styles.successCircle}>
             <CheckCircleIcon />
@@ -171,7 +171,7 @@ export default function ChangePasswordScreen({ navigation }: { navigation: any }
   }
 
   return (
-    <AppScreenLayout navigation={navigation} title="Change Password">
+    <AppScreenLayout navigation={navigation} title="Change Password" onBack={() => navigation.goBack()}>
       <KeyboardAvoidingView
         style={styles.kav}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -403,7 +403,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#0d9488',
     borderRadius: 12,
     paddingVertical: 15,
+    paddingHorizontal: 24,
     alignItems: 'center',
+    alignSelf: 'stretch',
     marginTop: 24,
     shadowColor: '#0d9488',
     shadowOffset: { width: 0, height: 3 },

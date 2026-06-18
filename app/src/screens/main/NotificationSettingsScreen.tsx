@@ -32,7 +32,7 @@ export default function NotificationSettingsScreen({ navigation }: any) {
   };
 
   return (
-    <AppScreenLayout navigation={navigation} title="Notification Preferences">
+    <AppScreenLayout navigation={navigation} title="Notification Preferences" onBack={() => navigation.goBack()}>
         <ScrollView
           contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}>

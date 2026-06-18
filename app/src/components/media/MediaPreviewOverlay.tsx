@@ -1,7 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   View,
-  Modal,
   TouchableOpacity,
   StyleSheet,
   Dimensions,
@@ -9,6 +8,7 @@ import {
   Text,
   PanResponder,
 } from 'react-native';
+import AppModal from '../common/AppModal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Video, { type OnLoadData, type OnProgressData, type VideoRef } from 'react-native-video';
 import { Play, Pause, Volume2, VolumeX, Bookmark, Trash2, X } from 'lucide-react-native';
@@ -55,7 +55,9 @@ export default function MediaPreviewOverlay({
   const [loading, setLoading] = useState(true);
   const seekTrackWidthRef = useRef(0);
 
-  const isVideo = item ? isVideoMime(item.mimeType) : false;
+  const isVideo = item
+    ? (isVideoMime(item.mimeType) || /\.(mp4|mov|m4v|mkv|webm|avi|3gp)(\?|$)/i.test(item.localUri || item.uri || ''))
+    : false;
   const uri = item?.localUri || item?.uri || '';
   const isBanner = !!bannerImageUrl && (uri === bannerImageUrl || item?.uri === bannerImageUrl);
 
@@ -84,7 +86,7 @@ export default function MediaPreviewOverlay({
   const progressPct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <SafeAreaView edges={['top']} style={styles.topSafe}>
           <View style={styles.toolbar}>
@@ -103,8 +105,8 @@ export default function MediaPreviewOverlay({
                 {showBannerAction && (
                   <TouchableOpacity
                     style={[styles.toolbarAction, isBanner && styles.toolbarActionActive]}
-                    onPress={() => onSetBanner(item)}
-                    disabled={settingBanner}
+                    onPress={() => { if (!isBanner) onSetBanner(item); }}
+                    disabled={settingBanner || isBanner}
                     activeOpacity={0.75}
                     accessibilityLabel="Set as banner"
                   >
@@ -114,11 +116,11 @@ export default function MediaPreviewOverlay({
                       <>
                         <Bookmark
                           size={17}
-                          color="#fff"
+                          color={isBanner ? colors.success : '#fff'}
                           fill={isBanner ? colors.success : 'transparent'}
                         />
-                        <Text style={styles.toolbarActionLabel}>
-                          {isBanner ? 'Banner' : 'Set banner'}
+                        <Text style={[styles.toolbarActionLabel, isBanner && { color: colors.success }]}>
+                          {isBanner ? 'Banner Image' : 'Set banner'}
                         </Text>
                       </>
                     )}
@@ -209,7 +211,7 @@ export default function MediaPreviewOverlay({
           )}
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 
@@ -219,9 +221,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.88)',
   },
   topSafe: {
-    backgroundColor: 'rgba(15,23,42,0.92)',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'transparent',
   },
   toolbar: {
     flexDirection: 'row',
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   toolbarCloseLabel: {
     color: '#f8fafc',
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   toolbarActions: {
     flexDirection: 'row',
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   toolbarActionLabel: {
     color: '#f1f5f9',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   toolbarActionLabelDanger: {
     color: '#fecaca',
@@ -285,12 +285,16 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   photo: {
-    width: SCREEN_W - 24,
-    height: SCREEN_H * 0.65,
+    width: SCREEN_W - 16,
+    maxWidth: SCREEN_W - 16,
+    height: SCREEN_H * 0.8,
+    maxHeight: SCREEN_H * 0.8,
   },
   video: {
-    width: SCREEN_W - 24,
-    height: SCREEN_H * 0.55,
+    width: SCREEN_W - 16,
+    maxWidth: SCREEN_W - 16,
+    height: SCREEN_H * 0.72,
+    maxHeight: SCREEN_H * 0.72,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

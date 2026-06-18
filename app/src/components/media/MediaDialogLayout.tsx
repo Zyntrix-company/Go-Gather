@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { View, Modal, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import AppModal from '../common/AppModal';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { useAnimatedRef } from 'react-native-reanimated';
 import DetailDialogHeader from '../details/DetailDialogHeader';
@@ -44,7 +45,7 @@ export default function MediaDialogLayout({
   }, []);
 
   return (
-    <Modal
+    <AppModal
       visible={visible}
       transparent
       animationType="fade"
@@ -78,7 +79,7 @@ export default function MediaDialogLayout({
           </View>
         </View>
       </GestureHandlerRootView>
-    </Modal>
+    </AppModal>
   );
 }
 

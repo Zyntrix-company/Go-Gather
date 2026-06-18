@@ -3,7 +3,7 @@ import { Image, View, type ImageStyle, type StyleProp } from 'react-native';
 import type { EmailProvider } from '../../api/trips.api';
 import { GmailBrandIcon } from './GoogleWorkspaceIcons';
 
-/** Brand assets in app/assets (2026 Google Workspace refresh for Gmail). */
+/** Brand assets for decorative backgrounds (e.g. glass cards). */
 export const EMAIL_PROVIDER_ASSETS = {
   gmail: require('../../../assets/gmail-icon.png'),
   outlook: require('../../../assets/outlook-icon.png'),
@@ -27,12 +27,16 @@ export function EmailProviderIcon({
   }
 
   return (
-    <Image
-      source={EMAIL_PROVIDER_ASSETS[provider]}
-      style={[{ width: size, height: size }, style]}
-      resizeMode="contain"
+    <View
+      style={[{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }, style]}
       accessibilityLabel={emailProviderLabel(provider)}
-    />
+    >
+      <Image
+        source={EMAIL_PROVIDER_ASSETS.outlook}
+        style={{ width: size, height: size }}
+        resizeMode="contain"
+      />
+    </View>
   );
 }
 

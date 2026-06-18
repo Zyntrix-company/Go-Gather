@@ -167,10 +167,9 @@ export function UnifiedCard({
               avatars={members}
               totalCount={members.length + extraMembers}
               counterStyle="soft"
-              size={22}
-              overlap={10}
+              size={26}
+              overlap={8}
               maxVisible={2}
-              counterOffsetX={3}
               containerStyle={s.avatarStack}
             />
             <TouchableOpacity

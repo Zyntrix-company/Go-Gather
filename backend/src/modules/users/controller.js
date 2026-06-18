@@ -3,6 +3,8 @@ const galleryAlbumsService = require('./galleryAlbums.service');
 const galleryOverlayService = require('./galleryOverlay.service');
 const galleryEngagementService = require('./galleryEngagement.service');
 const sharedPhotosService = require('../shared/photos/photos.service');
+const tripMembersService = require('../trips/submodules/members/members.service');
+const eventsService = require('../events/events.service');
 const logger = require('../../utils/logger');
 
 /**
@@ -332,6 +334,21 @@ const getUserGalleryItemPhotos = async (req, res, next) => {
   }
 };
 
+const getUserGalleryItemMembers = async (req, res, next) => {
+  try {
+    const { id: targetUserId, parentType, parentId } = req.params;
+    await galleryOverlayService.verifyMembership(targetUserId, parentType, parentId);
+    await galleryOverlayService.verifyViewerAccess(req.user.id, targetUserId);
+    const result = parentType === 'trip'
+      ? await tripMembersService.getMembers(parentId)
+      : await eventsService.getEventMembers(parentId);
+    return res.status(200).json(result);
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.error, message: error.message });
+    next(error);
+  }
+};
+
 const uploadGalleryItemPhotos = async (req, res, next) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -515,6 +532,7 @@ module.exports = {
   deleteGalleryAlbumPhoto,
   getMyGalleryItemPhotos,
   getUserGalleryItemPhotos,
+  getUserGalleryItemMembers,
   uploadGalleryItemPhotos,
   getGalleryEngagement,
   toggleGalleryLike,

@@ -120,7 +120,7 @@ export function useMediaDialog({
     [mode, items],
   );
 
-  const mediaCount = mode === 'trip' ? tripLevelItems.length : eventItems.length;
+  const mediaCount = items.length;
   const uploadDisabled = capTotal != null && mediaCount >= capTotal;
 
   const activityIds = useMemo(() => activities.map((a) => a.id), [activities]);

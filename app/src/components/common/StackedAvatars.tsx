@@ -2,17 +2,17 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
+  Image,
   Animated,
   StyleSheet,
   ViewStyle,
   StyleProp,
   ImageStyle,
 } from 'react-native';
-import CachedImage from './CachedImage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type AvatarInput = { id?: string; uri: string } | string;
+type AvatarInput = { id?: string; uri?: string; avatarUrl?: string } | string;
 
 export interface StackedAvatarsProps {
   /** Array of avatar objects or plain URI strings */
@@ -49,14 +49,14 @@ const FALLBACK_COLORS = ['#0d9488', '#0891b2', '#7c3aed', '#db2777', '#f97316'];
 
 function normalize(a: AvatarInput): { id: string; uri: string } {
   if (typeof a === 'string') return { id: a, uri: a };
-  return { id: a.id ?? a.uri, uri: a.uri };
+  return { id: a.id ?? (a.avatarUrl ?? a.uri), uri: a.uri ?? a.avatarUrl ?? '' };
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-/** Single avatar: coloured circle base, photo shown immediately (no opacity trick). */
+/** Single avatar: coloured circle base, photo overlaid and faded in once loaded. */
 function AvatarCircle({ uri, size, index }: { uri: string; size: number; index: number }) {
-  const [imgFailed, setImgFailed] = useState(false);
+  const [imgOk, setImgOk] = useState(false);
   const r = size / 2;
   const bg = FALLBACK_COLORS[index % FALLBACK_COLORS.length];
 
@@ -64,19 +64,18 @@ function AvatarCircle({ uri, size, index }: { uri: string; size: number; index: 
   useEffect(() => {
     if (prevUri.current !== uri) {
       prevUri.current = uri;
-      setImgFailed(false);
+      setImgOk(false);
     }
   }, [uri]);
 
   return (
     <View style={[st.circle, { width: size, height: size, borderRadius: r, backgroundColor: bg }]}>
-      {!!uri && !imgFailed && (
-        <CachedImage
-          uri={uri}
-          style={[StyleSheet.absoluteFill, { borderRadius: r }] as StyleProp<ImageStyle>}
-          resizeMode="cover"
-          priority="high"
-          onError={() => setImgFailed(true)}
+      {!!uri && (
+        <Image
+          source={{ uri }}
+          style={[StyleSheet.absoluteFill, { borderRadius: r, opacity: imgOk ? 1 : 0 }] as StyleProp<ImageStyle>}
+          onLoad={() => setImgOk(true)}
+          onError={() => setImgOk(false)}
         />
       )}
     </View>

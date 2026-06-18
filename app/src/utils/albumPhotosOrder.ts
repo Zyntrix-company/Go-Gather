@@ -65,7 +65,12 @@ export function focusAlbumPhotoAtIndex(
   if (index < 0) return;
   setHeroIndex(index);
   setTimeout(() => {
-    heroRef.current?.scrollToIndex({ index, animated: true });
+    const list = heroRef.current as any;
+    const count = Array.isArray(list?.props?.data) ? list.props.data.length : null;
+    if (count == null || count === 0) return;
+    const safeIndex = Math.min(index, count - 1);
+    if (safeIndex < 0) return;
+    heroRef.current?.scrollToIndex({ index: safeIndex, animated: true });
   }, 80);
 }
 

@@ -7,13 +7,14 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
-  Image,
   Dimensions,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Svg, { Path } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
+import { UnifiedCard } from '../../components/common/Cards';
+import CachedImage from '../../components/common/CachedImage';
 import {
   getArchivedTrips,
   unarchiveTrip,
@@ -70,7 +71,7 @@ function mapAvatars(memberAvatars: any[], memberCount: number): { members: { id:
   const user = state.user;
   const sliced = (memberAvatars || []).slice(0, 2);
   const members = sliced.map((av: any, idx: number) => {
-    const rawUri = typeof av === 'string' ? av : (av.uri ?? '');
+    const rawUri = typeof av === 'string' ? av : (av.uri ?? av.avatarUrl ?? '');
     const memberId = typeof av === 'string' ? undefined : (av.id != null ? String(av.id) : undefined);
     const uri = resolveMemberAvatarUri(rawUri, {
       memberId,
@@ -397,7 +398,7 @@ export default function ArchivedScreen() {
                           onPress={() => setOpenMenuId(openMenuId === menuKey ? null : menuKey)}
                         >
                           {item.bannerImageUrl ? (
-                            <Image source={{ uri: item.bannerImageUrl }} style={styles.galleryCardImage} resizeMode="cover" />
+                            <CachedImage uri={item.bannerImageUrl} style={styles.galleryCardImage} resizeMode="cover" />
                           ) : (
                             <View style={[styles.galleryCardImage, styles.galleryCardPlaceholder]}>
                               <Text style={styles.galleryCardPlaceholderText}>No cover</Text>

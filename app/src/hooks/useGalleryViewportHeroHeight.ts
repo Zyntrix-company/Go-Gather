@@ -19,6 +19,8 @@ export type UseGalleryViewportHeroHeightParams = {
   hasDescription?: boolean;
   hasFooter?: boolean;
   hasMetaCard?: boolean;
+  hasPhotos?: boolean;
+  emptyHero?: boolean;
   editMode?: boolean;
   viewOnly?: boolean;
 };
@@ -28,6 +30,8 @@ export function useGalleryViewportHeroHeight({
   hasDescription = false,
   hasFooter = false,
   hasMetaCard = false,
+  hasPhotos = true,
+  emptyHero = false,
   editMode = false,
   viewOnly = false,
 }: UseGalleryViewportHeroHeightParams = {}): number {
@@ -37,18 +41,21 @@ export function useGalleryViewportHeroHeight({
     const tabBarPad = TAB_BAR_BASE_HEIGHT + insets.bottom + 6;
     const subHeader = editMode ? GALLERY_CHROME.subHeaderEdit : GALLERY_CHROME.subHeader;
     const composeGhost = viewOnly ? 0 : GALLERY_CHROME.composeGhost;
-    const commentsPanel = GALLERY_COMMENT_ROW_H * GALLERY_MAX_VISIBLE_COMMENTS;
+    const commentsPanel = hasPhotos
+      ? GALLERY_COMMENT_ROW_H * GALLERY_MAX_VISIBLE_COMMENTS
+      : 0;
+    const heroMin = hasPhotos ? GALLERY_HERO_CONTENT_MIN : (emptyHero ? 300 : 148);
 
     const fixedChrome =
       insets.top +
       GALLERY_CHROME.appHeader +
       subHeader +
       tabBarPad +
-      GALLERY_CHROME.thumbStrip +
+      (hasPhotos ? GALLERY_CHROME.thumbStrip : 0) +
       (hasDescription ? GALLERY_CHROME.description : 0) +
       (hasTravelers ? GALLERY_CHROME.travelers : 0) +
       (hasMetaCard ? GALLERY_CHROME.metaCard : 0) +
-      GALLERY_CHROME.stats +
+      (hasPhotos ? GALLERY_CHROME.stats : 0) +
       composeGhost +
       commentsPanel +
       (hasFooter ? GALLERY_CHROME.footer : 0) +
@@ -58,10 +65,10 @@ export function useGalleryViewportHeroHeight({
     const maxWidthContent = SCREEN_W - ALBUM_HERO_H_PAD * 2;
 
     const heroContent = Math.max(
-      GALLERY_HERO_CONTENT_MIN,
+      heroMin,
       Math.min(maxWidthContent, availableH, GALLERY_HERO_CONTENT_MAX),
     );
 
     return heroContent + GALLERY_HERO_SLIDE_V_PAD;
-  }, [hasTravelers, hasDescription, hasFooter, hasMetaCard, editMode, viewOnly, insets.top, insets.bottom]);
+  }, [hasTravelers, hasDescription, hasFooter, hasMetaCard, hasPhotos, emptyHero, editMode, viewOnly, insets.top, insets.bottom]);
 }

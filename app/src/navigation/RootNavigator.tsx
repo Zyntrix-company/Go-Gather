@@ -19,10 +19,13 @@ function ProfileSetupNavigator() {
 
 export default function RootNavigator() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isSplashComplete = useAuthStore((s) => s.isSplashComplete);
   const pendingProfileSetup = useAuthStore((s) => s.pendingProfileSetup);
   const user = useAuthStore((s) => s.user);
 
-  if (!isAuthenticated) return <AuthStack />;
+  // Keep splash mounted until its animation finishes — loadFromToken may
+  // authenticate early on cold start, but we must not swap to MainStack yet.
+  if (!isSplashComplete || !isAuthenticated) return <AuthStack />;
   // Show profile setup if explicitly pending OR if user exists but profile isn't complete.
   // Checking isProfileComplete directly prevents the Main screen flash that occurs
   // when setAuth() fires before setPendingProfileSetup(true) in the signup/social flows.

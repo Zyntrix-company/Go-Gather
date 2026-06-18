@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import {
-  Modal,
   View,
   Text,
   Pressable,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 import colors from '../../theme/colors';
 import useAlertStore, { AlertButton } from '../../store/alertStore';
+import AppModal from './AppModal';
 
 const OVERLAY_COLOR = 'rgba(15, 23, 42, 0.48)';
 const DESTRUCTIVE_BG = 'rgba(239, 68, 68, 0.07)';
@@ -132,7 +132,7 @@ export default function ThemedAlert() {
   }
 
   return (
-    <Modal
+    <AppModal
       visible={visible}
       transparent
       animationType="none"
@@ -204,7 +204,7 @@ export default function ThemedAlert() {
           </View>
         </Animated.View>
       </Animated.View>
-    </Modal>
+    </AppModal>
   );
 }
 

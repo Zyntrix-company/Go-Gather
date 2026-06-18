@@ -13,8 +13,6 @@ import GalleryAlbumSubHeader from '../../components/gallery/GalleryAlbumSubHeade
 import GalleryTravelersRow, { type GalleryTraveler } from '../../components/gallery/GalleryTravelersRow';
 import GalleryEngagementSection from '../../components/gallery/GalleryEngagementSection';
 import GalleryHeroMedia from '../../components/gallery/GalleryHeroMedia';
-import { getTripMembers } from '../../api/trips.api';
-import { getEventMembers } from '../../api/events.api';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useGalleryEngagement } from '../../hooks/useGalleryEngagement';
 import useAuthStore from '../../store/authStore';
@@ -26,7 +24,7 @@ import { getUserProfile, removeFriend, handleApiError } from '../../api/trips.ap
 import { showConfirm } from '../../store/alertStore';
 import Toast from 'react-native-toast-message';
 import { getUserGallery } from '../../api/ai.api';
-import { getUserGalleryAlbumPhotos, getUserGalleryItemPhotos } from '../../api/gallery.api';
+import { getUserGalleryAlbumPhotos, getUserGalleryItemPhotos, getUserGalleryItemMembers } from '../../api/gallery.api';
 import type { MainStackParamList } from '../../navigation/MainStack';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -168,12 +166,16 @@ function CustomAlbumPhotosModal({
   title,
   albumId,
   userId,
+  friendName,
+  albumKind = 'trip',
   onClose,
 }: {
   visible: boolean;
   title: string;
   albumId: string;
   userId: string;
+  friendName: string;
+  albumKind?: 'trip' | 'event';
   onClose: () => void;
 }) {
   const navigation = useNavigation<any>();
@@ -188,9 +190,12 @@ function CustomAlbumPhotosModal({
     albumId,
   });
 
+  const photosEmpty = photos.length === 0 && !loading;
   const heroHeight = useGalleryViewportHeroHeight({
     hasFooter: true,
     hasMetaCard: true,
+    hasPhotos: photos.length > 0,
+    emptyHero: photosEmpty,
   });
 
   useEffect(() => {
@@ -216,12 +221,13 @@ function CustomAlbumPhotosModal({
         navigation={navigation}
         activeTab="friends"
         galleryChrome
+        scrollable
         onClose={onClose}
         photoIndex={heroIndex}
         photoTotal={photos.length}
         footer={<AlbumPhotosFooter viewOnly aboveTabBar />}
       >
-        <View style={fpGalleryStyles.albumBody}>
+        <View style={[fpGalleryStyles.albumBody, photosEmpty && fpGalleryStyles.albumBodyEmpty]}>
           <AlbumPhotosHeroCarousel
             galleryChrome
             photos={photos}
@@ -229,8 +235,13 @@ function CustomAlbumPhotosModal({
             onIndexChange={setHeroIndex}
             heroRef={heroFlatListRef}
             loading={loading}
-            fixedHeight={heroHeight}
+            fixedHeight={photosEmpty ? undefined : heroHeight}
+            emptyCentered={photosEmpty}
             showPagerDots={false}
+            emptyVariant={photosEmpty ? 'friend' : 'simple'}
+            emptyAlbumKind={albumKind}
+            emptyFriendName={friendName}
+            emptyLocationLabel={title}
             renderPhoto={(item, index) => (
               <GalleryHeroMedia photo={item} active={index === heroIndex} />
             )}
@@ -252,10 +263,13 @@ function CustomAlbumPhotosModal({
                 <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488' }}>Custom album</Text>
               </View>
               <Text style={acs.metaCount}>
-                {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
+                {photos.length > 0
+                  ? `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`
+                  : ''}
               </Text>
             </View>
           </View>
+          {photos.length > 0 ? (
           <GalleryEngagementSection
             likeCount={engagement.likeCount}
             likedByMe={engagement.likedByMe}
@@ -266,15 +280,16 @@ function CustomAlbumPhotosModal({
             onEditComment={engagement.handleEditComment}
             onDeleteComment={engagement.handleDeleteComment}
           />
+          ) : null}
         </View>
       </AlbumPhotosScreenLayout>
     </Modal>
   );
 }
 
-function PhotosModal({ visible, title, location, onClose, parentId, parentType, userId, gallerySubtitle, galleryHideTravelers = false }: {
+function PhotosModal({ visible, title, location, onClose, parentId, parentType, userId, friendName, gallerySubtitle, galleryHideTravelers = false }: {
   visible: boolean; title: string; location?: string | null; onClose: () => void;
-  parentId: string; parentType: 'trip' | 'event'; userId?: string; gallerySubtitle?: string | null;
+  parentId: string; parentType: 'trip' | 'event'; userId?: string; friendName: string; gallerySubtitle?: string | null;
   galleryHideTravelers?: boolean;
 }) {
   const navigation = useNavigation<any>();
@@ -335,22 +350,10 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
   }, [visible, parentId, parentType, userId]);
 
   useEffect(() => {
-    if (!visible || !parentId) return;
+    if (!visible || !parentId || !userId) return;
     let cancelled = false;
 
-    const membersFetcher = parentType === 'trip'
-      ? getTripMembers(parentId).then((r) => r.members.map((m) => ({
-          userId: m.userId,
-          fullName: m.fullName,
-          avatarUrl: m.avatarUrl,
-        })))
-      : getEventMembers(parentId).then((r) => r.members.map((m) => ({
-          userId: m.userId,
-          fullName: m.fullName,
-          avatarUrl: m.avatarUrl,
-        })));
-
-    membersFetcher
+    getUserGalleryItemMembers(userId, parentType, parentId)
       .then((memberList) => {
         if (!cancelled) setMembers(memberList);
       })
@@ -359,15 +362,16 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
       });
 
     return () => { cancelled = true; };
-  }, [visible, parentId, parentType]);
+  }, [visible, parentId, parentType, userId]);
 
-  const showTravelersRow = parentType === 'trip' && members.length > 0 && !galleryHideTravelers;
-  const currentPhoto = photos[heroIndex];
-  const activityLabel = currentPhoto?.activityTitle?.trim() || null;
-  const hasDescription = !!gallerySubtitle?.trim();
+  const showTravelersRow = parentType === 'trip' && members.length > 0 && photos.length > 0 && !galleryHideTravelers;
+  const photosEmpty = photos.length === 0 && !loading;
+  const hasDescription = !!gallerySubtitle?.trim() && photos.length > 0;
   const heroHeight = useGalleryViewportHeroHeight({
     hasTravelers: showTravelersRow,
     hasDescription,
+    hasPhotos: photos.length > 0,
+    emptyHero: photosEmpty,
   });
 
   return (
@@ -376,6 +380,7 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
         navigation={navigation}
         activeTab="friends"
         galleryChrome
+        scrollable
         onClose={onClose}
         subHeader={
           <GalleryAlbumSubHeader
@@ -386,7 +391,7 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
           />
         }
       >
-        <View style={fpGalleryStyles.albumBody}>
+        <View style={[fpGalleryStyles.albumBody, photosEmpty && fpGalleryStyles.albumBodyEmpty]}>
           <AlbumPhotosHeroCarousel
             galleryChrome
             photos={photos}
@@ -394,9 +399,14 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
             onIndexChange={setHeroIndex}
             heroRef={heroFlatListRef}
             loading={loading}
-            fixedHeight={heroHeight}
+            fixedHeight={photosEmpty ? undefined : heroHeight}
+            emptyCentered={photosEmpty}
             showPagerDots={false}
-            activityLabel={activityLabel}
+            renderActivityLabel={(item) => (item as PhotoItem).activityTitle?.trim() || null}
+            emptyVariant={photosEmpty ? 'friend' : 'simple'}
+            emptyAlbumKind={parentType}
+            emptyFriendName={friendName}
+            emptyLocationLabel={location?.trim() || title}
             renderPhoto={(item, index) => (
               <GalleryHeroMedia photo={item} active={index === heroIndex} />
             )}
@@ -411,10 +421,11 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
               heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
             }}
           />
-          {gallerySubtitle?.trim() ? (
+          {gallerySubtitle?.trim() && photos.length > 0 ? (
             <Text style={fpGalleryStyles.description} numberOfLines={2}>{gallerySubtitle}</Text>
           ) : null}
           {showTravelersRow ? <GalleryTravelersRow members={members} /> : null}
+          {photos.length > 0 ? (
           <GalleryEngagementSection
             likeCount={engagement.likeCount}
             likedByMe={engagement.likedByMe}
@@ -426,6 +437,7 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
             onEditComment={engagement.handleEditComment}
             onDeleteComment={engagement.handleDeleteComment}
           />
+          ) : null}
         </View>
       </AlbumPhotosScreenLayout>
     </Modal>
@@ -456,7 +468,7 @@ export default function FriendProfileScreen() {
     hideTravelers?: boolean;
     location?: string | null;
   } | null>(null);
-  const [customAlbumModal, setCustomAlbumModal] = useState<{ id: string; name: string } | null>(null);
+  const [customAlbumModal, setCustomAlbumModal] = useState<{ id: string; name: string; kind: 'trip' | 'event' } | null>(null);
 
   useEffect(() => { setAvatarError(false); }, [profile?.avatarUrl, paramAvatarUrl]);
 
@@ -584,7 +596,7 @@ export default function FriendProfileScreen() {
                 })} />
               ))}
               {customTripAlbums.map((album: any) => (
-                <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name })} />
+                <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name, kind: 'trip' })} />
               ))}
               {galleryTrips.length === 0 && customTripAlbums.length === 0 && (
                 <EmptyCard label="No past trips yet" />
@@ -603,7 +615,7 @@ export default function FriendProfileScreen() {
                 <GridCard key={ev.id} item={ev} onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null, location: ev.location ?? null })} />
               ))}
               {customEventAlbums.map((album: any) => (
-                <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name })} />
+                <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name, kind: 'event' })} />
               ))}
               {galleryEvents.length === 0 && customEventAlbums.length === 0 && (
                 <EmptyCard label="No past events yet" />
@@ -622,6 +634,7 @@ export default function FriendProfileScreen() {
           parentId={photoModal.id}
           parentType={photoModal.type}
           userId={userId}
+          friendName={friendName}
           gallerySubtitle={photoModal.subtitle}
           galleryHideTravelers={photoModal.hideTravelers ?? false}
           onClose={() => setPhotoModal(null)}
@@ -634,6 +647,8 @@ export default function FriendProfileScreen() {
           title={customAlbumModal.name}
           albumId={customAlbumModal.id}
           userId={userId}
+          friendName={friendName}
+          albumKind={customAlbumModal.kind}
           onClose={() => setCustomAlbumModal(null)}
         />
       )}
@@ -647,6 +662,9 @@ const fpGalleryStyles = StyleSheet.create({
   albumBody: {
     flex: 1,
     minHeight: 0,
+  },
+  albumBodyEmpty: {
+    flexGrow: 1,
   },
   description: {
     fontSize: 13,

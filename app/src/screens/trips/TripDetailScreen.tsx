@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal,
+  View, Text, TouchableOpacity, StyleSheet, ScrollView,
   TextInput, Animated, PanResponder, Image, Platform, Linking,
   ActivityIndicator, FlatList, Dimensions, Easing, InteractionManager,
 } from 'react-native';
+import AppModal from '../../components/common/AppModal';
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const EXPENSES_MODAL_HEIGHT = Math.round(SCREEN_H * 0.78);
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +25,8 @@ import CachedImage from '../../components/common/CachedImage';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
 import AppHeader from '../../components/common/AppHeader';
+import ProfileDropdown from '../home/ProfileDropdown';
+import useAuth from '../../hooks/useAuth';
 import DocumentsUploadSection from '../../components/common/DocumentsUploadSection';
 import InviteViaChannels from '../../components/common/InviteViaChannels';
 import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
@@ -687,6 +690,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const rawUser = useAuthStore(s => s.user) as any;
   const currentUserId: string = rawUser?.id ?? rawUser?.sub ?? '';
   const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
+  const { logout, refreshProfile } = useAuth();
+  const firstName = rawUser?.fullName?.split(' ')[0] || 'Explorer';
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const uploadLimits = useUploadLimits();
 
   // ── API-driven state ──
@@ -1964,8 +1970,27 @@ export default function TripDetailScreen({ route, navigation }: any) {
         <AppHeader
           onLogoPress={() => navigation.goBack()}
           onBellPress={() => navigation.navigate('Notifications')}
-          onMenuPress={() => navigation.navigate('Settings')}
+          onMenuPress={() => { refreshProfile(); setShowProfileMenu(true); }}
         />
+        {showProfileMenu && (
+          <ProfileDropdown
+            user={rawUser}
+            firstName={firstName}
+            onClose={() => setShowProfileMenu(false)}
+            onNavigateToSettings={() => navigation.navigate('Settings')}
+            onNavigateToArchived={() => navigation.navigate('Archived')}
+            onLogout={() => {
+              setShowProfileMenu(false);
+              showConfirm({
+                title: 'Log out?',
+                message: 'Are you sure you want to log out of your account?',
+                confirmText: 'Log out',
+                destructive: true,
+                onConfirm: logout,
+              });
+            }}
+          />
+        )}
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
@@ -2170,7 +2195,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         {/* ═══════════════════════════════════════════════════
           MODAL 1 — Add Activity
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showAddAct} transparent animationType="fade" onRequestClose={() => { resetActForm(); setShowAddAct(false); }}>
+        <AppModal visible={showAddAct} transparent animationType="fade" onRequestClose={() => { resetActForm(); setShowAddAct(false); }}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '92%' }]}>
               {editingActivityId ? (
@@ -2450,10 +2475,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
               </View>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* Hour dropdown overlay */}
-        <Modal visible={showHourDrop} transparent animationType="none" onRequestClose={() => setShowHourDrop(false)}>
+        <AppModal visible={showHourDrop} transparent animationType="none" onRequestClose={() => setShowHourDrop(false)}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowHourDrop(false)}>
             <View style={{ position: 'absolute', top: hourDropPos.y, left: hourDropPos.x, width: Math.max(hourDropPos.w, 72), backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', elevation: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 8, overflow: 'hidden', maxHeight: 200 }}>
               <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled>
@@ -2470,10 +2495,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </TouchableOpacity>
-        </Modal>
+        </AppModal>
 
         {/* Minute dropdown overlay */}
-        <Modal visible={showMinDrop} transparent animationType="none" onRequestClose={() => setShowMinDrop(false)}>
+        <AppModal visible={showMinDrop} transparent animationType="none" onRequestClose={() => setShowMinDrop(false)}>
           <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShowMinDrop(false)}>
             <View style={{ position: 'absolute', top: minDropPos.y, left: minDropPos.x, width: Math.max(minDropPos.w, 72), backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', elevation: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 8, overflow: 'hidden' }}>
               {['00', '15', '30', '45'].map(m => (
@@ -2488,12 +2513,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
               ))}
             </View>
           </TouchableOpacity>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
           MODAL 2 — Documents
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showDocs} transparent animationType="fade" onRequestClose={() => setShowDocs(false)}>
+        <AppModal visible={showDocs} transparent animationType="fade" onRequestClose={() => setShowDocs(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '80%' }]}>
               <DHeader title="Documents" onClose={() => setShowDocs(false)} />
@@ -2544,12 +2569,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
           MODAL 2b — Email Attachment Picker
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showEmailPicker} transparent animationType="slide" onRequestClose={() => setShowEmailPicker(false)}>
+        <AppModal visible={showEmailPicker} transparent animationType="slide" onRequestClose={() => setShowEmailPicker(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '85%' }]}>
               <DHeader
@@ -2606,12 +2631,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
               )}
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
           MODAL 2c — Google Drive File Picker
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showDrivePicker} transparent animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
+        <AppModal visible={showDrivePicker} transparent animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '85%' }]}>
               <DHeader
@@ -2677,12 +2702,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
               )}
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
           MODAL 3 — Members
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showMembers} transparent animationType="fade" onRequestClose={() => setShowMembers(false)}>
+        <AppModal visible={showMembers} transparent animationType="fade" onRequestClose={() => setShowMembers(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
               <DHeader title="Trip Members" subtitle={`Current members: ${memberCount}`} onClose={() => setShowMembers(false)} />
@@ -2771,7 +2796,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
           MODAL 4 — Media
@@ -2806,7 +2831,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         />
 
         {/* Document preview modal — in-app WebView */}
-        <Modal visible={!!docPreviewUrl} transparent={false} animationType="slide" onRequestClose={() => setDocPreviewUrl(null)}>
+        <AppModal visible={!!docPreviewUrl} transparent={false} animationType="slide" onRequestClose={() => setDocPreviewUrl(null)}>
           <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#1e293b' }}>
               <TouchableOpacity onPress={() => setDocPreviewUrl(null)} activeOpacity={0.7} style={{ marginRight: 12 }}>
@@ -2827,12 +2852,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 />;
             })()}
           </SafeAreaView>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
           MODAL 5 — Expenses
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showExpenses} transparent animationType="fade" onRequestClose={closeExpensesModal}>
+        <AppModal visible={showExpenses} transparent animationType="fade" onRequestClose={closeExpensesModal}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, styles.expensesDialog]}>
               <DHeader title="Expenses" onClose={closeExpensesModal} />
@@ -3124,12 +3149,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
           MODAL 6 — Polls
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showPolls} transparent animationType="fade" onRequestClose={() => setShowPolls(false)}>
+        <AppModal visible={showPolls} transparent animationType="fade" onRequestClose={() => setShowPolls(false)}>
           <Toast />
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
@@ -3212,12 +3237,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
           MODAL 7 — Notes
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showNotes} transparent animationType="fade" onRequestClose={() => setShowNotes(false)}>
+        <AppModal visible={showNotes} transparent animationType="fade" onRequestClose={() => setShowNotes(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
               <DHeader title="Trip Notes" onClose={() => setShowNotes(false)} />
@@ -3305,12 +3330,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
           MODAL 7b — Note Detail View
         ═══════════════════════════════════════════════════ */}
-        <Modal visible={!!viewingNote} transparent animationType="slide" onRequestClose={() => setViewingNote(null)}>
+        <AppModal visible={!!viewingNote} transparent animationType="slide" onRequestClose={() => setViewingNote(null)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
               {/* Header */}
@@ -3381,12 +3406,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
               </ScrollView>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
         {/* ═══════════════════════════════════════════════════
           MODAL 8 — Edit Trip
       ═══════════════════════════════════════════════════ */}
-        <Modal visible={showEditTrip} transparent animationType="fade" onRequestClose={() => setShowEditTrip(false)}>
+        <AppModal visible={showEditTrip} transparent animationType="fade" onRequestClose={() => setShowEditTrip(false)}>
           <View style={styles.overlay}>
             <View style={styles.dialog}>
               <DHeader title="Edit Trip" onClose={() => setShowEditTrip(false)} />
@@ -3436,7 +3461,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
               </View>
             </View>
           </View>
-        </Modal>
+        </AppModal>
 
       </SafeAreaView>
     </BlobBackground>
@@ -3485,7 +3510,7 @@ const styles = StyleSheet.create({
   emptyBox: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#e2e8f0', paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center' },
   emptyCompletedActivities: { backgroundColor: 'transparent', borderWidth: 0, paddingVertical: 16, paddingHorizontal: 12, alignItems: 'center' },
   emptyCenter: { alignItems: 'center', paddingVertical: 28 },
-  emptyTitle: { fontSize: 13, color: '#64748b', fontWeight: '400', marginTop: 10 },
+  emptyTitle: { fontSize: 13, color: '#64748b', fontWeight: '400', marginTop: 10, textAlign: 'center' },
   emptySub: { fontSize: 12, color: '#94a3b8', marginTop: 4, textAlign: 'center' },
 
   actRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'transparent', borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: '#f1f5f9' },

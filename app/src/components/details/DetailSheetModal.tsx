@@ -1,12 +1,12 @@
 import React from 'react';
 import {
-  Modal,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ViewStyle,
 } from 'react-native';
+import AppModal from '../common/AppModal';
 import Svg, { Path } from 'react-native-svg';
 import colors from '../../theme/colors';
 
@@ -44,7 +44,7 @@ export default function DetailSheetModal({
   footer,
 }: DetailSheetModalProps) {
   return (
-    <Modal
+    <AppModal
       visible={visible}
       transparent
       animationType="slide"
@@ -72,7 +72,7 @@ export default function DetailSheetModal({
           )}
         </View>
       </View>
-    </Modal>
+    </AppModal>
   );
 }
 

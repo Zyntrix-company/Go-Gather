@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ActivityIndicator, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { useAlbumPhotosOverlay, useAlbumPhotosPageWidth } from './AlbumPhotosContext';
-import { ALBUM_HERO_H_PAD, ALBUM_HERO_RADIUS } from '../../constants/albumPhotosLayout';
+import { ALBUM_HERO_H_PAD, ALBUM_HERO_RADIUS, GALLERY_HERO_CONTENT_MIN } from '../../constants/albumPhotosLayout';
+import AlbumPhotosEmptyHero, { type AlbumEmptyVariant, type AlbumEmptyKind } from './AlbumPhotosEmptyHero';
 const MAX_DOTS = 15;
 
 function AlbumPhotosPagerDots({
@@ -59,6 +60,15 @@ type AlbumPhotosHeroCarouselProps<T extends AlbumHeroPhoto> = {
   renderPhoto: (photo: T, index: number) => React.ReactNode;
   loading?: boolean;
   emptyLabel?: string;
+  emptySubtitle?: string;
+  emptyVariant?: AlbumEmptyVariant;
+  emptyAlbumKind?: AlbumEmptyKind;
+  emptyAlbumName?: string;
+  emptyFriendName?: string;
+  emptyLocationLabel?: string;
+  onEmptyUpload?: () => void;
+  /** Center rich empty state in available screen space (no photos). */
+  emptyCentered?: boolean;
   scrollEnabled?: boolean;
   onPhotoPress?: (index: number) => void;
   /** Show gradient behind hero instead of solid dark (Gallery modals). */
@@ -67,6 +77,8 @@ type AlbumPhotosHeroCarouselProps<T extends AlbumHeroPhoto> = {
   fixedHeight?: number;
   /** Transparent activity label strip at bottom of hero (gallery detail). */
   activityLabel?: string | null;
+  /** Per-photo activity label — rendered inside each slide so it scrolls with the photo. */
+  renderActivityLabel?: (item: T) => string | null;
   /** Show pager dots under hero (default true). */
   showPagerDots?: boolean;
 };
@@ -80,11 +92,20 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
   renderPhoto,
   loading = false,
   emptyLabel = 'No photos yet',
+  emptySubtitle,
+  emptyVariant = 'simple',
+  emptyAlbumKind = 'trip',
+  emptyAlbumName,
+  emptyFriendName,
+  emptyLocationLabel,
+  onEmptyUpload,
+  emptyCentered = false,
   scrollEnabled = true,
   onPhotoPress,
   galleryChrome = false,
   fixedHeight,
   activityLabel,
+  renderActivityLabel,
   showPagerDots = true,
 }: AlbumPhotosHeroCarouselProps<T>) {
   const [heroH, setHeroH] = useState(fixedHeight ?? 0);
@@ -92,37 +113,76 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
   const pageWidth = useAlbumPhotosPageWidth();
   const lightChrome = galleryChrome || fixedHeight != null;
   const rounded = fixedHeight != null;
-  const slotStyle = fixedHeight != null
-    ? [styles.heroSlot, styles.heroSlotFixed, { height: fixedHeight }, galleryChrome && styles.heroSlotGallery]
-    : [styles.heroSlot, galleryChrome && styles.heroSlotGallery];
+  const richEmpty = !loading && photos.length === 0 && (emptyVariant === 'own' || emptyVariant === 'friend');
+  const displayH = fixedHeight ?? heroH;
+
+  useEffect(() => {
+    if (fixedHeight != null && fixedHeight > 0) {
+      setHeroH(fixedHeight);
+    }
+  }, [fixedHeight]);
+
+  const slotStyle = richEmpty && emptyCentered
+    ? [styles.heroSlot, styles.heroSlotEmptyCentered, galleryChrome && styles.heroSlotGallery]
+    : fixedHeight != null
+      ? [styles.heroSlot, styles.heroSlotFixed, { height: fixedHeight }, galleryChrome && styles.heroSlotGallery]
+      : [styles.heroSlot, galleryChrome && styles.heroSlotGallery];
 
   const renderHeroPhoto = (item: T, index: number) => {
+    const slideH = displayH > 0 ? displayH : GALLERY_HERO_CONTENT_MIN;
+    const slideContentH = Math.max(0, slideH - 10);
+    const slideContentW = Math.max(0, pageWidth - ALBUM_HERO_H_PAD * 2);
     const photo = renderPhoto(item, index);
+
+    const activityText = renderActivityLabel ? renderActivityLabel(item) : null;
+    const activityStripEl = activityText?.trim() ? (
+      <View
+        style={[styles.activityStrip, galleryChrome && styles.activityStripGallery]}
+        pointerEvents="none"
+      >
+        <Text
+          style={[styles.activityStripText, galleryChrome && styles.activityStripTextGallery]}
+          numberOfLines={1}
+        >
+          {activityText}
+        </Text>
+      </View>
+    ) : null;
+
     if (!rounded) {
       return (
         <TouchableOpacity
-          style={{ width: pageWidth, height: heroH }}
+          style={{ width: pageWidth, height: slideH }}
           activeOpacity={0.95}
           onPress={() => onPhotoPress?.(index)}
           disabled={!onPhotoPress}
         >
-          {photo}
+          <View style={{ width: pageWidth, height: slideH }}>{photo}</View>
+          {activityStripEl}
         </TouchableOpacity>
       );
     }
 
+    const frameSize = { width: slideContentW, height: slideContentH };
+
     return (
       <TouchableOpacity
-        style={[styles.heroSlideRounded, { width: pageWidth, height: heroH }]}
+        style={[styles.heroSlideRounded, { width: pageWidth, height: slideH }]}
         activeOpacity={0.95}
         onPress={() => onPhotoPress?.(index)}
         disabled={!onPhotoPress}
       >
         {galleryChrome ? (
-          <View style={styles.heroFrameGallery}>{photo}</View>
+          <View style={[styles.heroFrameGallery, frameSize]}>
+            {photo}
+            {activityStripEl}
+          </View>
         ) : (
-          <View style={styles.heroFrameOuter}>
-            <View style={styles.heroFrameInner}>{photo}</View>
+          <View style={[styles.heroFrameOuter, frameSize]}>
+            <View style={styles.heroFrameInner}>
+              {photo}
+              {activityStripEl}
+            </View>
           </View>
         )}
       </TouchableOpacity>
@@ -141,9 +201,11 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#5eead4" />
         </View>
-      ) : photos.length > 0 && heroH > 0 ? (
+      ) : photos.length > 0 ? (
+        displayH > 0 ? (
         <FlatList
           ref={heroRef}
+          style={{ height: displayH, width: '100%' }}
           data={photos}
           horizontal
           pagingEnabled
@@ -163,10 +225,24 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
           renderItem={({ item, index }) => renderHeroPhoto(item, index)}
           keyExtractor={(item) => item.id}
         />
-      ) : !loading ? (
-        <View style={styles.center}>
-          <Text style={lightChrome ? styles.emptyText : styles.emptyTextDark}>{emptyLabel}</Text>
-        </View>
+        ) : (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color="#5eead4" />
+          </View>
+        )
+      ) : !loading && photos.length === 0 ? (
+        <AlbumPhotosEmptyHero
+          variant={emptyVariant}
+          albumKind={emptyAlbumKind}
+          albumName={emptyAlbumName}
+          friendName={emptyFriendName}
+          locationLabel={emptyLocationLabel}
+          onUploadPress={onEmptyUpload}
+          centered={emptyCentered}
+          title={emptyLabel}
+          subtitle={emptySubtitle}
+          galleryChrome={galleryChrome}
+        />
       ) : null}
 
       {heroOverlay ? (
@@ -175,7 +251,8 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
         </View>
       ) : null}
 
-      {activityLabel?.trim() ? (
+      {/* Static activityLabel fallback — only used when renderActivityLabel is not provided */}
+      {!renderActivityLabel && activityLabel?.trim() ? (
         <View
           style={[
             styles.activityStrip,
@@ -215,7 +292,13 @@ const styles = StyleSheet.create({
   heroSlotFixed: {
     flex: 0,
     minHeight: undefined,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+  },
+  heroSlotEmptyCentered: {
+    flex: 1,
+    minHeight: 320,
+    backgroundColor: 'transparent',
     overflow: 'visible',
   },
   heroSlideRounded: {
@@ -234,13 +317,13 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   heroFrameGallery: {
-    flex: 1,
     borderRadius: ALBUM_HERO_RADIUS,
     overflow: 'hidden',
     backgroundColor: 'transparent',
   },
   heroFrameInner: {
-    flex: 1,
+    width: '100%',
+    height: '100%',
     borderRadius: ALBUM_HERO_RADIUS,
     overflow: 'hidden',
   },
@@ -251,14 +334,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  emptyText: {
-    color: 'rgba(15,23,42,0.45)',
-    fontSize: 12,
-  },
-  emptyTextDark: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 12,
   },
   heroOverlay: {
     position: 'absolute',

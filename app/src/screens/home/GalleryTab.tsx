@@ -20,7 +20,7 @@ import {
 import { migrateLocalCustomGalleryAlbums } from '../../utils/migrateCustomGalleryAlbums';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import { PencilLine, Pen, Archive, Trash2 } from 'lucide-react-native';
+import { PencilLine, Pen, Trash2 } from 'lucide-react-native';
 import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
 import { getUserGallery, upsertGalleryItemMeta } from '../../api/ai.api';
 import {
@@ -36,7 +36,6 @@ import { updateEvent, uploadEventPhotos, deleteEventPhoto } from '../../api/even
 import Toast from 'react-native-toast-message';
 import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
 import { useGalleryViewportHeroHeight } from '../../hooks/useGalleryViewportHeroHeight';
-import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';
 import AlbumPhotosScreenLayout from '../../components/gallery/AlbumPhotosScreenLayout';
 import AlbumPhotosHeroCarousel from '../../components/gallery/AlbumPhotosHeroCarousel';
 import AlbumPhotosThumbStrip from '../../components/gallery/AlbumPhotosThumbStrip';
@@ -45,8 +44,8 @@ import { drivePhotoSelectCap, toggleDriveFileSelection } from '../../utils/drive
 import GalleryAlbumSubHeader from '../../components/gallery/GalleryAlbumSubHeader';
 import GalleryUploadSheet from '../../components/gallery/GalleryUploadSheet';
 import GalleryTravelersRow, { type GalleryTraveler } from '../../components/gallery/GalleryTravelersRow';
-import GalleryTravelersVisibilityToggle from '../../components/gallery/GalleryTravelersVisibilityToggle';
 import GalleryEngagementSection from '../../components/gallery/GalleryEngagementSection';
+import GalleryAlbumDescription from '../../components/gallery/GalleryAlbumDescription';
 import GalleryHeroMedia from '../../components/gallery/GalleryHeroMedia';
 import { getTripMembers } from '../../api/trips.api';
 import { getEventMembers } from '../../api/events.api';
@@ -82,12 +81,6 @@ const CloseIcon = () => (
 const XIcon = ({ color = '#fff', size = 13 }: { color?: string; size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path d="M18 6L6 18M6 6l12 12" stroke={color} strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" />
-  </Svg>
-);
-
-const CheckIcon = () => (
-  <Svg width={17} height={17} viewBox="0 0 24 24" fill="none">
-    <Path d="M20 6L9 17l-5-5" stroke="#0d9488" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
   </Svg>
 );
 
@@ -209,6 +202,54 @@ function GallerySkeleton() {
         {cardKeys.map(k => <View key={k} style={skStyles.card} />)}
       </View>
     </Animated.View>
+  );
+}
+
+// ─── Gallery album (modal) skeleton ──────────────────────────────────────────
+
+function GalleryAlbumSkeleton({ heroH }: { heroH: number }) {
+  const pulse = useRef(new Animated.Value(0.5)).current;
+  const pageW = Dimensions.get('window').width;
+  const innerW = pageW - 32;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.5, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [pulse]);
+
+  const B = ({ w, h, r = 8, style: s }: { w: number | string; h: number; r?: number; style?: object }) => (
+    <Animated.View style={[{ width: w, height: h, borderRadius: r, backgroundColor: '#e2e8f0', opacity: pulse }, s]} />
+  );
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 4 }}>
+        <B w={innerW} h={Math.max(heroH - 10, 200)} r={18} />
+      </View>
+      <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingVertical: 5 }}>
+        {[0, 1, 2, 3, 4].map(i => <B key={i} w={64} h={50} r={8} />)}
+      </View>
+      <B w={160} h={13} r={6} style={{ marginLeft: 16, marginTop: 12 }} />
+      <View style={{ flexDirection: 'row', gap: 16, paddingHorizontal: 16, paddingTop: 16 }}>
+        <B w={68} h={18} r={9} />
+        <B w={90} h={18} r={9} />
+      </View>
+      {[0, 1, 2].map(i => (
+        <View key={i} style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 14, alignItems: 'center' }}>
+          <B w={32} h={32} r={16} />
+          <View style={{ flex: 1, gap: 6 }}>
+            <B w="42%" h={12} r={6} />
+            <B w="68%" h={11} r={5} />
+          </View>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -338,7 +379,7 @@ function PhotosModal({
   const [nameDraft, setNameDraft] = useState(title);
   const [subtitleDraft, setSubtitleDraft] = useState('');
   const [hideTravelers, setHideTravelers] = useState(false);
-  const [savingTravelers, setSavingTravelers] = useState(false);
+  const [draftHideTravelers, setDraftHideTravelers] = useState(false);
   const [saving, setSaving] = useState(false);
   const localUriCache = useRef<Record<string, string>>({});
   const pendingDrivePickerRef = useRef(false);
@@ -385,6 +426,7 @@ function PhotosModal({
       setNameDraft(title);
       setSubtitleDraft(initialSubtitle ?? '');
       setHideTravelers(initialHideTravelers);
+      setDraftHideTravelers(initialHideTravelers);
     }
   }, [visible]);
 
@@ -392,8 +434,15 @@ function PhotosModal({
     if (visible) {
       setSubtitleDraft(initialSubtitle ?? '');
       setHideTravelers(initialHideTravelers);
+      setDraftHideTravelers(initialHideTravelers);
     }
   }, [initialSubtitle, initialHideTravelers, visible]);
+
+  useEffect(() => {
+    if (editMode) {
+      setDraftHideTravelers(hideTravelers);
+    }
+  }, [editMode, hideTravelers]);
 
   const loadPhotos = () => {
     if (!parentId) return;
@@ -474,15 +523,15 @@ function PhotosModal({
     const fn = cam ? launchCamera : launchImageLibrary;
     const batch = uploadLimits.galleryPhoto.maxBatchFiles;
     const opts = cam
-      ? { mediaType: 'photo' as const, quality: 0.85, maxWidth: 2048, maxHeight: 2048 }
-      : { mediaType: 'photo' as const, selectionLimit: batch, quality: 0.85, maxWidth: 2048, maxHeight: 2048 };
+      ? { mediaType: 'mixed' as const }
+      : { mediaType: 'mixed' as const, selectionLimit: batch };
     fn(opts, async (res) => {
       if (res.didCancel || !res.assets?.length) return;
 
       const assets = res.assets.map((a) => ({
         uri: a.uri ?? '',
         type: a.type ?? 'image/jpeg',
-        name: a.fileName ?? 'photo.jpg',
+        name: a.fileName ?? 'media.jpg',
       })).filter((a) => a.uri);
       if (!assets.length) return;
 
@@ -491,6 +540,7 @@ function PhotosModal({
         id: tempIds[i],
         uri: a.uri,
         localUri: a.uri,
+        mimeType: a.type ?? null,
         activityId: null,
         activityTitle: null,
         createdAt: new Date().toISOString(),
@@ -512,6 +562,7 @@ function PhotosModal({
             id: ph.id,
             uri: ph.url ?? ph.fileUrl ?? ph.uri ?? assets[i]?.uri ?? '',
             localUri: assets[i]?.uri,
+            mimeType: ph.mimeType ?? assets[i]?.type ?? null,
             activityId: ph.activityId ?? null,
             activityTitle: ph.activityTitle ?? null,
             createdAt: ph.createdAt ?? new Date().toISOString(),
@@ -609,6 +660,13 @@ function PhotosModal({
         const result = await upsertGalleryItemMeta(parentType, parentId, { subtitle: clean || null });
         onSubtitleSaved?.(result.subtitle);
       }
+
+      if (draftHideTravelers !== hideTravelers) {
+        const result = await upsertGalleryItemMeta(parentType, parentId, { hideTravelers: draftHideTravelers });
+        setHideTravelers(result.hideTravelers);
+        setDraftHideTravelers(result.hideTravelers);
+        onHideTravelersSaved?.(result.hideTravelers);
+      }
     } catch {
       Toast.show({ type: 'error', text1: 'Could not save changes', text2: 'Please try again.' });
     } finally {
@@ -637,28 +695,33 @@ function PhotosModal({
     }
   };
 
-  const toggleTravelersVisibility = async () => {
+  const setTravelersVisibility = async (visible: boolean) => {
     if (parentType !== 'trip' || userId) return;
-    const next = !hideTravelers;
-    setSavingTravelers(true);
+    const nextHidden = !visible;
+    if (nextHidden === hideTravelers) return;
+    // Immediate save for non-edit mode use cases only
+    setHideTravelers(nextHidden);
+    onHideTravelersSaved?.(nextHidden);
     try {
-      const result = await upsertGalleryItemMeta(parentType, parentId, { hideTravelers: next });
+      const result = await upsertGalleryItemMeta(parentType, parentId, { hideTravelers: nextHidden });
       setHideTravelers(result.hideTravelers);
       onHideTravelersSaved?.(result.hideTravelers);
     } catch {
+      setHideTravelers(!nextHidden);
+      onHideTravelersSaved?.(!nextHidden);
       Toast.show({ type: 'error', text1: 'Could not update setting', text2: 'Please try again.' });
-    } finally {
-      setSavingTravelers(false);
     }
   };
 
-  const showTravelersRow = parentType === 'trip' && members.length > 0 && !hideTravelers;
-  const currentPhoto = photos[heroIndex];
-  const activityLabel = currentPhoto?.activityTitle?.trim() || null;
+  const showTravelersInView = parentType === 'trip' && members.length > 0 && photos.length > 0 && !hideTravelers && !editMode;
+  const showTravelersInEdit = editMode && parentType === 'trip' && !userId && members.length > 0 && photos.length > 0;
+  const photosEmpty = photos.length === 0 && !loading;
   const displaySubtitle = editMode ? subtitleDraft : (initialSubtitle?.trim() ?? '');
   const heroHeight = useGalleryViewportHeroHeight({
-    hasTravelers: showTravelersRow || (parentType === 'trip' && !userId),
-    hasDescription: !editMode && !!displaySubtitle,
+    hasTravelers: showTravelersInView || showTravelersInEdit,
+    hasDescription: !userId && photos.length > 0,
+    hasPhotos: photos.length > 0,
+    emptyHero: photosEmpty && !userId,
     editMode,
     viewOnly: !!userId,
   });
@@ -670,6 +733,7 @@ function PhotosModal({
           navigation={navigation}
           activeTab="gallery"
           galleryChrome
+          scrollable
           onClose={onClose}
           subHeader={
             <GalleryAlbumSubHeader
@@ -678,9 +742,7 @@ function PhotosModal({
               editMode={editMode}
               viewOnly={!!userId}
               nameDraft={nameDraft}
-              subtitleDraft={subtitleDraft}
               onNameChange={setNameDraft}
-              onSubtitleChange={setSubtitleDraft}
               onBack={onClose}
               onEdit={() => setEditMode(true)}
               onUpload={() => setShowUploadSheet(true)}
@@ -689,78 +751,95 @@ function PhotosModal({
             />
           }
         >
-          <View style={styles.galleryAlbumBody}>
-            <AlbumPhotosHeroCarousel
-              galleryChrome
-              photos={photos}
-              heroIndex={heroIndex}
-              onIndexChange={setHeroIndex}
-              heroRef={heroFlatListRef}
-              loading={loading}
-              scrollEnabled={!editMode}
-              fixedHeight={heroHeight}
-              showPagerDots={false}
-              activityLabel={activityLabel}
-              renderPhoto={(item, index) => renderGalleryHero(item, index, heroIndex)}
-            />
-            <AlbumPhotosThumbStrip
-              photos={photos}
-              heroIndex={heroIndex}
-              scrollEnabled={!editMode}
-              transparent
-              galleryChrome
-              onSelect={(idx) => {
-                setHeroIndex(idx);
-                heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
-              }}
-              renderOverlay={(ph, _idx) => {
-                if (!editMode || userId) return null;
-                return (
-                  <TouchableOpacity
-                    onPress={() => {
-                      showConfirm({
-                        title: 'Delete photo?',
-                        message: 'This photo will be removed for all trip/event members.',
-                        destructive: true,
-                        confirmText: 'Delete',
-                        onConfirm: () => removePhotoFromGallery(ph as PhotoItem),
-                      });
-                    }}
-                    style={styles.thumbDeleteBtn}
-                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                    disabled={deletingId === ph.id}
-                  >
-                    {deletingId === ph.id
-                      ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
-                      : <Trash2 size={11} color="#fff" strokeWidth={2.5} />}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-            {!editMode && displaySubtitle ? (
-              <Text style={styles.galleryDescription} numberOfLines={2}>{displaySubtitle}</Text>
-            ) : null}
-            {parentType === 'trip' && !userId ? (
-              <GalleryTravelersVisibilityToggle
-                hidden={hideTravelers}
-                onToggle={toggleTravelersVisibility}
-                saving={savingTravelers}
-              />
-            ) : null}
-            {showTravelersRow ? <GalleryTravelersRow members={members} /> : null}
-            {!userId ? (
-              <GalleryEngagementSection
-                likeCount={engagement.likeCount}
-                likedByMe={engagement.likedByMe}
-                comments={engagement.comments}
-                canModerateComments
-                scrollableComments
-                onToggleLike={engagement.handleToggleLike}
-                onAddComment={engagement.handleAddComment}
-                onEditComment={engagement.handleEditComment}
-                onDeleteComment={engagement.handleDeleteComment}
-              />
-            ) : null}
+          <View style={[styles.galleryAlbumBody, photosEmpty && styles.galleryAlbumBodyEmpty]}>
+            {loading ? (
+              <GalleryAlbumSkeleton heroH={heroHeight} />
+            ) : (
+              <>
+                <AlbumPhotosHeroCarousel
+                  galleryChrome
+                  photos={photos}
+                  heroIndex={heroIndex}
+                  onIndexChange={setHeroIndex}
+                  heroRef={heroFlatListRef}
+                  scrollEnabled={!editMode}
+                  fixedHeight={photosEmpty ? undefined : heroHeight}
+                  emptyCentered={photosEmpty && !userId}
+                  showPagerDots={false}
+                  renderActivityLabel={(item) => (item as PhotoItem).activityTitle?.trim() || null}
+                  emptyVariant={photosEmpty && !userId ? 'own' : 'simple'}
+                  emptyAlbumKind={parentType}
+                  emptyAlbumName={title}
+                  emptyLocationLabel={location?.trim() || title}
+                  onEmptyUpload={!userId ? () => setShowUploadSheet(true) : undefined}
+                  renderPhoto={(item, index) => renderGalleryHero(item, index, heroIndex)}
+                />
+                <AlbumPhotosThumbStrip
+                  photos={photos}
+                  heroIndex={heroIndex}
+                  scrollEnabled={!editMode}
+                  transparent
+                  galleryChrome
+                  onSelect={(idx) => {
+                    setHeroIndex(idx);
+                    heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
+                  }}
+                  renderOverlay={(ph, _idx) => {
+                    if (!editMode || userId) return null;
+                    return (
+                      <TouchableOpacity
+                        onPress={() => {
+                          showConfirm({
+                            title: 'Delete photo?',
+                            message: 'This photo will be removed for all trip/event members.',
+                            destructive: true,
+                            confirmText: 'Delete',
+                            onConfirm: () => removePhotoFromGallery(ph as PhotoItem),
+                          });
+                        }}
+                        style={styles.thumbDeleteBtn}
+                        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                        disabled={deletingId === ph.id}
+                      >
+                        {deletingId === ph.id
+                          ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
+                          : <Trash2 size={11} color="#fff" strokeWidth={2.5} />}
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+                {!userId && photos.length > 0 ? (
+                  <GalleryAlbumDescription
+                    value={editMode ? subtitleDraft : displaySubtitle}
+                    editMode={editMode}
+                    onChange={setSubtitleDraft}
+                  />
+                ) : displaySubtitle && photos.length > 0 ? (
+                  <Text style={styles.galleryDescription} numberOfLines={2}>{displaySubtitle}</Text>
+                ) : null}
+                {showTravelersInView || showTravelersInEdit ? (
+                  <GalleryTravelersRow
+                    members={members}
+                    editMode={showTravelersInEdit}
+                    travelersHidden={showTravelersInEdit ? draftHideTravelers : hideTravelers}
+                    onToggleVisibility={showTravelersInEdit ? (visible) => setDraftHideTravelers(!visible) : undefined}
+                  />
+                ) : null}
+                {!userId && photos.length > 0 ? (
+                  <GalleryEngagementSection
+                    likeCount={engagement.likeCount}
+                    likedByMe={engagement.likedByMe}
+                    comments={engagement.comments}
+                    canModerateComments
+                    scrollableComments
+                    onToggleLike={engagement.handleToggleLike}
+                    onAddComment={engagement.handleAddComment}
+                    onEditComment={engagement.handleEditComment}
+                    onDeleteComment={engagement.handleDeleteComment}
+                  />
+                ) : null}
+              </>
+            )}
           </View>
         </AlbumPhotosScreenLayout>
       </Modal>
@@ -965,11 +1044,14 @@ function CustomCardPhotosModal({
   const uploadLimits = useUploadLimits();
   const [editMode, setEditMode] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+  const [subtitleDraft, setSubtitleDraft] = useState('');
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [showUploadSheet, setShowUploadSheet] = useState(false);
   const heroFlatListRef = useRef<any>(null);
 
   const engagement = useGalleryEngagement({
@@ -978,9 +1060,11 @@ function CustomCardPhotosModal({
     albumId: card?.id ?? '',
   });
 
+  const photosEmpty = photos.length === 0 && !loading;
   const heroHeight = useGalleryViewportHeroHeight({
-    hasFooter: true,
-    hasMetaCard: true,
+    hasDescription: photos.length > 0,
+    hasPhotos: photos.length > 0,
+    emptyHero: photosEmpty,
     editMode,
   });
 
@@ -1009,6 +1093,7 @@ function CustomCardPhotosModal({
       setHeroIndex(0);
     } else if (card) {
       setNameDraft(card.name);
+      setSubtitleDraft(card.gallerySubtitle?.trim() ?? '');
       loadPhotos();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1016,14 +1101,23 @@ function CustomCardPhotosModal({
 
   const saveAndExitEdit = async () => {
     if (!card) return;
-    const trimmed = nameDraft.trim();
-    if (trimmed && trimmed !== card.name) {
-      try {
-        const updated = await updateGalleryAlbum(card.id, { name: trimmed });
+    setSaving(true);
+    try {
+      const trimmedName = nameDraft.trim();
+      const trimmedSubtitle = subtitleDraft.trim();
+      const nameChanged = !!trimmedName && trimmedName !== card.name;
+      const subtitleChanged = trimmedSubtitle !== (card.gallerySubtitle?.trim() ?? '');
+      if (nameChanged || subtitleChanged) {
+        const payload: { name?: string; subtitle?: string | null } = {};
+        if (nameChanged) payload.name = trimmedName;
+        if (subtitleChanged) payload.subtitle = trimmedSubtitle || null;
+        const updated = await updateGalleryAlbum(card.id, payload);
         onCardUpdated({ ...updated, type: card.type });
-      } catch {
-        Toast.show({ type: 'error', text1: 'Could not save', text2: 'Please try again.' });
       }
+    } catch {
+      Toast.show({ type: 'error', text1: 'Could not save', text2: 'Please try again.' });
+    } finally {
+      setSaving(false);
     }
     setEditMode(false);
   };
@@ -1034,9 +1128,10 @@ function CustomCardPhotosModal({
     try {
       const { photos: uploaded } = await uploadGalleryAlbumPhotos(card.id, assets);
       setPhotos((prev) => {
-        const mapped = uploaded.map((p) => ({
+        const mapped = uploaded.map((p, i) => ({
           id: p.id,
           uri: p.uri ?? '',
+          mimeType: (p as any).mimeType ?? assets[i]?.type ?? null,
           createdAt: p.createdAt ?? new Date().toISOString(),
         }));
         focusAlbumPhotosAtEnd(prev.length, mapped.length, setHeroIndex, heroFlatListRef);
@@ -1058,12 +1153,12 @@ function CustomCardPhotosModal({
     const fn = cam ? launchCamera : launchImageLibrary;
     const batch = uploadLimits.galleryPhoto.maxBatchFiles;
     const opts = cam
-      ? { mediaType: 'photo' as const, quality: 0.85, maxWidth: 2048, maxHeight: 2048 }
-      : { mediaType: 'photo' as const, selectionLimit: batch, includeBase64: false, quality: 0.85, maxWidth: 2048, maxHeight: 2048 };
+      ? { mediaType: 'mixed' as const }
+      : { mediaType: 'mixed' as const, selectionLimit: batch };
     fn(opts, async (res) => {
       if (res.didCancel || !res.assets?.length) return;
       const assets = res.assets
-        .map((a) => ({ uri: a.uri ?? '', type: a.type ?? 'image/jpeg', name: a.fileName ?? 'photo.jpg' }))
+        .map((a) => ({ uri: a.uri ?? '', type: a.type ?? 'image/jpeg', name: a.fileName ?? 'media.jpg' }))
         .filter((a) => a.uri);
       await uploadAssets(assets);
     });
@@ -1098,23 +1193,6 @@ function CustomCardPhotosModal({
     }
   };
 
-  const changeCoverFromLibrary = () => {
-    if (!card) return;
-    launchImageLibrary(
-      { mediaType: 'photo', selectionLimit: 1, quality: 0.9, maxWidth: 1200, maxHeight: 800 },
-      async (res) => {
-        if (res.didCancel || !res.assets?.length) return;
-        const uri = res.assets[0].uri;
-        if (!uri) return;
-        const alreadyIn = photos.some((p) => p.uri === uri);
-        if (!alreadyIn) {
-          await uploadAssets([{ uri, type: res.assets[0].type ?? 'image/jpeg', name: res.assets[0].fileName ?? 'cover.jpg' }]);
-        }
-        await setPhotoAsCover(uri);
-      },
-    );
-  };
-
   if (!card) return null;
 
   return (
@@ -1124,63 +1202,40 @@ function CustomCardPhotosModal({
           navigation={navigation}
           activeTab="gallery"
           galleryChrome
+          scrollable
           onClose={onClose}
-          photoIndex={heroIndex}
-          photoTotal={photos.length}
-          heroOverlay={
-            editMode ? (
-              <TouchableOpacity onPress={saveAndExitEdit} style={acs.heroOverlayBtnLight}>
-                <CheckIcon />
-              </TouchableOpacity>
-            ) : (
-              <>
-                <TouchableOpacity onPress={() => setEditMode(true)} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Pen size={15} color="#0d9488" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    showConfirm({
-                      title: 'Archive album?',
-                      message: `Hide "${card.name}" from your gallery only.\n\nFriends will not see this album on your profile. Restore from Archived.`,
-                      confirmText: 'Archive',
-                      onConfirm: () => { onArchiveCard(card.id); onClose(); },
-                    });
-                  }}
-                  style={acs.heroOverlayBtnLight}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                >
-                  <Archive size={15} color="#64748b" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    showConfirm({
-                      title: 'Delete album permanently?',
-                      message: `Permanently delete "${card.name}" from your gallery only.\n\nDoes not delete shared trips or events. This cannot be undone.`,
-                      confirmText: 'Delete',
-                      destructive: true,
-                      onConfirm: () => { onDeleteCard(card.id); onClose(); },
-                    });
-                  }}
-                  style={acs.heroOverlayBtnLight}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                >
-                  <Trash2 size={15} color="#ef4444" />
-                </TouchableOpacity>
-              </>
-            )
-          }
-          footer={
-            <AlbumPhotosFooter
-              galleryChrome
-              aboveTabBar
-              onUpload={() => pickPhotos(false)}
-              onCamera={() => pickPhotos(true)}
-              uploading={uploading}
-              showDrive={false}
+          subHeader={
+            <GalleryAlbumSubHeader
+              title={card.name}
+              editMode={editMode}
+              nameDraft={nameDraft}
+              onNameChange={setNameDraft}
+              onBack={onClose}
+              onEdit={() => setEditMode(true)}
+              onArchive={() => {
+                showConfirm({
+                  title: 'Archive album?',
+                  message: `Hide "${card.name}" from your gallery only.\n\nFriends will not see this album on your profile. Restore from Archived.`,
+                  confirmText: 'Archive',
+                  onConfirm: () => { onArchiveCard(card.id); onClose(); },
+                });
+              }}
+              onDelete={() => {
+                showConfirm({
+                  title: 'Delete album permanently?',
+                  message: `Permanently delete "${card.name}" from your gallery only.\n\nDoes not delete shared trips or events. This cannot be undone.`,
+                  confirmText: 'Delete',
+                  destructive: true,
+                  onConfirm: () => { onDeleteCard(card.id); onClose(); },
+                });
+              }}
+              onUpload={() => setShowUploadSheet(true)}
+              onDoneEdit={saveAndExitEdit}
+              saving={saving}
             />
           }
         >
-          <View style={styles.galleryAlbumBody}>
+          <View style={[styles.galleryAlbumBody, photosEmpty && styles.galleryAlbumBodyEmpty]}>
             <AlbumPhotosHeroCarousel
               galleryChrome
               photos={photos}
@@ -1189,8 +1244,13 @@ function CustomCardPhotosModal({
               heroRef={heroFlatListRef}
               loading={loading}
               scrollEnabled={!editMode}
-              fixedHeight={heroHeight}
+              fixedHeight={photosEmpty ? undefined : heroHeight}
+              emptyCentered={photosEmpty}
               showPagerDots={false}
+              emptyVariant={photosEmpty ? 'own' : 'simple'}
+              emptyAlbumKind={card.type}
+              emptyAlbumName={card.name}
+              onEmptyUpload={() => setShowUploadSheet(true)}
               renderPhoto={(item, index) => renderGalleryHero(item, index, heroIndex)}
             />
             <AlbumPhotosThumbStrip
@@ -1203,16 +1263,9 @@ function CustomCardPhotosModal({
                 setHeroIndex(idx);
                 heroFlatListRef.current?.scrollToIndex({ index: idx, animated: true });
               }}
-              renderOverlay={(ph, idx) => {
-                const isCover = !!card.bannerImageUrl && card.bannerImageUrl === ph.uri;
-                if (!editMode && isCover) {
-                  return (
-                    <View style={[styles.coverBadge, { top: 4, left: 4 }]}>
-                      <Text style={styles.coverBadgeText}>Cover</Text>
-                    </View>
-                  );
-                }
+              renderOverlay={(ph, _idx) => {
                 if (!editMode) return null;
+                const isCover = !!card.bannerImageUrl && card.bannerImageUrl === ph.uri;
                 return (
                   <>
                     <TouchableOpacity
@@ -1243,54 +1296,35 @@ function CustomCardPhotosModal({
                 );
               }}
             />
-            <View style={acs.metaCardTransparent}>
-              {editMode ? (
-                <>
-                  <TextInput
-                    value={nameDraft}
-                    onChangeText={setNameDraft}
-                    style={[styles.titleEditInput, { fontSize: 14, marginBottom: 4, paddingVertical: 4 }]}
-                    placeholderTextColor="#94a3b8"
-                    placeholder="Album title"
-                    returnKeyType="done"
-                    onSubmitEditing={saveAndExitEdit}
-                  />
-                  <TouchableOpacity style={[styles.changeCoverRow, { marginBottom: 4 }]} onPress={changeCoverFromLibrary} activeOpacity={0.75}>
-                    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-                      <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      <Circle cx={12} cy={13} r={4} stroke="#0d9488" strokeWidth={2} />
-                    </Svg>
-                    <Text style={[styles.changeCoverText, { fontSize: 12 }]}>Change cover</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <Text style={acs.metaTitle} numberOfLines={1}>{card.name}</Text>
-              )}
-              <View style={acs.metaRow}>
-                <View style={{ backgroundColor: '#f0fdf4', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '600', color: '#0d9488' }}>
-                    {card.type === 'trip' ? 'Custom trip album' : 'Custom event album'}
-                  </Text>
-                </View>
-                <Text style={acs.metaCount}>
-                  {photos.length === 0 ? 'No photos' : `${photos.length} ${photos.length === 1 ? 'photo' : 'photos'}`}
-                </Text>
-              </View>
-            </View>
-            <GalleryEngagementSection
-              likeCount={engagement.likeCount}
-              likedByMe={engagement.likedByMe}
-              comments={engagement.comments}
-              canModerateComments
-              scrollableComments
-              onToggleLike={engagement.handleToggleLike}
-              onAddComment={engagement.handleAddComment}
-              onEditComment={engagement.handleEditComment}
-              onDeleteComment={engagement.handleDeleteComment}
+            <GalleryAlbumDescription
+              value={editMode ? subtitleDraft : (card.gallerySubtitle?.trim() ?? '')}
+              editMode={editMode}
+              onChange={setSubtitleDraft}
             />
+            {photos.length > 0 ? (
+              <GalleryEngagementSection
+                likeCount={engagement.likeCount}
+                likedByMe={engagement.likedByMe}
+                comments={engagement.comments}
+                canModerateComments
+                scrollableComments
+                onToggleLike={engagement.handleToggleLike}
+                onAddComment={engagement.handleAddComment}
+                onEditComment={engagement.handleEditComment}
+                onDeleteComment={engagement.handleDeleteComment}
+              />
+            ) : null}
           </View>
         </AlbumPhotosScreenLayout>
       </Modal>
+      <GalleryUploadSheet
+        visible={showUploadSheet}
+        onClose={() => setShowUploadSheet(false)}
+        onGallery={() => pickPhotos(false)}
+        onCamera={() => pickPhotos(true)}
+        showDrive={false}
+        busy={uploading}
+      />
     </>
   );
 }
@@ -1829,18 +1863,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
 
-  changeCoverRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingVertical: 10,
-    paddingHorizontal: 2,
-    marginBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  changeCoverText: { fontSize: 13, color: '#0d9488', fontWeight: '400' },
-
   thumbCoverBtn: {
     position: 'absolute',
     bottom: 3,
@@ -1853,17 +1875,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   thumbCoverBtnActive: { backgroundColor: '#fff' },
-
-  coverBadge: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    backgroundColor: 'rgba(13,148,136,0.85)',
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-  },
-  coverBadgeText: { fontSize: 9, color: '#fff', fontWeight: '600' },
 
   modalSubtitleText: {
     fontSize: 13,
@@ -1894,5 +1905,8 @@ const styles = StyleSheet.create({
   galleryAlbumBody: {
     flex: 1,
     minHeight: 0,
+  },
+  galleryAlbumBodyEmpty: {
+    flexGrow: 1,
   },
 });

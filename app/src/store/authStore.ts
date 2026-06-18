@@ -7,6 +7,7 @@ export type AuthState = {
   refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isSplashComplete: boolean;
   pendingProfileSetup: boolean;
   avatarUpdatedAt: number;
   prevAvatarUrl: string;
@@ -15,6 +16,7 @@ export type AuthState = {
   logout: () => void;
   updateUser: (data: Partial<User>) => void;
   setLoading: (val: boolean) => void;
+  setSplashComplete: (val: boolean) => void;
   setPendingProfileSetup: (val: boolean) => void;
 };
 
@@ -24,6 +26,7 @@ const useAuthStore = create<AuthState>((set) => ({
   refreshToken: null,
   isAuthenticated: false,
   isLoading: false,
+  isSplashComplete: false,
   pendingProfileSetup: false,
   avatarUpdatedAt: 0,
   prevAvatarUrl: '',
@@ -56,6 +59,8 @@ const useAuthStore = create<AuthState>((set) => ({
     }),
 
   setLoading: (val) => set({ isLoading: val }),
+
+  setSplashComplete: (val) => set({ isSplashComplete: val }),
 
   setPendingProfileSetup: (val) => set({ pendingProfileSetup: val }),
 }));

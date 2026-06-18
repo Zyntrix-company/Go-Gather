@@ -254,7 +254,7 @@ export default function EditProfileScreen({ navigation }: any) {
         onClose={() => setShowCountryPicker(false)}
       />
 
-      <AppScreenLayout navigation={navigation} title="Edit Profile">
+      <AppScreenLayout navigation={navigation} title="Edit Profile" onBack={() => navigation.goBack()}>
         <KeyboardAvoidingView
           style={styles.kav}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -462,9 +462,9 @@ const styles = StyleSheet.create({
 
   // ── Fields — no marginBottom; parent space-between handles gaps ────────────
   field:       { },
-  fieldLabel:  { fontSize: 12, fontWeight: '400', color: '#0F172B', marginBottom: 5 },
-  required:    { color: '#ef4444', fontWeight: '400' },
-  optional:    { fontSize: 11, fontWeight: '400', color: '#45556C' },
+  fieldLabel:  { fontSize: 12, fontWeight: '500', color: '#0F172B', marginBottom: 5 },
+  required:    { color: '#ef4444', fontWeight: '500' },
+  optional:    { fontSize: 11, fontWeight: '500', color: '#45556C' },
   dobReadOnly: { width: '100%', backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   dobReadOnlyText: { fontSize: 13, color: '#5b5e63' , },
   dobReadOnlyPlaceholder: { fontSize: 13, color: '#cbd5e1' },

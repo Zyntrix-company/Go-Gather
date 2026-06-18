@@ -7,6 +7,20 @@ import storage from '../utils/storage';
 import { parseError, handleApiError, ApiError, Doc, Photo, Expense, SplitUser, Debt, Note, Poll, TripMember, LocationPoint } from './trips.api';
 import useAuthStore from '../store/authStore';
 
+function normalizeMimeForUpload(mime: string | undefined): string {
+  if (!mime) return 'image/jpeg';
+  const map: Record<string, string> = {
+    'video/quicktime': 'video/mp4',
+    'video/x-matroska': 'video/mp4',
+    'video/x-msvideo': 'video/mp4',
+    'video/x-ms-wmv': 'video/mp4',
+    'video/3gpp': 'video/3gp',
+  };
+  if (map[mime]) return map[mime];
+  if (mime.length <= 10) return mime;
+  return mime.slice(0, 10);
+}
+
 // ─── Multipart upload helper ──────────────────────────────────────────────────
 // Uses XMLHttpRequest — RN's XHR resolves content:// and file:// URIs in
 // FormData on Android correctly, whereas fetch cannot read content:// URIs.
@@ -204,7 +218,7 @@ export async function getEventPhotos(eventId: string) {
 export async function uploadEventPhotos(eventId: string, assets: Array<{ uri: string; type?: string; name?: string }>) {
   const formData = new FormData();
   assets.forEach(asset => {
-    formData.append('photos', { uri: asset.uri, type: asset.type ?? 'image/jpeg', name: asset.name ?? 'photo.jpg' } as any);
+    formData.append('photos', { uri: asset.uri, type: normalizeMimeForUpload(asset.type), name: asset.name ?? 'photo.jpg' } as any);
   });
   return uploadMultipart(`/events/${eventId}/photos`, formData) as Promise<{ photos: Photo[] }>;
 }

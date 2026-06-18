@@ -26,6 +26,7 @@ type Props = {
 export default function SplashScreen({ navigation, onFinish }: Props) {
   const { loadFromToken } = useAuth();
   const setPendingProfileSetup = useAuthStore((s) => s.setPendingProfileSetup);
+  const setSplashComplete = useAuthStore((s) => s.setSplashComplete);
 
   // ── Responsive sizes ──────────────────────────────────────────────────
   const { width: screenW, height: screenH } = useWindowDimensions();
@@ -77,6 +78,7 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
     function tryNavigate() {
       if (!authDone || !animDone || resolved) return;
       resolved = true;
+      setSplashComplete(true);
       onFinish?.();
 
       // If RootNavigator already sees isAuthenticated = true (token was preserved
@@ -121,23 +123,23 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
 
       // Phase 3 — After 1.5 s, slide icon + wordmark left together, wordmark fades in.
       Animated.sequence([
-        Animated.delay(1500),
+        Animated.delay(1200),
         Animated.parallel([
           Animated.timing(logoX, {
             toValue: ICON_SHIFT_X,
-            duration: 700,
+            duration: 500,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
           Animated.timing(wordmarkX, {
             toValue: 0,
-            duration: 700,
+            duration: 500,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
           Animated.timing(wordmarkOpacity, {
             toValue: 1,
-            duration: 700,
+            duration: 500,
             easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }),
@@ -145,7 +147,7 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
       ]).start();
 
       // Phase 4 — Hold for full animation duration then navigate.
-      animTimer = setTimeout(() => { animDone = true; tryNavigate(); }, 4500);
+      animTimer = setTimeout(() => { animDone = true; tryNavigate(); }, 3500);
     })();
 
     return () => { if (animTimer) clearTimeout(animTimer); };

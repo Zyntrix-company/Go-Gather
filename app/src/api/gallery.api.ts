@@ -30,6 +30,21 @@ export type GalleryPhoto = {
   createdAt?: string | null;
 };
 
+function normalizeMimeForUpload(mime: string | undefined): string {
+  if (!mime) return 'image/jpeg';
+  const map: Record<string, string> = {
+    'video/quicktime': 'video/mp4',
+    'video/x-matroska': 'video/mp4',
+    'video/x-msvideo': 'video/mp4',
+    'video/x-ms-wmv': 'video/mp4',
+    'video/3gpp': 'video/3gp',
+    'image/jpeg': 'image/jpeg',
+  };
+  if (map[mime]) return map[mime];
+  if (mime.length <= 10) return mime;
+  return mime.slice(0, 10);
+}
+
 function uploadMultipart(path: string, formData: FormData): Promise<any> {
   return new Promise(async (resolve, reject) => {
     let token = await storage.getToken();
@@ -116,10 +131,13 @@ export async function uploadGalleryAlbumPhotos(
 ): Promise<{ photos: GalleryPhoto[] }> {
   const formData = new FormData();
   assets.forEach((asset) => {
+    const normalizedType = normalizeMimeForUpload(asset.type);
+    const name = asset.name ?? 'photo.jpg';
+    console.log('[gallery upload] mime:', asset.type, '→', normalizedType, '| name:', name, '(len:', name.length, ')| uri:', asset.uri?.slice(-40));
     formData.append('photos', {
       uri: asset.uri,
-      type: asset.type ?? 'image/jpeg',
-      name: asset.name ?? 'photo.jpg',
+      type: normalizedType,
+      name,
     } as any);
   });
   const data = await uploadMultipart(`/users/me/gallery/albums/${albumId}/photos`, formData);
@@ -164,6 +182,25 @@ export async function getUserGalleryItemPhotos(
   const { data } = await client.get(`/users/${userId}/gallery-items/${parentType}/${parentId}/photos`);
   const photos = (data.photos ?? []).map(mapGalleryItemPhoto);
   return { photos, total: data.total ?? photos.length };
+}
+
+export type GalleryTripMember = {
+  userId: string;
+  fullName?: string | null;
+  avatarUrl?: string | null;
+};
+
+export async function getUserGalleryItemMembers(
+  userId: string,
+  parentType: 'trip' | 'event',
+  parentId: string,
+): Promise<GalleryTripMember[]> {
+  const { data } = await client.get(`/users/${userId}/gallery-items/${parentType}/${parentId}/members`);
+  return (data.members ?? []).map((m: any) => ({
+    userId: m.userId,
+    fullName: m.fullName ?? m.name ?? null,
+    avatarUrl: m.avatarUrl ?? null,
+  }));
 }
 
 export function emptyCustomAlbums(): GalleryAlbumsBySection {

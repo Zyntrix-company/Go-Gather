@@ -200,7 +200,10 @@
       "Bash(adb -s 13871381370004X tcpip 5555)",
       "Bash(adb -s 13871381370004X shell ip route)",
       "Bash(adb connect *)",
-      "Bash(.\\\\gradlew.bat app:installDebug -x lint -PreactNativeDevServerPort=8081)"
+      "Bash(.\\\\gradlew.bat app:installDebug -x lint -PreactNativeDevServerPort=8081)",
+      "Bash(Select-String \"^0\")",
+      "Bash(Sort-Object)",
+      "Bash(Select-Object -Last 3)"
     ]
   }
 }

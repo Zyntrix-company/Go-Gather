@@ -10,6 +10,7 @@ import Toast from 'react-native-toast-message';
 import { getArchivedTrips, unarchiveTrip, deleteTrip, handleApiError } from '../../api/trips.api';
 import { showConfirm } from '../../store/alertStore';
 import { formatLocationsLabel } from '../../utils/locations';
+import { UnifiedCard } from '../../components/common/Cards';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

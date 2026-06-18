@@ -1,9 +1,14 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BlobBackground from './BlobBackground';
 import AppHeader from './AppHeader';
+import SubScreenHeader from './SubScreenHeader';
 import FloatingTabBar, { TabType, TAB_BAR_BASE_HEIGHT } from './FloatingTabBar';
+import ProfileDropdown from '../../screens/home/ProfileDropdown';
+import useAuthStore from '../../store/authStore';
+import useAuth from '../../hooks/useAuth';
+import { showConfirm } from '../../store/alertStore';
 
 export { TAB_BAR_BASE_HEIGHT };
 export type { TabType };
@@ -24,6 +29,7 @@ type AppScreenLayoutProps = {
   onLogoPress?: () => void;
   onBellPress?: () => void;
   onMenuPress?: () => void;
+  onBack?: () => void;
   safeAreaStyle?: ViewStyle;
   showFooter?: boolean;
 };
@@ -37,21 +43,57 @@ export default function AppScreenLayout({
   onLogoPress,
   onBellPress,
   onMenuPress,
+  onBack,
   safeAreaStyle,
   showFooter = true,
 }: AppScreenLayoutProps) {
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const user = useAuthStore((s) => s.user) as any;
+  const { logout, refreshProfile } = useAuth();
+  const firstName = user?.fullName?.split(' ')[0] || 'Explorer';
+
+  const openMenu = useCallback(() => {
+    refreshProfile();
+    setShowProfileMenu(true);
+  }, [refreshProfile]);
+
+  const handleMenuPress = onMenuPress ?? openMenu;
+
   return (
     <BlobBackground>
       <SafeAreaView style={[styles.container, safeAreaStyle]}>
         <AppHeader
-          title={title}
-          subtitle={subtitle}
+          title={onBack ? undefined : title}
+          subtitle={onBack ? undefined : subtitle}
           onLogoPress={onLogoPress ?? (() => navigation.goBack())}
           onBellPress={onBellPress ?? (() => navigation.navigate('Notifications'))}
-          onMenuPress={onMenuPress ?? (() => navigation.navigate('Settings'))}
+          onMenuPress={handleMenuPress}
         />
+        {onBack ? (
+          <SubScreenHeader title={title ?? ''} onBack={onBack} />
+        ) : null}
         {children}
         {showFooter ? <FloatingTabBar activeTab={activeTab} navigation={navigation} /> : null}
+
+        {showProfileMenu && (
+          <ProfileDropdown
+            user={user}
+            firstName={firstName}
+            onClose={() => setShowProfileMenu(false)}
+            onNavigateToSettings={() => navigation.navigate('Settings')}
+            onNavigateToArchived={() => navigation.navigate('Archived')}
+            onLogout={() => {
+              setShowProfileMenu(false);
+              showConfirm({
+                title: 'Log out?',
+                message: 'Are you sure you want to log out of your account?',
+                confirmText: 'Log out',
+                destructive: true,
+                onConfirm: logout,
+              });
+            }}
+          />
+        )}
       </SafeAreaView>
     </BlobBackground>
   );

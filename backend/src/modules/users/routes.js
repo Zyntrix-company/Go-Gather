@@ -260,6 +260,15 @@ router.get(
   controller.getUserGalleryItemPhotos,
 );
 
+router.get(
+  '/:id/gallery-items/:parentType/:parentId/members',
+  authenticateJWT,
+  validators.getPublicProfileValidation,
+  validators.galleryItemParams,
+  validate,
+  controller.getUserGalleryItemMembers,
+);
+
 // GET /users/:id/photos — All photos uploaded by user, grouped by trip/event + activity (requires auth)
 router.get(
   '/:id/photos',

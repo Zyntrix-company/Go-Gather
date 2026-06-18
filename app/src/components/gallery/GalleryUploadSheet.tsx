@@ -1,6 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Modal, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
+import AppModal from '../common/AppModal';
 import Svg, { Path, Circle } from 'react-native-svg';
+import DetailDialogHeader from '../details/DetailDialogHeader';
 import { DriveBrandIcon } from '../common/GoogleWorkspaceIcons';
 
 function UploadIcon() {
@@ -39,74 +41,88 @@ export default function GalleryUploadSheet({
   showDrive = true,
   busy = false,
 }: GalleryUploadSheetProps) {
+  const run = (fn: () => void) => {
+    onClose();
+    fn();
+  };
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
-        <View style={styles.sheet} onStartShouldSetResponder={() => true}>
-          <Text style={styles.title}>Add photos</Text>
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => { onClose(); onGallery(); }}
-            disabled={busy}
-            activeOpacity={0.85}
-          >
-            <UploadIcon />
-            <Text style={styles.optionText}>Upload from gallery</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => { onClose(); onCamera(); }}
-            disabled={busy}
-            activeOpacity={0.85}
-          >
-            <CameraIcon />
-            <Text style={styles.optionText}>Camera</Text>
-          </TouchableOpacity>
-          {showDrive && onDrive ? (
+    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <Pressable style={styles.dismissArea} onPress={onClose} />
+        <View style={styles.dialog}>
+          <DetailDialogHeader title="Add media" onClose={onClose} />
+          <View style={styles.content}>
             <TouchableOpacity
               style={styles.option}
-              onPress={() => { onClose(); onDrive(); }}
+              onPress={() => run(onGallery)}
               disabled={busy}
               activeOpacity={0.85}
             >
-              {busy ? <ActivityIndicator color="#0d9488" size="small" /> : <DriveBrandIcon size={18} />}
-              <Text style={styles.optionText}>Add from Drive</Text>
+              <UploadIcon />
+              <Text style={styles.optionText}>Upload from gallery</Text>
             </TouchableOpacity>
-          ) : null}
+            <TouchableOpacity
+              style={styles.option}
+              onPress={() => run(onCamera)}
+              disabled={busy}
+              activeOpacity={0.85}
+            >
+              <CameraIcon />
+              <Text style={styles.optionText}>Camera</Text>
+            </TouchableOpacity>
+            {showDrive && onDrive ? (
+              <TouchableOpacity
+                style={[styles.option, styles.optionLast]}
+                onPress={() => run(onDrive)}
+                disabled={busy}
+                activeOpacity={0.85}
+              >
+                {busy ? <ActivityIndicator color="#0d9488" size="small" /> : <DriveBrandIcon size={18} />}
+                <Text style={styles.optionText}>Add from Drive</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
-      </TouchableOpacity>
-    </Modal>
+      </View>
+    </AppModal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.45)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.52)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
   },
-  sheet: {
+  dismissArea: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  dialog: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 28,
-    gap: 4,
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 360,
+    overflow: 'hidden',
   },
-  title: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#0f172a',
-    marginBottom: 8,
+  content: {
+    paddingHorizontal: 8,
+    paddingBottom: 8,
   },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginHorizontal: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#f1f5f9',
+  },
+  optionLast: {
+    borderBottomWidth: 0,
   },
   optionText: {
     fontSize: 15,

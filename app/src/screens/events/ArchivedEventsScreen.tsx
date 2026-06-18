@@ -15,6 +15,7 @@ import Toast from 'react-native-toast-message';
 import { getArchivedEvents, unarchiveEvent, deleteEvent, handleApiError } from '../../api/events.api';
 import { showConfirm } from '../../store/alertStore';
 import { formatLocationsLabel } from '../../utils/locations';
+import { UnifiedCard } from '../../components/common/Cards';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

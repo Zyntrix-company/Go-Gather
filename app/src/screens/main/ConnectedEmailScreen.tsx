@@ -177,7 +177,7 @@ export default function ConnectedEmailScreen({ navigation, route }: { navigation
   }
 
   return (
-    <AppScreenLayout navigation={navigation} title="Connected Services">
+    <AppScreenLayout navigation={navigation} title="Connected Services" onBack={() => navigation.goBack()}>
         <ScrollView
           contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}

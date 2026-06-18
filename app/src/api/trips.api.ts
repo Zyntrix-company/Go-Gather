@@ -7,6 +7,20 @@ import storage from '../utils/storage';
 import Toast from 'react-native-toast-message';
 import useAuthStore from '../store/authStore';
 
+function normalizeMimeForUpload(mime: string | undefined): string {
+  if (!mime) return 'image/jpeg';
+  const map: Record<string, string> = {
+    'video/quicktime': 'video/mp4',
+    'video/x-matroska': 'video/mp4',
+    'video/x-msvideo': 'video/mp4',
+    'video/x-ms-wmv': 'video/mp4',
+    'video/3gpp': 'video/3gp',
+  };
+  if (map[mime]) return map[mime];
+  if (mime.length <= 10) return mime;
+  return mime.slice(0, 10);
+}
+
 // ─── Multipart upload helper ──────────────────────────────────────────────────
 // Uses XMLHttpRequest instead of fetch — RN's XHR correctly resolves both
 // content:// and file:// URIs inside FormData on Android, whereas fetch cannot.
@@ -347,7 +361,7 @@ export async function deleteActivity(tripId: string, actId: string) {
 export async function uploadActivityPhotos(tripId: string, actId: string, assets: Array<{ uri: string; type?: string; name?: string }>) {
   const formData = new FormData();
   assets.forEach(asset => {
-    formData.append('photos', { uri: asset.uri, type: asset.type ?? 'image/jpeg', name: asset.name ?? 'photo.jpg' } as any);
+    formData.append('photos', { uri: asset.uri, type: normalizeMimeForUpload(asset.type), name: asset.name ?? 'photo.jpg' } as any);
   });
   return uploadMultipart(`/trips/${tripId}/activities/${actId}/photos`, formData) as Promise<{ photos: Photo[] }>;
 }
@@ -589,7 +603,7 @@ export async function getTripPhotos(tripId: string) {
 export async function uploadTripPhotos(tripId: string, assets: Array<{ uri: string; type?: string; name?: string }>) {
   const formData = new FormData();
   assets.forEach(asset => {
-    formData.append('photos', { uri: asset.uri, type: asset.type ?? 'image/jpeg', name: asset.name ?? 'photo.jpg' } as any);
+    formData.append('photos', { uri: asset.uri, type: normalizeMimeForUpload(asset.type), name: asset.name ?? 'photo.jpg' } as any);
   });
   return uploadMultipart(`/trips/${tripId}/photos`, formData) as Promise<{ photos: Photo[] }>;
 }

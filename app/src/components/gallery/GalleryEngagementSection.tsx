@@ -1,29 +1,25 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator,
-  ScrollView, Modal, KeyboardAvoidingView, Platform, Pressable,
+  ScrollView, Keyboard, Modal, Pressable, Dimensions,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { MoreVertical, Pen } from 'lucide-react-native';
+import { MoreVertical, Pen, Trash2 } from 'lucide-react-native';
 import CachedImage from '../common/CachedImage';
-import { CardMenu } from '../common/Cards';
 import { getRelativeTime } from '../../utils/relativeTime';
 import type { GalleryComment } from '../../api/gallery.api';
 import useAuthStore from '../../store/authStore';
 import { showConfirm } from '../../store/alertStore';
-import {
-  GALLERY_COMMENT_ROW_H,
-  GALLERY_MAX_VISIBLE_COMMENTS,
-} from '../../constants/albumPhotosLayout';
-
-const COMMENT_MAX = 20;
+import { GALLERY_COMMENT_MAX } from '../../constants/albumPhotosLayout';
+import { useAlbumPhotosScroll } from './AlbumPhotosContext';
 
 function HeartIcon({ filled }: { filled: boolean }) {
+  const color = filled ? '#ef4444' : '#94a3b8';
   return (
     <Svg width={16} height={16} viewBox="0 0 24 24" fill={filled ? '#ef4444' : 'none'}>
       <Path
         d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"
-        stroke="#ef4444"
+        stroke={color}
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -53,7 +49,6 @@ type GalleryEngagementSectionProps = {
   viewOnly?: boolean;
   canModerateComments?: boolean;
   scrollableComments?: boolean;
-  maxVisibleComments?: number;
   style?: object;
   onToggleLike: () => void;
   onAddComment: (text: string) => Promise<void>;
@@ -68,14 +63,11 @@ function CommentRow({
   currentUserId,
   editingId,
   editDraft,
-  openMenuId,
   isLast,
-  onStartEdit,
   onSaveEdit,
   onCancelEdit,
   onEditDraftChange,
-  onToggleMenu,
-  onConfirmDelete,
+  onOpenMenu,
 }: {
   c: GalleryComment;
   viewOnly: boolean;
@@ -83,29 +75,19 @@ function CommentRow({
   currentUserId?: string;
   editingId: string | null;
   editDraft: string;
-  openMenuId: string | null;
   isLast: boolean;
-  onStartEdit: (c: GalleryComment) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onEditDraftChange: (t: string) => void;
-  onToggleMenu: (id: string) => void;
-  onConfirmDelete: (id: string) => void;
+  onOpenMenu: (id: string, x: number, y: number, w: number, h: number) => void;
 }) {
+  const anchorRef = useRef<View>(null);
   const isOwn = c.userId === currentUserId;
   const isEditing = editingId === c.id;
   const showMenu = !viewOnly && (isOwn || canModerateComments);
-  const moderatorOnly = !isOwn && canModerateComments;
-  const menuOpen = openMenuId === c.id;
 
   return (
-    <View
-      style={[
-        styles.commentRow,
-        !isLast && styles.commentRowBorder,
-        menuOpen && styles.commentRowRaised,
-      ]}
-    >
+    <View style={[styles.commentRow, !isLast && styles.commentRowBorder]}>
       {c.avatarUrl ? (
         <CachedImage uri={c.avatarUrl} style={styles.commentAvatar} resizeMode="cover" />
       ) : (
@@ -118,26 +100,17 @@ function CommentRow({
           <Text style={styles.commentName} numberOfLines={1}>{c.userName}</Text>
           <Text style={styles.commentTime}>{getRelativeTime(c.createdAt)}</Text>
           {showMenu ? (
-            <View style={styles.menuAnchor}>
+            <View ref={anchorRef}>
               <TouchableOpacity
                 style={styles.moreBtn}
-                onPress={() => onToggleMenu(c.id)}
+                onPress={() => {
+                  anchorRef.current?.measureInWindow((x, y, w, h) => onOpenMenu(c.id, x, y, w, h));
+                }}
                 activeOpacity={0.7}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <MoreVertical size={14} color="#94a3b8" strokeWidth={1.8} />
               </TouchableOpacity>
-              {menuOpen ? (
-                <CardMenu
-                  containerStyle={styles.commentMenuDropdown}
-                  extraItems={moderatorOnly ? undefined : [{
-                    label: 'Edit',
-                    icon: <Pen size={15} color="#64748b" strokeWidth={2} />,
-                    onPress: () => onStartEdit(c),
-                  }]}
-                  onDelete={() => onConfirmDelete(c.id)}
-                />
-              ) : null}
             </View>
           ) : null}
         </View>
@@ -145,16 +118,22 @@ function CommentRow({
           <View style={styles.editRow}>
             <TextInput
               value={editDraft}
-              onChangeText={(t) => onEditDraftChange(t.slice(0, COMMENT_MAX))}
+              onChangeText={(t) => onEditDraftChange(t.slice(0, GALLERY_COMMENT_MAX))}
               style={styles.editInput}
-              maxLength={COMMENT_MAX}
+              maxLength={GALLERY_COMMENT_MAX}
+              multiline={false}
+              numberOfLines={1}
               autoFocus
+              underlineColorAndroid="transparent"
             />
-            <TouchableOpacity onPress={onSaveEdit}><Text style={styles.editSave}>Save</Text></TouchableOpacity>
+            <Text style={styles.editCharCount}>{editDraft.length}/{GALLERY_COMMENT_MAX}</Text>
+            <TouchableOpacity style={styles.editSaveBtn} onPress={onSaveEdit}>
+              <Text style={styles.editSave}>Save</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={onCancelEdit}><Text style={styles.editCancel}>Cancel</Text></TouchableOpacity>
           </View>
         ) : (
-          <Text style={styles.commentText}>{c.text}</Text>
+          <Text style={styles.commentText} numberOfLines={1} ellipsizeMode="tail">{c.text}</Text>
         )}
       </View>
     </View>
@@ -168,37 +147,64 @@ export default function GalleryEngagementSection({
   viewOnly = false,
   canModerateComments = false,
   scrollableComments = true,
-  maxVisibleComments = GALLERY_MAX_VISIBLE_COMMENTS,
   style,
   onToggleLike,
   onAddComment,
   onEditComment,
   onDeleteComment,
 }: GalleryEngagementSectionProps) {
-  const currentUserId = useAuthStore((s) => s.user?.id);
+  const currentUser = useAuthStore((s) => s.user);
+  const albumScrollRef = useAlbumPhotosScroll();
+  const commentScrollRef = useRef<ScrollView>(null);
   const composeRef = useRef<TextInput>(null);
+  const composeAnchorRef = useRef<View>(null);
   const [draft, setDraft] = useState('');
   const [posting, setPosting] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuBounds, setMenuBounds] = useState<{ bottom: number; right: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
 
+  // Programmatically scroll the outer (user-locked) ScrollView so the compose
+  // row rises above the keyboard. scrollEnabled={false} blocks touch scrolling
+  // but scrollToEnd() still works.
+  const scrollToCompose = useCallback(() => {
+    const go = () => albumScrollRef?.current?.scrollToEnd({ animated: true });
+    go();
+    setTimeout(go, 120);
+    setTimeout(go, 320);
+  }, [albumScrollRef]);
+
   const openCompose = () => {
+    if (viewOnly) return;
     setComposeOpen(true);
   };
 
   useEffect(() => {
-    if (composeOpen) {
-      const t = setTimeout(() => composeRef.current?.focus(), 120);
-      return () => clearTimeout(t);
+    if (!composeOpen) return undefined;
+    const t = setTimeout(() => composeRef.current?.focus(), 80);
+    scrollToCompose();
+    return () => clearTimeout(t);
+  }, [composeOpen, scrollToCompose]);
+
+  useEffect(() => {
+    if (!composeOpen) return undefined;
+    const sub = Keyboard.addListener('keyboardDidShow', scrollToCompose);
+    return () => sub.remove();
+  }, [composeOpen, scrollToCompose]);
+
+  // Scroll to latest comment whenever the list grows
+  useEffect(() => {
+    if (comments.length > 0) {
+      commentScrollRef.current?.scrollToEnd({ animated: false });
     }
-    return undefined;
-  }, [composeOpen]);
+  }, [comments.length]);
 
   const closeCompose = () => {
     setComposeOpen(false);
     setDraft('');
+    Keyboard.dismiss();
   };
 
   const submitComment = async () => {
@@ -209,6 +215,7 @@ export default function GalleryEngagementSection({
       await onAddComment(text);
       setDraft('');
       setComposeOpen(false);
+      Keyboard.dismiss();
     } finally {
       setPosting(false);
     }
@@ -242,8 +249,7 @@ export default function GalleryEngagementSection({
 
   const likeLabel = likeCount === 1 ? 'Like' : 'Likes';
   const commentLabel = comments.length === 1 ? 'Comment' : 'Comments';
-  const commentListMaxH = GALLERY_COMMENT_ROW_H * maxVisibleComments;
-  const showScrollIndicator = scrollableComments && comments.length > maxVisibleComments;
+  const userInitial = (currentUser?.fullName ?? currentUser?.username ?? '?')[0]?.toUpperCase();
 
   const commentRows = comments.map((c, idx) => (
     <CommentRow
@@ -251,19 +257,67 @@ export default function GalleryEngagementSection({
       c={c}
       viewOnly={viewOnly}
       canModerateComments={canModerateComments}
-      currentUserId={currentUserId}
+      currentUserId={currentUser?.id}
       editingId={editingId}
       editDraft={editDraft}
-      openMenuId={openMenuId}
-      isLast={idx === comments.length - 1}
-      onStartEdit={startEdit}
+      isLast={idx === comments.length - 1 && !composeOpen}
       onSaveEdit={saveEdit}
       onCancelEdit={() => { setEditingId(null); setEditDraft(''); }}
       onEditDraftChange={setEditDraft}
-      onToggleMenu={(id) => setOpenMenuId((prev) => (prev === id ? null : id))}
-      onConfirmDelete={confirmDelete}
+      onOpenMenu={(id, x, y, w, _h) => {
+        const { width: sw, height: sh } = Dimensions.get('window');
+        setMenuBounds({ bottom: sh - y + 4, right: sw - (x + w) });
+        setOpenMenuId((prev) => (prev === id ? null : id));
+      }}
     />
   ));
+
+  const composeBlock = composeOpen && !viewOnly ? (
+    <View ref={composeAnchorRef} style={styles.composeRow}>
+      {currentUser?.photoUrl ? (
+        <CachedImage uri={currentUser.photoUrl} style={styles.commentAvatar} resizeMode="cover" />
+      ) : (
+        <View style={[styles.commentAvatar, styles.commentAvatarPlaceholder]}>
+          <Text style={styles.commentInitial}>{userInitial}</Text>
+        </View>
+      )}
+      <View style={styles.composeBody}>
+        <TextInput
+          ref={composeRef}
+          value={draft}
+          onChangeText={(t) => setDraft(t.slice(0, GALLERY_COMMENT_MAX))}
+          placeholder="Write a comment…"
+          placeholderTextColor="#94a3b8"
+          style={styles.composeInput}
+          maxLength={GALLERY_COMMENT_MAX}
+          multiline={false}
+          numberOfLines={1}
+          returnKeyType="send"
+          onSubmitEditing={submitComment}
+          blurOnSubmit={false}
+        />
+        <View style={styles.composeFooter}>
+          <Text style={[styles.charCount, draft.length >= GALLERY_COMMENT_MAX && styles.charCountLimit]}>
+            {draft.length}/{GALLERY_COMMENT_MAX}
+          </Text>
+          <View style={styles.composeActions}>
+            <TouchableOpacity onPress={closeCompose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.composeCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={submitComment}
+              disabled={!draft.trim() || posting}
+              style={[styles.composePostBtn, (!draft.trim() || posting) && styles.composePostBtnDisabled]}
+            >
+              {posting
+                ? <ActivityIndicator size="small" color="#0d9488" />
+                : <Text style={styles.composePost}>Post</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </View>
+  ) : null;
 
   return (
     <View style={[styles.wrap, style]}>
@@ -287,11 +341,13 @@ export default function GalleryEngagementSection({
       {comments.length > 0 ? (
         scrollableComments ? (
           <ScrollView
-            style={[styles.commentScroll, { maxHeight: commentListMaxH }]}
+            ref={commentScrollRef}
+            style={styles.commentScroll}
             contentContainerStyle={styles.commentScrollContent}
             nestedScrollEnabled
-            showsVerticalScrollIndicator={showScrollIndicator}
+            showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            decelerationRate="fast"
           >
             {commentRows}
           </ScrollView>
@@ -300,46 +356,46 @@ export default function GalleryEngagementSection({
         )
       ) : null}
 
-      {!viewOnly ? (
-        <Modal
-          visible={composeOpen}
-          transparent
-          animationType="fade"
-          onRequestClose={closeCompose}
-        >
-          <View style={styles.composeBackdrop}>
-            <Pressable style={styles.composeDismissArea} onPress={closeCompose} />
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.composeKeyboardWrap}
-            >
-              <View style={styles.composeSheet}>
-                <TextInput
-                  ref={composeRef}
-                  value={draft}
-                  onChangeText={(t) => setDraft(t.slice(0, COMMENT_MAX))}
-                  placeholder="Add a comment…"
-                  placeholderTextColor="#94a3b8"
-                  style={styles.composeInput}
-                  maxLength={COMMENT_MAX}
-                  returnKeyType="send"
-                  onSubmitEditing={submitComment}
-                  multiline={false}
-                />
+      {composeBlock}
+
+      {/* Comment action modal — rendered outside the scroll view to avoid Android clipping */}
+      {(() => {
+        const activeComment = openMenuId ? comments.find((c) => c.id === openMenuId) : null;
+        if (!activeComment) return null;
+        const isOwn = activeComment.userId === currentUser?.id;
+        const moderatorOnly = !isOwn && canModerateComments;
+        return (
+          <Modal
+            visible
+            transparent
+            animationType="fade"
+            onRequestClose={() => setOpenMenuId(null)}
+          >
+            <Pressable style={styles.menuModalOverlay} onPress={() => setOpenMenuId(null)}>
+              <View style={[styles.menuModalSheet, menuBounds ? { bottom: menuBounds.bottom, right: menuBounds.right } : styles.menuModalSheetFallback]}>
+                {!moderatorOnly && (
+                  <TouchableOpacity
+                    style={styles.menuModalItem}
+                    activeOpacity={0.8}
+                    onPress={() => { setOpenMenuId(null); startEdit(activeComment); }}
+                  >
+                    <Pen size={15} color="#64748b" strokeWidth={2} />
+                    <Text style={styles.menuModalText}>Edit</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
-                  onPress={submitComment}
-                  disabled={!draft.trim() || posting}
-                  style={[styles.postBtn, (!draft.trim() || posting) && styles.postBtnDisabled]}
+                  style={[styles.menuModalItem, styles.menuModalItemBorder]}
+                  activeOpacity={0.8}
+                  onPress={() => { setOpenMenuId(null); confirmDelete(activeComment.id); }}
                 >
-                  {posting
-                    ? <ActivityIndicator size="small" color="#0d9488" />
-                    : <Text style={styles.postBtnText}>Post</Text>}
+                  <Trash2 size={15} color="#ef4444" strokeWidth={2} />
+                  <Text style={[styles.menuModalText, styles.menuModalTextDanger]}>Delete</Text>
                 </TouchableOpacity>
               </View>
-            </KeyboardAvoidingView>
-          </View>
-        </Modal>
-      ) : null}
+            </Pressable>
+          </Modal>
+        );
+      })()}
     </View>
   );
 }
@@ -371,45 +427,59 @@ const styles = StyleSheet.create({
   statCount: {
     fontWeight: '700',
   },
-  composeBackdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(15,23,42,0.25)',
-  },
-  composeDismissArea: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  composeKeyboardWrap: {
-    width: '100%',
-  },
-  composeSheet: {
+  composeRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
+    gap: 10,
     paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 12 : 16,
-    backgroundColor: 'rgba(255,255,255,0.97)',
+    marginTop: 4,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#cbd5e1',
+    borderTopColor: '#e2e8f0',
+  },
+  composeBody: {
+    flex: 1,
+    minWidth: 0,
   },
   composeInput: {
-    flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     color: '#334155',
-    paddingVertical: 8,
+    lineHeight: 20,
+    paddingVertical: 4,
     paddingHorizontal: 0,
-    maxHeight: 80,
+    height: 28,
   },
-  postBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+  composeFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
   },
-  postBtnDisabled: {
+  charCount: {
+    fontSize: 11,
+    color: '#94a3b8',
+    fontWeight: '500',
+  },
+  charCountLimit: {
+    color: '#f59e0b',
+  },
+  composeActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  composeCancel: {
+    fontSize: 13,
+    color: '#94a3b8',
+    fontWeight: '500',
+  },
+  composePostBtn: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  composePostBtnDisabled: {
     opacity: 0.45,
   },
-  postBtnText: {
-    fontSize: 15,
+  composePost: {
+    fontSize: 13,
     fontWeight: '600',
     color: '#0d9488',
   },
@@ -417,8 +487,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   commentScroll: {
+    flex: 1,
     marginTop: 2,
-    flexGrow: 0,
   },
   commentScrollContent: {
     flexGrow: 0,
@@ -427,6 +497,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     paddingVertical: 12,
+    overflow: 'visible',
   },
   commentRowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -463,7 +534,7 @@ const styles = StyleSheet.create({
   },
   commentName: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '500',
     color: '#0d9488',
     flexShrink: 1,
   },
@@ -476,6 +547,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     flexShrink: 0,
     marginLeft: 2,
+    overflow: 'visible',
   },
   moreBtn: {
     width: 20,
@@ -483,12 +555,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  commentMenuDropdown: {
+  commentMenuBase: {
     position: 'absolute',
-    top: 24,
     right: 0,
     width: 132,
     zIndex: 200,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 5,
+    elevation: 3,
+    overflow: 'hidden',
+  },
+  commentMenuBelow: {
+    top: 24,
+  },
+  commentMenuAbove: {
+    bottom: 24,
   },
   commentText: {
     fontSize: 13,
@@ -504,21 +591,71 @@ const styles = StyleSheet.create({
   },
   editInput: {
     flex: 1,
-    minWidth: 120,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#cbd5e1',
+    minWidth: 0,
     paddingHorizontal: 0,
     paddingVertical: 4,
     fontSize: 13,
     color: '#334155',
+    height: 28,
+  },
+  editCharCount: {
+    fontSize: 11,
+    color: '#94a3b8',
+  },
+  editSaveBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    backgroundColor: '#0d9488',
+    borderRadius: 7,
   },
   editSave: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0d9488',
+    color: '#fff',
   },
   editCancel: {
     fontSize: 13,
     color: '#94a3b8',
+  },
+  menuModalOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  menuModalSheet: {
+    position: 'absolute',
+    width: 148,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  menuModalSheetFallback: {
+    bottom: '40%',
+    right: 16,
+  },
+  menuModalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  menuModalItemBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#f1f5f9',
+  },
+  menuModalText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#334155',
+  },
+  menuModalTextDanger: {
+    color: '#ef4444',
   },
 });

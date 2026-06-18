@@ -1,9 +1,9 @@
-import React from 'react';
-import { View, ScrollView } from 'react-native';
+import React, { useRef } from 'react';
+import { View, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppScreenLayout, { TAB_BAR_BASE_HEIGHT } from '../common/AppScreenLayout';
 import type { TabType } from '../common/FloatingTabBar';
-import { AlbumPhotosOverlayContext } from './AlbumPhotosContext';
+import { AlbumPhotosOverlayContext, AlbumPhotosScrollContext } from './AlbumPhotosContext';
 
 export { useAlbumPhotosOverlay } from './AlbumPhotosContext';
 
@@ -38,15 +38,27 @@ export default function AlbumPhotosScreenLayout({
 }: AlbumPhotosScreenLayoutProps) {
   const insets = useSafeAreaInsets();
   const tabBarPad = TAB_BAR_BASE_HEIGHT + insets.bottom + 6;
+  const scrollRef = useRef<ScrollView>(null);
 
   const body = scrollable ? (
-    <ScrollView
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ paddingBottom: 12 }}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
     >
-      {children}
-    </ScrollView>
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        scrollEnabled={false}
+        bounces={false}
+        overScrollMode="never"
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ flexGrow: 1 }}
+      >
+        {children}
+      </ScrollView>
+    </KeyboardAvoidingView>
   ) : (
     <View style={{ flex: 1, overflow: 'hidden' }}>{children}</View>
   );
@@ -58,11 +70,13 @@ export default function AlbumPhotosScreenLayout({
       onLogoPress={onClose}
     >
       <AlbumPhotosOverlayContext.Provider value={heroOverlay ?? null}>
-        <View style={{ flex: 1, paddingBottom: tabBarPad }}>
-          {subHeader}
-          {body}
-          {footer}
-        </View>
+        <AlbumPhotosScrollContext.Provider value={scrollable ? scrollRef : null}>
+          <View style={{ flex: 1, paddingBottom: tabBarPad }}>
+            {subHeader}
+            {body}
+            {footer}
+          </View>
+        </AlbumPhotosScrollContext.Provider>
       </AlbumPhotosOverlayContext.Provider>
     </AppScreenLayout>
   );
