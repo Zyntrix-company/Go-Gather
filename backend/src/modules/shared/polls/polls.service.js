@@ -51,12 +51,26 @@ const vote = async ({ parentType, parentId }, pollId, userId, optionId) => {
     const e = new Error('Option not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
   }
 
-  await db(
-    `INSERT INTO poll_votes (poll_id, option_id, user_id)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (poll_id, user_id) DO UPDATE SET option_id = $2, voted_at = NOW()`,
-    [pollId, optionId, userId],
+  // Toggle behaviour: if the user clicks the option they already voted for,
+  // revoke (delete) their vote instead of re-recording it.
+  const existing = await db(
+    'SELECT option_id FROM poll_votes WHERE poll_id = $1 AND user_id = $2',
+    [pollId, userId],
   );
+
+  if (existing.rowCount > 0 && existing.rows[0].option_id === optionId) {
+    await db(
+      'DELETE FROM poll_votes WHERE poll_id = $1 AND user_id = $2',
+      [pollId, userId],
+    );
+  } else {
+    await db(
+      `INSERT INTO poll_votes (poll_id, option_id, user_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (poll_id, user_id) DO UPDATE SET option_id = $2, voted_at = NOW()`,
+      [pollId, optionId, userId],
+    );
+  }
 
   return getPollById({ parentType, parentId }, pollId, userId);
 };
