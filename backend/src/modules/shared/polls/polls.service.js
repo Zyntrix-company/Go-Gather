@@ -126,11 +126,24 @@ const getPollById = async ({ parentType, parentId }, pollId, userId) => {
   return formatPoll(poll, options, myVotedOption);
 };
 
+const completePoll = async ({ parentType, parentId }, pollId, userId, status = 'completed') => {
+  const result = await db(
+    'SELECT * FROM polls WHERE id = $1 AND parent_type = $2 AND parent_id = $3',
+    [pollId, parentType, parentId],
+  );
+  if (result.rowCount === 0) {
+    const e = new Error('Poll not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
+  }
+  await db('UPDATE polls SET status = $1 WHERE id = $2', [status, pollId]);
+  return getPollById({ parentType, parentId }, pollId, userId);
+};
+
 const formatPoll = (poll, options, myVote) => ({
   id: poll.id,
   parentType: poll.parent_type,
   parentId: poll.parent_id,
   question: poll.question,
+  status: poll.status || 'active',
   createdBy: poll.created_by,
   createdByName: poll.creator_name || null,
   createdAt: poll.created_at,
@@ -156,4 +169,4 @@ const deletePoll = async ({ parentType, parentId }, pollId, userId) => {
   await db('DELETE FROM polls WHERE id = $1', [pollId]);
 };
 
-module.exports = { createPoll, vote, getPolls, deletePoll };
+module.exports = { createPoll, vote, getPolls, deletePoll, completePoll };

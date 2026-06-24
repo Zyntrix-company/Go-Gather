@@ -41,4 +41,15 @@ const deletePoll = async (req, res, next) => {
   }
 };
 
-module.exports = { createPoll, vote, getPolls, deletePoll };
+const completePoll = async (req, res, next) => {
+  try {
+    const { status = 'completed' } = req.body;
+    const poll = await service.completePoll(req.tripMember.tripId, req.params.pollId, req.user.id, status);
+    res.status(200).json({ poll });
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.error, message: e.message, statusCode: e.statusCode });
+    next(e);
+  }
+};
+
+module.exports = { createPoll, vote, getPolls, deletePoll, completePoll };

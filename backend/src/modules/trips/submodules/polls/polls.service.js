@@ -14,4 +14,7 @@ const getPolls = (tripId, userId) =>
 const deletePoll = (tripId, pollId, userId) =>
   sharedPolls.deletePoll({ parentType: PARENT_TYPE, parentId: tripId }, pollId, userId);
 
-module.exports = { createPoll, vote, getPolls, deletePoll };
+const completePoll = (tripId, pollId, userId, status) =>
+  sharedPolls.completePoll({ parentType: PARENT_TYPE, parentId: tripId }, pollId, userId, status);
+
+module.exports = { createPoll, vote, getPolls, deletePoll, completePoll };

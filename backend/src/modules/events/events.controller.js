@@ -445,6 +445,22 @@ const deletePoll = async (req, res, next) => {
   }
 };
 
+const completePoll = async (req, res, next) => {
+  try {
+    const { status = 'completed' } = req.body;
+    const poll = await sharedPollsService.completePoll(
+      { parentType: 'event', parentId: req.params.eventId },
+      req.params.pollId,
+      req.user.id,
+      status,
+    );
+    res.status(200).json({ poll });
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.error, message: e.message, statusCode: e.statusCode });
+    next(e);
+  }
+};
+
 // ─── NOTES ────────────────────────────────────────────────────────────────────
 
 const getNotes = async (req, res, next) => {
@@ -604,6 +620,7 @@ module.exports = {
   getPolls,
   vote,
   deletePoll,
+  completePoll,
   // Notes
   getNotes,
   createNote,

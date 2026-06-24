@@ -100,6 +100,7 @@ router.get('/:eventId/polls', eventMemberMW, ctrl.getPolls);
 router.post('/:eventId/polls', eventMemberMW, ctrl.createPoll);
 router.post('/:eventId/polls/:pollId/vote', eventMemberMW, ctrl.vote);
 router.delete('/:eventId/polls/:pollId', eventMemberMW, ctrl.deletePoll);
+router.patch('/:eventId/polls/:pollId/status', eventMemberMW, ctrl.completePoll);
 
 // ─── Reminders ────────────────────────────────────────────────────────────────
 router.get('/:eventId/reminders', eventMemberMW, ctrl.getEventReminders);
