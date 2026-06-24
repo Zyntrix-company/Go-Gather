@@ -1,26 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
+import { View, Pressable, StyleSheet } from 'react-native';
 import AppModal from '../common/AppModal';
-import Svg, { Path, Circle } from 'react-native-svg';
 import DetailDialogHeader from '../details/DetailDialogHeader';
-import { DriveBrandIcon } from '../common/GoogleWorkspaceIcons';
-
-function UploadIcon() {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-      <Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
-}
-
-function CameraIcon() {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-      <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-      <Circle cx={12} cy={13} r={4} stroke="#0d9488" strokeWidth={2} />
-    </Svg>
-  );
-}
+import UploadOptionsRow from '../common/UploadOptionsRow';
 
 type GalleryUploadSheetProps = {
   visible: boolean;
@@ -51,37 +33,20 @@ export default function GalleryUploadSheet({
       <View style={styles.overlay}>
         <Pressable style={styles.dismissArea} onPress={onClose} />
         <View style={styles.dialog}>
-          <DetailDialogHeader title="Add media" onClose={onClose} />
+          <DetailDialogHeader
+            title="Add media"
+            subtitle="Add photos and videos to capture your memories."
+            onClose={onClose}
+          />
           <View style={styles.content}>
-            <TouchableOpacity
-              style={styles.option}
-              onPress={() => run(onGallery)}
+            <UploadOptionsRow
+              onUpload={() => run(onGallery)}
+              onCamera={() => run(onCamera)}
+              onDrive={onDrive ? () => run(onDrive!) : undefined}
+              driveImporting={busy}
               disabled={busy}
-              activeOpacity={0.85}
-            >
-              <UploadIcon />
-              <Text style={styles.optionText}>Upload from gallery</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.option}
-              onPress={() => run(onCamera)}
-              disabled={busy}
-              activeOpacity={0.85}
-            >
-              <CameraIcon />
-              <Text style={styles.optionText}>Camera</Text>
-            </TouchableOpacity>
-            {showDrive && onDrive ? (
-              <TouchableOpacity
-                style={[styles.option, styles.optionLast]}
-                onPress={() => run(onDrive)}
-                disabled={busy}
-                activeOpacity={0.85}
-              >
-                {busy ? <ActivityIndicator color="#0d9488" size="small" /> : <DriveBrandIcon size={18} />}
-                <Text style={styles.optionText}>Add from Drive</Text>
-              </TouchableOpacity>
-            ) : null}
+              showDrive={showDrive && !!onDrive}
+            />
           </View>
         </View>
       </View>
@@ -108,25 +73,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   content: {
-    paddingHorizontal: 8,
-    paddingBottom: 8,
-  },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    marginHorizontal: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#f1f5f9',
-  },
-  optionLast: {
-    borderBottomWidth: 0,
-  },
-  optionText: {
-    fontSize: 15,
-    color: '#334155',
-    fontWeight: '500',
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 16,
   },
 });

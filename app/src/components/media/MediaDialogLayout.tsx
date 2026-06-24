@@ -57,6 +57,7 @@ export default function MediaDialogLayout({
           <View style={[styles.dialog, { maxHeight }]}>
             <DetailDialogHeader
               title="Media"
+              subtitle="Add photos and videos to capture your memories."
               inlineSubtitle={loading ? undefined : buildCounterSubtitle(mediaCount, capTotal)}
               onClose={onClose}
             />

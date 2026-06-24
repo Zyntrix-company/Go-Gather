@@ -127,6 +127,43 @@ const getDocs = async ({ parentType, parentId }) => {
   return { docs, total: docs.length };
 };
 
+const renameDoc = async ({ docId, parentType, parentId, requesterId, requesterRole, newName }) => {
+  const trimmed = (newName || '').trim();
+  if (!trimmed) {
+    const e = new Error('File name cannot be empty'); e.statusCode = 400; e.error = 'VALIDATION_ERROR'; throw e;
+  }
+
+  const docResult = await db(
+    'SELECT * FROM docs WHERE id = $1 AND parent_type = $2 AND parent_id = $3',
+    [docId, parentType, parentId],
+  );
+  if (docResult.rowCount === 0) {
+    const e = new Error('Document not found'); e.statusCode = 404; e.error = 'NOT_FOUND'; throw e;
+  }
+  const doc = docResult.rows[0];
+
+  if (requesterRole !== 'admin' && doc.uploaded_by !== requesterId) {
+    const e = new Error('Only the uploader or an admin can rename this document');
+    e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
+  }
+
+  const updated = await db(
+    'UPDATE docs SET file_name = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+    [trimmed, docId],
+  );
+
+  const updatedDoc = updated.rows[0];
+  const downloadUrl = await getPresignedDownloadUrl(updatedDoc.s3_key);
+
+  const profileResult = await db(
+    'SELECT full_name, avatar_url FROM profiles WHERE user_id = $1',
+    [updatedDoc.uploaded_by],
+  );
+  const profile = profileResult.rows[0];
+
+  return formatDoc(updatedDoc, downloadUrl, updatedDoc.uploaded_by, profile?.full_name || null, profile?.avatar_url || null);
+};
+
 const deleteDoc = async ({ docId, parentType, parentId, requesterId, requesterRole }) => {
   const docResult = await db(
     'SELECT * FROM docs WHERE id = $1 AND parent_type = $2 AND parent_id = $3',
@@ -157,4 +194,4 @@ const formatDoc = (doc, downloadUrl, uploadedById, uploaderName, uploaderAvatar)
   createdAt: doc.created_at,
 });
 
-module.exports = { uploadDoc, uploadDocs, getDocs, deleteDoc };
+module.exports = { uploadDoc, uploadDocs, getDocs, deleteDoc, renameDoc };

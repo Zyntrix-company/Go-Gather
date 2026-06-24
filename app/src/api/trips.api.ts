@@ -175,10 +175,12 @@ export type Doc = {
   fileName: string;
   fileUrl?: string;
   downloadUrl?: string;   // presigned S3 URL (1hr) — preferred for viewing
-  fileSize: number;
+  fileSize?: number;
+  fileSizeBytes?: number;
   mimeType: string;
-  uploadedBy: string;
-  uploadedAt: string;
+  uploadedBy: string | { userId: string; name: string | null; avatarUrl: string | null };
+  uploadedAt?: string;
+  createdAt?: string;
 };
 
 export type SplitUser =
@@ -226,17 +228,24 @@ export type PollOption = {
   id: string;
   text: string;
   voteCount: number;
-  votedByMe: boolean;
+  /** Backend sends `isMyVote`. Optional fallback `votedByMe` kept for safety. */
+  isMyVote?: boolean;
+  votedByMe?: boolean;
+  percentage?: number;
+  displayOrder?: number;
 };
 
 export type Poll = {
   id: string;
   question: string;
   createdBy: string;
+  createdByName?: string | null;
   createdAt: string;
   options: PollOption[];
-  totalVotes: number;
-  myVoteOptionId: string | null;
+  totalVotes?: number;
+  /** Backend sends `myVotedOptionId`. Optional fallback `myVoteOptionId` kept for safety. */
+  myVotedOptionId?: string | null;
+  myVoteOptionId?: string | null;
 };
 
 // ─── 1. Trips Core CRUD ───────────────────────────────────────────────────────
@@ -447,6 +456,11 @@ export async function uploadDoc(tripId: string, asset: { uri: string; type?: str
 export async function deleteDoc(tripId: string, docId: string) {
   const res = await client.delete(`/trips/${tripId}/docs/${docId}`);
   return res.data as { success: boolean };
+}
+
+export async function renameDoc(tripId: string, docId: string, newName: string) {
+  const res = await client.patch(`/trips/${tripId}/docs/${docId}`, { fileName: newName });
+  return res.data as { doc: Doc };
 }
 
 // ─── 5b. Email Doc Import ─────────────────────────────────────────────────────
@@ -677,6 +691,11 @@ export async function voteOnPoll(tripId: string, pollId: string, optionId: strin
 
 export async function deletePoll(tripId: string, pollId: string) {
   await client.delete(`/trips/${tripId}/polls/${pollId}`);
+}
+
+export async function setPollStatus(tripId: string, pollId: string, status: 'active' | 'completed') {
+  const res = await client.patch(`/trips/${tripId}/polls/${pollId}/status`, { status });
+  return res.data as { poll: Poll };
 }
 
 // ─── 9. Invite Deep-Link Flow ─────────────────────────────────────────────────

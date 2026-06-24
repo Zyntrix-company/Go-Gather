@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Image, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import Svg, { Path, Line } from 'react-native-svg';
 import useNotificationStore from '../../store/notificationStore';
+import { typeStyle } from '../../theme';
 
 type AppHeaderProps = {
   title?: string;
@@ -111,17 +112,15 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   title: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...typeStyle('navTitle'),
     color: '#0f172a',
     textAlign: 'center',
   },
   titleWithSubtitle: {
-    fontSize: 15,
+    ...typeStyle('titleMd'),
   },
   subtitle: {
-    fontSize: 11,
-    fontWeight: '500',
+    ...typeStyle('caption'),
     color: '#94a3b8',
     textAlign: 'center',
     marginTop: 1,
@@ -149,8 +148,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 2,
   },
   badgeText: {
+    ...typeStyle('micro'),
     color: '#fff',
-    fontSize: 9,
-    fontWeight: 'bold',
   },
 });

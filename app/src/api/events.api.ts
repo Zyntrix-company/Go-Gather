@@ -208,6 +208,11 @@ export async function deleteEventDoc(eventId: string, docId: string) {
   return res.data as { success: boolean };
 }
 
+export async function renameEventDoc(eventId: string, docId: string, newName: string) {
+  const res = await client.patch(`/events/${eventId}/docs/${docId}`, { fileName: newName });
+  return res.data as { doc: Doc };
+}
+
 // ─── 4. Photos ────────────────────────────────────────────────────────────────
 
 export async function getEventPhotos(eventId: string) {
@@ -338,4 +343,9 @@ export async function voteOnEventPoll(eventId: string, pollId: string, optionId:
 
 export async function deleteEventPoll(eventId: string, pollId: string) {
   await client.delete(`/events/${eventId}/polls/${pollId}`);
+}
+
+export async function setEventPollStatus(eventId: string, pollId: string, status: 'active' | 'completed') {
+  const res = await client.patch(`/events/${eventId}/polls/${pollId}/status`, { status });
+  return res.data as { poll: Poll };
 }

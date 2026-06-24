@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { typeStyle } from '../../theme';
 
 function BackArrow() {
   return (
@@ -49,8 +50,7 @@ const s = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
+    ...typeStyle('navTitle'),
     color: '#0f172a',
     textAlign: 'left',
   },

@@ -12,7 +12,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import SweeIcon from '../../components/common/SweeIcon';
-import { launchImageLibrary } from 'react-native-image-picker';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { WebView } from 'react-native-webview';
 // DocumentPicker loaded dynamically to avoid crash if native module not yet linked
@@ -22,12 +22,15 @@ import LocationAutocomplete from '../../components/common/LocationAutocomplete';
 import LocationMultiPicker from '../../components/common/LocationMultiPicker';
 import { formatLocationsLabel, formatLocationsLabelFull, formatLocationsHeroLabel, normalizeLocations, toLocationPayload, type LocationPoint } from '../../utils/locations';
 import CachedImage from '../../components/common/CachedImage';
+import PollOptionItem from '../../components/common/PollOptionItem';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
 import AppHeader from '../../components/common/AppHeader';
 import ProfileDropdown from '../home/ProfileDropdown';
 import useAuth from '../../hooks/useAuth';
-import DocumentsUploadSection from '../../components/common/DocumentsUploadSection';
+import UploadOptionsRow from '../../components/common/UploadOptionsRow';
+import EmailOptionsRow from '../../components/common/EmailOptionsRow';
+import DocumentItem from '../../components/common/DocumentItem';
 import InviteViaChannels from '../../components/common/InviteViaChannels';
 import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
 import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
@@ -59,6 +62,7 @@ import {
   getDocs,
   uploadDoc,
   deleteDoc,
+  renameDoc,
   getTripPhotos,
   getEmailStatus,
   listEmailAttachments,
@@ -79,6 +83,7 @@ import {
   createPoll,
   voteOnPoll,
   deletePoll,
+  setPollStatus,
   getFriends,
   handleApiError,
 } from '../../api/trips.api';
@@ -121,7 +126,7 @@ type Activity = {
   photoCount?: number;
 };
 type ActExistingPhoto = { id: string; uri: string };
-type DocItem = { id: string; name: string; uri: string; mimeType?: string };
+type DocItem = { id: string; name: string; uri: string; mimeType?: string; uploadedBy?: any; fileSizeBytes?: number; createdAt?: string };
 type PhotoItem = { id: string; uri: string; localUri?: string; name: string; uploadedBy?: string; activityId?: string | null; activityTitle?: string | null; createdAt?: string | null };
 type Expense = {
   id: string; description: string; amount: number; category: string;
@@ -134,7 +139,7 @@ type Expense = {
   createdByUserId?: string;
   splitBreakdown?: { userId: string; amount: number; percentage: number | null }[];
 };
-type Poll = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null; createdBy?: string; createdByName?: string | null; createdAt?: string | null };
+type Poll = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null; createdBy?: string; createdByName?: string | null; createdAt?: string | null; status?: 'active' | 'completed' };
 type Note = { id: string; title: string; body: string; category: 'general' | 'idea' | 'important' | 'todo'; date: string; pinned?: boolean };
 
 // ─── Friends ──────────────────────────────────────────────────────────────────
@@ -517,6 +522,42 @@ function SweeFab({ onPress, fabStyle }: { onPress: () => void; fabStyle?: object
   );
 }
 
+// ─── Poll Skeleton ────────────────────────────────────────────────────────────
+
+function PollSkeleton() {
+  const pulse = useRef(new Animated.Value(0.4)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.4, duration: 700, useNativeDriver: true }),
+      ])
+    ).start();
+    return () => pulse.stopAnimation();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const SkBox = ({ w, h, mt }: { w: string | number; h: number; mt?: number }) => (
+    <Animated.View style={{ width: w, height: h, borderRadius: 6, backgroundColor: '#e2e8f0', marginTop: mt ?? 0, opacity: pulse }} />
+  );
+  return (
+    <View style={{ marginTop: 20 }}>
+      {[0, 1].map(i => (
+        <View key={i} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' }}>
+          <SkBox w="75%" h={14} />
+          {[0, 1, 2].map(j => (
+            <View key={j} style={{ marginTop: 14 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Animated.View style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: '#e2e8f0', marginRight: 8, opacity: pulse }} />
+                <SkBox w="55%" h={11} />
+              </View>
+              <SkBox w="100%" h={5} mt={0} />
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // ─── Dialog Header ────────────────────────────────────────────────────────────
 
 function DHeader({ title, subtitle, leading, onClose }: { title: string; subtitle?: string; leading?: React.ReactNode; onClose: () => void }) {
@@ -715,7 +756,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [isRefreshingExpenses, setIsRefreshingExpenses] = useState(false);
   const [settlingDebtKey, setSettlingDebtKey] = useState<string | null>(null);
   const [, setIsLoadingNotes] = useState(false);
-  const [, setIsLoadingPolls] = useState(false);
+  const [isLoadingPolls, setIsLoadingPolls] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ── Data state ──
@@ -805,6 +846,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set());
   const [showEditTrip, setShowEditTrip] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<DocItem | null>(null);
+  const [renameText, setRenameText] = useState('');
+  const [renameLoading, setRenameLoading] = useState(false);
   const [showEmailPicker, setShowEmailPicker] = useState(false);
   const [emailPickerProvider, setEmailPickerProvider] = useState<'gmail' | 'outlook'>('gmail');
   const [emailAttachments, setEmailAttachments] = useState<EmailAttachment[]>([]);
@@ -884,6 +928,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [showPollForm, setShowPollForm] = useState(false);
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState<string[]>(['', '']);
+  const [pollMenuId, setPollMenuId] = useState<string | null>(null);
 
   // ── Notes modal ──
   const [noteTitle, setNoteTitle] = useState('');
@@ -1067,7 +1112,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       setIsLoadingDocs(true);
       try {
         const res = await getDocs(tripId);
-        setDocs(res.docs.map(d => ({ id: d.id, name: d.fileName, uri: (d as any).downloadUrl ?? d.fileUrl ?? '', uploadedBy: d.uploadedBy, mimeType: d.mimeType })));
+        setDocs(res.docs.map(d => ({ id: d.id, name: d.fileName, uri: (d as any).downloadUrl ?? d.fileUrl ?? '', uploadedBy: d.uploadedBy, mimeType: d.mimeType, fileSizeBytes: (d as any).fileSizeBytes, createdAt: (d as any).createdAt })));
         setUnreadCounts(prev => ({ ...prev, docs: 0 }));
         markTripSectionViewed(tripId, 'docs');
       } catch (err) {
@@ -1160,8 +1205,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
         const mapped = res.polls.map(p => ({
           id: p.id,
           question: p.question,
-          options: p.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount ?? 0, votedByMe: o.votedByMe ?? false })),
-          myVoteOptionId: p.myVoteOptionId ?? null,
+          status: (p.status ?? 'active') as 'active' | 'completed',
+          options: p.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount ?? 0, votedByMe: o.isMyVote ?? o.votedByMe ?? false })),
+          myVoteOptionId: p.myVotedOptionId ?? p.myVoteOptionId ?? null,
           createdBy: p.createdBy,
           createdByName: p.createdByName ?? null,
           createdAt: p.createdAt ?? null,
@@ -1502,15 +1548,29 @@ export default function TripDetailScreen({ route, navigation }: any) {
       if (localCopy.status === 'error') throw new Error(localCopy.copyError);
       const file = { uri: localCopy.localUri, name: picked.name ?? 'document', type: picked.type ?? 'application/octet-stream' };
       const data = await uploadDoc(tripId, file);
-      setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: (data.doc as any).downloadUrl ?? data.doc.fileUrl ?? '', uploadedBy: data.doc.uploadedBy, mimeType: data.doc.mimeType }]);
+      setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: (data.doc as any).downloadUrl ?? data.doc.fileUrl ?? '', uploadedBy: data.doc.uploadedBy, mimeType: data.doc.mimeType, fileSizeBytes: (data.doc as any).fileSizeBytes, createdAt: (data.doc as any).createdAt }]);
     } catch (err: any) {
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
       handleApiError(err);
     }
   }
 
+  async function handleCameraDoc() {
+    launchCamera({ mediaType: 'photo', quality: 0.85 }, async (res) => {
+      if (res.didCancel || res.errorCode) return;
+      const asset = res.assets?.[0];
+      if (!asset?.uri) return;
+      try {
+        const file = { uri: asset.uri, name: asset.fileName ?? 'photo.jpg', type: asset.type ?? 'image/jpeg' };
+        const data = await uploadDoc(tripId, file);
+        setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: (data.doc as any).downloadUrl ?? data.doc.fileUrl ?? '', uploadedBy: data.doc.uploadedBy, mimeType: data.doc.mimeType, fileSizeBytes: (data.doc as any).fileSizeBytes, createdAt: (data.doc as any).createdAt }]);
+      } catch (err) { handleApiError(err); }
+    });
+  }
+
   async function handleDeleteDoc(docId: string, uploadedBy: string) {
-    if (role !== 'admin' && uploadedBy !== currentUserId) {
+    const uploaderId = typeof uploadedBy === 'object' && uploadedBy !== null ? (uploadedBy as any).userId : uploadedBy;
+    if (role !== 'admin' && uploaderId !== currentUserId) {
       Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'You can only delete your own documents.' });
       return;
     }
@@ -1518,6 +1578,17 @@ export default function TripDetailScreen({ route, navigation }: any) {
       await deleteDoc(tripId, docId);
       setDocs(p => p.filter(d => d.id !== docId));
     } catch (err) { handleApiError(err); }
+  }
+
+  async function handleRenameDoc() {
+    if (!renameTarget || !renameText.trim()) return;
+    setRenameLoading(true);
+    try {
+      const { doc } = await renameDoc(tripId, renameTarget.id, renameText.trim());
+      setDocs(p => p.map(d => d.id === renameTarget.id ? { ...d, name: doc.fileName } : d));
+      setRenameTarget(null);
+    } catch (err) { handleApiError(err); }
+    finally { setRenameLoading(false); }
   }
 
   async function openEmailPicker(provider: 'gmail' | 'outlook') {
@@ -1548,7 +1619,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     try {
       const selected = emailAttachments.filter(a => selectedAttachIds.has(a.attachmentId));
       const res = await importEmailAttachments('trip', tripId, emailPickerProvider, selected);
-      setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl, uploadedBy: currentUserId }))]);
+      setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl, uploadedBy: { userId: currentUserId, name: null, avatarUrl: null } }))]);
       setShowEmailPicker(false);
       if (res.failed?.length) {
         Toast.show({ type: 'error', text1: `${res.failed.length} file(s) failed to import` });
@@ -1601,7 +1672,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         media.setItems((p) => organizeTripMediaItems([...p, ...imported], activities.map((a) => a.id)));
       } else {
         res = await importDriveFiles('trip', tripId, selected);
-        setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl, uploadedBy: currentUserId }))]);
+        setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl, uploadedBy: { userId: currentUserId, name: null, avatarUrl: null } }))]);
       }
       setShowDrivePicker(false);
       if (res.failed?.length) {
@@ -1784,8 +1855,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
       const p = res.poll;
       setPolls(prev => [...prev, {
         id: p.id, question: p.question,
-        options: p.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount ?? 0, votedByMe: o.votedByMe ?? false })),
-        myVoteOptionId: p.myVoteOptionId ?? null,
+        options: p.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount ?? 0, votedByMe: o.isMyVote ?? o.votedByMe ?? false })),
+        myVoteOptionId: p.myVotedOptionId ?? p.myVoteOptionId ?? null,
         createdBy: p.createdBy,
       }]);
       setPollQuestion(''); setPollOptions(['', '']);
@@ -1799,6 +1870,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   }
 
   async function handleDeletePoll(pollId: string) {
+    setPollMenuId(null);
     showConfirm({
       title: 'Delete Poll',
       message: 'Are you sure you want to delete this poll?',
@@ -1812,15 +1884,41 @@ export default function TripDetailScreen({ route, navigation }: any) {
     });
   }
 
+  async function handleCompletePoll(pollId: string) {
+    setPollMenuId(null);
+    setPolls(prev => prev.map(p => p.id === pollId ? { ...p, status: 'completed' as const } : p));
+    try {
+      const { poll } = await setPollStatus(tripId, pollId, 'completed');
+      setPolls(prev => prev.map(p => p.id === pollId ? { ...p, ...poll } : p));
+    } catch {
+      setPolls(prev => prev.map(p => p.id === pollId ? { ...p, status: 'active' as const } : p));
+    }
+  }
+
+  async function handleMakeActivePoll(pollId: string) {
+    setPollMenuId(null);
+    setPolls(prev => prev.map(p => p.id === pollId ? { ...p, status: 'active' as const } : p));
+    try {
+      const { poll } = await setPollStatus(tripId, pollId, 'active');
+      setPolls(prev => prev.map(p => p.id === pollId ? { ...p, ...poll } : p));
+    } catch {
+      setPolls(prev => prev.map(p => p.id === pollId ? { ...p, status: 'completed' as const } : p));
+    }
+  }
+
   async function handleVote(pollId: string, optionId: string) {
+    // Detect whether this click revokes an existing vote (clicking the same option).
+    const current = polls.find(p => p.id === pollId);
+    const wasMyVote = !!current && (current.myVoteOptionId === optionId
+      || current.options.some(o => o.id === optionId && o.votedByMe));
     try {
       const res = await voteOnPoll(tripId, pollId, optionId);
       setPolls(prev => prev.map(p => p.id === pollId ? {
         ...p,
-        options: res.poll.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount ?? 0, votedByMe: o.votedByMe ?? false })),
-        myVoteOptionId: res.poll.myVoteOptionId ?? null,
+        options: res.poll.options.map(o => ({ id: o.id, text: o.text, voteCount: o.voteCount ?? 0, votedByMe: o.isMyVote ?? o.votedByMe ?? false })),
+        myVoteOptionId: res.poll.myVotedOptionId ?? res.poll.myVoteOptionId ?? null,
       } : p));
-      Toast.show({ type: 'success', text1: 'Vote recorded!' });
+      Toast.show({ type: 'success', text1: wasMyVote ? 'Vote removed' : 'Vote recorded!' });
     } catch (err) { handleApiError(err); }
   }
 
@@ -2469,7 +2567,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity style={styles.tealBtnFull} onPress={handleAddActivity} activeOpacity={0.85}>
-                    <Text style={styles.tealBtnTxt}>Activity</Text>
+                    <Text style={styles.tealBtnTxt}>Save</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -2524,14 +2622,39 @@ export default function TripDetailScreen({ route, navigation }: any) {
               <DHeader title="Documents" onClose={() => setShowDocs(false)} />
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.dBody}>
-                  <DocumentsUploadSection
-                    onUploadPhone={handleUploadDoc}
-                    emailStatus={emailStatus}
+                  {/* Upload section */}
+                  <View style={styles.docSectionDivider}>
+                    <View style={styles.docDividerLine} />
+                    <Text style={styles.docDividerLabel}>UPLOAD DOCUMENTS</Text>
+                    <View style={styles.docDividerLine} />
+                  </View>
+                  <UploadOptionsRow
+                    onUpload={handleUploadDoc}
+                    onCamera={handleCameraDoc}
+                    onDrive={() => openDrivePicker('docs')}
+                    showDrive={true}
+                  />
+
+                  {/* Email import section */}
+                  <View style={styles.docSectionDivider}>
+                    <View style={styles.docDividerLine} />
+                    <Text style={styles.docDividerLabel}>IMPORT FROM EMAIL</Text>
+                    <View style={styles.docDividerLine} />
+                  </View>
+                  <EmailOptionsRow
                     onGmail={() => openEmailPicker('gmail')}
                     onOutlook={() => openEmailPicker('outlook')}
-                    driveConnected={driveStatus.connected}
-                    onDrive={() => openDrivePicker('docs')}
                   />
+
+                  {/* Documents list */}
+                  <View style={styles.docSectionDivider}>
+                    <View style={styles.docDividerLine} />
+                    <Text style={styles.docDividerLabel}>
+                      {docs.length > 0 ? `UPLOADED DOCUMENTS (${docs.length})` : 'UPLOADED DOCUMENTS'}
+                    </Text>
+                    <View style={styles.docDividerLine} />
+                  </View>
+
                   {docs.length === 0 ? (
                     <View style={styles.emptyCenter}>
                       <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
@@ -2541,32 +2664,79 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       <Text style={styles.emptyTitle}>No documents yet</Text>
                       <Text style={styles.emptySub}>Upload important documents for your trip</Text>
                     </View>
-                  ) : docs.map(doc => (
-                    <TouchableOpacity key={doc.id} style={styles.docRow} activeOpacity={0.7}
-                      onPress={() => doc.uri ? setDocPreviewUrl(doc.uri) : showAlert({ title: 'Error', message: 'Document URL not available.' })}>
-                      <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                        <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                        <Path d="M14 2v6h6M16 13H8M16 17H8" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      </Svg>
-                      <Text style={{ flex: 1, fontSize: 13, color: '#0f172a', marginLeft: 10 }} numberOfLines={1}>{doc.name}</Text>
-                      {(role === 'admin' || (doc as any).uploadedBy === currentUserId) && (
-                        <TouchableOpacity onPress={e => {
-                          e.stopPropagation?.();
-                          showConfirm({
-                            title: 'Remove document?',
-                            message: `Remove "${doc.name}" from this trip?`,
-                            destructive: true,
-                            confirmText: 'Remove',
-                            onConfirm: async () => { await handleDeleteDoc(doc.id, (doc as any).uploadedBy ?? ''); },
-                          });
-                        }} activeOpacity={0.7}>
-                          <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '500' }}>Remove</Text>
-                        </TouchableOpacity>
-                      )}
-                    </TouchableOpacity>
-                  ))}
+                  ) : (
+                    <View>
+                      {docs.map((doc, idx) => {
+                        const uploaderObj = typeof doc.uploadedBy === 'object' && doc.uploadedBy !== null ? doc.uploadedBy : null;
+                        const uploaderId = uploaderObj ? (uploaderObj as any).userId : doc.uploadedBy;
+                        const canEdit = role === 'admin' || uploaderId === currentUserId;
+                        return (
+                          <TouchableOpacity
+                            key={doc.id}
+                            activeOpacity={0.7}
+                            onPress={() => doc.uri ? setDocPreviewUrl(doc.uri) : showAlert({ title: 'Error', message: 'Document URL not available.' })}
+                            style={idx < docs.length - 1 ? styles.docRow : undefined}
+                          >
+                            <DocumentItem
+                              doc={{
+                                id: doc.id,
+                                fileName: doc.name,
+                                mimeType: doc.mimeType,
+                                fileSizeBytes: doc.fileSizeBytes,
+                                createdAt: doc.createdAt,
+                                uploadedBy: doc.uploadedBy ?? '',
+                              }}
+                              canEdit={canEdit}
+                              onEdit={() => { setRenameTarget(doc); setRenameText(doc.name); }}
+                              onDelete={() => showConfirm({
+                                title: 'Remove document?',
+                                message: `Remove "${doc.name}" from this trip?`,
+                                destructive: true,
+                                confirmText: 'Remove',
+                                onConfirm: async () => { await handleDeleteDoc(doc.id, doc.uploadedBy ?? ''); },
+                              })}
+                            />
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
                 </View>
               </ScrollView>
+            </View>
+          </View>
+        </AppModal>
+
+        {/* ═══════════════════════════════════════════════════
+          MODAL 2-rename — Rename Document
+      ═══════════════════════════════════════════════════ */}
+        <AppModal visible={renameTarget !== null} transparent animationType="slide" onRequestClose={() => setRenameTarget(null)}>
+          <View style={styles.overlay}>
+            <View style={[styles.dialog, { paddingBottom: 8 }]}>
+              <DHeader title="Edit Document" onClose={() => setRenameTarget(null)} />
+              <View style={[styles.dBody, { gap: 16 }]}>
+                <TextInput
+                  value={renameText}
+                  onChangeText={setRenameText}
+                  style={styles.fInput}
+                  placeholder="Document name"
+                  placeholderTextColor="#94a3b8"
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleRenameDoc}
+                />
+                <TouchableOpacity
+                  style={[styles.tealBtnFull, renameLoading && { opacity: 0.6 }]}
+                  onPress={handleRenameDoc}
+                  disabled={renameLoading || !renameText.trim()}
+                  activeOpacity={0.85}
+                >
+                  {renameLoading
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <Text style={styles.tealBtnTxt}>Save</Text>
+                  }
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </AppModal>
@@ -3154,85 +3324,202 @@ export default function TripDetailScreen({ route, navigation }: any) {
         {/* ═══════════════════════════════════════════════════
           MODAL 6 — Polls
       ═══════════════════════════════════════════════════ */}
-        <AppModal visible={showPolls} transparent animationType="fade" onRequestClose={() => setShowPolls(false)}>
+        <AppModal visible={showPolls} transparent animationType="fade" onRequestClose={() => { setShowPolls(false); setPollMenuId(null); }}>
           <Toast />
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
-              <DHeader title="Polls" onClose={() => { setShowPolls(false); setShowPollForm(false); setPollQuestion(''); setPollOptions(['', '']); }} />
+              <DHeader title="Polls" subtitle="Create polls, see what others think, and decide together." onClose={() => { setShowPolls(false); setPollMenuId(null); }} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.dBody}>
 
-                  {/* Create Poll button */}
-                  {!showPollForm && (
-                    <TouchableOpacity
-                      style={styles.tealBtnFull}
-                      onPress={() => setShowPollForm(true)}
-                      activeOpacity={0.85}>
-                      <Text style={styles.tealBtnTxt}>+  Create Poll</Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity style={styles.tealBtnFull} onPress={() => setShowPollForm(true)} activeOpacity={0.85}>
+                    <Text style={styles.tealBtnTxt}>Create Poll</Text>
+                  </TouchableOpacity>
 
-                  {/* Inline create form */}
-                  {showPollForm && (
-                    <View>
-                      <Text style={styles.fLabel}>Question</Text>
-                      <TextInput style={styles.fInput} placeholder="What do you want to ask?" placeholderTextColor="#94a3b8" value={pollQuestion} onChangeText={setPollQuestion} />
-                      <Text style={[styles.fLabel, { marginTop: 12 }]}>Options</Text>
-                      {pollOptions.map((opt, i) => (
-                        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                          <TextInput style={[styles.fInput, { flex: 1 }]} placeholder={`Option ${i + 1}`} placeholderTextColor="#94a3b8" value={opt} onChangeText={v => setPollOptions(p => { const n = [...p]; n[i] = v; return n; })} />
-                          {pollOptions.length > 2 && (
-                            <TouchableOpacity onPress={() => setPollOptions(p => p.filter((_, j) => j !== i))} activeOpacity={0.7}>
-                              <TrashIcon color="#ef4444" />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      ))}
-                      <TouchableOpacity onPress={() => setPollOptions(p => [...p, ''])} activeOpacity={0.7} style={{ marginTop: 2, marginBottom: 12 }}>
-                        <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '500' }}>+ Add Option</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.tealBtnFull} onPress={handleCreatePoll} activeOpacity={0.85}>
-                        <Text style={styles.tealBtnTxt}>Submit Poll</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
+                  {/* ── Skeleton loading ── */}
+                  {isLoadingPolls && <PollSkeleton />}
 
-                  {/* Poll list */}
-                  {polls.length > 0 && <View style={{ marginTop: 16 }} />}
-                  {polls.map(poll => {
-                    const totalVotes = poll.options.reduce((s, o) => s + o.voteCount, 0);
+                  {/* ── Active Polls ── */}
+                  {(() => {
+                    const activePolls = polls.filter(p => (p.status ?? 'active') === 'active');
+                    if (activePolls.length === 0) return null;
                     return (
-                      <View key={poll.id} style={styles.pollCard}>
-                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.pollQ}>{poll.question}</Text>
-                            <Text style={styles.pollMeta}>{poll.createdByName ? `By ${poll.createdByName}` : 'By You'}{poll.createdAt ? ` • ${new Date(poll.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' })}` : ''}</Text>
-                          </View>
-                          <TouchableOpacity onPress={() => handleDeletePoll(poll.id)} activeOpacity={0.7} style={styles.pollDeleteBtn} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-                            <TrashIcon color="#ef4444" size={15} />
-                          </TouchableOpacity>
-                        </View>
-                        {poll.options.map(opt => {
-                          const pct = totalVotes > 0 ? Math.round((opt.voteCount / totalVotes) * 100) : 0;
-                          const isMyVote = opt.votedByMe || poll.myVoteOptionId === opt.id;
+                      <View style={{ marginTop: 20 }}>
+                        <Text style={styles.pollSectionLabel}>Active Polls</Text>
+                        {activePolls.map(poll => {
+                          const totalVotes = poll.options.reduce((s, o) => s + o.voteCount, 0);
+                          const menuOpen = pollMenuId === poll.id;
+                          const voterAvatars = [...members].reverse().slice(0, Math.min(totalVotes, 5));
+                          const extra = totalVotes > 5 ? totalVotes - 5 : 0;
                           return (
-                            <TouchableOpacity key={opt.id} style={styles.pollOptRow} onPress={() => handleVote(poll.id, opt.id)} activeOpacity={0.8}>
-                              <View style={[styles.pollBar, { width: `${pct}%` as any, backgroundColor: isMyVote ? '#0d9488' : '#ccfbf1' }]} />
-                              <Text style={[styles.pollOptTxt, isMyVote && { fontWeight: '600', color: '#0d9488' }]}>{isMyVote ? '✓  ' : ''}{opt.text}</Text>
-                              <Text style={[styles.pollVotes]}>{opt.voteCount}</Text>
-                            </TouchableOpacity>
+                            <View key={poll.id} style={styles.pollCard}>
+                              <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 }}>
+                                <Text style={[styles.pollQ, { flex: 1, marginRight: 8 }]}>{poll.question}</Text>
+                                <View>
+                                  <TouchableOpacity onPress={() => setPollMenuId(menuOpen ? null : poll.id)} activeOpacity={0.7} style={{ padding: 4 }} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                                    <Text style={{ fontSize: 20, color: '#94a3b8', lineHeight: 20, letterSpacing: 1 }}>···</Text>
+                                  </TouchableOpacity>
+                                  {menuOpen && (
+                                    <View style={styles.pollMenu}>
+                                      <TouchableOpacity style={styles.pollMenuItem} onPress={() => handleCompletePoll(poll.id)} activeOpacity={0.8}>
+                                        <Svg width={14} height={14} viewBox="0 0 24 24" fill="none"><Path d="M22 11.08V12a10 10 0 11-5.93-9.14" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M22 4L12 14.01l-3-3" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
+                                        <Text style={[styles.pollMenuTxt, { color: '#0d9488' }]}>Complete</Text>
+                                      </TouchableOpacity>
+                                      <View style={styles.pollMenuDivider} />
+                                      <TouchableOpacity style={styles.pollMenuItem} onPress={() => handleDeletePoll(poll.id)} activeOpacity={0.8}>
+                                        <TrashIcon color="#ef4444" size={14} />
+                                        <Text style={[styles.pollMenuTxt, { color: '#ef4444' }]}>Delete</Text>
+                                      </TouchableOpacity>
+                                    </View>
+                                  )}
+                                </View>
+                              </View>
+                              {poll.options.map(opt => {
+                                const pct = totalVotes > 0 ? Math.round((opt.voteCount / totalVotes) * 100) : 0;
+                                const isMyVote = opt.votedByMe || poll.myVoteOptionId === opt.id;
+                                return (
+                                  <PollOptionItem
+                                    key={opt.id}
+                                    text={opt.text}
+                                    voteCount={opt.voteCount}
+                                    pct={pct}
+                                    isMyVote={isMyVote}
+                                    isCompleted={false}
+                                    onPress={() => handleVote(poll.id, opt.id)}
+                                  />
+                                );
+                              })}
+                              {totalVotes > 0 && (
+                                <View style={styles.pollFooter}>
+                                  <View style={styles.pollAvatarRow}>
+                                    {voterAvatars.map((m, idx) => (
+                                      m.avatarUrl
+                                        ? <CachedImage key={m.userId} uri={m.avatarUrl} style={[styles.pollAvatar, { marginLeft: idx > 0 ? -8 : 0 }] as any} resizeMode="cover" priority="normal" />
+                                        : <View key={m.userId} style={[styles.pollAvatar, styles.pollAvatarPlaceholder, { marginLeft: idx > 0 ? -8 : 0 }]}><Text style={styles.pollAvatarInitial}>{(m.fullName?.[0] || '?').toUpperCase()}</Text></View>
+                                    ))}
+                                    {extra > 0 && <View style={[styles.pollAvatar, styles.pollAvatarMore, { marginLeft: -8 }]}><Text style={styles.pollAvatarMoreTxt}>+{extra}</Text></View>}
+                                  </View>
+                                  <Text style={styles.pollTotalVotes}>{totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</Text>
+                                </View>
+                              )}
+                            </View>
                           );
                         })}
                       </View>
                     );
-                  })}
+                  })()}
 
-                  {polls.length === 0 && !showPollForm && (
+                  {/* ── Completed Polls ── */}
+                  {(() => {
+                    const completedPolls = polls.filter(p => p.status === 'completed');
+                    if (completedPolls.length === 0) return null;
+                    return (
+                      <View style={{ marginTop: 20 }}>
+                        <Text style={styles.pollSectionLabel}>Completed Polls</Text>
+                        {completedPolls.map(poll => {
+                          const totalVotes = poll.options.reduce((s, o) => s + o.voteCount, 0);
+                          const menuOpen = pollMenuId === poll.id;
+                          const voterAvatars = [...members].reverse().slice(0, Math.min(totalVotes, 5));
+                          const extra = totalVotes > 5 ? totalVotes - 5 : 0;
+                          return (
+                            <View key={poll.id} style={[styles.pollCard, { backgroundColor: '#f8fafc' }]}>
+                              <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 }}>
+                                <Text style={[styles.pollQ, { flex: 1, marginRight: 8 }]}>{poll.question}</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                  <View style={styles.pollCompletedBadge}><Text style={styles.pollCompletedTxt}>Completed</Text></View>
+                                  <View>
+                                    <TouchableOpacity onPress={() => setPollMenuId(menuOpen ? null : poll.id)} activeOpacity={0.7} style={{ padding: 4 }} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                                      <Text style={{ fontSize: 20, color: '#94a3b8', lineHeight: 20, letterSpacing: 1 }}>···</Text>
+                                    </TouchableOpacity>
+                                    {menuOpen && (
+                                      <View style={styles.pollMenu}>
+                                        <TouchableOpacity style={styles.pollMenuItem} onPress={() => handleMakeActivePoll(poll.id)} activeOpacity={0.8}>
+                                          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none"><Path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>
+                                          <Text style={[styles.pollMenuTxt, { color: '#0d9488' }]}>Make Active</Text>
+                                        </TouchableOpacity>
+                                        <View style={styles.pollMenuDivider} />
+                                        <TouchableOpacity style={styles.pollMenuItem} onPress={() => handleDeletePoll(poll.id)} activeOpacity={0.8}>
+                                          <TrashIcon color="#ef4444" size={14} />
+                                          <Text style={[styles.pollMenuTxt, { color: '#ef4444' }]}>Delete</Text>
+                                        </TouchableOpacity>
+                                      </View>
+                                    )}
+                                  </View>
+                                </View>
+                              </View>
+                              {poll.options.map(opt => {
+                                const pct = totalVotes > 0 ? Math.round((opt.voteCount / totalVotes) * 100) : 0;
+                                const isMyVote = opt.votedByMe || poll.myVoteOptionId === opt.id;
+                                return (
+                                  <PollOptionItem
+                                    key={opt.id}
+                                    text={opt.text}
+                                    voteCount={opt.voteCount}
+                                    pct={pct}
+                                    isMyVote={isMyVote}
+                                    isCompleted={true}
+                                    disabled={true}
+                                  />
+                                );
+                              })}
+                              {totalVotes > 0 && (
+                                <View style={styles.pollFooter}>
+                                  <View style={styles.pollAvatarRow}>
+                                    {voterAvatars.map((m, idx) => (
+                                      m.avatarUrl
+                                        ? <CachedImage key={m.userId} uri={m.avatarUrl} style={[styles.pollAvatar, { marginLeft: idx > 0 ? -8 : 0 }] as any} resizeMode="cover" priority="normal" />
+                                        : <View key={m.userId} style={[styles.pollAvatar, styles.pollAvatarPlaceholder, { marginLeft: idx > 0 ? -8 : 0 }]}><Text style={styles.pollAvatarInitial}>{(m.fullName?.[0] || '?').toUpperCase()}</Text></View>
+                                    ))}
+                                    {extra > 0 && <View style={[styles.pollAvatar, styles.pollAvatarMore, { marginLeft: -8 }]}><Text style={styles.pollAvatarMoreTxt}>+{extra}</Text></View>}
+                                  </View>
+                                  <Text style={styles.pollTotalVotes}>{totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}</Text>
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })}
+                      </View>
+                    );
+                  })()}
+
+                  {!isLoadingPolls && polls.length === 0 && (
                     <View style={styles.emptyCenter}>
                       <Text style={styles.emptyTitle}>No polls yet</Text>
                       <Text style={styles.emptySub}>Create the first poll above</Text>
                     </View>
                   )}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </AppModal>
+
+        {/* ── Create Poll sub-modal ── */}
+        <AppModal visible={showPollForm} transparent animationType="slide" onRequestClose={() => { setShowPollForm(false); setPollQuestion(''); setPollOptions(['', '']); }}>
+          <View style={styles.overlay}>
+            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+              <DHeader title="Create Poll" onClose={() => { setShowPollForm(false); setPollQuestion(''); setPollOptions(['', '']); }} />
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <View style={styles.dBody}>
+                  <Text style={styles.fLabel}>Question</Text>
+                  <TextInput style={styles.fInput} placeholder="What do you want to ask?" placeholderTextColor="#94a3b8" value={pollQuestion} onChangeText={setPollQuestion} />
+                  <Text style={[styles.fLabel, { marginTop: 12 }]}>Options</Text>
+                  {pollOptions.map((opt, i) => (
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <TextInput style={[styles.fInput, { flex: 1 }]} placeholder={`Option ${i + 1}`} placeholderTextColor="#94a3b8" value={opt} onChangeText={v => setPollOptions(p => { const n = [...p]; n[i] = v; return n; })} />
+                      {pollOptions.length > 2 && (
+                        <TouchableOpacity onPress={() => setPollOptions(p => p.filter((_, j) => j !== i))} activeOpacity={0.7}>
+                          <TrashIcon color="#ef4444" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+                  <TouchableOpacity onPress={() => setPollOptions(p => [...p, ''])} activeOpacity={0.7} style={{ marginTop: 2, marginBottom: 16 }}>
+                    <Text style={{ fontSize: 13, color: '#0d9488', fontWeight: '500' }}>+ Add Option</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.tealBtnFull} onPress={handleCreatePoll} activeOpacity={0.85}>
+                    <Text style={styles.tealBtnTxt}>Submit Poll</Text>
+                  </TouchableOpacity>
                 </View>
               </ScrollView>
             </View>
@@ -3245,13 +3532,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
         <AppModal visible={showNotes} transparent animationType="fade" onRequestClose={() => setShowNotes(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '88%' }]}>
-              <DHeader title="Trip Notes" onClose={() => setShowNotes(false)} />
+              <DHeader title="Notes" onClose={() => setShowNotes(false)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.dBody}>
-                  <TextInput style={styles.fInput} placeholder="Note title..." placeholderTextColor="#94a3b8" value={noteTitle} onChangeText={setNoteTitle} />
-                  <TextInput style={[styles.fInput, { height: 90, textAlignVertical: 'top', paddingTop: 10, marginTop: 8 }]} placeholder="Write your note here..." placeholderTextColor="#94a3b8" value={noteBody} onChangeText={setNoteBody} multiline />
+                  <TextInput style={styles.fInput} placeholder="Subject" placeholderTextColor="#94a3b8" value={noteTitle} onChangeText={setNoteTitle} />
+                  <TextInput style={[styles.fInput, { height: 90, textAlignVertical: 'top', paddingTop: 10, marginTop: 8 }]} placeholder="Type or paste your note here..." placeholderTextColor="#94a3b8" value={noteBody} onChangeText={setNoteBody} multiline />
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 10, alignItems: 'center' }}>
-                    <TouchableOpacity style={[styles.catBtn, { justifyContent: 'center' }]} onPress={() => setShowNoteCatDrop(p => !p)} activeOpacity={0.8}>
+                    <TouchableOpacity style={[styles.catBtn, { justifyContent: 'center', width: 120 }]} onPress={() => setShowNoteCatDrop(p => !p)} activeOpacity={0.8}>
                       <NoteCatRow cat={noteCatDisplay} />
                     </TouchableOpacity>
                     {editingNoteId && (
@@ -3294,14 +3581,27 @@ export default function TripDetailScreen({ route, navigation }: any) {
                             style={[styles.noteCard, note.pinned && { backgroundColor: '#fefce8', borderColor: '#fde68a' }]}
                           >
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                              <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#f0fdf9', alignItems: 'center', justifyContent: 'center' }}>
-                                <NoteCategoryIcon categoryKey={note.category} size={20} />
-                              </View>
-                              {/* Title + meta */}
+                              {(() => {
+                                const cb = (note as any).createdBy;
+                                const name = cb ? (typeof cb === 'string' ? cb : (cb.name ?? cb.username ?? '')) : '';
+                                const creatorId = cb && typeof cb === 'object' ? String(cb.userId ?? cb.id ?? '') : (typeof cb === 'string' ? cb : '');
+                                const avatarUri = (cb && typeof cb === 'object' ? (cb.avatarUrl ?? cb.avatar ?? null) : null)
+                                  ?? members.find(m => m.userId === creatorId)?.avatarUrl
+                                  ?? null;
+                                const initial = name ? name[0].toUpperCase() : '?';
+                                return avatarUri ? (
+                                  <CachedImage uri={avatarUri} style={{ width: 38, height: 38, borderRadius: 19 } as any} resizeMode="cover" priority="normal" />
+                                ) : (
+                                  <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#f0fdf9', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#0d9488' }}>{initial}</Text>
+                                  </View>
+                                );
+                              })()}
+                              {/* Title + category */}
                               <View style={{ flex: 1 }}>
                                 <Text style={[styles.noteTitle, { fontSize: 14 }]} numberOfLines={1}>{note.title}</Text>
                                 <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                                  {(() => { const cb = (note as any).createdBy; const name = cb ? (typeof cb === 'string' ? cb : cb.name ?? cb.username ?? '') : ''; return name ? `By ${name}` : 'By You'; })()}{note.date ? ` • ${note.date}` : ''}
+                                  {cat?.label ?? note.category}{note.date ? ` • ${note.date}` : ''}
                                 </Text>
                               </View>
                               {/* Star only */}
@@ -3584,7 +3884,10 @@ const styles = StyleSheet.create({
   actExtraBtn: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
 
   // Documents
-  docRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  docRow: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f1f5f9' },
+  docSectionDivider: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 8 },
+  docDividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#e2e8f0' },
+  docDividerLabel: { fontSize: 11, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.5 },
 
   // Members
   memberSectionLabel: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 10 },
@@ -3626,18 +3929,28 @@ const styles = StyleSheet.create({
   balValue: { ...typography.expTotalValue, color: '#0f172a' },
 
   // Polls
-  pollCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  pollQ: { fontSize: 13, fontWeight: '600', color: '#0f172a', marginBottom: 2 },
+  pollSectionLabel: { fontSize: 11, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
+  pollCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  pollQ: { fontSize: 14, fontWeight: '700', color: '#0f172a', lineHeight: 20 },
   pollMeta: { fontSize: 11, color: '#64748b', fontWeight: '400', marginBottom: 10 },
-  pollDeleteBtn: { padding: 4 },
-  pollOptRow: { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 9, paddingHorizontal: 12, marginBottom: 6, overflow: 'hidden' },
-  pollBar: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#ccfbf1', borderRadius: 8 },
-  pollOptTxt: { flex: 1, fontSize: 12, color: '#0f172a', fontWeight: '500', zIndex: 1 },
-  pollVotes: { fontSize: 11, color: '#64748b', fontWeight: '500', zIndex: 1 },
+  pollFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e2e8f0' },
+  pollAvatarRow: { flexDirection: 'row', alignItems: 'center' },
+  pollAvatar: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: '#fff' },
+  pollAvatarPlaceholder: { backgroundColor: '#f0fdf9', alignItems: 'center' as const, justifyContent: 'center' as const },
+  pollAvatarMore: { backgroundColor: '#e2e8f0', alignItems: 'center' as const, justifyContent: 'center' as const },
+  pollAvatarInitial: { fontSize: 11, fontWeight: '700', color: '#0d9488' },
+  pollAvatarMoreTxt: { fontSize: 10, fontWeight: '700', color: '#64748b' },
+  pollTotalVotes: { fontSize: 12, color: '#64748b', fontWeight: '500' },
+  pollCompletedBadge: { backgroundColor: '#f0fdfa', borderWidth: 1, borderColor: '#0d9488', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  pollCompletedTxt: { fontSize: 11, fontWeight: '600', color: '#0d9488' },
+  pollMenu: { position: 'absolute', right: 0, top: 26, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 8, elevation: 12, zIndex: 100, minWidth: 148 },
+  pollMenuItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12 },
+  pollMenuTxt: { fontSize: 13, fontWeight: '500', color: '#0f172a' },
+  pollMenuDivider: { height: StyleSheet.hairlineWidth, backgroundColor: '#e2e8f0' },
 
   // Notes
   noteCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#e2e8f0' },
-  noteTitle: { fontSize: 12, fontWeight: '500', color: '#0f172a', flex: 1 },
+  noteTitle: { fontSize: 12, fontWeight: '500', color: '#0d9488', flex: 1 },
   noteBody: { fontSize: 11, color: '#64748b', lineHeight: 18 },
   noteLink: { color: '#0d9488', textDecorationLine: 'underline' },
   catBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },

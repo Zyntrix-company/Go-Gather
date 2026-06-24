@@ -72,6 +72,7 @@ router.post(
   ctrl.uploadDoc,
 );
 router.delete('/:eventId/docs/:docId', eventMemberMW, ctrl.deleteDoc);
+router.patch('/:eventId/docs/:docId', eventMemberMW, ctrl.renameDoc);
 
 // ─── Photos ───────────────────────────────────────────────────────────────────
 router.get('/:eventId/photos', eventMemberMW, ctrl.getPhotos);

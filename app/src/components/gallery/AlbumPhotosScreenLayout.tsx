@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { View, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import React from 'react';
+import { View, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppScreenLayout, { TAB_BAR_BASE_HEIGHT } from '../common/AppScreenLayout';
 import type { TabType } from '../common/FloatingTabBar';
@@ -38,26 +38,19 @@ export default function AlbumPhotosScreenLayout({
 }: AlbumPhotosScreenLayoutProps) {
   const insets = useSafeAreaInsets();
   const tabBarPad = TAB_BAR_BASE_HEIGHT + insets.bottom + 6;
-  const scrollRef = useRef<ScrollView>(null);
 
+  // Use a plain View (not ScrollView) so that flex layout works correctly inside:
+  // a ScrollView gives children unbounded height, which breaks flex: 1 on the
+  // nested comment list and causes the whole screen to shift on compose open.
   const body = scrollable ? (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
     >
-      <ScrollView
-        ref={scrollRef}
-        style={{ flex: 1 }}
-        scrollEnabled={false}
-        bounces={false}
-        overScrollMode="never"
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ flexGrow: 1 }}
-      >
+      <View style={{ flex: 1 }}>
         {children}
-      </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   ) : (
     <View style={{ flex: 1, overflow: 'hidden' }}>{children}</View>
@@ -70,7 +63,7 @@ export default function AlbumPhotosScreenLayout({
       onLogoPress={onClose}
     >
       <AlbumPhotosOverlayContext.Provider value={heroOverlay ?? null}>
-        <AlbumPhotosScrollContext.Provider value={scrollable ? scrollRef : null}>
+        <AlbumPhotosScrollContext.Provider value={null}>
           <View style={{ flex: 1, paddingBottom: tabBarPad }}>
             {subHeader}
             {body}

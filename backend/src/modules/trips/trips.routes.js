@@ -124,6 +124,7 @@ router.post(
   docsCtrl.uploadDoc,
 );
 router.delete('/:id/docs/:docId', tripMemberMW, docsCtrl.deleteDoc);
+router.patch('/:id/docs/:docId', tripMemberMW, docsCtrl.renameDoc);
 
 // ─── Members ──────────────────────────────────────────────────────────────────
 router.get('/:id/members', tripMemberMW, membersCtrl.getMembers);

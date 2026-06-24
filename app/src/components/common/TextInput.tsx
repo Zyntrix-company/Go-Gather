@@ -1,5 +1,6 @@
 import React from 'react';
 import { TextInput as RNTextInput, TextInputProps, View, Text, StyleSheet } from 'react-native';
+import { typeStyle } from '../../theme';
 
 type Props = TextInputProps & { label?: string };
 
@@ -17,7 +18,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   label: {
-    fontSize: 14,
+    ...typeStyle('titleSm'),
     color: '#6b7280',
     marginBottom: 4,
   },

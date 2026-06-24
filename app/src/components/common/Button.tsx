@@ -7,6 +7,7 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
+import { typeStyle } from '../../theme';
 
 type Variant = 'primary' | 'outline' | 'ghost';
 
@@ -71,8 +72,7 @@ const styles = StyleSheet.create({
     opacity: 0.82,
   },
   text: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...typeStyle('buttonLg'),
     letterSpacing: 0.2,
   },
   textPrimary: { color: '#ffffff' },

@@ -55,7 +55,7 @@ export default function DetailDialogHeader({
             )}
           </View>
         )}
-        {!!subtitle && !inlineSubtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+        {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       </View>
       <TouchableOpacity
         onPress={onClose}

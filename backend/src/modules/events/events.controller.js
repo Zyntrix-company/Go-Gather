@@ -237,6 +237,23 @@ const deleteDoc = async (req, res, next) => {
   }
 };
 
+const renameDoc = async (req, res, next) => {
+  try {
+    const doc = await sharedDocsService.renameDoc({
+      docId: req.params.docId,
+      parentType: 'event',
+      parentId: req.params.eventId,
+      requesterId: req.user.id,
+      requesterRole: req.eventMember.role,
+      newName: req.body.fileName,
+    });
+    res.status(200).json({ doc });
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.error, message: e.message, statusCode: e.statusCode });
+    next(e);
+  }
+};
+
 // ─── PHOTOS ───────────────────────────────────────────────────────────────────
 
 const uploadPhotos = async (req, res, next) => {
@@ -603,6 +620,7 @@ module.exports = {
   uploadDoc,
   getDocs,
   deleteDoc,
+  renameDoc,
   // Photos
   uploadPhotos,
   getPhotos,

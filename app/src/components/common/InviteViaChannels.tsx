@@ -413,7 +413,7 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
 }
 
 const styles = StyleSheet.create({
-  channelRow: { flexDirection: 'row', gap: 10, marginBottom: 16, alignItems: 'center' },
+  channelRow: { flexDirection: 'row', gap: 10, marginBottom: 16, alignItems: 'center', justifyContent: 'center' },
   iconBtn: {
     width: BTN_SIZE,
     height: BTN_SIZE,

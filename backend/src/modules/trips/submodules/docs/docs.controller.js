@@ -35,4 +35,15 @@ const deleteDoc = async (req, res, next) => {
   }
 };
 
-module.exports = { uploadDoc, getDocs, deleteDoc };
+const renameDoc = async (req, res, next) => {
+  try {
+    const { fileName } = req.body;
+    const doc = await service.renameDoc(req.params.docId, req.tripMember.tripId, req.user.id, req.tripMember.role, fileName);
+    res.status(200).json({ doc });
+  } catch (e) {
+    if (e.statusCode) return res.status(e.statusCode).json({ error: e.error, message: e.message, statusCode: e.statusCode });
+    next(e);
+  }
+};
+
+module.exports = { uploadDoc, getDocs, deleteDoc, renameDoc };

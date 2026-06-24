@@ -14,4 +14,7 @@ const getDocs = (tripId) =>
 const deleteDoc = (docId, tripId, requesterId, requesterRole) =>
   sharedDocs.deleteDoc({ docId, parentType: PARENT_TYPE, parentId: tripId, requesterId, requesterRole });
 
-module.exports = { uploadDoc, uploadDocs, getDocs, deleteDoc };
+const renameDoc = (docId, tripId, requesterId, requesterRole, newName) =>
+  sharedDocs.renameDoc({ docId, parentType: PARENT_TYPE, parentId: tripId, requesterId, requesterRole, newName });
+
+module.exports = { uploadDoc, uploadDocs, getDocs, deleteDoc, renameDoc };

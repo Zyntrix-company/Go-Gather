@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator,
   ScrollView, Keyboard, Modal, Pressable, Dimensions,
@@ -11,7 +11,6 @@ import type { GalleryComment } from '../../api/gallery.api';
 import useAuthStore from '../../store/authStore';
 import { showConfirm } from '../../store/alertStore';
 import { GALLERY_COMMENT_MAX } from '../../constants/albumPhotosLayout';
-import { useAlbumPhotosScroll } from './AlbumPhotosContext';
 
 function HeartIcon({ filled }: { filled: boolean }) {
   const color = filled ? '#ef4444' : '#94a3b8';
@@ -154,7 +153,6 @@ export default function GalleryEngagementSection({
   onDeleteComment,
 }: GalleryEngagementSectionProps) {
   const currentUser = useAuthStore((s) => s.user);
-  const albumScrollRef = useAlbumPhotosScroll();
   const commentScrollRef = useRef<ScrollView>(null);
   const composeRef = useRef<TextInput>(null);
   const composeAnchorRef = useRef<View>(null);
@@ -166,16 +164,6 @@ export default function GalleryEngagementSection({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
 
-  // Programmatically scroll the outer (user-locked) ScrollView so the compose
-  // row rises above the keyboard. scrollEnabled={false} blocks touch scrolling
-  // but scrollToEnd() still works.
-  const scrollToCompose = useCallback(() => {
-    const go = () => albumScrollRef?.current?.scrollToEnd({ animated: true });
-    go();
-    setTimeout(go, 120);
-    setTimeout(go, 320);
-  }, [albumScrollRef]);
-
   const openCompose = () => {
     if (viewOnly) return;
     setComposeOpen(true);
@@ -184,15 +172,8 @@ export default function GalleryEngagementSection({
   useEffect(() => {
     if (!composeOpen) return undefined;
     const t = setTimeout(() => composeRef.current?.focus(), 80);
-    scrollToCompose();
     return () => clearTimeout(t);
-  }, [composeOpen, scrollToCompose]);
-
-  useEffect(() => {
-    if (!composeOpen) return undefined;
-    const sub = Keyboard.addListener('keyboardDidShow', scrollToCompose);
-    return () => sub.remove();
-  }, [composeOpen, scrollToCompose]);
+  }, [composeOpen]);
 
   // Scroll to latest comment whenever the list grows
   useEffect(() => {
