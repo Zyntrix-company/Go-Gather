@@ -23,7 +23,16 @@ export type UseGalleryViewportHeroHeightParams = {
   emptyHero?: boolean;
   editMode?: boolean;
   viewOnly?: boolean;
+  /**
+   * While the keyboard is open, shrink the hero so the comment panel keeps a
+   * usable viewport above the keyboard (the active compose/edit input stays
+   * visible). Layout above the comments scrolls back into place on dismiss.
+   */
+  keyboardVisible?: boolean;
 };
+
+/** Hero slot height while the keyboard is up — leaves room for the comment panel. */
+const GALLERY_HERO_KEYBOARD_H = 160;
 
 export function useGalleryViewportHeroHeight({
   hasTravelers = false,
@@ -34,10 +43,15 @@ export function useGalleryViewportHeroHeight({
   emptyHero = false,
   editMode = false,
   viewOnly = false,
+  keyboardVisible = false,
 }: UseGalleryViewportHeroHeightParams = {}): number {
   const insets = useSafeAreaInsets();
 
   return useMemo(() => {
+    // Typing: collapse the hero to free vertical space for comments + input.
+    if (keyboardVisible && hasPhotos) {
+      return GALLERY_HERO_KEYBOARD_H;
+    }
     const tabBarPad = TAB_BAR_BASE_HEIGHT + insets.bottom + 6;
     const subHeader = editMode ? GALLERY_CHROME.subHeaderEdit : GALLERY_CHROME.subHeader;
     const composeGhost = viewOnly ? 0 : GALLERY_CHROME.composeGhost;
@@ -70,5 +84,5 @@ export function useGalleryViewportHeroHeight({
     );
 
     return heroContent + GALLERY_HERO_SLIDE_V_PAD;
-  }, [hasTravelers, hasDescription, hasFooter, hasMetaCard, hasPhotos, emptyHero, editMode, viewOnly, insets.top, insets.bottom]);
+  }, [hasTravelers, hasDescription, hasFooter, hasMetaCard, hasPhotos, emptyHero, editMode, viewOnly, keyboardVisible, insets.top, insets.bottom]);
 }

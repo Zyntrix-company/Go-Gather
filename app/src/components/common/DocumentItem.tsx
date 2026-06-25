@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   Image,
   Modal,
   Pressable,
@@ -29,6 +30,8 @@ type Props = {
   onDelete: () => void;
 };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 const FALLBACK_COLORS = ['#0d9488', '#0891b2', '#7c3aed', '#db2777', '#f97316'];
 
 function colorFor(name: string) {
@@ -43,6 +46,13 @@ function initials(name: string | null | undefined) {
   return parts.length > 1
     ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
     : parts[0][0].toUpperCase();
+}
+
+/** Remove extension for display — type is shown separately in metadata row. */
+export function stripExt(fileName: string): string {
+  const lastDot = fileName.lastIndexOf('.');
+  if (lastDot > 0) return fileName.slice(0, lastDot);
+  return fileName;
 }
 
 function mimeLabel(mimeType?: string) {
@@ -69,6 +79,38 @@ function formatDate(iso?: string) {
   return d.toLocaleDateString('default', { day: 'numeric', month: 'short' });
 }
 
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function SkeletonPulse({ width, height, style }: { width: number | string; height: number; style?: object }) {
+  const opacity = useRef(new Animated.Value(0.3)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.7, duration: 600, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.3, duration: 600, useNativeDriver: true }),
+      ]),
+    ).start();
+  }, [opacity]);
+  return (
+    <Animated.View style={[{ width, height, borderRadius: 6, backgroundColor: '#e2e8f0' }, style, { opacity }]} />
+  );
+}
+
+export function DocItemSkeleton() {
+  return (
+    <View style={styles.row}>
+      <SkeletonPulse width={36} height={36} style={{ borderRadius: 18 }} />
+      <View style={{ flex: 1, gap: 7 }}>
+        <SkeletonPulse width="65%" height={13} />
+        <SkeletonPulse width="45%" height={11} />
+      </View>
+      <SkeletonPulse width={28} height={28} style={{ borderRadius: 14 }} />
+    </View>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export default function DocumentItem({ doc, canEdit, onEdit, onDelete }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -78,6 +120,8 @@ export default function DocumentItem({ doc, canEdit, onEdit, onDelete }: Props) 
 
   const bg = colorFor(uploaderName ?? doc.id);
   const initText = initials(uploaderName);
+
+  const displayName = stripExt(doc.fileName);
 
   const metaParts = [
     formatDate(doc.createdAt),
@@ -98,7 +142,7 @@ export default function DocumentItem({ doc, canEdit, onEdit, onDelete }: Props) 
 
       {/* Info */}
       <View style={styles.info}>
-        <Text style={styles.fileName} numberOfLines={1}>{doc.fileName}</Text>
+        <Text style={styles.fileName} numberOfLines={1}>{displayName}</Text>
         {metaParts.length > 0 && (
           <Text style={styles.meta} numberOfLines={1}>{metaParts.join(' · ')}</Text>
         )}
@@ -185,7 +229,7 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   meta: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#94a3b8',
     marginTop: 2,
   },

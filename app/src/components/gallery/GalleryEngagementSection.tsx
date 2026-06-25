@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator,
-  ScrollView, Keyboard, Modal, Pressable, Dimensions,
+  ScrollView, Keyboard, Modal, Pressable, Dimensions, BackHandler,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { MoreVertical, Pen, Trash2 } from 'lucide-react-native';
@@ -13,9 +13,9 @@ import { showConfirm } from '../../store/alertStore';
 import { GALLERY_COMMENT_MAX } from '../../constants/albumPhotosLayout';
 
 function HeartIcon({ filled }: { filled: boolean }) {
-  const color = filled ? '#ef4444' : '#94a3b8';
+  const color = '#94a3b8';
   return (
-    <Svg width={16} height={16} viewBox="0 0 24 24" fill={filled ? '#ef4444' : 'none'}>
+    <Svg width={16} height={16} viewBox="0 0 24 24" fill={filled ? '#94a3b8' : 'none'}>
       <Path
         d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"
         stroke={color}
@@ -32,7 +32,7 @@ function CommentIcon() {
     <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
       <Path
         d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"
-        stroke="#0d9488"
+        stroke="#94a3b8"
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -67,6 +67,7 @@ function CommentRow({
   onCancelEdit,
   onEditDraftChange,
   onOpenMenu,
+  onRowLayout,
 }: {
   c: GalleryComment;
   viewOnly: boolean;
@@ -79,6 +80,7 @@ function CommentRow({
   onCancelEdit: () => void;
   onEditDraftChange: (t: string) => void;
   onOpenMenu: (id: string, x: number, y: number, w: number, h: number) => void;
+  onRowLayout: (id: string, y: number) => void;
 }) {
   const anchorRef = useRef<View>(null);
   const isOwn = c.userId === currentUserId;
@@ -86,7 +88,10 @@ function CommentRow({
   const showMenu = !viewOnly && (isOwn || canModerateComments);
 
   return (
-    <View style={[styles.commentRow, !isLast && styles.commentRowBorder]}>
+    <View
+      style={[styles.commentRow, !isLast && styles.commentRowBorder]}
+      onLayout={(e) => onRowLayout(c.id, e.nativeEvent.layout.y)}
+    >
       {c.avatarUrl ? (
         <CachedImage uri={c.avatarUrl} style={styles.commentAvatar} resizeMode="cover" />
       ) : (
@@ -124,6 +129,8 @@ function CommentRow({
               numberOfLines={1}
               autoFocus
               underlineColorAndroid="transparent"
+              cursorColor="#0d9488"
+              selectionColor="#0d9488"
             />
             <Text style={styles.editCharCount}>{editDraft.length}/{GALLERY_COMMENT_MAX}</Text>
             <TouchableOpacity style={styles.editSaveBtn} onPress={onSaveEdit}>
@@ -163,6 +170,19 @@ export default function GalleryEngagementSection({
   const [menuBounds, setMenuBounds] = useState<{ bottom: number; right: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
+  // y-offset of each comment row inside the scroll content, so editing an
+  // existing comment scrolls that row (not just the end) above the keyboard.
+  const rowOffsets = useRef<Record<string, number>>({});
+
+  // Bring the active input (the edited row, or the compose box at the end)
+  // into view inside the comment scroll panel.
+  const scrollToActiveInput = () => {
+    if (editingId && rowOffsets.current[editingId] != null) {
+      commentScrollRef.current?.scrollTo({ y: Math.max(0, rowOffsets.current[editingId] - 8), animated: true });
+    } else {
+      commentScrollRef.current?.scrollToEnd({ animated: true });
+    }
+  };
 
   const openCompose = () => {
     if (viewOnly) return;
@@ -182,11 +202,41 @@ export default function GalleryEngagementSection({
     }
   }, [comments.length]);
 
+  // When compose opens or an edit starts, scroll the active input into view.
+  // keyboardDidShow covers the cold-open case; the timeout covers switching
+  // directly between rows while the keyboard is already up (no new show event).
+  useEffect(() => {
+    if (!composeOpen && !editingId) return undefined;
+    const sub = Keyboard.addListener('keyboardDidShow', scrollToActiveInput);
+    const t = setTimeout(scrollToActiveInput, 120);
+    return () => { sub.remove(); clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composeOpen, editingId]);
+
   const closeCompose = () => {
     setComposeOpen(false);
     setDraft('');
     Keyboard.dismiss();
   };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft('');
+    Keyboard.dismiss();
+  };
+
+  // Hardware back (Android): while composing/editing, dismiss the keyboard and
+  // cancel the inline input instead of leaving the keyboard up / closing the album.
+  useEffect(() => {
+    if (!composeOpen && !editingId) return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (editingId) { cancelEdit(); return true; }
+      if (composeOpen) { closeCompose(); return true; }
+      return false;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composeOpen, editingId]);
 
   const submitComment = async () => {
     const text = draft.trim();
@@ -243,8 +293,9 @@ export default function GalleryEngagementSection({
       editDraft={editDraft}
       isLast={idx === comments.length - 1 && !composeOpen}
       onSaveEdit={saveEdit}
-      onCancelEdit={() => { setEditingId(null); setEditDraft(''); }}
+      onCancelEdit={cancelEdit}
       onEditDraftChange={setEditDraft}
+      onRowLayout={(id, y) => { rowOffsets.current[id] = y; }}
       onOpenMenu={(id, x, y, w, _h) => {
         const { width: sw, height: sh } = Dimensions.get('window');
         setMenuBounds({ bottom: sh - y + 4, right: sw - (x + w) });
@@ -276,6 +327,9 @@ export default function GalleryEngagementSection({
           returnKeyType="send"
           onSubmitEditing={submitComment}
           blurOnSubmit={false}
+          underlineColorAndroid="transparent"
+          cursorColor="#0d9488"
+          selectionColor="#0d9488"
         />
         <View style={styles.composeFooter}>
           <Text style={[styles.charCount, draft.length >= GALLERY_COMMENT_MAX && styles.charCountLimit]}>
@@ -319,25 +373,27 @@ export default function GalleryEngagementSection({
         </TouchableOpacity>
       </View>
 
-      {comments.length > 0 ? (
-        scrollableComments ? (
-          <ScrollView
-            ref={commentScrollRef}
-            style={styles.commentScroll}
-            contentContainerStyle={styles.commentScrollContent}
-            nestedScrollEnabled
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            decelerationRate="fast"
-          >
-            {commentRows}
-          </ScrollView>
-        ) : (
-          <View style={styles.commentList}>{commentRows}</View>
-        )
-      ) : null}
-
-      {composeBlock}
+      {scrollableComments ? (
+        // composeBlock lives inside the ScrollView so scrollToEnd always brings
+        // the compose input into view above the keyboard (both iOS and Android).
+        <ScrollView
+          ref={commentScrollRef}
+          style={styles.commentScroll}
+          contentContainerStyle={styles.commentScrollContent}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          decelerationRate="fast"
+        >
+          {commentRows}
+          {composeBlock}
+        </ScrollView>
+      ) : (
+        <>
+          {comments.length > 0 ? <View style={styles.commentList}>{commentRows}</View> : null}
+          {composeBlock}
+        </>
+      )}
 
       {/* Comment action modal — rendered outside the scroll view to avoid Android clipping */}
       {(() => {
@@ -403,10 +459,11 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#0d9488',
+    color: '#64748b',
   },
   statCount: {
     fontWeight: '700',
+    color: '#64748b',
   },
   composeRow: {
     flexDirection: 'row',

@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, TextInput, Keyboard, Modal, Pressable, Dimensions } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
-import { Pen, Archive, Trash2, Upload } from 'lucide-react-native';
+import { Pen, Archive, Trash2, Upload, MoreVertical } from 'lucide-react-native';
 import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
 
 const BackIcon = () => (
@@ -48,9 +48,26 @@ export default function GalleryAlbumSubHeader({
   onDoneEdit,
   saving = false,
 }: GalleryAlbumSubHeaderProps) {
+  const menuAnchorRef = useRef<View>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+
+  const openMenu = () => {
+    menuAnchorRef.current?.measureInWindow((x, y, w, h) => {
+      const { width: sw } = Dimensions.get('window');
+      setMenuPos({ top: y + h + 6, right: sw - (x + w) });
+      setMenuOpen(true);
+    });
+  };
+
+  const runAction = (fn?: () => void) => {
+    setMenuOpen(false);
+    fn?.();
+  };
+
   return (
     <View style={styles.wrap}>
-      <TouchableOpacity onPress={onBack} style={acs.headerBackGallery} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+      <TouchableOpacity onPress={() => { Keyboard.dismiss(); onBack(); }} style={acs.headerBackGallery} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
         <BackIcon />
       </TouchableOpacity>
 
@@ -89,29 +106,43 @@ export default function GalleryAlbumSubHeader({
               </Svg>
             </TouchableOpacity>
           ) : (
-            <>
-              <TouchableOpacity onPress={onEdit} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Pen size={15} color="#0d9488" />
+            <View ref={menuAnchorRef}>
+              <TouchableOpacity onPress={openMenu} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                <MoreVertical size={17} color="#0d9488" />
               </TouchableOpacity>
-              {onArchive ? (
-                <TouchableOpacity onPress={onArchive} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                  <Archive size={15} color="#64748b" />
-                </TouchableOpacity>
-              ) : null}
-              {onDelete ? (
-                <TouchableOpacity onPress={onDelete} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                  <Trash2 size={15} color="#ef4444" />
-                </TouchableOpacity>
-              ) : null}
-              <TouchableOpacity onPress={onUpload} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
-                <Upload size={15} color="#0d9488" />
-              </TouchableOpacity>
-            </>
+            </View>
           )}
         </View>
       ) : (
         <View style={styles.actionsPlaceholder} />
       )}
+
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <Pressable style={styles.menuOverlay} onPress={() => setMenuOpen(false)}>
+          <View style={[styles.menuSheet, menuPos ? { top: menuPos.top, right: menuPos.right } : styles.menuSheetFallback]}>
+            <TouchableOpacity style={styles.menuItem} activeOpacity={0.8} onPress={() => runAction(onEdit)}>
+              <Pen size={15} color="#64748b" strokeWidth={2} />
+              <Text style={styles.menuText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuItem, styles.menuItemBorder]} activeOpacity={0.8} onPress={() => runAction(onUpload)}>
+              <Upload size={15} color="#64748b" strokeWidth={2} />
+              <Text style={styles.menuText}>Upload</Text>
+            </TouchableOpacity>
+            {onArchive ? (
+              <TouchableOpacity style={[styles.menuItem, styles.menuItemBorder]} activeOpacity={0.8} onPress={() => runAction(onArchive)}>
+                <Archive size={15} color="#64748b" strokeWidth={2} />
+                <Text style={styles.menuText}>Archive</Text>
+              </TouchableOpacity>
+            ) : null}
+            {onDelete ? (
+              <TouchableOpacity style={[styles.menuItem, styles.menuItemBorder]} activeOpacity={0.8} onPress={() => runAction(onDelete)}>
+                <Trash2 size={15} color="#ef4444" strokeWidth={2} />
+                <Text style={[styles.menuText, styles.menuTextDanger]}>Delete</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -165,5 +196,46 @@ const styles = StyleSheet.create({
   },
   actionsPlaceholder: {
     width: 38,
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  menuSheet: {
+    position: 'absolute',
+    width: 148,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  menuSheetFallback: {
+    top: 64,
+    right: 16,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  menuItemBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#f1f5f9',
+  },
+  menuText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#334155',
+  },
+  menuTextDanger: {
+    color: '#ef4444',
   },
 });

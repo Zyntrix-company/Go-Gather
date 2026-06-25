@@ -52,6 +52,7 @@ import { getEventMembers } from '../../api/events.api';
 import { focusAlbumPhotosAtEnd, sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import useUploadLimits from '../../hooks/useUploadLimits';
 import { useGalleryEngagement } from '../../hooks/useGalleryEngagement';
+import { useKeyboardVisible } from '../../hooks/useKeyboardVisible';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = (SCREEN_W - 52) / 2;
@@ -713,6 +714,7 @@ function PhotosModal({
     }
   };
 
+  const keyboardVisible = useKeyboardVisible();
   const showTravelersInView = parentType === 'trip' && members.length > 0 && photos.length > 0 && !hideTravelers && !editMode;
   const showTravelersInEdit = editMode && parentType === 'trip' && !userId && members.length > 0 && photos.length > 0;
   const photosEmpty = photos.length === 0 && !loading;
@@ -724,6 +726,7 @@ function PhotosModal({
     emptyHero: photosEmpty && !userId,
     editMode,
     viewOnly: !!userId,
+    keyboardVisible,
   });
 
   return (
@@ -774,6 +777,7 @@ function PhotosModal({
                   onEmptyUpload={!userId ? () => setShowUploadSheet(true) : undefined}
                   renderPhoto={(item, index) => renderGalleryHero(item, index, heroIndex)}
                 />
+                {!keyboardVisible ? (
                 <AlbumPhotosThumbStrip
                   photos={photos}
                   heroIndex={heroIndex}
@@ -808,6 +812,7 @@ function PhotosModal({
                     );
                   }}
                 />
+                ) : null}
                 {!userId && photos.length > 0 ? (
                   <GalleryAlbumDescription
                     value={editMode ? subtitleDraft : displaySubtitle}
@@ -1060,12 +1065,14 @@ function CustomCardPhotosModal({
     albumId: card?.id ?? '',
   });
 
+  const keyboardVisible = useKeyboardVisible();
   const photosEmpty = photos.length === 0 && !loading;
   const heroHeight = useGalleryViewportHeroHeight({
     hasDescription: photos.length > 0,
     hasPhotos: photos.length > 0,
     emptyHero: photosEmpty,
     editMode,
+    keyboardVisible,
   });
 
   const loadPhotos = () => {
@@ -1253,6 +1260,7 @@ function CustomCardPhotosModal({
               onEmptyUpload={() => setShowUploadSheet(true)}
               renderPhoto={(item, index) => renderGalleryHero(item, index, heroIndex)}
             />
+            {!keyboardVisible ? (
             <AlbumPhotosThumbStrip
               photos={photos}
               heroIndex={heroIndex}
@@ -1296,6 +1304,7 @@ function CustomCardPhotosModal({
                 );
               }}
             />
+            ) : null}
             <GalleryAlbumDescription
               value={editMode ? subtitleDraft : (card.gallerySubtitle?.trim() ?? '')}
               editMode={editMode}

@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { ShieldCheck, ChevronRight, Check } from 'lucide-react-native';
 import { fetchLegalStatus, postLegalAck } from '../../api/legal.api';
 import LegalModal from './LegalModal';
 
@@ -19,6 +20,7 @@ export default function LegalComplianceGate() {
   const [ackLoading, setAckLoading] = useState(false);
   const [legalModal, setLegalModal] = useState<'privacy' | 'terms' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [agreed, setAgreed] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -62,12 +64,14 @@ export default function LegalComplianceGate() {
 
   if (loading || !needsAck) return null;
 
-  const lines: string[] = [];
-  if (status?.privacy.needsAck) {
-    lines.push(`Privacy Policy is now version ${status.privacy.currentVersion}.`);
-  }
-  if (status?.terms.needsAck) {
-    lines.push(`Terms & Conditions are now version ${status.terms.currentVersion}.`);
+  const updatedPrivacy = Boolean(status?.privacy.needsAck);
+  const updatedTerms = Boolean(status?.terms.needsAck);
+
+  let subtitle = "We've updated our Privacy Policy and Terms & Conditions.";
+  if (updatedPrivacy && !updatedTerms) {
+    subtitle = "We've updated our Privacy Policy.";
+  } else if (updatedTerms && !updatedPrivacy) {
+    subtitle = "We've updated our Terms & Conditions.";
   }
 
   return (
@@ -75,31 +79,49 @@ export default function LegalComplianceGate() {
       <Modal visible transparent animationType="fade" onRequestClose={() => {}}>
         <View style={s.backdrop}>
           <View style={s.card}>
-            <Text style={s.title}>Updated policies</Text>
-            <Text style={s.body}>{lines.join('\n\n')}</Text>
-            <Text style={s.hint}>Please review the documents, then tap OK to confirm you have read them.</Text>
-            {error ? <Text style={s.err}>{error}</Text> : null}
-            <View style={s.row}>
-              {status?.privacy.needsAck ? (
-                <TouchableOpacity style={s.secondary} onPress={() => setLegalModal('privacy')} activeOpacity={0.85}>
-                  <Text style={s.secondaryText}>Privacy</Text>
-                </TouchableOpacity>
-              ) : null}
-              {status?.terms.needsAck ? (
-                <TouchableOpacity style={s.secondary} onPress={() => setLegalModal('terms')} activeOpacity={0.85}>
-                  <Text style={s.secondaryText}>Terms</Text>
-                </TouchableOpacity>
-              ) : null}
+            <View style={s.badge}>
+              <ShieldCheck size={30} color="#0d9488" strokeWidth={2} />
             </View>
+
+            <Text style={s.title}>Important Update</Text>
+            <Text style={s.subtitle}>{subtitle}</Text>
+
+            {updatedPrivacy ? (
+              <TouchableOpacity style={s.link} onPress={() => setLegalModal('privacy')} activeOpacity={0.85}>
+                <Text style={s.linkText}>Privacy Policy</Text>
+                <ChevronRight size={20} color="#0d9488" strokeWidth={2.25} />
+              </TouchableOpacity>
+            ) : null}
+            {updatedTerms ? (
+              <TouchableOpacity style={s.link} onPress={() => setLegalModal('terms')} activeOpacity={0.85}>
+                <Text style={s.linkText}>Terms &amp; Conditions</Text>
+                <ChevronRight size={20} color="#0d9488" strokeWidth={2.25} />
+              </TouchableOpacity>
+            ) : null}
+
             <TouchableOpacity
-              style={[s.primary, ackLoading && s.primaryDisabled]}
+              style={s.agreeRow}
+              onPress={() => setAgreed((v) => !v)}
+              activeOpacity={0.7}>
+              <View style={[s.checkbox, agreed && s.checkboxChecked]}>
+                {agreed ? <Check size={14} color="#fff" strokeWidth={3} /> : null}
+              </View>
+              <Text style={s.agreeText}>
+                I agree to the Privacy Policy and Terms &amp; Conditions.
+              </Text>
+            </TouchableOpacity>
+
+            {error ? <Text style={s.err}>{error}</Text> : null}
+
+            <TouchableOpacity
+              style={[s.primary, (!agreed || ackLoading) && s.primaryDisabled]}
               onPress={onAcknowledge}
-              disabled={ackLoading}
+              disabled={!agreed || ackLoading}
               activeOpacity={0.85}>
               {ackLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={s.primaryText}>OK, I have read them</Text>
+                <Text style={[s.primaryText, !agreed && s.primaryTextDisabled]}>Continue</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -120,30 +142,80 @@ const s = StyleSheet.create({
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    maxWidth: 400,
+    borderRadius: 24,
+    paddingVertical: 28,
+    paddingHorizontal: 22,
+    maxWidth: 360,
     width: '100%',
     alignSelf: 'center',
-  },
-  title: { fontSize: 18, fontWeight: '700', color: '#0f172a', marginBottom: 10 },
-  body: { fontSize: 15, color: '#334155', lineHeight: 22, marginBottom: 10 },
-  hint: { fontSize: 13, color: '#64748b', lineHeight: 19, marginBottom: 16 },
-  err: { fontSize: 13, color: '#b91c1c', marginBottom: 12 },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  secondary: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: '#f1f5f9',
-  },
-  secondaryText: { fontSize: 14, fontWeight: '600', color: '#0f766e' },
-  primary: {
-    backgroundColor: '#0d9488',
-    borderRadius: 12,
-    paddingVertical: 14,
     alignItems: 'center',
   },
-  primaryDisabled: { opacity: 0.6 },
+  badge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#d6f3ee',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 22,
+  },
+  link: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    backgroundColor: '#e9f7f4',
+    borderRadius: 12,
+    paddingVertical: 15,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  linkText: { fontSize: 15, fontWeight: '700', color: '#0d9488' },
+  agreeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 6,
+    marginBottom: 20,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#cbd5e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  checkboxChecked: {
+    backgroundColor: '#0d9488',
+    borderColor: '#0d9488',
+  },
+  agreeText: { flex: 1, fontSize: 13, color: '#334155', lineHeight: 19 },
+  err: { fontSize: 13, color: '#b91c1c', textAlign: 'center', marginBottom: 12 },
+  primary: {
+    backgroundColor: '#0d9488',
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: 'center',
+    width: '100%',
+  },
+  primaryDisabled: { backgroundColor: '#e2e8f0' },
   primaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  primaryTextDisabled: { color: '#94a3b8' },
 });

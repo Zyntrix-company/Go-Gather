@@ -37,7 +37,7 @@ export const GALLERY_CHROME = {
   subHeaderEdit: 48,
   thumbStrip: 58,
   description: 36,
-  travelers: 48,
+  travelers: 62,
   stats: 34,
   composeGhost: 0,
   footer: 60,

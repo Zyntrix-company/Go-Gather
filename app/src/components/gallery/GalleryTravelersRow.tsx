@@ -102,9 +102,9 @@ type GalleryTravelersRowProps = {
   onToggleVisibility?: (visible: boolean) => void;
 };
 
-function TravelerAvatar({ member, idx }: { member: GalleryTraveler; idx: number }) {
+function TravelerAvatar({ member }: { member: GalleryTraveler }) {
   return (
-    <View style={[styles.avatarWrap, idx > 0 && styles.avatarOverlap]}>
+    <View style={styles.avatarWrap}>
       {member.avatarUrl ? (
         <CachedImage uri={member.avatarUrl} style={styles.avatar} resizeMode="cover" />
       ) : (
@@ -132,7 +132,7 @@ export default function GalleryTravelersRow({
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.heading}>Travelers in this trip</Text>
+      <Text style={styles.heading}>Members</Text>
       <View style={styles.row}>
         {expanded ? (
           <ScrollView
@@ -141,18 +141,18 @@ export default function GalleryTravelersRow({
             style={[styles.avatarScroll, dimmed && styles.dimmed]}
             contentContainerStyle={styles.avatarScrollContent}
           >
-            {members.map((m, idx) => (
-              <TravelerAvatar key={m.userId} member={m} idx={idx} />
+            {members.map((m) => (
+              <TravelerAvatar key={m.userId} member={m} />
             ))}
           </ScrollView>
         ) : (
           <View style={[styles.avatarRow, dimmed && styles.dimmed]}>
-            {members.slice(0, MAX_VISIBLE).map((m, idx) => (
-              <TravelerAvatar key={m.userId} member={m} idx={idx} />
+            {members.slice(0, MAX_VISIBLE).map((m) => (
+              <TravelerAvatar key={m.userId} member={m} />
             ))}
             {showExpand && (
               <TouchableOpacity
-                style={[styles.avatarWrap, styles.avatarOverlap, styles.moreBadge]}
+                style={[styles.avatarWrap, styles.moreBadge]}
                 onPress={() => setExpanded(true)}
                 activeOpacity={0.7}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
@@ -176,7 +176,8 @@ export default function GalleryTravelersRow({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const AVATAR = 30;
+const AVATAR = 44;
+const AVATAR_GAP = 10;
 
 const styles = StyleSheet.create({
   wrap: {
@@ -201,6 +202,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     flexShrink: 1,
+    gap: AVATAR_GAP,
   },
   avatarScroll: {
     flex: 1,
@@ -210,6 +212,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 4,
+    gap: AVATAR_GAP,
   },
   dimmed: {
     opacity: 0.35,
@@ -256,9 +259,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#e2e8f0',
   },
-  avatarOverlap: {
-    marginLeft: -10,
-  },
   avatar: {
     width: '100%',
     height: '100%',
@@ -269,17 +269,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0fdfa',
   },
   initial: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '700',
     color: '#0d9488',
   },
   moreBadge: {
-    backgroundColor: '#ccfbf1',
+    backgroundColor: '#f1f5f9',
+    borderColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   moreText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
     color: '#0d9488',
   },

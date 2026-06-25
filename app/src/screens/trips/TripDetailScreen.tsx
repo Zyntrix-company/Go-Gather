@@ -30,7 +30,7 @@ import ProfileDropdown from '../home/ProfileDropdown';
 import useAuth from '../../hooks/useAuth';
 import UploadOptionsRow from '../../components/common/UploadOptionsRow';
 import EmailOptionsRow from '../../components/common/EmailOptionsRow';
-import DocumentItem from '../../components/common/DocumentItem';
+import DocumentItem, { DocItemSkeleton, stripExt } from '../../components/common/DocumentItem';
 import InviteViaChannels from '../../components/common/InviteViaChannels';
 import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
 import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
@@ -113,7 +113,7 @@ import DrivePhotoPickerGrid from '../../components/gallery/DrivePhotoPickerGrid'
 import MediaModuleDialog from '../../components/media/MediaModuleDialog';
 import { useMediaDialog, mapApiPhoto } from '../../hooks/useMediaDialog';
 import { organizeTripMediaItems } from '../../utils/albumPhotosOrder';
-import { checkDriveConnected, promptConnectDrive, watchDriveConnect } from '../../utils/drivePickerFlow';
+import { checkDriveConnected, promptConnectDrive, watchDriveConnect, promptConnectEmail } from '../../utils/drivePickerFlow';
 import { drivePhotoSelectCap, toggleDriveFileSelection } from '../../utils/drivePickerSelection';
 
 
@@ -730,6 +730,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [trip, setTrip] = useState(route?.params?.trip);
   const rawUser = useAuthStore(s => s.user) as any;
   const currentUserId: string = rawUser?.id ?? rawUser?.sub ?? '';
+  const currentUserName: string | null = rawUser?.fullName ?? rawUser?.profile?.fullName ?? null;
+  const currentUserAvatar: string | null = rawUser?.avatarUrl ?? rawUser?.photoUrl ?? rawUser?.profile?.avatarUrl ?? null;
   const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
   const { logout, refreshProfile } = useAuth();
   const firstName = rawUser?.fullName?.split(' ')[0] || 'Explorer';
@@ -849,6 +851,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [renameTarget, setRenameTarget] = useState<DocItem | null>(null);
   const [renameText, setRenameText] = useState('');
   const [renameLoading, setRenameLoading] = useState(false);
+  const [uploadPending, setUploadPending] = useState(false);
+  const [deletingDocIds, setDeletingDocIds] = useState<Set<string>>(new Set());
   const [showEmailPicker, setShowEmailPicker] = useState(false);
   const [emailPickerProvider, setEmailPickerProvider] = useState<'gmail' | 'outlook'>('gmail');
   const [emailAttachments, setEmailAttachments] = useState<EmailAttachment[]>([]);
@@ -1112,7 +1116,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       setIsLoadingDocs(true);
       try {
         const res = await getDocs(tripId);
-        setDocs(res.docs.map(d => ({ id: d.id, name: d.fileName, uri: (d as any).downloadUrl ?? d.fileUrl ?? '', uploadedBy: d.uploadedBy, mimeType: d.mimeType, fileSizeBytes: (d as any).fileSizeBytes, createdAt: (d as any).createdAt })));
+        setDocs(res.docs.map(d => ({ id: d.id, name: stripExt(d.fileName), uri: (d as any).downloadUrl ?? d.fileUrl ?? '', uploadedBy: d.uploadedBy, mimeType: d.mimeType, fileSizeBytes: (d as any).fileSizeBytes, createdAt: (d as any).createdAt })));
         setUnreadCounts(prev => ({ ...prev, docs: 0 }));
         markTripSectionViewed(tripId, 'docs');
       } catch (err) {
@@ -1538,7 +1542,16 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   // ── Doc handlers (API-backed) ──
 
+  function mapUploadedDoc(d: any): DocItem {
+    return { id: d.id, name: stripExt(d.fileName), uri: (d as any).downloadUrl ?? d.fileUrl ?? '', uploadedBy: d.uploadedBy, mimeType: d.mimeType, fileSizeBytes: (d as any).fileSizeBytes, createdAt: (d as any).createdAt };
+  }
+
+  function currentUserUploadedBy() {
+    return { userId: currentUserId, name: currentUserName, avatarUrl: currentUserAvatar };
+  }
+
   async function handleUploadDoc() {
+    setUploadPending(true);
     try {
       const [picked] = await pickDocument({ type: [docTypes.allFiles] });
       const [localCopy] = await keepLocalCopy({
@@ -1546,12 +1559,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
         destination: 'cachesDirectory',
       });
       if (localCopy.status === 'error') throw new Error(localCopy.copyError);
-      const file = { uri: localCopy.localUri, name: picked.name ?? 'document', type: picked.type ?? 'application/octet-stream' };
+      const file = { uri: localCopy.localUri, name: decodeURIComponent(picked.name ?? 'document'), type: picked.type ?? 'application/octet-stream' };
       const data = await uploadDoc(tripId, file);
-      setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: (data.doc as any).downloadUrl ?? data.doc.fileUrl ?? '', uploadedBy: data.doc.uploadedBy, mimeType: data.doc.mimeType, fileSizeBytes: (data.doc as any).fileSizeBytes, createdAt: (data.doc as any).createdAt }]);
+      setDocs(p => [...p, mapUploadedDoc(data.doc)]);
     } catch (err: any) {
       if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
       handleApiError(err);
+    } finally {
+      setUploadPending(false);
     }
   }
 
@@ -1560,11 +1575,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
       if (res.didCancel || res.errorCode) return;
       const asset = res.assets?.[0];
       if (!asset?.uri) return;
+      setUploadPending(true);
       try {
         const file = { uri: asset.uri, name: asset.fileName ?? 'photo.jpg', type: asset.type ?? 'image/jpeg' };
         const data = await uploadDoc(tripId, file);
-        setDocs(p => [...p, { id: data.doc.id, name: data.doc.fileName, uri: (data.doc as any).downloadUrl ?? data.doc.fileUrl ?? '', uploadedBy: data.doc.uploadedBy, mimeType: data.doc.mimeType, fileSizeBytes: (data.doc as any).fileSizeBytes, createdAt: (data.doc as any).createdAt }]);
+        setDocs(p => [...p, mapUploadedDoc(data.doc)]);
       } catch (err) { handleApiError(err); }
+      finally { setUploadPending(false); }
     });
   }
 
@@ -1574,10 +1591,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
       Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'You can only delete your own documents.' });
       return;
     }
+    setDeletingDocIds(p => new Set(p).add(docId));
     try {
       await deleteDoc(tripId, docId);
       setDocs(p => p.filter(d => d.id !== docId));
     } catch (err) { handleApiError(err); }
+    finally { setDeletingDocIds(p => { const n = new Set(p); n.delete(docId); return n; }); }
   }
 
   async function handleRenameDoc() {
@@ -1585,7 +1604,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     setRenameLoading(true);
     try {
       const { doc } = await renameDoc(tripId, renameTarget.id, renameText.trim());
-      setDocs(p => p.map(d => d.id === renameTarget.id ? { ...d, name: doc.fileName } : d));
+      setDocs(p => p.map(d => d.id === renameTarget.id ? { ...d, name: stripExt(doc.fileName) } : d));
       setRenameTarget(null);
     } catch (err) { handleApiError(err); }
     finally { setRenameLoading(false); }
@@ -1593,8 +1612,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   async function openEmailPicker(provider: 'gmail' | 'outlook') {
     if (!emailStatus[provider].connected) {
-      setShowDocs(false);
-      (navigation as any).navigate('ConnectedEmail');
+      promptConnectEmail(provider, () => {
+        getEmailStatus().then((d: any) => {
+          setEmailStatus({ gmail: { connected: Boolean(d?.gmail?.connected) }, outlook: { connected: Boolean(d?.outlook?.connected) } });
+          openEmailPicker(provider);
+        }).catch(() => {});
+      });
       return;
     }
     setEmailPickerProvider(provider);
@@ -1619,7 +1642,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
     try {
       const selected = emailAttachments.filter(a => selectedAttachIds.has(a.attachmentId));
       const res = await importEmailAttachments('trip', tripId, emailPickerProvider, selected);
-      setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl, uploadedBy: { userId: currentUserId, name: null, avatarUrl: null } }))]);
+      setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: stripExt(d.fileName), uri: d.fileUrl, mimeType: d.mimeType, fileSizeBytes: d.fileSizeBytes, createdAt: d.createdAt ?? new Date().toISOString(), uploadedBy: currentUserUploadedBy() }))]);
       setShowEmailPicker(false);
       if (res.failed?.length) {
         Toast.show({ type: 'error', text1: `${res.failed.length} file(s) failed to import` });
@@ -1672,7 +1695,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         media.setItems((p) => organizeTripMediaItems([...p, ...imported], activities.map((a) => a.id)));
       } else {
         res = await importDriveFiles('trip', tripId, selected);
-        setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: d.fileName, uri: d.fileUrl, uploadedBy: { userId: currentUserId, name: null, avatarUrl: null } }))]);
+        setDocs(p => [...p, ...res.imported.map((d: any) => ({ id: d.docId, name: stripExt(d.fileName), uri: d.fileUrl, mimeType: d.mimeType, fileSizeBytes: d.fileSizeBytes, createdAt: d.createdAt ?? new Date().toISOString(), uploadedBy: currentUserUploadedBy() }))]);
       }
       setShowDrivePicker(false);
       if (res.failed?.length) {
@@ -2619,7 +2642,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         <AppModal visible={showDocs} transparent animationType="fade" onRequestClose={() => setShowDocs(false)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { maxHeight: '80%' }]}>
-              <DHeader title="Documents" onClose={() => setShowDocs(false)} />
+              <DHeader title="Documents" subtitle="Store and share important trip documents with your group." onClose={() => setShowDocs(false)} />
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.dBody}>
                   {/* Upload section */}
@@ -2633,6 +2656,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     onCamera={handleCameraDoc}
                     onDrive={() => openDrivePicker('docs')}
                     showDrive={true}
+                    uploading={uploadPending}
                   />
 
                   {/* Email import section */}
@@ -2655,7 +2679,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <View style={styles.docDividerLine} />
                   </View>
 
-                  {docs.length === 0 ? (
+                  {docs.length === 0 && !uploadPending ? (
                     <View style={styles.emptyCenter}>
                       <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
                         <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
@@ -2670,12 +2694,18 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         const uploaderObj = typeof doc.uploadedBy === 'object' && doc.uploadedBy !== null ? doc.uploadedBy : null;
                         const uploaderId = uploaderObj ? (uploaderObj as any).userId : doc.uploadedBy;
                         const canEdit = role === 'admin' || uploaderId === currentUserId;
-                        return (
+                        const isDeleting = deletingDocIds.has(doc.id);
+                        const isLast = idx === docs.length - 1 && !uploadPending;
+                        return isDeleting ? (
+                          <View key={doc.id} style={!isLast ? styles.docRow : undefined}>
+                            <DocItemSkeleton />
+                          </View>
+                        ) : (
                           <TouchableOpacity
                             key={doc.id}
                             activeOpacity={0.7}
                             onPress={() => doc.uri ? setDocPreviewUrl(doc.uri) : showAlert({ title: 'Error', message: 'Document URL not available.' })}
-                            style={idx < docs.length - 1 ? styles.docRow : undefined}
+                            style={!isLast ? styles.docRow : undefined}
                           >
                             <DocumentItem
                               doc={{
@@ -2699,6 +2729,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           </TouchableOpacity>
                         );
                       })}
+                      {uploadPending && (
+                        <View style={styles.docRow}>
+                          <DocItemSkeleton />
+                        </View>
+                      )}
                     </View>
                   )}
                 </View>
@@ -3884,10 +3919,11 @@ const styles = StyleSheet.create({
   actExtraBtn: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
 
   // Documents
+  docSubtitle: { fontSize: 13, color: '#64748b', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 2 },
   docRow: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f1f5f9' },
   docSectionDivider: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 8 },
   docDividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#e2e8f0' },
-  docDividerLabel: { fontSize: 11, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.5 },
+  docDividerLabel: { fontSize: 11, fontWeight: '700', color: '#94a3b8', letterSpacing: 0.5 },
 
   // Members
   memberSectionLabel: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 10 },

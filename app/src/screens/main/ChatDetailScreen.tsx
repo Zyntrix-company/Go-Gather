@@ -16,7 +16,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import AppScreenLayout, { TAB_BAR_SCROLL_PADDING, tabBarContentPadding } from '../../components/common/AppScreenLayout';
+import AppScreenLayout, { TAB_BAR_SCROLL_PADDING, TAB_BAR_BASE_HEIGHT } from '../../components/common/AppScreenLayout';
 import MarkdownText from '../../components/common/MarkdownText';
 import SweeIcon from '../../components/common/SweeIcon';
 import useChatStore from '../../store/chatStore';
@@ -744,7 +744,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
   return (
     <AppScreenLayout navigation={navigation} activeTab="chat" safeAreaStyle={{ flex: 1 }} onLogoPress={() => navigation.goBack()}>
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingBottom: TAB_BAR_BASE_HEIGHT + insets.bottom }]}>
 
         {/* ── Chat sub-header ── */}
         <View style={styles.header}>
@@ -759,39 +759,12 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             ) : null}
           </View>
 
-          {tripContext ? (
-            <TouchableOpacity
-              style={[styles.iconBtn, styles.contextBtnActive]}
-              onPress={() => setTripContext(null)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.contextPill}>
-                <Text style={styles.contextPillText} numberOfLines={1}>
-                  {tripContext.name?.substring(0, 12) ?? 'Context'}
-                </Text>
-                <CloseIcon size={12} />
-              </View>
-            </TouchableOpacity>
-          ) : null}
-
           <TouchableOpacity style={styles.iconBtn} onPress={() => setShowOverflow(true)} activeOpacity={0.7}>
             <DotsIcon />
           </TouchableOpacity>
         </View>
 
-        {/* ── Context banner (when trip is attached) ── */}
-        {tripContext && (
-          <View style={styles.contextBanner}>
-            <SweeIcon size={13} color="#0d9488" />
-            <Text style={styles.contextBannerText} numberOfLines={1}>
-              Context: {tripContext.name}
-              {tripContext.destination ? ` · ${tripContext.destination}` : ''}
-            </Text>
-            <TouchableOpacity onPress={() => setTripContext(null)}>
-              <CloseIcon size={14} />
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Trip/event context is attached silently — passed to Swee, intentionally not shown in the UI. */}
 
         {/* ── Messages ── */}
         {loadingHistory ? (
@@ -824,7 +797,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
         {/* ── Input bar ── */}
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={[styles.inputRow, { paddingBottom: tabBarContentPadding(insets.bottom, 10) }]}>
+          <View style={styles.inputRow}>
             <TextInput
               style={styles.input}
               placeholder="Ask Swee anything..."
@@ -990,7 +963,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  contextBtnActive: {},
   headerAvatarSwee: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center',
@@ -998,20 +970,6 @@ const styles = StyleSheet.create({
   headerInfo: { flex: 1 },
   headerName: { fontSize: 14, fontWeight: '400', color: '#009788' },
   headerSubtitle: { fontSize: 11, color: '#64748b', marginTop: 1 },
-
-  contextPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#f0fdfa', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4,
-    borderWidth: 1, borderColor: '#ccfbf1',
-  },
-  contextPillText: { fontSize: 11, color: '#0d9488', fontWeight: '600', maxWidth: 80 },
-
-  contextBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#f0fdfa', paddingHorizontal: 16, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: '#ccfbf1',
-  },
-  contextBannerText: { flex: 1, fontSize: 12, color: '#0d9488', fontWeight: '500' },
 
   messageList: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 8, gap: 10 },
   historySkeleton: { paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
