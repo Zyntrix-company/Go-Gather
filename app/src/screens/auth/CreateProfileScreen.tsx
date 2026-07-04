@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
   title: {
     fontSize: SCREEN_W < 375 ? 23 : 28,
-    fontWeight: '400',
+    fontWeight: '500',
     color: '#0f172a',
     textAlign: 'center',
     marginBottom: 6,
@@ -701,7 +701,7 @@ const styles = StyleSheet.create({
   addBadgeText: {
     color: '#ffffff',
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     lineHeight: 22,
     marginTop: -1,
   },

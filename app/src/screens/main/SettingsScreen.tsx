@@ -162,16 +162,16 @@ const styles = StyleSheet.create({
   },
   avatarInitial: {
     fontSize: 20,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.accentHover,
   },
   profileText: { flex: 1, minWidth: 0 },
-  profileName: { fontSize: 15, fontWeight: '500', color: colors.textPrimary },
+  profileName: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
   profileEmail: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
 
   sectionTitle: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#0f172a',
     marginBottom: 8,
     marginLeft: 2,

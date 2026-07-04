@@ -494,7 +494,7 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 4,
   },
-  featureLabel: { fontSize: 13, fontWeight: '600', color: colors.textPrimary, marginTop: 6 },
+  featureLabel: { fontSize: 13, fontWeight: '500', color: colors.textPrimary, marginTop: 6 },
   featureDesc: { fontSize: 12, color: colors.textSecondary, lineHeight: 21 },
 
   // Footer

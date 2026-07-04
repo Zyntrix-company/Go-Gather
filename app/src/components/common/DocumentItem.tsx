@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Dimensions,
   Image,
   Modal,
   Pressable,
@@ -113,6 +114,19 @@ export function DocItemSkeleton() {
 
 export default function DocumentItem({ doc, canEdit, onEdit, onDelete }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
+  const menuBtnRef = useRef<React.ElementRef<typeof TouchableOpacity>>(null);
+
+  const openMenu = () => {
+    menuBtnRef.current?.measureInWindow((x, y, width, height) => {
+      const screenWidth = Dimensions.get('window').width;
+      setAnchor({
+        top: y + height + 4,
+        right: screenWidth - (x + width),
+      });
+      setMenuOpen(true);
+    });
+  };
 
   const uploader = typeof doc.uploadedBy === 'object' ? doc.uploadedBy : null;
   const uploaderName = uploader?.name ?? null;
@@ -150,8 +164,9 @@ export default function DocumentItem({ doc, canEdit, onEdit, onDelete }: Props) 
 
       {/* Three-dot button */}
       <TouchableOpacity
+        ref={menuBtnRef}
         style={styles.menuBtn}
-        onPress={() => setMenuOpen(true)}
+        onPress={openMenu}
         activeOpacity={0.7}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
@@ -166,7 +181,14 @@ export default function DocumentItem({ doc, canEdit, onEdit, onDelete }: Props) 
         onRequestClose={() => setMenuOpen(false)}
       >
         <Pressable style={styles.overlay} onPress={() => setMenuOpen(false)}>
-          <View style={styles.sheet}>
+          <View
+            style={[
+              styles.sheet,
+              anchor
+                ? { top: anchor.top, right: anchor.right }
+                : { bottom: '40%', right: 16 },
+            ]}
+          >
             {canEdit && (
               <TouchableOpacity
                 style={styles.menuItem}
@@ -215,7 +237,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#fff',
     letterSpacing: 0.3,
   },
@@ -225,7 +247,7 @@ const styles = StyleSheet.create({
   },
   fileName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.accent,
   },
   meta: {
@@ -248,8 +270,6 @@ const styles = StyleSheet.create({
   },
   sheet: {
     position: 'absolute',
-    bottom: '40%',
-    right: 16,
     width: 148,
     backgroundColor: '#fff',
     borderRadius: 10,

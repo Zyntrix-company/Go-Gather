@@ -1298,7 +1298,7 @@ function CustomCardPhotosModal({
                       style={[styles.thumbCoverBtn, isCover && styles.thumbCoverBtnActive]}
                       hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                     >
-                      <Text style={{ fontSize: 8, fontWeight: '700', color: isCover ? '#0d9488' : '#fff' }}>Cover</Text>
+                      <Text style={{ fontSize: 8, fontWeight: '600', color: isCover ? '#0d9488' : '#fff' }}>Cover</Text>
                     </TouchableOpacity>
                   </>
                 );
@@ -1672,10 +1672,10 @@ const styles = StyleSheet.create({
   profileInfo: { justifyContent: 'center', gap: 4 },
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 3, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 38, fontWeight: '700', color: '#0d9488' },
+  avatarInitial: { fontSize: 38, fontWeight: '600', color: '#0d9488' },
   editBtn: { alignItems: 'center', justifyContent: 'center' },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  name: { fontSize: 18, fontWeight: '400', color: '#0F172B' },
+  name: { fontSize: 18, fontWeight: '500', color: '#0F172B' },
   handle: { fontSize: 14, color: '#0d9488', fontWeight: '500' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   locationText: { fontSize: 14, color: '#45556C' },
@@ -1684,13 +1684,13 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionIcon: { alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontSize: 17, fontWeight: '400', color: '#0F172B' },
+  sectionTitle: { fontSize: 17, fontWeight: '500', color: '#0F172B' },
   countBadge: {
     backgroundColor: '#f0fdfa', borderRadius: 10,
     paddingHorizontal: 7, paddingVertical: 2,
     borderWidth: 1, borderColor: '#ccfbf1',
   },
-  countBadgeText: { fontSize: 12, fontWeight: '700', color: '#0d9488' },
+  countBadgeText: { fontSize: 12, fontWeight: '600', color: '#0d9488' },
 
   sectionSpacer: { height: 24 },
 
@@ -1888,7 +1888,7 @@ const styles = StyleSheet.create({
   modalSubtitleText: {
     fontSize: 13,
     color: '#0d9488',
-    fontWeight: '300',
+    fontWeight: '400',
     fontStyle: 'italic',
     marginTop: 3,
   },

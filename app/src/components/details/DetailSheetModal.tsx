@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import AppModal from '../common/AppModal';
 import Svg, { Path } from 'react-native-svg';
-import colors from '../../theme/colors';
+import { colors, typeStyle } from '../../theme';
 
 interface DetailSheetModalProps {
   visible: boolean;
@@ -104,12 +104,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '800',
+    ...typeStyle('titleLg'),
     color: colors.textPrimary,
   },
   subtitle: {
-    fontSize: 12,
+    ...typeStyle('bodySm'),
     color: colors.textMuted,
     marginTop: 2,
   },

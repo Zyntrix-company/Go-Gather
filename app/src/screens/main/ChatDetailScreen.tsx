@@ -14,7 +14,6 @@ import {
   Animated,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING, TAB_BAR_BASE_HEIGHT } from '../../components/common/AppScreenLayout';
 import MarkdownText from '../../components/common/MarkdownText';
@@ -232,7 +231,6 @@ function TypingIndicator() {
 // ─── Main Screen ───────────────────────────────────────────────────────────
 
 export default function ChatDetailScreen({ route, navigation }: any) {
-  const insets = useSafeAreaInsets();
   const initialMessageParam = route?.params?.initialMessage;
   const paramConversationId = route?.params?.conversationId as string | undefined;
 
@@ -744,7 +742,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
   return (
     <AppScreenLayout navigation={navigation} activeTab="chat" safeAreaStyle={{ flex: 1 }} onLogoPress={() => navigation.goBack()}>
-      <View style={[styles.container, { paddingBottom: TAB_BAR_BASE_HEIGHT + insets.bottom }]}>
+      <View style={[styles.container, { paddingBottom: TAB_BAR_BASE_HEIGHT }]}>
 
         {/* ── Chat sub-header ── */}
         <View style={styles.header}>
@@ -929,8 +927,8 @@ export default function ChatDetailScreen({ route, navigation }: any) {
               Swee is your AI-powered travel assistant, built into GatherrGo to help you plan
               better group trips. She can suggest itineraries, recommend restaurants, answer
               visa questions, help with packing lists, and much more.{'\n\n'}
-              Swee is powered by Google Gemini 2.5 Flash and gets smarter when you attach a trip or event
-              context to the conversation.
+              Swee is powered by Google Gemini 2.5 Flash. When you open her from a trip or event page,
+              she automatically understands that trip or event — no setup needed.
             </Text>
             <Text style={styles.aboutDisclaimer}>
               Swee may occasionally make mistakes. Always verify critical travel information
@@ -968,7 +966,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center',
   },
   headerInfo: { flex: 1 },
-  headerName: { fontSize: 14, fontWeight: '400', color: '#009788' },
+  headerName: { fontSize: 14, fontWeight: '600', color: '#009788' },
   headerSubtitle: { fontSize: 11, color: '#64748b', marginTop: 1 },
 
   messageList: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 8, gap: 10 },
@@ -995,7 +993,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18, paddingVertical: 9,
     minWidth: 110, alignItems: 'center',
   },
-  confirmYesText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  confirmYesText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   confirmNo: {
     backgroundColor: '#fff', borderRadius: 20,
     paddingHorizontal: 14, paddingVertical: 9,
@@ -1009,7 +1007,7 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16,
     alignSelf: 'flex-start',
   },
-  viewBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  viewBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 
   msgText: { fontSize: 14, color: '#0f172a', lineHeight: 21 },
   msgTextUser: { color: '#ffffff' },
@@ -1062,7 +1060,7 @@ const styles = StyleSheet.create({
     padding: 24, paddingBottom: 40,
   },
   reportHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  reportTitle: { fontSize: 17, fontWeight: '700', color: '#0f172a' },
+  reportTitle: { fontSize: 17, fontWeight: '600', color: '#0f172a' },
   reportInput: {
     backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0',
     borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
@@ -1089,7 +1087,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch', marginTop: 4,
   },
   reportBtnDisabled: { backgroundColor: '#cbd5e1' },
-  reportBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  reportBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
 
   reportSent: { alignItems: 'center', paddingVertical: 20, gap: 10 },
   reportSentIcon: {
@@ -1097,8 +1095,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0fdfa', borderWidth: 2, borderColor: '#0d9488',
     alignItems: 'center', justifyContent: 'center', marginBottom: 4,
   },
-  reportSentEmoji: { fontSize: 22, color: '#0d9488', fontWeight: '700' },
-  reportSentTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  reportSentEmoji: { fontSize: 22, color: '#0d9488', fontWeight: '600' },
+  reportSentTitle: { fontSize: 16, fontWeight: '600', color: '#0f172a' },
   reportSentText: { fontSize: 14, color: '#64748b', textAlign: 'center', lineHeight: 20, marginBottom: 8 },
 
   aboutModal: {

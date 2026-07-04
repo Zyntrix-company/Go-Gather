@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import colors from '../../theme/colors';
+import { colors, typeStyle } from '../../theme';
 
 export interface ActionButton {
   key: string;
@@ -61,8 +61,8 @@ const styles = StyleSheet.create({
   },
   iconWrap: {},
   label: {
-    fontSize: 12,
-    fontWeight: '700',
+    ...typeStyle('bodySm'),
+    fontWeight: '600',
     color: colors.textPrimary,
   },
   badge: {
@@ -78,8 +78,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   badgeText: {
-    fontSize: 9,
+    ...typeStyle('micro'),
     color: '#fff',
-    fontWeight: '700',
   },
 });

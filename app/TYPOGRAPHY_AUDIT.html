@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GatherrGo — Typography Reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --teal:       #0d9488;
+      --teal-light: #f0fdfa;
+      --teal-mid:   #ccfbf1;
+      --slate-900:  #0f172a;
+      --slate-700:  #334155;
+      --slate-500:  #64748b;
+      --slate-300:  #cbd5e1;
+      --slate-200:  #e2e8f0;
+      --slate-100:  #f1f5f9;
+      --slate-50:   #f8fafc;
+      --white:      #ffffff;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--slate-50);
+      color: var(--slate-900);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    /* ── Page shell ── */
+    .page {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 48px 24px 96px;
+    }
+
+    /* ── Header ── */
+    .header {
+      margin-bottom: 56px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--slate-200);
+    }
+    .header-eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 10px;
+    }
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--slate-900);
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+    }
+    .header-sub {
+      font-size: 14px;
+      color: var(--slate-500);
+    }
+    .header-sub code {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      background: var(--slate-100);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--slate-700);
+    }
+
+    /* ── Nav pills ── */
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 48px;
+    }
+    .nav a {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--slate-700);
+      text-decoration: none;
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: 6px;
+      padding: 5px 12px;
+      transition: all 0.15s;
+    }
+    .nav a:hover {
+      border-color: var(--teal);
+      color: var(--teal);
+      background: var(--teal-light);
+    }
+
+    /* ── Section groups ── */
+    .group-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--slate-500);
+      margin: 48px 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .group-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--slate-200);
+    }
+
+    /* ── Screen section ── */
+    .screen {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .screen-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--slate-100);
+      background: var(--slate-50);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.12s;
+    }
+    .screen-header:hover { background: #f1f5f9; }
+    .screen-chevron {
+      margin-left: auto;
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      background: var(--slate-200);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--slate-500);
+      font-size: 11px;
+      line-height: 1;
+      transition: transform 0.2s ease, background 0.15s;
+    }
+    .screen.is-open .screen-chevron {
+      transform: rotate(90deg);
+      background: var(--teal-mid);
+      color: var(--teal);
+    }
+    .screen-body { display: none; }
+    .screen.is-open .screen-body { display: block; }
+    .screen-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--slate-900);
+    }
+    .screen-path {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      color: var(--slate-500);
+    }
+    .screen-note {
+      font-size: 12px;
+      color: var(--slate-500);
+      padding: 10px 20px;
+      background: var(--slate-50);
+      border-top: 1px solid var(--slate-100);
+    }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    thead tr {
+      background: var(--slate-50);
+      border-bottom: 1px solid var(--slate-200);
+    }
+    th {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--slate-500);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 9px 20px;
+      text-align: left;
+    }
+    td {
+      padding: 9px 20px;
+      font-size: 13px;
+      color: var(--slate-700);
+      border-bottom: 1px solid var(--slate-100);
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--slate-50); }
+
+    /* style name column */
+    td:first-child {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      color: var(--slate-900);
+      white-space: nowrap;
+    }
+
+    /* weight pill */
+    .w {
+      display: inline-block;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .w-400 { background: #f1f5f9; color: #475569; }
+    .w-500 { background: #fef3c7; color: #92400e; }
+    .w-600 { background: #dcfce7; color: #166534; }
+    .w-700 { background: #ede9fe; color: #5b21b6; }
+    .w-dash { color: var(--slate-400); font-size: 12px; }
+
+    /* token pill */
+    .token {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      background: var(--teal-light);
+      color: var(--teal);
+      padding: 2px 7px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .token-special {
+      font-size: 11px;
+      color: var(--slate-400);
+      font-style: italic;
+    }
+
+    /* ── Token scale table ── */
+    .token-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 8px;
+      margin-bottom: 48px;
+    }
+    .token-card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .token-name {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--teal);
+      min-width: 90px;
+    }
+    .token-specs {
+      font-size: 12px;
+      color: var(--slate-500);
+      flex: 1;
+    }
+    .token-specs strong {
+      color: var(--slate-700);
+      font-weight: 500;
+    }
+    .token-use {
+      font-size: 11px;
+      color: var(--slate-400);
+      margin-top: 2px;
+    }
+
+    /* ── Enhancement log ── */
+    .log-section {
+      margin-top: 64px;
+      padding-top: 48px;
+      border-top: 2px solid var(--slate-200);
+    }
+    .log-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--slate-900);
+      letter-spacing: -0.01em;
+      margin-bottom: 4px;
+    }
+    .log-subtitle {
+      font-size: 13px;
+      color: var(--slate-500);
+      margin-bottom: 36px;
+    }
+    .log-group {
+      margin-bottom: 32px;
+    }
+    .log-group-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--slate-700);
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--slate-200);
+    }
+    .log-table {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .log-table th { padding: 8px 16px; }
+    .log-table td { padding: 8px 16px; font-size: 12px; }
+    .log-table td:first-child { color: var(--teal); font-size: 11px; }
+    .arrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+    }
+    .arrow-before { color: var(--slate-400); text-decoration: line-through; }
+    .arrow-after  { color: #166534; font-weight: 600; }
+    .arrow-sep    { color: var(--slate-300); }
+
+    /* ── Design System Overview ── */
+    .ds-section { margin-bottom: 64px; }
+    .ds-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--slate-900);
+      margin-bottom: 4px;
+    }
+    .ds-subtitle {
+      font-size: 13px;
+      color: var(--slate-500);
+      margin-bottom: 28px;
+    }
+    .ds-row {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .ds-row-2 { grid-template-columns: 1fr 1fr; }
+    .ds-row-3 { grid-template-columns: 2fr 1fr; }
+
+    /* Typeface card */
+    .font-card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: 14px;
+      padding: 22px 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .font-display {
+      font-size: 56px;
+      font-weight: 600;
+      letter-spacing: -0.04em;
+      color: var(--slate-900);
+      line-height: 1;
+      flex-shrink: 0;
+      width: 80px;
+      text-align: center;
+    }
+    .font-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--slate-900);
+    }
+    .font-desc {
+      font-size: 12px;
+      color: var(--slate-500);
+      margin-top: 3px;
+    }
+    .font-weights-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 12px;
+    }
+    .fw-chip {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--slate-600);
+      background: var(--slate-100);
+      padding: 3px 10px;
+      border-radius: 5px;
+      border: 1px solid var(--slate-200);
+    }
+
+    /* Weight scale cards */
+    .weight-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .weight-card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      padding: 18px 16px 14px;
+      text-align: center;
+    }
+    .weight-word {
+      font-size: 22px;
+      color: var(--slate-900);
+      line-height: 1.2;
+      margin-bottom: 12px;
+      letter-spacing: -0.01em;
+    }
+    .weight-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--slate-500);
+    }
+    .weight-num {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      color: var(--teal);
+      margin-top: 2px;
+    }
+    .weight-use {
+      font-size: 10px;
+      color: var(--slate-400);
+      margin-top: 3px;
+    }
+
+    /* Color section */
+    .color-clusters {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .color-cluster {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .cluster-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--slate-400);
+      padding: 10px 12px 6px;
+    }
+    .swatches-strip {
+      display: flex;
+      gap: 0;
+      height: 48px;
+      padding: 0 12px 10px;
+      gap: 6px;
+    }
+    .swatch-block {
+      flex: 1;
+      border-radius: 6px;
+      position: relative;
+      cursor: default;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .swatch-block::after {
+      content: attr(data-hex);
+      position: absolute;
+      bottom: calc(100% + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 9px;
+      color: var(--slate-500);
+      white-space: nowrap;
+      background: var(--white);
+      padding: 2px 4px;
+      border-radius: 3px;
+      border: 1px solid var(--slate-200);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+    }
+    .swatch-block:hover::after { opacity: 1; }
+    .swatch-names {
+      display: flex;
+      padding: 0 12px 10px;
+      gap: 6px;
+    }
+    .swatch-name {
+      flex: 1;
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--slate-500);
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    /* Phone mockup / background preview */
+    .phone-card {
+      background: var(--white);
+      border: 1px solid var(--slate-200);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 14px 14px;
+      gap: 12px;
+    }
+    .phone-frame {
+      width: 100%;
+      max-width: 108px;
+      aspect-ratio: 9 / 19.5;
+      border-radius: 22px;
+      border: 2px solid rgba(15,23,42,0.14);
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06), inset 0 0 0 1px rgba(255,255,255,0.6);
+      position: relative;
+      flex-shrink: 0;
+    }
+    .phone-inner {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #f8fafc 0%, #f7fdfb 50%, #f5feff 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    /* Blobs — sized relative to phone preview (≈108px wide, same proportions as real 390px screen) */
+    .ph-blob { position: absolute; border-radius: 50%; }
+    /* Top-right: orange + rose */
+    .ph-orange { width: 80px; height: 80px; top: -22px; right: -18px; background: rgba(254,215,170,0.72); filter: blur(22px); }
+    .ph-rose   { width: 58px; height: 58px; top: -8px;  right: 26px;  background: rgba(254,205,211,0.65); filter: blur(18px); }
+    /* Bottom-left: teal + cyan */
+    .ph-teal   { width: 80px; height: 80px; bottom: -22px; left: -18px; background: rgba(153,246,228,0.6); filter: blur(22px); }
+    .ph-cyan   { width: 58px; height: 58px; bottom: -8px;  left: 26px;  background: rgba(165,243,252,0.6); filter: blur(18px); }
+    /* Phone chrome */
+    .phone-statusbar {
+      position: absolute; top: 6px; left: 10px; right: 10px;
+      display: flex; justify-content: space-between; align-items: center; z-index: 2;
+    }
+    .ph-time  { font-size: 5.5px; font-weight: 700; color: rgba(15,23,42,0.4); letter-spacing: 0.03em; }
+    .ph-icons { font-size: 4.5px; color: rgba(15,23,42,0.3); letter-spacing: 1.5px; }
+    .phone-notch {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 24px; height: 5px; background: rgba(15,23,42,0.1);
+      border-radius: 0 0 4px 4px; z-index: 3;
+    }
+    .phone-home {
+      position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
+      width: 26px; height: 2.5px; background: rgba(15,23,42,0.18); border-radius: 2px;
+    }
+    /* meta label under phone */
+    .phone-meta { text-align: center; }
+    .phone-meta-name { font-size: 12px; font-weight: 600; color: var(--slate-700); }
+    .phone-meta-stops {
+      display: flex; align-items: center; justify-content: center;
+      gap: 3px; margin-top: 5px;
+    }
+    .g-stop {
+      width: 10px; height: 10px; border-radius: 3px; display: inline-block;
+      border: 1px solid rgba(0,0,0,0.08);
+    }
+    .g-hex { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 8px; color: var(--slate-400); }
+    .g-arrow { color: var(--slate-300); font-size: 9px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      .page { padding: 24px 16px 64px; }
+      .token-grid { grid-template-columns: 1fr; }
+      .weight-grid { grid-template-columns: repeat(2, 1fr); }
+      .color-clusters { grid-template-columns: 1fr; }
+      th, td { padding: 8px 12px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-eyebrow">GatherrGo · Design System</div>
+    <h1>Typography Reference</h1>
+    <p class="header-sub">
+      Font weights and token alignment across all screens and shared components.
+      Use <code>typeStyle('token', { overrides })</code> to apply tokens in code.
+    </p>
+  </div>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <a href="#design-system">Design System</a>
+    <a href="#token-scale">Token Scale</a>
+    <a href="#main">Main Screens</a>
+    <a href="#trips">Trips &amp; Events</a>
+    <a href="#settings">Settings</a>
+    <a href="#friends">Friends</a>
+    <a href="#auth">Auth</a>
+    <a href="#components">Components</a>
+    <a href="#modules">Modules</a>
+    <a href="#archived">Archived</a>
+    <a href="#log">Enhancement Log</a>
+  </nav>
+
+  <!-- Design System Overview -->
+  <div class="ds-section" id="design-system">
+    <div class="ds-title">Design System</div>
+    <p class="ds-subtitle">Color palette, typeface, and weight scale that define the GatherrGo visual language.</p>
+
+    <!-- Typeface + Weight side by side -->
+    <div class="ds-row ds-row-3">
+      <!-- Typeface card -->
+      <div class="font-card">
+        <div class="font-display">Ag</div>
+        <div>
+          <div class="font-name">Inter</div>
+          <div class="font-desc">Sole typeface — all screens &amp; components</div>
+          <div class="font-weights-row">
+            <span class="fw-chip">400 Regular</span>
+            <span class="fw-chip">500 Medium</span>
+            <span class="fw-chip">600 Semibold</span>
+            <span class="fw-chip">700 Bold</span>
+          </div>
+        </div>
+      </div>
+      <!-- Phone mockup — app background -->
+      <div class="phone-card">
+        <div class="phone-frame">
+          <div class="phone-inner">
+            <div class="ph-blob ph-orange"></div>
+            <div class="ph-blob ph-rose"></div>
+            <div class="ph-blob ph-teal"></div>
+            <div class="ph-blob ph-cyan"></div>
+            <div class="phone-notch"></div>
+            <div class="phone-statusbar">
+              <span class="ph-time">9:41</span>
+              <span class="ph-icons">▲ ▼ ▶</span>
+            </div>
+            <div class="phone-home"></div>
+          </div>
+        </div>
+        <div class="phone-meta">
+          <div class="phone-meta-name">App Background</div>
+          <div class="phone-meta-stops">
+            <span class="g-stop" style="background:#f8fafc"></span>
+            <span class="g-hex">#f8fafc</span>
+            <span class="g-arrow">→</span>
+            <span class="g-stop" style="background:#f7fdfb"></span>
+            <span class="g-hex">#f7fdfb</span>
+            <span class="g-arrow">→</span>
+            <span class="g-stop" style="background:#f5feff"></span>
+            <span class="g-hex">#f5feff</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Weight scale -->
+    <div class="weight-grid" style="margin-top:10px;margin-bottom:10px">
+      <div class="weight-card">
+        <div class="weight-word" style="font-weight:400">Gather</div>
+        <div class="weight-label">Regular</div>
+        <div class="weight-num">400</div>
+        <div class="weight-use">body · descriptions · meta</div>
+      </div>
+      <div class="weight-card">
+        <div class="weight-word" style="font-weight:500">Gather</div>
+        <div class="weight-label">Medium</div>
+        <div class="weight-num">500</div>
+        <div class="weight-use">labels · tags · subtle UI</div>
+      </div>
+      <div class="weight-card" style="border-color:#ccfbf1">
+        <div class="weight-word" style="font-weight:600;color:#0d9488">Gather</div>
+        <div class="weight-label" style="color:#0d9488">Semibold</div>
+        <div class="weight-num">600</div>
+        <div class="weight-use">titles · buttons · primary</div>
+      </div>
+      <div class="weight-card">
+        <div class="weight-word" style="font-weight:700">Gather</div>
+        <div class="weight-label">Bold</div>
+        <div class="weight-num">700</div>
+        <div class="weight-use">display tokens only</div>
+      </div>
+    </div>
+
+    <!-- Color palette -->
+    <div class="color-clusters">
+      <!-- Brand -->
+      <div class="color-cluster">
+        <div class="cluster-label">Brand</div>
+        <div class="swatches-strip">
+          <div class="swatch-block" style="background:#030213" data-hex="#030213"></div>
+          <div class="swatch-block" style="background:#0d9488" data-hex="#0d9488"></div>
+          <div class="swatch-block" style="background:#0f766e" data-hex="#0f766e"></div>
+          <div class="swatch-block" style="background:#f3f4f6" data-hex="#f3f4f6"></div>
+        </div>
+        <div class="swatch-names">
+          <span class="swatch-name">Primary</span>
+          <span class="swatch-name">Accent</span>
+          <span class="swatch-name">Hover</span>
+          <span class="swatch-name">Secondary</span>
+        </div>
+      </div>
+      <!-- Text -->
+      <div class="color-cluster">
+        <div class="cluster-label">Text</div>
+        <div class="swatches-strip">
+          <div class="swatch-block" style="background:#0f172a" data-hex="#0f172a"></div>
+          <div class="swatch-block" style="background:#64748b" data-hex="#64748b"></div>
+          <div class="swatch-block" style="background:#94a3b8" data-hex="#94a3b8"></div>
+        </div>
+        <div class="swatch-names">
+          <span class="swatch-name">Primary</span>
+          <span class="swatch-name">Secondary</span>
+          <span class="swatch-name">Muted</span>
+        </div>
+      </div>
+      <!-- Surfaces -->
+      <div class="color-cluster">
+        <div class="cluster-label">Surfaces</div>
+        <div class="swatches-strip">
+          <div class="swatch-block" style="background:#ffffff" data-hex="#ffffff"></div>
+          <div class="swatch-block" style="background:#f8fafc" data-hex="#f8fafc"></div>
+          <div class="swatch-block" style="background:#f1f5f9" data-hex="#f1f5f9"></div>
+          <div class="swatch-block" style="background:#e2e8f0" data-hex="#e2e8f0"></div>
+        </div>
+        <div class="swatch-names">
+          <span class="swatch-name">Surface</span>
+          <span class="swatch-name">BG 2nd</span>
+          <span class="swatch-name">Surface 2</span>
+          <span class="swatch-name">Border</span>
+        </div>
+      </div>
+      <!-- Status -->
+      <div class="color-cluster">
+        <div class="cluster-label">Status &amp; Social</div>
+        <div class="swatches-strip">
+          <div class="swatch-block" style="background:#ef4444" data-hex="#ef4444"></div>
+          <div class="swatch-block" style="background:#10b981" data-hex="#10b981"></div>
+          <div class="swatch-block" style="background:#f59e0b" data-hex="#f59e0b"></div>
+          <div class="swatch-block" style="background:#1877f2" data-hex="#1877f2"></div>
+        </div>
+        <div class="swatch-names">
+          <span class="swatch-name">Error</span>
+          <span class="swatch-name">Success</span>
+          <span class="swatch-name">Warning</span>
+          <span class="swatch-name">Facebook</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Token Scale -->
+  <div id="token-scale">
+    <div class="group-label">Token Scale</div>
+    <div class="token-grid">
+      <div class="token-card"><span class="token-name">displayXl</span><div><div class="token-specs"><strong>40px / 700</strong></div><div class="token-use">Splash hero</div></div></div>
+      <div class="token-card"><span class="token-name">displayLg</span><div><div class="token-specs"><strong>28px / 700</strong></div><div class="token-use">Large hero / deal header</div></div></div>
+      <div class="token-card"><span class="token-name">displayMd</span><div><div class="token-specs"><strong>22px / 700</strong></div><div class="token-use">Onboarding section title</div></div></div>
+      <div class="token-card"><span class="token-name">displaySm</span><div><div class="token-specs"><strong>20px / 600</strong></div><div class="token-use">Stats callout, date range</div></div></div>
+      <div class="token-card"><span class="token-name">display</span><div><div class="token-specs"><strong>24px / 500</strong></div><div class="token-use">Tab screen title</div></div></div>
+      <div class="token-card"><span class="token-name">titleLg</span><div><div class="token-specs"><strong>18px / 600</strong></div><div class="token-use">Modal / sheet title</div></div></div>
+      <div class="token-card"><span class="token-name">titleXl</span><div><div class="token-specs"><strong>17px / 600</strong></div><div class="token-use">Picker / prominent section header</div></div></div>
+      <div class="token-card"><span class="token-name">navTitle</span><div><div class="token-specs"><strong>16px / 600</strong></div><div class="token-use">AppHeader, SubScreenHeader</div></div></div>
+      <div class="token-card"><span class="token-name">titleMd</span><div><div class="token-specs"><strong>15px / 600</strong></div><div class="token-use">Section heading</div></div></div>
+      <div class="token-card"><span class="token-name">titleSm</span><div><div class="token-specs"><strong>14px / 600</strong></div><div class="token-use">Card title, sub-section</div></div></div>
+      <div class="token-card"><span class="token-name">bodyLg</span><div><div class="token-specs"><strong>15px / 400</strong></div><div class="token-use">Primary body</div></div></div>
+      <div class="token-card"><span class="token-name">body</span><div><div class="token-specs"><strong>13px / 400</strong></div><div class="token-use">Default copy</div></div></div>
+      <div class="token-card"><span class="token-name">bodySm</span><div><div class="token-specs"><strong>12px / 400</strong></div><div class="token-use">Meta, timestamps</div></div></div>
+      <div class="token-card"><span class="token-name">bodyXs</span><div><div class="token-specs"><strong>10px / 400</strong></div><div class="token-use">Fine print</div></div></div>
+      <div class="token-card"><span class="token-name">label</span><div><div class="token-specs"><strong>13px / 500</strong></div><div class="token-use">Form label, settings row</div></div></div>
+      <div class="token-card"><span class="token-name">labelSm</span><div><div class="token-specs"><strong>10px / 500</strong></div><div class="token-use">Tag chip, dropdown meta</div></div></div>
+      <div class="token-card"><span class="token-name">buttonLg</span><div><div class="token-specs"><strong>16px / 600</strong></div><div class="token-use">Full-size button</div></div></div>
+      <div class="token-card"><span class="token-name">button</span><div><div class="token-specs"><strong>14px / 600</strong></div><div class="token-use">Standard button</div></div></div>
+      <div class="token-card"><span class="token-name">buttonSm</span><div><div class="token-specs"><strong>13px / 500</strong></div><div class="token-use">Compact button / text link</div></div></div>
+      <div class="token-card"><span class="token-name">caption</span><div><div class="token-specs"><strong>11px / 500</strong></div><div class="token-use">Badge, chip, tab indicator</div></div></div>
+      <div class="token-card"><span class="token-name">micro</span><div><div class="token-specs"><strong>9px / 600</strong></div><div class="token-use">Avatar +N counter, notification dot</div></div></div>
+    </div>
+  </div>
+
+  <!-- MAIN SCREENS -->
+  <div id="main">
+    <div class="group-label">Main Screens</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">HomeScreen</span>
+        <span class="screen-path">screens/home/HomeScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>tabScreenTitle</td><td>24</td><td><span class="w w-500">500</span></td><td><span class="token">display</span></td></tr>
+          <tr><td>welcomeTitle</td><td>18–20</td><td><span class="w w-600">600</span></td><td><span class="token">displaySm</span></td></tr>
+          <tr><td>welcomeTitle (hStyles)</td><td>26</td><td><span class="w w-600">600</span></td><td><span class="token">displayLg</span></td></tr>
+          <tr><td>welcomeSubtitle</td><td>13–15</td><td><span class="w w-400">400</span></td><td><span class="token">body</span> / <span class="token">bodyLg</span></td></tr>
+          <tr><td>sectionTitle</td><td>14–16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>sectionHeader inline</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>tripsListTitle</td><td>18</td><td><span class="w w-600">600</span></td><td><span class="token">titleLg</span></td></tr>
+          <tr><td>tripsCTATitle</td><td>20</td><td><span class="w w-600">600</span></td><td><span class="token">displaySm</span></td></tr>
+          <tr><td>createTripBtnText</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>emptyStateTitle</td><td>18</td><td><span class="w w-600">600</span></td><td><span class="token">titleLg</span></td></tr>
+          <tr><td>modalTitle</td><td>18</td><td><span class="w w-600">600</span></td><td><span class="token">titleLg</span></td></tr>
+          <tr><td>ctTitle</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>ctLabel</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>ctCreateBtnText</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">button</span></td></tr>
+          <tr><td>modalSaveBtnText</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">buttonLg</span></td></tr>
+          <tr><td>ongoingBadgeText</td><td>11</td><td><span class="w w-600">600</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>eventTypePillText</td><td>11</td><td><span class="w w-600">600</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>moreCounterText</td><td>9</td><td><span class="w w-600">600</span></td><td><span class="token">micro</span></td></tr>
+          <tr><td>cardTitle</td><td>15</td><td><span class="w w-400">400</span></td><td><span class="token">bodyLg</span></td></tr>
+          <tr><td>teCardName</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>blogTitle</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>dealTitle</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>insightTitle</td><td>14</td><td><span class="w w-500">500</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>sweeBoxText</td><td>16</td><td><span class="w w-400">400</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>askSweeBtnText</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">button</span></td></tr>
+          <tr><td>Inline blog h2</td><td>18</td><td><span class="w w-600">600</span></td><td><span class="token">titleLg</span></td></tr>
+          <tr><td>Inline blog h3</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>Inline buttons (Create Trip / Event / How it works)</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">button</span></td></tr>
+          <tr><td>Inline section headers (Get Inspired / Deals / Trips / Events)</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>Inline welcome</td><td>24</td><td><span class="w w-600">600</span></td><td><span class="token">display</span></td></tr>
+          <tr><td>Inline section count badge</td><td>22</td><td><span class="w w-600">600</span></td><td><span class="token">displayMd</span></td></tr>
+          <tr><td>daysNumber</td><td>28</td><td><span class="w w-600">600</span></td><td><span class="token">displayLg</span></td></tr>
+          <tr><td>daysLabel</td><td>8</td><td><span class="w w-500">500</span></td><td><span class="token">micro</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">GalleryTab</span>
+        <span class="screen-path">screens/home/GalleryTab.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>avatarInitial</td><td>38</td><td><span class="w w-600">600</span></td><td><span class="token-special">special case</span></td></tr>
+          <tr><td>name</td><td>18</td><td><span class="w w-500">500</span></td><td><span class="token">titleLg</span></td></tr>
+          <tr><td>handle</td><td>14</td><td><span class="w w-500">500</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>sectionTitle</td><td>17</td><td><span class="w w-500">500</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>dialogTitle</td><td>17</td><td><span class="w w-500">500</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>emptyTitle</td><td>15</td><td><span class="w w-400">400</span></td><td><span class="token">bodyLg</span></td></tr>
+          <tr><td>emptySub</td><td>13</td><td><span class="w-dash">—</span></td><td><span class="token">body</span></td></tr>
+          <tr><td>cardChipText</td><td>10</td><td><span class="w w-600">600</span></td><td><span class="token">labelSm</span></td></tr>
+          <tr><td>countBadgeText</td><td>12</td><td><span class="w w-600">600</span></td><td><span class="token">bodySm</span></td></tr>
+          <tr><td>gridCardText</td><td>12</td><td><span class="w w-400">400</span></td><td><span class="token">bodySm</span></td></tr>
+          <tr><td>createAlbumBtnText</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">buttonLg</span></td></tr>
+          <tr><td>addPhotosBtnText</td><td>15</td><td><span class="w w-400">400</span></td><td><span class="token">bodyLg</span></td></tr>
+          <tr><td>coverPhotoRowLabel</td><td>14</td><td><span class="w w-400">400</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>Tab / filter text</td><td>15</td><td><span class="w w-500">500</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>Inline: Cover label</td><td>8</td><td><span class="w w-600">600</span></td><td><span class="token">micro</span></td></tr>
+          <tr><td>modalSubtitleText</td><td>13</td><td><span class="w w-400">400</span></td><td><span class="token">body</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ChatTab</span>
+        <span class="screen-path">screens/home/ChatTab.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>heroHeading</td><td>18–22</td><td><span class="w w-600">600</span></td><td><span class="token">titleLg</span> / <span class="token">displayMd</span></td></tr>
+          <tr><td>newChatText</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>Conversation name</td><td>14</td><td><span class="w-dash">—</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>Conversation snippet</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>sectionLabel</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>emptyTitle</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>Time label</td><td>13</td><td><span class="w-dash">—</span></td><td><span class="token">body</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ProfileDropdown</span>
+        <span class="screen-path">screens/home/ProfileDropdown.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>Avatar initial</td><td>18</td><td><span class="w w-600">600</span></td><td><span class="token">titleLg</span></td></tr>
+          <tr><td>dropdownName</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>dropdownEmail</td><td>11</td><td><span class="w-dash">—</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>dropdownItemText</td><td>13</td><td><span class="w w-400">400</span></td><td><span class="token">body</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">HowItWorksScreen</span>
+        <span class="screen-path">screens/home/HowItWorksScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>cardTitle</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>cardBody</td><td>13</td><td><span class="w-dash">—</span></td><td><span class="token">body</span></td></tr>
+          <tr><td>Section heading</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>featureLabel</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>featureDesc</td><td>12</td><td><span class="w-dash">—</span></td><td><span class="token">bodySm</span></td></tr>
+          <tr><td>footerText</td><td>13</td><td><span class="w-dash">—</span></td><td><span class="token">body</span></td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Uses <code style="font-family:monospace;font-size:11px;background:#f1f5f9;padding:1px 5px;border-radius:3px">colors.textPrimary</code> / <code style="font-family:monospace;font-size:11px;background:#f1f5f9;padding:1px 5px;border-radius:3px">colors.textSecondary</code> throughout.</div>
+    </div>
+  </div>
+
+  <!-- TRIPS & EVENTS -->
+  <div id="trips">
+    <div class="group-label">Trips &amp; Events</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">TripsScreen</span>
+        <span class="screen-path">screens/trips/TripsScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>tripsCTATitle</td><td>20</td><td><span class="w w-600">600</span></td><td><span class="token">displaySm</span></td></tr>
+          <tr><td>tripsCTASub</td><td>16</td><td><span class="w w-400">400</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>createTripBtnText</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">button</span></td></tr>
+          <tr><td>tripsListTitle</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">bodyLg</span></td></tr>
+          <tr><td>daysNumber</td><td>28</td><td><span class="w w-600">600</span></td><td><span class="token">displayLg</span></td></tr>
+          <tr><td>daysLabel</td><td>8</td><td><span class="w w-600">600</span></td><td><span class="token">micro</span></td></tr>
+          <tr><td>cardTitle</td><td>15</td><td><span class="w w-400">400</span></td><td><span class="token">bodyLg</span></td></tr>
+          <tr><td>ctTitle</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>ctCreateBtnText</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">button</span></td></tr>
+          <tr><td>ongoingBadgeText</td><td>11</td><td><span class="w w-600">600</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>moreCounterText</td><td>9</td><td><span class="w w-600">600</span></td><td><span class="token">micro</span></td></tr>
+          <tr><td>pastCardTitle</td><td>14</td><td><span class="w w-400">400</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>Inline "Cancel"</td><td>17</td><td><span class="w w-500">500</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>Inline "Done"</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">EventsScreen</span>
+        <span class="screen-path">screens/events/EventsScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>heroTitle</td><td>20</td><td><span class="w w-600">600</span></td><td><span class="token">displaySm</span></td></tr>
+          <tr><td>heroSub</td><td>16</td><td><span class="w w-400">400</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>eventListTitle</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">bodyLg</span></td></tr>
+          <tr><td>newEventBtnText</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">button</span></td></tr>
+          <tr><td>daysNumber</td><td>28</td><td><span class="w w-600">600</span></td><td><span class="token">displayLg</span></td></tr>
+          <tr><td>daysLabel</td><td>8</td><td><span class="w w-600">600</span></td><td><span class="token">micro</span></td></tr>
+          <tr><td>cardTitle</td><td>15</td><td><span class="w w-400">400</span></td><td><span class="token">bodyLg</span></td></tr>
+          <tr><td>title (modal)</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>createBtnTxt</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">button</span></td></tr>
+          <tr><td>ongoingBadgeText</td><td>11</td><td><span class="w w-600">600</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>moreCounterText</td><td>9</td><td><span class="w w-600">600</span></td><td><span class="token">micro</span></td></tr>
+          <tr><td>Inline "Cancel"</td><td>17</td><td><span class="w w-500">500</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>Inline "Done"</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">TripDetailScreen</span>
+        <span class="screen-path">screens/trips/TripDetailScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>topBarTitle</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>tripName</td><td>20</td><td><span class="w w-600">600</span></td><td><span class="token">displaySm</span></td></tr>
+          <tr><td>daysNumber</td><td>40</td><td><span class="w w-500">500</span></td><td><span class="token">displayXl</span></td></tr>
+          <tr><td>sectionTitle / sectionTitleDark</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>dTitle (dialog header)</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>pollQ</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>memberSectionLabel</td><td>12</td><td><span class="w w-600">600</span></td><td><span class="w-dash">—</span></td></tr>
+          <tr><td>memberSectionLabelTitle</td><td>12</td><td><span class="w w-600">600</span></td><td><span class="w-dash">—</span></td></tr>
+          <tr><td>docDividerLabel</td><td>11</td><td><span class="w w-600">600</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>pollAvatarInitial</td><td>11</td><td><span class="w w-600">600</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>pollAvatarMoreTxt</td><td>10</td><td><span class="w w-600">600</span></td><td><span class="token">labelSm</span></td></tr>
+          <tr><td>pollSectionLabel</td><td>11</td><td><span class="w w-600">600</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>cardBadgeText</td><td>10</td><td><span class="w w-600">600</span></td><td><span class="token">labelSm</span></td></tr>
+          <tr><td>actionLabel</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>statTxt</td><td>12</td><td><span class="w w-500">500</span></td><td><span class="token">bodySm</span></td></tr>
+          <tr><td>Body / meta styles</td><td>11–13</td><td><span class="w w-400">400</span></td><td><span class="token-special">various tokens</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">EventDetailScreen</span>
+        <span class="screen-path">screens/events/EventDetailScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>topBarTitle</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>sectionTitle / sectionTitle1</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>pollQ</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>hlSubTitle</td><td>12</td><td><span class="w w-600">600</span></td><td><span class="w-dash">—</span></td></tr>
+          <tr><td>cancelTxt</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>docDividerLabel</td><td>11</td><td><span class="w w-600">600</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>pollAvatarInitial</td><td>9</td><td><span class="w w-600">600</span></td><td><span class="token">micro</span></td></tr>
+          <tr><td>pollAvatarMoreTxt</td><td>8</td><td><span class="w w-600">600</span></td><td><span class="token">micro</span></td></tr>
+          <tr><td>cardBadgeText</td><td>10</td><td><span class="w w-600">600</span></td><td><span class="token">labelSm</span></td></tr>
+          <tr><td>Body / label styles</td><td>11–13</td><td><span class="w w-400">400</span>–<span class="w w-500">500</span></td><td><span class="token-special">various tokens</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="settings">
+    <div class="group-label">Main / Settings</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">SettingsScreen</span>
+        <span class="screen-path">screens/main/SettingsScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>avatarInitial</td><td>20</td><td><span class="w w-600">600</span></td><td><span class="token">displaySm</span></td></tr>
+          <tr><td>profileName</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>sectionTitle</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>profileEmail</td><td>13</td><td><span class="w-dash">—</span></td><td><span class="token">body</span></td></tr>
+          <tr><td>rowLabel</td><td>15</td><td><span class="w w-400">400</span></td><td><span class="token">bodyLg</span></td></tr>
+          <tr><td>rowSub</td><td>12</td><td><span class="w-dash">—</span></td><td><span class="token">bodySm</span></td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Uses <code style="font-family:monospace;font-size:11px;background:#f1f5f9;padding:1px 5px;border-radius:3px">colors.*</code> tokens throughout.</div>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">EditProfileScreen</span>
+        <span class="screen-path">screens/main/EditProfileScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>Action picker title</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>addBadgeText</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>fieldLabel</td><td>12</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>dobReadOnlyText</td><td>13</td><td><span class="w-dash">—</span></td><td><span class="token">body</span></td></tr>
+          <tr><td>helperText / errorText</td><td>11</td><td><span class="w-dash">—</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>dropdownText</td><td>14</td><td><span class="w-dash">—</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>apiErrorText</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>primaryBtnText</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>Avatar circle text</td><td>18</td><td><span class="w w-600">600</span></td><td><span class="token">titleLg</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">FriendProfileScreen</span>
+        <span class="screen-path">screens/main/FriendProfileScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>avatarInitial</td><td>38</td><td><span class="w w-600">600</span></td><td><span class="token-special">special case</span></td></tr>
+          <tr><td>name</td><td>18</td><td><span class="w w-500">500</span></td><td><span class="token">titleLg</span></td></tr>
+          <tr><td>handle</td><td>14</td><td><span class="w w-500">500</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>sectionTitle</td><td>17</td><td><span class="w w-500">500</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>dialogTitle</td><td>17</td><td><span class="w w-500">500</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>countBadgeText</td><td>12</td><td><span class="w w-600">600</span></td><td><span class="token">bodySm</span></td></tr>
+          <tr><td>cardChipText</td><td>10</td><td><span class="w w-600">600</span></td><td><span class="token">labelSm</span></td></tr>
+          <tr><td>emptyTitle</td><td>15</td><td><span class="w w-400">400</span></td><td><span class="token">bodyLg</span></td></tr>
+          <tr><td>modalSubtitleText</td><td>13</td><td><span class="w w-400">400</span></td><td><span class="token">body</span></td></tr>
+          <tr><td>gridCardText</td><td>12</td><td><span class="w w-400">400</span></td><td><span class="token">bodySm</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">NotificationsScreen</span>
+        <span class="screen-path">screens/main/NotificationsScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>notifTitle</td><td>14</td><td><span class="w w-400">400</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>notifTitleUnread</td><td>—</td><td><span class="w w-600">600</span></td><td><span class="token-special">bold override for unread</span></td></tr>
+          <tr><td>notifDate</td><td>11</td><td><span class="w w-400">400</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>tabBadgeText</td><td>10</td><td><span class="w w-600">600</span></td><td><span class="token">labelSm</span></td></tr>
+          <tr><td>contextLabel</td><td>11</td><td><span class="w w-500">500</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>acceptBtnText</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">buttonSm</span></td></tr>
+          <tr><td>declineBtnText</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">buttonSm</span></td></tr>
+          <tr><td>emptyTitle</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>tabText</td><td>14</td><td><span class="w w-500">500</span></td><td><span class="token">titleSm</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ChatDetailScreen</span>
+        <span class="screen-path">screens/main/ChatDetailScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>headerName</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>msgText</td><td>14</td><td><span class="w-dash">—</span></td><td><span class="token">body</span></td></tr>
+          <tr><td>msgTime</td><td>10</td><td><span class="w-dash">—</span></td><td><span class="token">bodyXs</span></td></tr>
+          <tr><td>reportTitle</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>reportBtnText</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>reportSentTitle</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>reportSentEmoji</td><td>22</td><td><span class="w w-600">600</span></td><td><span class="token">displayMd</span></td></tr>
+          <tr><td>confirmYesText / confirmNoText / viewBtnText</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">buttonSm</span></td></tr>
+          <tr><td>reportLabel / optionChipText</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">NotificationSettingsScreen</span>
+        <span class="screen-path">screens/main/NotificationSettingsScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>sectionTitle</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>rowLabel</td><td>15</td><td><span class="w w-400">400</span></td><td><span class="token">bodyLg</span></td></tr>
+          <tr><td>rowSub</td><td>12</td><td><span class="w-dash">—</span></td><td><span class="token">bodySm</span></td></tr>
+          <tr><td>digestSub</td><td>13</td><td><span class="w-dash">—</span></td><td><span class="token">body</span></td></tr>
+          <tr><td>pillText</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ChangePasswordScreen</span>
+        <span class="screen-path">screens/main/ChangePasswordScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>Password bullets</td><td>13</td><td><span class="w-dash">—</span></td><td><span class="token">body</span></td></tr>
+          <tr><td>Input field</td><td>14</td><td><span class="w-dash">—</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>Submit button text</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">buttonSm</span></td></tr>
+          <tr><td>Section heading</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>Success title</td><td>26</td><td><span class="w w-600">600</span></td><td><span class="token">displayLg</span></td></tr>
+          <tr><td>Primary btn</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">FaqScreen</span>
+        <span class="screen-path">screens/main/FaqScreen.tsx</span>
+      </div>
+      <div class="screen-note" style="border-top:none">subtitle: 13px / — → <span class="token" style="font-size:11px">body</span>. Uses <code style="font-family:monospace;font-size:11px;background:#f1f5f9;padding:1px 5px;border-radius:3px">colors.textSecondary</code> throughout.</div>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ConnectedEmailScreen</span>
+        <span class="screen-path">screens/main/ConnectedEmailScreen.tsx</span>
+      </div>
+      <div class="screen-note" style="border-top:none">Body (13 / 400), label (13 / 500) throughout.</div>
+    </div>
+  </div>
+
+  <!-- FRIENDS -->
+  <div id="friends">
+    <div class="group-label">Friends</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">FriendsScreen</span>
+        <span class="screen-path">screens/home/FriendsScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>Main screen title</td><td>22</td><td><span class="w w-600">600</span></td><td><span class="token">displayMd</span></td></tr>
+          <tr><td>Section label</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>Friend name</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>searchInput</td><td>13</td><td><span class="w w-400">400</span></td><td><span class="token">body</span></td></tr>
+          <tr><td>Mutual count</td><td>11</td><td><span class="w w-400">400</span></td><td><span class="token">caption</span></td></tr>
+          <tr><td>Modal invite title</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>Send button</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">button</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- AUTH -->
+  <div id="auth">
+    <div class="group-label">Auth Screens</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">WelcomeScreen</span>
+        <span class="screen-path">screens/auth/WelcomeScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>Hero title</td><td>30–44</td><td><span class="w w-600">600</span></td><td><span class="token">displayXl</span></td></tr>
+          <tr><td>Sub-title</td><td>13–24</td><td><span class="w-dash">—</span></td><td><span class="token">body</span> → <span class="token">display</span></td></tr>
+          <tr><td>primaryBtnText</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>demoBtnText</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">SignupScreen</span>
+        <span class="screen-path">screens/auth/SignupScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>Country picker title</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>title (hero)</td><td>21–25</td><td><span class="w w-500">500</span></td><td><span class="token">display</span></td></tr>
+          <tr><td>socialBtnText</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>Phone input</td><td>14–16</td><td><span class="w-dash">—</span></td><td><span class="token">titleSm</span> / <span class="token">navTitle</span></td></tr>
+          <tr><td>Country code text</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>Primary btn text</td><td>15–17</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span> / <span class="token">titleXl</span></td></tr>
+          <tr><td>Link text</td><td>13–17</td><td><span class="w w-500">500</span></td><td><span class="token">label</span> / <span class="token">titleXl</span></td></tr>
+          <tr><td>Terms text</td><td>10–12</td><td><span class="w-dash">—</span></td><td><span class="token">bodyXs</span> / <span class="token">bodySm</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">LoginScreen</span>
+        <span class="screen-path">screens/auth/LoginScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>title (hero)</td><td>20–24</td><td><span class="w w-500">500</span></td><td><span class="token">display</span></td></tr>
+          <tr><td>Subtitle</td><td>13–15</td><td><span class="w-dash">—</span></td><td><span class="token">body</span> / <span class="token">bodyLg</span></td></tr>
+          <tr><td>socialBtnText</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>Input</td><td>14–16</td><td><span class="w-dash">—</span></td><td><span class="token">titleSm</span> / <span class="token">navTitle</span></td></tr>
+          <tr><td>Primary btn</td><td>15–17</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span> / <span class="token">titleXl</span></td></tr>
+          <tr><td>Link underline</td><td>13–16</td><td><span class="w w-500">500</span></td><td><span class="token">label</span> / <span class="token">navTitle</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">CreateProfileScreen</span>
+        <span class="screen-path">screens/auth/CreateProfileScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>Action picker title</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>title (hero)</td><td>23–28</td><td><span class="w w-500">500</span></td><td><span class="token">display</span> / <span class="token">displayLg</span></td></tr>
+          <tr><td>Avatar circle text</td><td>18</td><td><span class="w w-600">600</span></td><td><span class="token">titleLg</span></td></tr>
+          <tr><td>fieldLabel</td><td>12</td><td><span class="w w-400">400</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>Primary btn</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">button</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ForgotPasswordScreen</span>
+        <span class="screen-path">screens/auth/ForgotPasswordScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>title (hero)</td><td>21–25</td><td><span class="w w-500">500</span></td><td><span class="token">display</span> / <span class="token">displaySm</span></td></tr>
+          <tr><td>Helper text</td><td>12–14</td><td><span class="w-dash">—</span></td><td><span class="token">bodySm</span> / <span class="token">titleSm</span></td></tr>
+          <tr><td>Error text</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">buttonSm</span></td></tr>
+          <tr><td>Primary btn</td><td>15–17</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span> / <span class="token">titleXl</span></td></tr>
+          <tr><td>Link text</td><td>13–15</td><td><span class="w w-500">500</span></td><td><span class="token">label</span> / <span class="token">titleMd</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">OtpVerificationScreen</span>
+        <span class="screen-path">screens/auth/OtpVerificationScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>Hero title</td><td>27</td><td><span class="w w-400">400</span></td><td><span class="token">displayLg</span></td></tr>
+          <tr><td>Verification sub</td><td>22</td><td><span class="w w-600">600</span></td><td><span class="token">displayMd</span></td></tr>
+          <tr><td>Section title</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>Primary btn</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">button</span></td></tr>
+          <tr><td>Resend link</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">buttonSm</span></td></tr>
+          <tr><td>Resend count text</td><td>26</td><td><span class="w w-600">600</span></td><td><span class="token">displayLg</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ResetPasswordScreen</span>
+        <span class="screen-path">screens/auth/ResetPasswordScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>Password bullets</td><td>13</td><td><span class="w-dash">—</span></td><td><span class="token">body</span></td></tr>
+          <tr><td>Success title</td><td>24</td><td><span class="w w-600">600</span></td><td><span class="token">display</span></td></tr>
+          <tr><td>Timer</td><td>17</td><td><span class="w w-500">500</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>Resend link</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">buttonSm</span></td></tr>
+          <tr><td>Primary btn</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>Success hero</td><td>26</td><td><span class="w w-600">600</span></td><td><span class="token">displayLg</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">SplashScreen</span>
+        <span class="screen-path">screens/auth/SplashScreen.tsx</span>
+      </div>
+      <div class="screen-note" style="border-top:none">No font styles — images and animations only.</div>
+    </div>
+  </div>
+
+  <!-- COMPONENTS -->
+  <div id="components">
+    <div class="group-label">Shared Components</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">MarkdownText</span>
+        <span class="screen-path">components/common/MarkdownText.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>bold</td><td>—</td><td><span class="w w-700">700</span></td><td><span class="token-special">intentional — Markdown bold rendering</span></td></tr>
+          <tr><td>boldItalic</td><td>—</td><td><span class="w w-700">700</span></td><td><span class="token-special">intentional — Markdown bold rendering</span></td></tr>
+          <tr><td>h1</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>h2</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>h3</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>cursor</td><td>—</td><td><span class="w w-400">400</span></td><td><span class="token">body</span></td></tr>
+          <tr><td>headerText (table)</td><td>12</td><td><span class="w w-600">600</span></td><td><span class="token">bodySm</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">DetailHeroCard</span>
+        <span class="screen-path">components/common/DetailHeroCard.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>name (hero title)</td><td>18</td><td><span class="w w-600">600</span></td><td><span class="token">titleLg</span></td></tr>
+          <tr><td>daysNumber</td><td>28</td><td><span class="w w-600">600</span></td><td><span class="token">displayLg</span></td></tr>
+          <tr><td>Location / meta</td><td>12</td><td><span class="w w-400">400</span></td><td><span class="token">bodySm</span></td></tr>
+          <tr><td>typeBadgeText</td><td>10</td><td><span class="w w-500">500</span></td><td><span class="token">labelSm</span></td></tr>
+          <tr><td>statusPillText</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>Date chip</td><td>11</td><td><span class="w w-400">400</span></td><td><span class="token">caption</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">DateInfoPopover</span>
+        <span class="screen-path">components/common/DateInfoPopover.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>closeBtnText</td><td>20</td><td><span class="w w-400">400</span></td><td><span class="token">displaySm</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">OutstandingDebtsList</span>
+        <span class="screen-path">components/common/OutstandingDebtsList.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>debtAmt</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>Settle btn text</td><td>12</td><td><span class="w w-500">500</span></td><td><span class="token">buttonSm</span></td></tr>
+          <tr><td>Debt from / to</td><td>12</td><td><span class="w-dash">—</span></td><td><span class="token">bodySm</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">GalleryEngagementSection</span>
+        <span class="screen-path">components/gallery/GalleryEngagementSection.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>statText</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>statCount</td><td>—</td><td><span class="w w-600">600</span></td><td><span class="w-dash">—</span></td></tr>
+          <tr><td>commentName</td><td>—</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>commentText</td><td>—</td><td><span class="w w-400">400</span></td><td><span class="token">body</span></td></tr>
+          <tr><td>composePost / editSave</td><td>—</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>menuModalText</td><td>—</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Trip & Event Modules -->
+  <div id="modules">
+    <div class="group-label">Detail Chrome</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">DetailActionGrid</span>
+        <span class="screen-path">components/details/DetailActionGrid.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>label</td><td>12</td><td><span class="w w-600">600</span></td><td><span class="token">bodySm</span> + 600 override</td></tr>
+          <tr><td>badgeText</td><td>9</td><td><span class="w w-600">600</span></td><td><span class="token">micro</span></td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Action grid buttons: Docs, Members, Photos, Expenses, Polls, Notes. Badge count in teal pill.</div>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">DetailTabBar</span>
+        <span class="screen-path">components/details/DetailTabBar.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>tabText</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>tabTextActive</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">label</span> + 600 override · teal</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">DetailSection</span>
+        <span class="screen-path">components/details/DetailSection.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>title</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Section wrapper for Description, Highlights, and any content block in detail screens.</div>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">DetailSheetModal</span>
+        <span class="screen-path">components/details/DetailSheetModal.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>title</td><td>18</td><td><span class="w w-600">600</span></td><td><span class="token">titleLg</span></td></tr>
+          <tr><td>subtitle</td><td>12</td><td><span class="w w-400">400</span></td><td><span class="token">bodySm</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">DetailDialogHeader</span>
+        <span class="screen-path">components/details/DetailDialogHeader.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>title</td><td>16</td><td><span class="w w-500">500</span></td><td><span class="token-special">inline — navTitle size, medium weight</span></td></tr>
+          <tr><td>inlineSubtitle (count)</td><td>14</td><td><span class="w w-500">500</span></td><td><span class="token">titleSm</span> · secondary</td></tr>
+          <tr><td>subtitle</td><td>10</td><td><span class="w w-400">400</span></td><td><span class="token">bodyXs</span> · secondary</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">DetailStatsBar</span>
+        <span class="screen-path">components/details/DetailStatsBar.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>statText</td><td>12</td><td><span class="w w-600">600</span></td><td><span class="token">bodySm</span> + 600 override · teal</td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Members · Docs · Media · Expenses horizontal stats strip at top of detail screens.</div>
+    </div>
+
+    <div class="group-label">Documents</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">DocumentItem</span>
+        <span class="screen-path">components/common/DocumentItem.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>avatarText</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">label</span> · white on color bg</td></tr>
+          <tr><td>fileName</td><td>14</td><td><span class="w w-400">400</span></td><td><span class="token">titleSm</span> · teal link</td></tr>
+          <tr><td>meta (date · type · size)</td><td>13</td><td><span class="w w-400">400</span></td><td><span class="token">body</span> · muted</td></tr>
+          <tr><td>menuText</td><td>14</td><td><span class="w w-500">500</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>menuTextDanger (Delete)</td><td>14</td><td><span class="w w-500">500</span></td><td><span class="token">titleSm</span> · red</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">DocumentsUploadSection</span>
+        <span class="screen-path">components/common/DocumentsUploadSection.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>phoneBtnText</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">button</span></td></tr>
+          <tr><td>dividerText</td><td>11</td><td><span class="w w-500">500</span></td><td><span class="token">caption</span> · uppercase · muted</td></tr>
+          <tr><td>importTitle</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">titleSm</span></td></tr>
+          <tr><td>importSub</td><td>12</td><td><span class="w w-400">400</span></td><td><span class="token">bodySm</span> · muted</td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Upload from device + Gmail/Outlook/Drive import rows.</div>
+    </div>
+
+    <div class="group-label">Polls</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">PollOptionItem</span>
+        <span class="screen-path">components/common/PollOptionItem.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>optTxt</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+          <tr><td>optTxtSelected</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">label</span> + 600 override · teal</td></tr>
+          <tr><td>votes</td><td>12</td><td><span class="w w-500">500</span></td><td><span class="token">bodySm</span> · muted</td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Animated fill bar. Selected option turns teal and steps up to 600 weight.</div>
+    </div>
+
+    <div class="group-label">Expenses</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ExpenseTotalsTab</span>
+        <span class="screen-path">components/common/ExpenseTotalsTab.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>sectionLabel</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">expSectionHeading</span></td></tr>
+          <tr><td>breakdownName</td><td>12</td><td><span class="w w-500">500</span></td><td><span class="token">expBreakdownRow</span></td></tr>
+          <tr><td>breakdownMeta (Paid out)</td><td>12</td><td><span class="w w-400">400</span></td><td><span class="token">expBreakdownRow</span> + 400 override</td></tr>
+          <tr><td>breakdownAmt</td><td>12</td><td><span class="w w-500">500</span></td><td><span class="token">expBreakdownRow</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ExpenseDistributionBar</span>
+        <span class="screen-path">components/common/ExpenseDistributionBar.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>currencyCode</td><td>12</td><td><span class="w w-500">500</span></td><td><span class="token">expTotalValue</span></td></tr>
+          <tr><td>currencyTotal</td><td>12</td><td><span class="w w-500">500</span></td><td><span class="token">expTotalValue</span></td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Segmented bar per currency. Colors: teal=INR, blue=USD, purple=EUR, pink=GBP, amber=AED…</div>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ExpenseBalanceSummary</span>
+        <span class="screen-path">components/common/ExpenseBalanceSummary.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>cardTitle (Total / You)</td><td>11</td><td><span class="w w-500">500</span></td><td><span class="token">caption</span> · uppercase · secondary</td></tr>
+          <tr><td>lineCode</td><td>12</td><td><span class="w w-500">500</span></td><td><span class="token">expTotalValue</span></td></tr>
+          <tr><td>lineAmount</td><td>12</td><td><span class="w w-500">500</span></td><td><span class="token">expTotalValue</span></td></tr>
+          <tr><td>emptyLine</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span> · secondary</td></tr>
+          <tr><td>emptySubLine</td><td>12</td><td><span class="w w-400">400</span></td><td><span class="token">bodySm</span> · muted</td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Side-by-side Total and You cards. Positive balance: green-50 bg; negative: red-50 bg.</div>
+    </div>
+
+    <div class="group-label">Media</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">MediaGridSection</span>
+        <span class="screen-path">components/media/MediaGridSection.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>sectionTitle</td><td>14</td><td><span class="w w-500">500</span></td><td><span class="token">titleSm</span> · centered</td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">3-column sortable grid. sectionTitle groups photos by activity inside a trip.</div>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">MediaPreviewOverlay</span>
+        <span class="screen-path">components/media/MediaPreviewOverlay.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>toolbarCloseLabel</td><td>15</td><td><span class="w w-500">500</span></td><td><span class="token">titleMd</span> · white on dark</td></tr>
+          <tr><td>toolbarActionLabel</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span> · white on dark</td></tr>
+          <tr><td>toolbarActionLabelDanger</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span> · red-200</td></tr>
+          <tr><td>timeText (video seek)</td><td>11</td><td><span class="w w-400">400</span></td><td><span class="token">caption</span> · white</td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Full-screen viewer for photos and video. Dark overlay 88%. Video player with animated seek bar.</div>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">UploadOptionsRow</span>
+        <span class="screen-path">components/common/UploadOptionsRow.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>btnLabel</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Upload / Camera / Drive tile row. Used inside MediaActionBar.</div>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">MediaActionBar</span>
+        <span class="screen-path">components/media/MediaActionBar.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>infoText (cap hint)</td><td>11</td><td><span class="w w-400">400</span></td><td><span class="token">caption</span> · muted · centered</td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Wraps UploadOptionsRow. Shows "up to N media files" cap hint when capTotal is set.</div>
+    </div>
+
+    <div class="group-label">Members &amp; Invite</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">InviteViaChannels</span>
+        <span class="screen-path">components/common/InviteViaChannels.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>chooseBtnText</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>sendBtnTxt</td><td>14</td><td><span class="w w-600">600</span></td><td><span class="token">button</span></td></tr>
+          <tr><td>manualToggleText</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">buttonSm</span> · teal</td></tr>
+          <tr><td>hint</td><td>12</td><td><span class="w w-400">400</span></td><td><span class="token">bodySm</span> · secondary</td></tr>
+          <tr><td>pickerTitle</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>pickerClose</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span> · teal</td></tr>
+          <tr><td>contactAvatarText</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span> · teal on teal-50</td></tr>
+          <tr><td>contactName</td><td>15</td><td><span class="w w-600">600</span></td><td><span class="token">titleMd</span></td></tr>
+          <tr><td>contactSub</td><td>12</td><td><span class="w w-400">400</span></td><td><span class="token">bodySm</span> · secondary</td></tr>
+          <tr><td>emptyContacts</td><td>14</td><td><span class="w w-400">400</span></td><td><span class="token">titleSm</span> · muted</td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Email / SMS / WhatsApp channel picker. Supports friend, trip, and event invites. Contacts sheet opens from system contacts.</div>
+    </div>
+  </div>
+
+  <!-- Archived Screens -->
+  <div id="archived">
+    <div class="group-label">Archived</div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ArchivedTripsScreen</span>
+        <span class="screen-path">screens/trips/ArchivedTripsScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>headerTitle</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>sectionTitle</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">label</span> · uppercase</td></tr>
+          <tr><td>emptyTitle</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>emptyText</td><td>13</td><td><span class="w w-400">400</span></td><td><span class="token">body</span> · muted</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ArchivedEventsScreen</span>
+        <span class="screen-path">screens/events/ArchivedEventsScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>headerTitle</td><td>17</td><td><span class="w w-600">600</span></td><td><span class="token">titleXl</span></td></tr>
+          <tr><td>sectionTitle</td><td>13</td><td><span class="w w-600">600</span></td><td><span class="token">label</span> · uppercase</td></tr>
+          <tr><td>emptyTitle</td><td>16</td><td><span class="w w-600">600</span></td><td><span class="token">navTitle</span></td></tr>
+          <tr><td>emptyText</td><td>13</td><td><span class="w w-400">400</span></td><td><span class="token">body</span> · muted</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="screen">
+      <div class="screen-header">
+        <span class="screen-title">ArchivedScreen</span>
+        <span class="screen-path">screens/home/ArchivedScreen.tsx</span>
+      </div>
+      <table>
+        <thead><tr><th>Style</th><th>Size</th><th>Weight</th><th>Token</th></tr></thead>
+        <tbody>
+          <tr><td>sectionTitle</td><td>12</td><td><span class="w w-500">500</span></td><td><span class="token">bodySm</span> · uppercase · #45556C</td></tr>
+          <tr><td>emptyTitle</td><td>15</td><td><span class="w w-500">500</span></td><td><span class="token">titleMd</span> · secondary</td></tr>
+          <tr><td>emptySub</td><td>13</td><td><span class="w w-400">400</span></td><td><span class="token">body</span> · muted</td></tr>
+          <tr><td>galleryCardTitle</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span> · white on overlay</td></tr>
+          <tr><td>galleryCardMeta</td><td>10</td><td><span class="w w-400">400</span></td><td><span class="token">bodyXs</span> · slate-200</td></tr>
+          <tr><td>galleryMenuItemText</td><td>13</td><td><span class="w w-500">500</span></td><td><span class="token">label</span></td></tr>
+        </tbody>
+      </table>
+      <div class="screen-note">Combined archived view — trips, events, and custom gallery albums in a 2-column grid.</div>
+    </div>
+  </div>
+
+  <!-- Enhancement Log -->
+  <div class="log-section" id="log">
+    <div class="log-title">Enhancement Log</div>
+    <p class="log-subtitle">June 2026 — font weight pass across all screens and shared components.</p>
+
+    <div class="log-group">
+      <div class="log-group-title">Thin weights aligned to minimum (300 → 400)</div>
+      <div class="log-table">
+        <table>
+          <thead><tr><th>File</th><th>Style</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td>FriendsScreen.tsx</td><td>searchInput</td><td><span class="arrow"><span class="arrow-before">300</span><span class="arrow-sep">→</span><span class="arrow-after">400</span></span></td></tr>
+            <tr><td>GalleryTab.tsx</td><td>modalSubtitleText</td><td><span class="arrow"><span class="arrow-before">300</span><span class="arrow-sep">→</span><span class="arrow-after">400</span></span></td></tr>
+            <tr><td>FriendProfileScreen.tsx</td><td>modalSubtitleText</td><td><span class="arrow"><span class="arrow-before">300</span><span class="arrow-sep">→</span><span class="arrow-after">400</span></span></td></tr>
+            <tr><td>DateInfoPopover.tsx</td><td>closeBtnText</td><td><span class="arrow"><span class="arrow-before">300</span><span class="arrow-sep">→</span><span class="arrow-after">400</span></span></td></tr>
+            <tr><td>MarkdownText.tsx</td><td>cursor</td><td><span class="arrow"><span class="arrow-before">300</span><span class="arrow-sep">→</span><span class="arrow-after">400</span></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="log-group">
+      <div class="log-group-title">Markdown headings aligned to design token scale (700 → 600)</div>
+      <div class="log-table">
+        <table>
+          <thead><tr><th>File</th><th>Style</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td>MarkdownText.tsx</td><td>h1</td><td><span class="arrow"><span class="arrow-before">700</span><span class="arrow-sep">→</span><span class="arrow-after">600</span></span></td></tr>
+            <tr><td>MarkdownText.tsx</td><td>h2</td><td><span class="arrow"><span class="arrow-before">700</span><span class="arrow-sep">→</span><span class="arrow-after">600</span></span></td></tr>
+            <tr><td>MarkdownText.tsx</td><td>h3</td><td><span class="arrow"><span class="arrow-before">700</span><span class="arrow-sep">→</span><span class="arrow-after">600</span></span></td></tr>
+            <tr><td>MarkdownText.tsx</td><td>headerText</td><td><span class="arrow"><span class="arrow-before">700</span><span class="arrow-sep">→</span><span class="arrow-after">600</span></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="log-group">
+      <div class="log-group-title">Section and screen titles strengthened for hierarchy (400/500 → 600)</div>
+      <div class="log-table">
+        <table>
+          <thead><tr><th>File</th><th>Styles updated</th></tr></thead>
+          <tbody>
+            <tr><td>TripDetailScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">topBarTitle, tripName, sectionTitle, sectionTitleDark, dTitle, pollQ, memberSectionLabel, memberSectionLabelTitle</td></tr>
+            <tr><td>EventDetailScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">topBarTitle, sectionTitle, sectionTitle1, pollQ, hlSubTitle, cancelTxt</td></tr>
+            <tr><td>SettingsScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">avatarInitial, profileName, sectionTitle</td></tr>
+            <tr><td>NotificationSettingsScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">sectionTitle</td></tr>
+            <tr><td>NotificationsScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">notifTitleUnread</td></tr>
+            <tr><td>HomeScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">welcomeTitle ×2, sectionTitle, sectionHeader inline, tripsListTitle, tripsCTATitle, createTripBtnText, emptyStateTitle, inline section headers, welcome, button labels</td></tr>
+            <tr><td>ChatTab.tsx</td><td style="color:var(--slate-700);font-family:inherit">heroHeading, sectionLabel, emptyTitle</td></tr>
+            <tr><td>ProfileDropdown.tsx</td><td style="color:var(--slate-700);font-family:inherit">dropdownName</td></tr>
+            <tr><td>TripsScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">tripsCTATitle, createTripBtnText, tripsListTitle</td></tr>
+            <tr><td>EventsScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">heroTitle, newEventBtnText, eventListTitle</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="log-group">
+      <div class="log-group-title">Button and interactive text strengthened (400 → 600)</div>
+      <div class="log-table">
+        <table>
+          <thead><tr><th>File</th><th>Styles updated</th></tr></thead>
+          <tbody>
+            <tr><td>WelcomeScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">primaryBtnText, demoBtnText</td></tr>
+            <tr><td>EditProfileScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">primaryBtnText</td></tr>
+            <tr><td>SignupScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">socialBtnText</td></tr>
+            <tr><td>LoginScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">socialBtnText</td></tr>
+            <tr><td>ChatDetailScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">headerName</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="log-group">
+      <div class="log-group-title">Auth hero titles given subtle lift (400 → 500)</div>
+      <div class="log-table">
+        <table>
+          <thead><tr><th>File</th><th>Style</th></tr></thead>
+          <tbody>
+            <tr><td>LoginScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">title</td></tr>
+            <tr><td>SignupScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">title</td></tr>
+            <tr><td>CreateProfileScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">title</td></tr>
+            <tr><td>ForgotPasswordScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">title</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="log-group">
+      <div class="log-group-title">Gallery profile alignment — my gallery and friend gallery unified (600 → 500)</div>
+      <div class="log-table">
+        <table>
+          <thead><tr><th>File</th><th>Styles updated</th></tr></thead>
+          <tbody>
+            <tr><td>GalleryTab.tsx</td><td style="color:var(--slate-700);font-family:inherit">name, handle, sectionTitle, dialogTitle</td></tr>
+            <tr><td>FriendProfileScreen.tsx</td><td style="color:var(--slate-700);font-family:inherit">name, sectionTitle</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="log-group">
+      <div class="log-group-title">Token alignment refinements</div>
+      <div class="log-table">
+        <table>
+          <thead><tr><th>File</th><th>Style</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td>HowItWorksScreen.tsx</td><td>featureLabel</td><td><span class="arrow"><span class="arrow-before">600</span><span class="arrow-sep">→</span><span class="arrow-after">500</span></span></td></tr>
+            <tr><td>DetailHeroCard.tsx</td><td>typeBadgeText</td><td><span class="arrow"><span class="arrow-before">400</span><span class="arrow-sep">→</span><span class="arrow-after">500</span></span></td></tr>
+            <tr><td>DetailHeroCard.tsx</td><td>daysNumber</td><td><span class="arrow"><span class="arrow-before">500</span><span class="arrow-sep">→</span><span class="arrow-after">600</span></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.screen').forEach(card => {
+      const header = card.querySelector('.screen-header');
+      if (!header) return;
+
+      // Chevron pill
+      const chev = document.createElement('span');
+      chev.className = 'screen-chevron';
+      chev.textContent = '›';
+      header.appendChild(chev);
+
+      // Wrap all non-header children in a collapsible body
+      const rest = Array.from(card.children).filter(el => el !== header);
+      if (!rest.length) return;
+      const body = document.createElement('div');
+      body.className = 'screen-body';
+      rest.forEach(el => body.appendChild(el));
+      card.appendChild(body);
+
+      // Toggle on click
+      header.addEventListener('click', () => card.classList.toggle('is-open'));
+    });
+  });
+</script>
+</body>
+</html>

@@ -3,7 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   TextInput, Animated, PanResponder, Image, Platform, Linking,
-  ActivityIndicator, FlatList, Dimensions, Easing, InteractionManager,
+  ActivityIndicator, FlatList, Dimensions, Easing, InteractionManager, Pressable,
 } from 'react-native';
 import AppModal from '../../components/common/AppModal';
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -757,6 +757,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [isLoadingExpenses, setIsLoadingExpenses] = useState(false);
   const [isRefreshingExpenses, setIsRefreshingExpenses] = useState(false);
   const [settlingDebtKey, setSettlingDebtKey] = useState<string | null>(null);
+  const [showSettleModal, setShowSettleModal] = useState(false);
+  const [settleTarget, setSettleTarget] = useState<{ toUserId: string; toName: string; maxAmount: number; currency: string } | null>(null);
+  const [settleInputAmount, setSettleInputAmount] = useState('');
   const [, setIsLoadingNotes] = useState(false);
   const [isLoadingPolls, setIsLoadingPolls] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1839,31 +1842,43 @@ export default function TripDetailScreen({ route, navigation }: any) {
     });
   }
 
-  async function handleSettleDebt(withUserId: string, amount: number, currency: string = 'INR') {
-    const amt = typeof amount === 'number' && !Number.isNaN(amount) ? amount : parseFloat(String(amount));
+  function handleSettleDebt(withUserId: string, maxAmount: number, currency: string = 'INR', toName: string = 'Member') {
+    const maxAmt = typeof maxAmount === 'number' && !Number.isNaN(maxAmount) ? maxAmount : parseFloat(String(maxAmount));
+    if (!maxAmt || maxAmt <= 0) {
+      showAlert({ title: 'Invalid amount', message: 'Enter a valid settlement amount.' });
+      return;
+    }
+    setSettleTarget({ toUserId: withUserId, toName, maxAmount: maxAmt, currency });
+    setSettleInputAmount(String(maxAmt));
+    setShowSettleModal(true);
+  }
+
+  async function handleConfirmSettle() {
+    if (!settleTarget) return;
+    const amt = parseFloat(settleInputAmount);
     if (!amt || amt <= 0) {
       showAlert({ title: 'Invalid amount', message: 'Enter a valid settlement amount.' });
       return;
     }
-    showConfirm({
-      title: 'Record settlement',
-      message: `Record a payment of ${formatCurrencyFull(amt, currency)} to settle this balance? Balances will update for everyone on the trip.`,
-      confirmText: 'Settle',
-      destructive: false,
-      onConfirm: async () => {
-        const key = settleDebtKey(currentUserId, withUserId, currency);
-        setSettlingDebtKey(key);
-        try {
-          await settleDebt(tripId, { withUserId, amount: amt, currency });
-          await refreshExpenseData();
-          Toast.show({ type: 'success', text1: 'Settlement recorded' });
-        } catch (err) {
-          handleApiError(err);
-        } finally {
-          setSettlingDebtKey(null);
-        }
-      },
-    });
+    if (amt > settleTarget.maxAmount + 0.001) {
+      showAlert({ title: 'Amount too large', message: `You can settle at most ${formatCurrencyFull(settleTarget.maxAmount, settleTarget.currency)}.` });
+      return;
+    }
+    setShowSettleModal(false);
+    const key = settleDebtKey(currentUserId, settleTarget.toUserId, settleTarget.currency);
+    setSettlingDebtKey(key);
+    const { toUserId, currency, maxAmount } = settleTarget;
+    setSettleTarget(null);
+    try {
+      await settleDebt(tripId, { withUserId: toUserId, amount: amt, currency });
+      await refreshExpenseData();
+      const isPartial = amt < maxAmount - 0.001;
+      Toast.show({ type: 'success', text1: isPartial ? 'Partial settlement recorded' : 'Settlement recorded' });
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setSettlingDebtKey(null);
+    }
   }
 
   // ── Poll handlers (API-backed) ──
@@ -2025,6 +2040,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   async function handleSaveTrip() {
     if (!editName.trim()) { showAlert({ title: 'Error', message: 'Trip name is required' }); return; }
     if (editLocations.length === 0) { showAlert({ title: 'Error', message: 'Add at least one location' }); return; }
+    if (editEndDate < editStartDate) { showAlert({ title: 'Error', message: 'End date must be on or after the start date' }); return; }
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
@@ -2318,7 +2334,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       ═══════════════════════════════════════════════════ */}
         <AppModal visible={showAddAct} transparent animationType="fade" onRequestClose={() => { resetActForm(); setShowAddAct(false); }}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '92%' }]}>
+            <View style={styles.dialog}>
               {editingActivityId ? (
                 <View style={styles.dHeader}>
                   <View style={{ flex: 1 }}>
@@ -2477,97 +2493,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <View style={styles.actExtraRow}>
                     <Text style={styles.actExtraLabel}>Expenses</Text>
                     {!actExpConfirmed && (
-                      <TouchableOpacity onPress={() => setShowActExp(p => !p)} activeOpacity={0.7}>
-                        <Text style={styles.actExtraBtn}>{showActExp ? '− Collapse' : '+ Add Expense'}</Text>
+                      <TouchableOpacity onPress={() => setShowActExp(true)} activeOpacity={0.7}>
+                        <Text style={styles.actExtraBtn}>+ Add Expense</Text>
                       </TouchableOpacity>
                     )}
                   </View>
-                  {showActExp && (
-                    <View style={{ backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginTop: 4 }}>
-                      <TextInput style={styles.fInput} placeholder="Description" placeholderTextColor="#94a3b8" value={actExpDesc} onChangeText={setActExpDesc} />
-                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                        <TextInput style={[styles.fInput, { flex: 1 }]} placeholder="Amount" placeholderTextColor="#94a3b8" value={actExpAmount} onChangeText={setActExpAmount} keyboardType="numeric" />
-                        <TouchableOpacity style={[styles.fInputTouch, { minWidth: 56, justifyContent: 'center' }]} onPress={() => { setShowActExpCurrencyDrop(p => !p); setShowActExpCatDrop(false); setShowActExpPaidByDrop(false); }} activeOpacity={0.8}>
-                          <Text style={{ fontSize: 12, color: '#0f172a', fontWeight: '500' }}>{actExpCurrency}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.fInputTouch, { flex: 1, justifyContent: 'center' }]} onPress={() => setShowActExpCatDrop(p => !p)} activeOpacity={0.8}>
-                          <ExpenseCatRow cat={actExpCategory} size={14} fontSize={12} />
-                        </TouchableOpacity>
-                      </View>
-                      <CurrencyPickerDropdown
-                        visible={showActExpCurrencyDrop}
-                        selectedCode={actExpCurrency}
-                        onSelect={code => { setActExpCurrency(code); setShowActExpCurrencyDrop(false); }}
-                        style={styles.dropdown}
-                        itemStyle={styles.dropdownItem}
-                      />
-                      {showActExpCatDrop && (
-                        <View style={styles.dropdown}>
-                          {EXPENSE_CATEGORY_OPTIONS.map(c => (
-                            <TouchableOpacity key={c.label} style={styles.dropdownItem} onPress={() => { setActExpCategory(c); setShowActExpCatDrop(false); }} activeOpacity={0.7}>
-                              <ExpenseCatRow cat={c} />
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                      <Text style={[styles.expFieldLabel, { marginTop: 8 }]}>Paid by</Text>
-                      <TouchableOpacity style={styles.fInputTouch} onPress={() => setShowActExpPaidByDrop(p => !p)} activeOpacity={0.8}>
-                        <Text style={{ fontSize: 13, color: '#0f172a' }}>{actExpPaidBy}</Text>
-                      </TouchableOpacity>
-                      {showActExpPaidByDrop && (
-                        <View style={styles.dropdown}>
-                          {['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.fullName)].map(name => (
-                            <TouchableOpacity key={name} style={styles.dropdownItem} onPress={() => { setActExpPaidBy(name); setShowActExpPaidByDrop(false); }} activeOpacity={0.7}>
-                              <Text style={{ fontSize: 13, color: '#0f172a' }}>{name}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                      <Text style={[styles.expFieldLabel, { marginTop: 8 }]}>Split type</Text>
-                      <View style={{ flexDirection: 'row', gap: 6 }}>
-                        {(['equally', 'amount', 'percent'] as const).map((k, i) => (
-                          <TouchableOpacity key={k} onPress={() => setActExpSplitType(k)} style={[styles.splitTypeBtn, { flex: 1 }, actExpSplitType === k && styles.splitTypeBtnActive]} activeOpacity={0.8}>
-                            <Text style={[styles.splitTypeTxt, actExpSplitType === k && styles.splitTypeTxtActive]}>{['Equally', 'By Amount', 'By %'][i]}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                      <Text style={[styles.expFieldLabel, { marginTop: 8 }]}>Split among</Text>
-                      <TouchableOpacity style={[styles.splitRow, actExpSplitAmong.includes('You') && styles.splitRowActive]} onPress={() => setActExpSplitAmong(p => p.includes('You') ? p.filter(x => x !== 'You') : [...p, 'You'])} activeOpacity={0.8}>
-                        <View style={[styles.splitCheck, actExpSplitAmong.includes('You') && styles.splitCheckActive]}>{actExpSplitAmong.includes('You') && <CheckIcon />}</View>
-                        <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>You</Text>
-                        {actExpSplitType !== 'equally' && (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                            {actExpSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>{actExpCurrency}</Text>}
-                            <TextInput style={[styles.fInput, { width: 60, marginBottom: 0, paddingVertical: 5, textAlign: 'right' }]} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" value={actExpSplitDetails['You'] || ''} onChangeText={v => setActExpSplitDetails(p => ({ ...p, You: v }))} />
-                            {actExpSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                      {members.filter(m => m.userId !== currentUserId).map(m => (
-                        <TouchableOpacity key={m.userId} style={[styles.splitRow, actExpSplitAmong.includes(m.userId) && styles.splitRowActive]} onPress={() => setActExpSplitAmong(p => p.includes(m.userId) ? p.filter(x => x !== m.userId) : [...p, m.userId])} activeOpacity={0.8}>
-                          <View style={[styles.splitCheck, actExpSplitAmong.includes(m.userId) && styles.splitCheckActive]}>{actExpSplitAmong.includes(m.userId) && <CheckIcon />}</View>
-                          <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName}</Text>
-                          {actExpSplitType !== 'equally' && (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                              {actExpSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>{actExpCurrency}</Text>}
-                              <TextInput style={[styles.fInput, { width: 60, marginBottom: 0, paddingVertical: 5, textAlign: 'right' }]} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" value={actExpSplitDetails[m.userId] || ''} onChangeText={v => setActExpSplitDetails(p => ({ ...p, [m.userId]: v }))} />
-                              {actExpSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      ))}
-                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                        <TouchableOpacity style={[styles.splitTypeBtn, { flex: 1, paddingVertical: 10 }]} onPress={() => { setShowActExp(false); if (!actExpConfirmed) { setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATEGORY_OPTIONS[0]); setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']); setActExpSplitDetails({}); } }} activeOpacity={0.7}><Text style={styles.splitTypeTxt}>Cancel</Text></TouchableOpacity>
-                        <TouchableOpacity style={[styles.tealBtnFull, { flex: 1.4 }]} onPress={() => {
-                          if (actExpDesc.trim() && actExpAmount) {
-                            setActExpConfirmed(true);
-                            setShowActExp(false);
-                          } else { showAlert({ title: 'Error', message: 'Enter description and amount' }); }
-                        }} activeOpacity={0.85}><Text style={styles.tealBtnTxt}>Confirm</Text></TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-                  {actExpConfirmed && !showActExp && (
+                  {actExpConfirmed && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0fdf9', borderRadius: 8, padding: 10, marginTop: 4, borderWidth: 1, borderColor: '#ccfbf1' }}>
                       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 }}>
                         <ExpenseCategoryIcon category={actExpCategory.slug} size={16} />
@@ -2608,7 +2539,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     style={{ paddingVertical: 11, alignItems: 'center', backgroundColor: String(h) === String(actHour) ? '#f0fdfa' : '#fff' }}
                     onPress={() => { setActHour(String(h)); setShowHourDrop(false); }}
                     activeOpacity={0.7}>
-                    <Text style={{ fontSize: 14, color: String(h) === String(actHour) ? '#0d9488' : '#334155', fontWeight: String(h) === String(actHour) ? '700' : '400' }}>
+                    <Text style={{ fontSize: 14, color: String(h) === String(actHour) ? '#0d9488' : '#334155', fontWeight: String(h) === String(actHour) ? '600' : '400' }}>
                       {String(h).padStart(2, '0')}
                     </Text>
                   </TouchableOpacity>
@@ -2627,7 +2558,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   style={{ paddingVertical: 13, alignItems: 'center', backgroundColor: m === String(actMin).padStart(2, '0') ? '#f0fdfa' : '#fff' }}
                   onPress={() => { setActMin(m); setShowMinDrop(false); }}
                   activeOpacity={0.7}>
-                  <Text style={{ fontSize: 14, color: m === String(actMin).padStart(2, '0') ? '#0d9488' : '#334155', fontWeight: m === String(actMin).padStart(2, '0') ? '700' : '400' }}>
+                  <Text style={{ fontSize: 14, color: m === String(actMin).padStart(2, '0') ? '#0d9488' : '#334155', fontWeight: m === String(actMin).padStart(2, '0') ? '600' : '400' }}>
                     {m}
                   </Text>
                 </TouchableOpacity>
@@ -2637,16 +2568,131 @@ export default function TripDetailScreen({ route, navigation }: any) {
         </AppModal>
 
         {/* ═══════════════════════════════════════════════════
+          MODAL — Activity Expense Form
+      ═══════════════════════════════════════════════════ */}
+        <AppModal visible={showActExp} transparent animationType="fade" onRequestClose={() => setShowActExp(false)}>
+          <View style={styles.overlay}>
+            <View style={styles.dialog}>
+              <DHeader title="Add Expense" subtitle="Link an expense to this activity." onClose={() => setShowActExp(false)} />
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 24 }}>
+                <View style={styles.dBody}>
+                  <Text style={styles.expFieldLabel}>Description</Text>
+                  <TextInput style={styles.fInput} placeholder="e.g., Dinner at restaurant" placeholderTextColor="#94a3b8" value={actExpDesc} onChangeText={setActExpDesc} />
+                  <Text style={styles.expFieldLabel}>Amount</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TextInput style={[styles.fInput, { flex: 1 }]} placeholder="0.00" placeholderTextColor="#94a3b8" value={actExpAmount} onChangeText={setActExpAmount} keyboardType="numeric" />
+                    <TouchableOpacity style={[styles.fInputTouch, { minWidth: 64, justifyContent: 'center' }]} onPress={() => { setShowActExpCurrencyDrop(p => !p); setShowActExpCatDrop(false); setShowActExpPaidByDrop(false); }} activeOpacity={0.8}>
+                      <Text style={{ fontSize: 13, color: '#0f172a', fontWeight: '400' }}>{actExpCurrency}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <CurrencyPickerDropdown
+                    visible={showActExpCurrencyDrop}
+                    selectedCode={actExpCurrency}
+                    onSelect={code => { setActExpCurrency(code); setShowActExpCurrencyDrop(false); }}
+                    style={styles.dropdown}
+                    itemStyle={styles.dropdownItem}
+                  />
+                  <Text style={styles.expFieldLabel}>Category</Text>
+                  <TouchableOpacity style={[styles.fInputTouch, { justifyContent: 'center' }]} onPress={() => { setShowActExpCatDrop(p => !p); setShowActExpCurrencyDrop(false); setShowActExpPaidByDrop(false); }} activeOpacity={0.8}>
+                    <ExpenseCatRow cat={actExpCategory} />
+                  </TouchableOpacity>
+                  {showActExpCatDrop && (
+                    <View style={styles.dropdown}>
+                      {EXPENSE_CATEGORY_OPTIONS.map(c => (
+                        <TouchableOpacity key={c.label} style={styles.dropdownItem} onPress={() => { setActExpCategory(c); setShowActExpCatDrop(false); }} activeOpacity={0.7}>
+                          <ExpenseCatRow cat={c} />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                  <Text style={styles.expFieldLabel}>Paid by</Text>
+                  <TouchableOpacity style={styles.fInputTouch} onPress={() => { setShowActExpPaidByDrop(p => !p); setShowActExpCurrencyDrop(false); setShowActExpCatDrop(false); }} activeOpacity={0.8}>
+                    <Text style={{ fontSize: 13, color: '#0f172a' }}>{actExpPaidBy}</Text>
+                  </TouchableOpacity>
+                  {showActExpPaidByDrop && (
+                    <View style={styles.dropdown}>
+                      {['You', ...members.filter(m => m.userId !== currentUserId).map(m => m.fullName || (m as any).name || 'Member')].map(name => (
+                        <TouchableOpacity key={name} style={styles.dropdownItem} onPress={() => { setActExpPaidBy(name); setShowActExpPaidByDrop(false); }} activeOpacity={0.7}>
+                          <Text style={{ fontSize: 13, color: '#0f172a' }}>{name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                  <Text style={styles.expFieldLabel}>Split type</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
+                    {(['equally', 'amount', 'percent'] as const).map((key, i) => (
+                      <TouchableOpacity key={key} onPress={() => setActExpSplitType(key)} style={[styles.splitTypeBtn, actExpSplitType === key && styles.splitTypeBtnActive]} activeOpacity={0.8}>
+                        <Text style={[styles.splitTypeTxt, actExpSplitType === key && styles.splitTypeTxtActive]}>{['Equally', 'By Amount', 'By %'][i]}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={styles.expFieldLabel}>Split among</Text>
+                  <TouchableOpacity style={[styles.splitRow, actExpSplitAmong.includes('You') && styles.splitRowActive]} onPress={() => setActExpSplitAmong(p => p.includes('You') ? p.filter(x => x !== 'You') : [...p, 'You'])} activeOpacity={0.8}>
+                    <View style={[styles.splitCheck, actExpSplitAmong.includes('You') && styles.splitCheckActive]}>
+                      {actExpSplitAmong.includes('You') && <CheckIcon />}
+                    </View>
+                    <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>You</Text>
+                    {actExpSplitType !== 'equally' && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                        {actExpSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>{actExpCurrency}</Text>}
+                        <TextInput style={[styles.fInput, { width: 62, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" value={actExpSplitDetails['You'] || ''} onChangeText={v => setActExpSplitDetails(p => ({ ...p, You: v }))} />
+                        {actExpSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  {members.filter(m => m.userId !== currentUserId).map(m => (
+                    <TouchableOpacity key={m.userId} style={[styles.splitRow, actExpSplitAmong.includes(m.userId) && styles.splitRowActive]} onPress={() => setActExpSplitAmong(p => p.includes(m.userId) ? p.filter(x => x !== m.userId) : [...p, m.userId])} activeOpacity={0.8}>
+                      <View style={[styles.splitCheck, actExpSplitAmong.includes(m.userId) && styles.splitCheckActive]}>
+                        {actExpSplitAmong.includes(m.userId) && <CheckIcon />}
+                      </View>
+                      <Text style={{ fontSize: 13, color: '#0f172a', flex: 1, marginLeft: 8 }}>{m.fullName || (m as any).name || 'Member'}</Text>
+                      {actExpSplitType !== 'equally' && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                          {actExpSplitType === 'amount' && <Text style={{ fontSize: 12, color: '#64748b' }}>{actExpCurrency}</Text>}
+                          <TextInput style={[styles.fInput, { width: 62, marginBottom: 0, paddingVertical: 6, textAlign: 'right' }]} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" value={actExpSplitDetails[m.userId] || ''} onChangeText={v => setActExpSplitDetails(p => ({ ...p, [m.userId]: v }))} />
+                          {actExpSplitType === 'percent' && <Text style={{ fontSize: 12, color: '#64748b' }}>%</Text>}
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={() => {
+                      setShowActExp(false);
+                      if (!actExpConfirmed) {
+                        setActExpDesc(''); setActExpAmount(''); setActExpCategory(EXPENSE_CATEGORY_OPTIONS[0]);
+                        setActExpPaidBy('You'); setActExpSplitType('equally'); setActExpSplitAmong(['You']); setActExpSplitDetails({});
+                      }
+                    }} activeOpacity={0.7}>
+                      <Text style={styles.cancelTxt}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.tealBtnFull, { flex: 1 }]} onPress={() => {
+                      if (actExpDesc.trim() && actExpAmount) {
+                        setActExpConfirmed(true);
+                        setShowActExp(false);
+                      } else {
+                        showAlert({ title: 'Error', message: 'Enter description and amount' });
+                      }
+                    }} activeOpacity={0.85}>
+                      <Text style={styles.tealBtnTxt}>Confirm</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </AppModal>
+
+        {/* ═══════════════════════════════════════════════════
           MODAL 2 — Documents
       ═══════════════════════════════════════════════════ */}
         <AppModal visible={showDocs} transparent animationType="fade" onRequestClose={() => setShowDocs(false)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '80%' }]}>
+            <View style={styles.dialog}>
               <DHeader title="Documents" subtitle="Store and share important trip documents with your group." onClose={() => setShowDocs(false)} />
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.dBody}>
                   {/* Upload section */}
-                  <View style={styles.docSectionDivider}>
+                  <View style={[styles.docSectionDivider, { marginTop: 0 }]}>
                     <View style={styles.docDividerLine} />
                     <Text style={styles.docDividerLabel}>UPLOAD DOCUMENTS</Text>
                     <View style={styles.docDividerLine} />
@@ -2781,7 +2827,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       ═══════════════════════════════════════════════════ */}
         <AppModal visible={showEmailPicker} transparent animationType="slide" onRequestClose={() => setShowEmailPicker(false)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '85%' }]}>
+            <View style={styles.dialog}>
               <DHeader
                 title={`Import from ${emailProviderLabel(emailPickerProvider)}`}
                 leading={<EmailProviderIcon provider={emailPickerProvider} size={22} />}
@@ -2843,7 +2889,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       ═══════════════════════════════════════════════════ */}
         <AppModal visible={showDrivePicker} transparent animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '85%' }]}>
+            <View style={styles.dialog}>
               <DHeader
                 title={drivePickerTarget === 'photos' ? 'Import photos from Google Drive' : 'Import from Google Drive'}
                 leading={<DriveBrandIcon size={22} />}
@@ -2914,7 +2960,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       ═══════════════════════════════════════════════════ */}
         <AppModal visible={showMembers} transparent animationType="fade" onRequestClose={() => setShowMembers(false)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+            <View style={styles.dialog}>
               <DHeader title="Trip Members" subtitle={`Current members: ${memberCount}`} onClose={() => setShowMembers(false)} />
               <TabBar tabs={['Members', 'Invite Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -3060,6 +3106,63 @@ export default function TripDetailScreen({ route, navigation }: any) {
         </AppModal>
 
         {/* ═══════════════════════════════════════════════════
+          MODAL — Settle Debt
+      ═══════════════════════════════════════════════════ */}
+        <AppModal visible={showSettleModal} transparent animationType="fade" onRequestClose={() => setShowSettleModal(false)}>
+          <View style={styles.overlay}>
+            <View style={[styles.dialog, { paddingBottom: 4 }]}>
+              <DHeader
+                title="Settle Up"
+                subtitle={settleTarget ? `You owe ${settleTarget.toName}` : undefined}
+                onClose={() => setShowSettleModal(false)}
+              />
+              <View style={styles.dBody}>
+                {settleTarget && (
+                  <>
+                    <View style={{ backgroundColor: '#f0fdf9', borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#ccfbf1' }}>
+                      <Text style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>Total outstanding</Text>
+                      <Text style={{ fontSize: 20, fontWeight: '600', color: '#0f172a' }}>
+                        {formatCurrencyFull(settleTarget.maxAmount, settleTarget.currency)}
+                      </Text>
+                    </View>
+                    <Text style={styles.expFieldLabel}>Amount to settle now</Text>
+                    <TextInput
+                      style={styles.fInput}
+                      placeholder="0.00"
+                      placeholderTextColor="#94a3b8"
+                      value={settleInputAmount}
+                      onChangeText={setSettleInputAmount}
+                      keyboardType="decimal-pad"
+                      autoFocus
+                    />
+                    <TouchableOpacity
+                      style={{ marginTop: 6, marginBottom: 16, alignSelf: 'flex-start' }}
+                      onPress={() => setSettleInputAmount(String(settleTarget.maxAmount))}
+                      activeOpacity={0.7}>
+                      <Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>
+                        Settle in full ({formatCurrencyFull(settleTarget.maxAmount, settleTarget.currency)})
+                      </Text>
+                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 8 }}>
+                      <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowSettleModal(false)} activeOpacity={0.7}>
+                        <Text style={styles.cancelTxt}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.tealBtnFull, { flex: 1, opacity: settlingDebtKey ? 0.6 : 1 }]}
+                        onPress={handleConfirmSettle}
+                        disabled={!!settlingDebtKey}
+                        activeOpacity={0.85}>
+                        <Text style={styles.tealBtnTxt}>Confirm Settlement</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
+          </View>
+        </AppModal>
+
+        {/* ═══════════════════════════════════════════════════
           MODAL 5 — Expenses
       ═══════════════════════════════════════════════════ */}
         <AppModal visible={showExpenses} transparent animationType="fade" onRequestClose={closeExpensesModal}>
@@ -3070,7 +3173,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
               <ScrollView
                 style={styles.expensesDialogScroll}
                 contentContainerStyle={styles.expensesDialogScrollContent}
-                showsVerticalScrollIndicator
+                showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled">
 
                 {expTab === 'Expense' && (
@@ -3362,10 +3465,10 @@ export default function TripDetailScreen({ route, navigation }: any) {
         <AppModal visible={showPolls} transparent animationType="fade" onRequestClose={() => { setShowPolls(false); setPollMenuId(null); }}>
           <Toast />
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+            <View style={styles.dialog}>
               <DHeader title="Polls" subtitle="Create polls, see what others think, and decide together." onClose={() => { setShowPolls(false); setPollMenuId(null); }} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <View style={styles.dBody}>
+                <Pressable style={styles.dBody} onPress={() => setPollMenuId(null)}>
 
                   <TouchableOpacity style={styles.tealBtnFull} onPress={() => setShowPollForm(true)} activeOpacity={0.85}>
                     <Text style={styles.tealBtnTxt}>Create Poll</Text>
@@ -3523,7 +3626,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       <Text style={styles.emptySub}>Create the first poll above</Text>
                     </View>
                   )}
-                </View>
+                </Pressable>
               </ScrollView>
             </View>
           </View>
@@ -3532,7 +3635,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         {/* ── Create Poll sub-modal ── */}
         <AppModal visible={showPollForm} transparent animationType="slide" onRequestClose={() => { setShowPollForm(false); setPollQuestion(''); setPollOptions(['', '']); }}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+            <View style={styles.dialog}>
               <DHeader title="Create Poll" onClose={() => { setShowPollForm(false); setPollQuestion(''); setPollOptions(['', '']); }} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.dBody}>
@@ -3566,7 +3669,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       ═══════════════════════════════════════════════════ */}
         <AppModal visible={showNotes} transparent animationType="fade" onRequestClose={() => setShowNotes(false)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+            <View style={styles.dialog}>
               <DHeader title="Notes" onClose={() => setShowNotes(false)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.dBody}>
@@ -3628,7 +3731,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                   <CachedImage uri={avatarUri} style={{ width: 38, height: 38, borderRadius: 19 } as any} resizeMode="cover" priority="normal" />
                                 ) : (
                                   <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#f0fdf9', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#0d9488' }}>{initial}</Text>
+                                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#0d9488' }}>{initial}</Text>
                                   </View>
                                 );
                               })()}
@@ -3672,7 +3775,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         ═══════════════════════════════════════════════════ */}
         <AppModal visible={!!viewingNote} transparent animationType="slide" onRequestClose={() => setViewingNote(null)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+            <View style={styles.dialog}>
               {/* Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
                 <TouchableOpacity onPress={() => setViewingNote(null)} activeOpacity={0.7} style={{ marginRight: 10 }}>
@@ -3808,14 +3911,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   topBar: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2, flexDirection: 'row', alignItems: 'center' },
-  topBarTitle: { flex: 1, fontSize: 16, fontWeight: '500', color: '#0f172a', textAlign: 'center' },
+  topBarTitle: { flex: 1, fontSize: 16, fontWeight: '600', color: '#0f172a', textAlign: 'center' },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { paddingBottom: 150 },
 
   // Header card
   headerCard: { marginHorizontal: 16, marginBottom: 6, borderRadius: 20, borderWidth: 2, borderColor: '#99f6e4', padding: 16 },
   cardRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
-  tripName: { fontSize: 20, fontWeight: '500', color: '#0f172a', marginBottom: 3 },
+  tripName: { fontSize: 20, fontWeight: '600', color: '#0f172a', marginBottom: 3 },
   tripDates: { fontSize: 13, color: '#475569', marginBottom: 2 },
   tripLocation: { fontSize: 13, color: '#64748b' },
   daysArea: { alignItems: 'flex-end', paddingLeft: 8 },
@@ -3838,8 +3941,8 @@ const styles = StyleSheet.create({
 
   // Sections
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
-  sectionTitle: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
-  sectionTitleDark: { fontSize: 15, fontWeight: '500', color: '#0f172a' },
+  sectionTitle: { fontSize: 15, fontWeight: '600', color: '#0f172a', marginBottom: 12 },
+  sectionTitleDark: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
 
   emptyBox: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#e2e8f0', paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center' },
@@ -3868,7 +3971,7 @@ const styles = StyleSheet.create({
 
   // Modal base
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
-  dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '90%', overflow: 'hidden' },
+  dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '82%', overflow: 'hidden' },
   expensesDialog: {
     height: EXPENSES_MODAL_HEIGHT,
     maxHeight: '92%',
@@ -3884,8 +3987,8 @@ const styles = StyleSheet.create({
 
   // Dialog header
   dHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  dTitle: { fontSize: 14, fontWeight: '500', color: '#0f172a' },
-  dSubtitle: { fontSize: 12, color: '#64748b', marginTop: 1 },
+  dTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
+  dSubtitle: { fontSize: 10, color: '#64748b', marginTop: 1 },
   dCloseBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
 
   dBody: { padding: 16 },
@@ -3923,11 +4026,11 @@ const styles = StyleSheet.create({
   docRow: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f1f5f9' },
   docSectionDivider: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 8 },
   docDividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#e2e8f0' },
-  docDividerLabel: { fontSize: 11, fontWeight: '700', color: '#94a3b8', letterSpacing: 0.5 },
+  docDividerLabel: { fontSize: 11, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.5 },
 
   // Members
-  memberSectionLabel: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 10 },
-  memberSectionLabelTitle: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 6 },
+  memberSectionLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 10 },
+  memberSectionLabelTitle: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 6 },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   memberAvatar: { width: 40, height: 40, borderRadius: 20 },
@@ -3935,8 +4038,8 @@ const styles = StyleSheet.create({
   memberEmail: { fontSize: 11, color: '#64748b', marginTop: 1 },
   ownerBadge: { backgroundColor: '#f0fdfa', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#99f6e4' },
   ownerTxt: { fontSize: 11, color: '#0d9488', fontWeight: '500' },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10, gap: 8 },
-  searchInput: { flex: 1, fontSize: 14, color: '#0f172a' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 10, gap: 8 },
+  searchInput: { flex: 1, fontSize: 12, color: '#0f172a' },
   checkCircle: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtnActive: { borderColor: '#0d9488', backgroundColor: '#0d9488' },
@@ -3967,15 +4070,15 @@ const styles = StyleSheet.create({
   // Polls
   pollSectionLabel: { fontSize: 11, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
   pollCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  pollQ: { fontSize: 14, fontWeight: '700', color: '#0f172a', lineHeight: 20 },
+  pollQ: { fontSize: 14, fontWeight: '600', color: '#0f172a', lineHeight: 20 },
   pollMeta: { fontSize: 11, color: '#64748b', fontWeight: '400', marginBottom: 10 },
   pollFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e2e8f0' },
   pollAvatarRow: { flexDirection: 'row', alignItems: 'center' },
   pollAvatar: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: '#fff' },
   pollAvatarPlaceholder: { backgroundColor: '#f0fdf9', alignItems: 'center' as const, justifyContent: 'center' as const },
   pollAvatarMore: { backgroundColor: '#e2e8f0', alignItems: 'center' as const, justifyContent: 'center' as const },
-  pollAvatarInitial: { fontSize: 11, fontWeight: '700', color: '#0d9488' },
-  pollAvatarMoreTxt: { fontSize: 10, fontWeight: '700', color: '#64748b' },
+  pollAvatarInitial: { fontSize: 11, fontWeight: '600', color: '#0d9488' },
+  pollAvatarMoreTxt: { fontSize: 10, fontWeight: '600', color: '#64748b' },
   pollTotalVotes: { fontSize: 12, color: '#64748b', fontWeight: '500' },
   pollCompletedBadge: { backgroundColor: '#f0fdfa', borderWidth: 1, borderColor: '#0d9488', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   pollCompletedTxt: { fontSize: 11, fontWeight: '600', color: '#0d9488' },

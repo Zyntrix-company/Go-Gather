@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
   },
   tabBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#ffffff',
   },
 
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
   },
   notifTitleUnread: {
     color: '#080808',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   unreadDot: {
     width: 8,

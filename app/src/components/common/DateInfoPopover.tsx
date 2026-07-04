@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   closeBtnText: {
     fontSize: 20,
     color: '#94a3b8',
-    fontWeight: '300',
+    fontWeight: '400',
     lineHeight: 20,
   },
 });

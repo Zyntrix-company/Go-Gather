@@ -5,7 +5,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import colors from '../../theme/colors';
+import { colors, typeStyle } from '../../theme';
 
 interface DetailSectionProps {
   title: string;
@@ -68,8 +68,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   title: {
-    fontSize: 16,
-    fontWeight: '700',
+    ...typeStyle('navTitle'),
     color: colors.textPrimary,
   },
 });

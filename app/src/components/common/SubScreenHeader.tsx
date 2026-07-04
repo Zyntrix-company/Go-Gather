@@ -38,7 +38,8 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingTop: 2,
+    paddingBottom: 6,
     backgroundColor: 'transparent',
   },
   backBtn: {

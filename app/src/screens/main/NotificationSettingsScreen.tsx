@@ -33,73 +33,63 @@ export default function NotificationSettingsScreen({ navigation }: any) {
 
   return (
     <AppScreenLayout navigation={navigation} title="Notification Preferences" onBack={() => navigation.goBack()}>
-        <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
-          showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
+        showsVerticalScrollIndicator={false}>
 
-          <Text style={styles.subtitle}>Control how and when GatherrGo notifies you</Text>
-          <Text style={styles.scopeNote}>
-            All controls below save to your account. Quiet start/end times come from the server (default 22:00–08:00); editing those times in the app is not available yet.
-          </Text>
+        {loading && !settings && (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={colors.accent} />
+          </View>
+        )}
 
-          {/* Loading */}
-          {loading && !settings && (
-            <View style={styles.center}>
-              <ActivityIndicator size="large" color={colors.accent} />
-            </View>
-          )}
+        {error && !settings && (
+          <View style={styles.center}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity onPress={fetchSettings} style={styles.retryBtn} activeOpacity={0.8}>
+              <Text style={styles.retryText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-          {/* Error */}
-          {error && !settings && (
-            <View style={styles.center}>
-              <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity onPress={fetchSettings} style={styles.retryBtn} activeOpacity={0.8}>
-                <Text style={styles.retryText}>Try Again</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Settings */}
-          {settings && (
-            <>
-              {/* Activity Reminders */}
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>Push Reminders</Text>
-
-                <View style={styles.row}>
-                  <View style={styles.rowText}>
-                    <Text style={styles.rowLabel}>Activity Reminders</Text>
-                    <Text style={styles.rowSub}>Get reminded before each scheduled activity</Text>
-                  </View>
-                  <Switch
-                    value={Boolean(settings.lock_screen_reminders)}
-                    onValueChange={(v) => toggle('lock_screen_reminders', v)}
-                    trackColor={{ false: colors.border, true: colors.accent }}
-                    thumbColor="#fff"
-                  />
+        {settings && (
+          <>
+            <Text style={styles.sectionTitle}>Push Reminders</Text>
+            <View style={styles.card}>
+              <View style={styles.row}>
+                <View style={styles.rowTextWrap}>
+                  <Text style={styles.rowLabel}>Activity Reminders</Text>
+                  <Text style={styles.rowSub}>Get reminded before each scheduled activity</Text>
                 </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.row}>
-                  <View style={styles.rowText}>
-                    <Text style={styles.rowLabel}>Quiet hours</Text>
-                    <Text style={styles.rowSub}>
-                      Pause non-urgent notifications overnight ({settings.quiet_start} – {settings.quiet_end})
-                    </Text>
-                  </View>
-                  <Switch
-                    value={Boolean(settings.quiet_hours_enabled)}
-                    onValueChange={(v) => toggle('quiet_hours_enabled', v)}
-                    trackColor={{ false: colors.border, true: colors.accent }}
-                    thumbColor="#fff"
-                  />
-                </View>
+                <Switch
+                  value={Boolean(settings.lock_screen_reminders)}
+                  onValueChange={(v) => toggle('lock_screen_reminders', v)}
+                  trackColor={{ false: colors.border, true: colors.accent }}
+                  thumbColor="#fff"
+                />
               </View>
 
-              {/* Email Digest */}
-              <View style={styles.card}>
-                <Text style={styles.sectionTitle}>Email Updates</Text>
+              <View style={styles.divider} />
+
+              <View style={styles.row}>
+                <View style={styles.rowTextWrap}>
+                  <Text style={styles.rowLabel}>Quiet Hours</Text>
+                  <Text style={styles.rowSub}>
+                    Pause non-urgent notifications overnight ({settings.quiet_start} – {settings.quiet_end})
+                  </Text>
+                </View>
+                <Switch
+                  value={Boolean(settings.quiet_hours_enabled)}
+                  onValueChange={(v) => toggle('quiet_hours_enabled', v)}
+                  trackColor={{ false: colors.border, true: colors.accent }}
+                  thumbColor="#fff"
+                />
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>Email Updates</Text>
+            <View style={styles.card}>
+              <View style={styles.digestContainer}>
                 <Text style={styles.digestSub}>
                   Receive a summary of your trip and event activity
                 </Text>
@@ -120,55 +110,82 @@ export default function NotificationSettingsScreen({ navigation }: any) {
                   })}
                 </View>
               </View>
-            </>
-          )}
-        </ScrollView>
+            </View>
+
+            <Text style={styles.footNote}>
+              Quiet hours default to 22:00 – 08:00. Contact support to adjust your schedule.
+            </Text>
+          </>
+        )}
+      </ScrollView>
     </AppScreenLayout>
   );
 }
 
-
-
 const styles = StyleSheet.create({
-  safe:       { flex: 1 },
-  scroll:     { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
-
-  subtitle:   { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 10 },
-  scopeNote: {
-    fontSize: 11,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 16,
-    marginBottom: 20,
-    paddingHorizontal: 4,
-  },
+  scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
 
   center:     { alignItems: 'center', marginTop: 60 },
   errorText:  { fontSize: 14, color: colors.error, marginBottom: 12 },
   retryBtn:   { backgroundColor: colors.accent, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24 },
   retryText:  { color: '#fff', fontWeight: '500', fontSize: 14 },
 
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0f172a',
+    marginBottom: 8,
+    marginLeft: 2,
+  },
+
   card: {
-    
     borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
+    paddingVertical: 4,
+    marginBottom: 20,
     overflow: 'hidden',
   },
 
-  sectionTitle: { fontSize: 14, fontWeight: '500', color: colors.textPrimary, marginBottom: 14 },
-  digestSub:    { fontSize: 12, color: colors.textSecondary, marginBottom: 14 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  rowTextWrap: { flex: 1, minWidth: 0 },
+  rowLabel:   { fontSize: 15, fontWeight: '400', color: colors.textPrimary },
+  rowSub:     { fontSize: 12, color: colors.textSecondary, marginTop: 3, lineHeight: 16 },
 
-  row:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  rowText: { flex: 1, marginRight: 12 },
-  rowLabel: { fontSize: 14, color: colors.textPrimary, fontWeight: '500' },
-  rowSub:   { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(148,163,184,0.12)',
+    marginLeft: 14,
+  },
 
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 14 },
+  digestContainer: {
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  digestSub: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+  pillRow:   { flexDirection: 'row', gap: 8 },
+  pill: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  pillActive:     { backgroundColor: colors.accent },
+  pillText:       { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
+  pillTextActive: { color: '#fff', fontWeight: '600' },
 
-  pillRow:         { flexDirection: 'row', gap: 10 },
-  pill:            { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 8, backgroundColor: 'rgba(241,245,249,0.85)' },
-  pillActive:      { backgroundColor: colors.accent },
-  pillText:        { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
-  pillTextActive:  { color: '#fff', fontWeight: '600' },
+  footNote: {
+    fontSize: 11,
+    color: colors.textMuted,
+    lineHeight: 16,
+    marginTop: 4,
+    marginHorizontal: 2,
+  },
 });

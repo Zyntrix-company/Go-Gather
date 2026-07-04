@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   // Typography — matches Figma text-2xl / text-slate-600 text-sm mb-10
   title: {
     fontSize: SCREEN_W < 375 ? 20 : 24,
-    fontWeight: '400',
+    fontWeight: '500',
     color: '#0f172a',
     textAlign: 'center',
     marginBottom: 12,
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   socialBtnGap: { marginTop: 8 },
-  socialBtnText: { fontSize: 16, color: '#334155', fontWeight: '400' },
+  socialBtnText: { fontSize: 16, color: '#334155', fontWeight: '600' },
 
   // Divider — flex items-center gap-3
   divider: {

@@ -420,6 +420,27 @@ const getTripById = async (tripId, currentUserId) => {
 // ─── Update Trip ──────────────────────────────────────────────────────────────
 
 const updateTrip = async (tripId, updates) => {
+  // Validate date ordering. Edits can be partial (only startDate or only endDate
+  // sent), so resolve the effective start/end against the stored trip before
+  // comparing — otherwise a new startDate after the existing endDate slips through.
+  if (updates.startDate !== undefined || updates.endDate !== undefined) {
+    const existing = await db('SELECT start_date, end_date FROM trips WHERE id = $1', [tripId]);
+    if (existing.rows.length === 0) {
+      const err = new Error('Trip not found');
+      err.statusCode = 404;
+      err.error = 'NOT_FOUND';
+      throw err;
+    }
+    const effectiveStart = new Date(updates.startDate ?? existing.rows[0].start_date);
+    const effectiveEnd = new Date(updates.endDate ?? existing.rows[0].end_date);
+    if (effectiveEnd < effectiveStart) {
+      const err = new Error('endDate must be on or after startDate');
+      err.statusCode = 422;
+      err.error = 'VALIDATION_ERROR';
+      throw err;
+    }
+  }
+
   const hasLocationsArray = Array.isArray(updates.locations);
   const hasLegacyLocation = updates.location && typeof updates.location === 'object';
   const normalizedLocations = (hasLocationsArray || hasLegacyLocation)

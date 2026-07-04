@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator,
   ScrollView, Keyboard, Modal, Pressable, Dimensions, BackHandler,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { MoreVertical, Pen, Trash2 } from 'lucide-react-native';
@@ -13,12 +14,11 @@ import { showConfirm } from '../../store/alertStore';
 import { GALLERY_COMMENT_MAX } from '../../constants/albumPhotosLayout';
 
 function HeartIcon({ filled }: { filled: boolean }) {
-  const color = '#94a3b8';
   return (
-    <Svg width={16} height={16} viewBox="0 0 24 24" fill={filled ? '#94a3b8' : 'none'}>
+    <Svg width={16} height={16} viewBox="0 0 24 24" fill={filled ? '#f43f5e' : 'none'}>
       <Path
         d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"
-        stroke={color}
+        stroke="#f43f5e"
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -60,38 +60,22 @@ function CommentRow({
   viewOnly,
   canModerateComments,
   currentUserId,
-  editingId,
-  editDraft,
   isLast,
-  onSaveEdit,
-  onCancelEdit,
-  onEditDraftChange,
   onOpenMenu,
-  onRowLayout,
 }: {
   c: GalleryComment;
   viewOnly: boolean;
   canModerateComments: boolean;
   currentUserId?: string;
-  editingId: string | null;
-  editDraft: string;
   isLast: boolean;
-  onSaveEdit: () => void;
-  onCancelEdit: () => void;
-  onEditDraftChange: (t: string) => void;
   onOpenMenu: (id: string, x: number, y: number, w: number, h: number) => void;
-  onRowLayout: (id: string, y: number) => void;
 }) {
   const anchorRef = useRef<View>(null);
   const isOwn = c.userId === currentUserId;
-  const isEditing = editingId === c.id;
   const showMenu = !viewOnly && (isOwn || canModerateComments);
 
   return (
-    <View
-      style={[styles.commentRow, !isLast && styles.commentRowBorder]}
-      onLayout={(e) => onRowLayout(c.id, e.nativeEvent.layout.y)}
-    >
+    <View style={[styles.commentRow, !isLast && styles.commentRowBorder]}>
       {c.avatarUrl ? (
         <CachedImage uri={c.avatarUrl} style={styles.commentAvatar} resizeMode="cover" />
       ) : (
@@ -118,29 +102,7 @@ function CommentRow({
             </View>
           ) : null}
         </View>
-        {isEditing ? (
-          <View style={styles.editRow}>
-            <TextInput
-              value={editDraft}
-              onChangeText={(t) => onEditDraftChange(t.slice(0, GALLERY_COMMENT_MAX))}
-              style={styles.editInput}
-              maxLength={GALLERY_COMMENT_MAX}
-              multiline={false}
-              numberOfLines={1}
-              autoFocus
-              underlineColorAndroid="transparent"
-              cursorColor="#0d9488"
-              selectionColor="#0d9488"
-            />
-            <Text style={styles.editCharCount}>{editDraft.length}/{GALLERY_COMMENT_MAX}</Text>
-            <TouchableOpacity style={styles.editSaveBtn} onPress={onSaveEdit}>
-              <Text style={styles.editSave}>Save</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onCancelEdit}><Text style={styles.editCancel}>Cancel</Text></TouchableOpacity>
-          </View>
-        ) : (
-          <Text style={styles.commentText} numberOfLines={1} ellipsizeMode="tail">{c.text}</Text>
-        )}
+        <Text style={styles.commentText} numberOfLines={1} ellipsizeMode="tail">{c.text}</Text>
       </View>
     </View>
   );
@@ -161,39 +123,46 @@ export default function GalleryEngagementSection({
 }: GalleryEngagementSectionProps) {
   const currentUser = useAuthStore((s) => s.user);
   const commentScrollRef = useRef<ScrollView>(null);
-  const composeRef = useRef<TextInput>(null);
-  const composeAnchorRef = useRef<View>(null);
-  const [draft, setDraft] = useState('');
+  const composerRef = useRef<TextInput>(null);
   const [posting, setPosting] = useState(false);
-  const [composeOpen, setComposeOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuBounds, setMenuBounds] = useState<{ bottom: number; right: number } | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState('');
-  // y-offset of each comment row inside the scroll content, so editing an
-  // existing comment scrolls that row (not just the end) above the keyboard.
-  const rowOffsets = useRef<Record<string, number>>({});
 
-  // Bring the active input (the edited row, or the compose box at the end)
-  // into view inside the comment scroll panel.
-  const scrollToActiveInput = () => {
-    if (editingId && rowOffsets.current[editingId] != null) {
-      commentScrollRef.current?.scrollTo({ y: Math.max(0, rowOffsets.current[editingId] - 8), animated: true });
-    } else {
-      commentScrollRef.current?.scrollToEnd({ animated: true });
-    }
-  };
+  // Single keyboard-anchored composer handles both adding a new comment and
+  // editing an existing one. It lives in a transparent Modal pinned just above
+  // the keyboard, so the album screen behind never scrolls or shifts.
+  const [composerMode, setComposerMode] = useState<'new' | 'edit' | null>(null);
+  const [composerEditId, setComposerEditId] = useState<string | null>(null);
+  const [composerText, setComposerText] = useState('');
 
   const openCompose = () => {
     if (viewOnly) return;
-    setComposeOpen(true);
+    setComposerEditId(null);
+    setComposerText('');
+    setComposerMode('new');
   };
 
+  const startEdit = (c: GalleryComment) => {
+    setOpenMenuId(null);
+    setComposerEditId(c.id);
+    setComposerText(c.text);
+    setComposerMode('edit');
+  };
+
+  const closeComposer = () => {
+    setComposerMode(null);
+    setComposerEditId(null);
+    setComposerText('');
+    Keyboard.dismiss();
+  };
+
+  // Focus the composer input shortly after the Modal mounts so the keyboard
+  // animates up and reports its height (which pins the bar above it).
   useEffect(() => {
-    if (!composeOpen) return undefined;
-    const t = setTimeout(() => composeRef.current?.focus(), 80);
+    if (!composerMode) return undefined;
+    const t = setTimeout(() => composerRef.current?.focus(), 60);
     return () => clearTimeout(t);
-  }, [composeOpen]);
+  }, [composerMode]);
 
   // Scroll to latest comment whenever the list grows
   useEffect(() => {
@@ -202,69 +171,32 @@ export default function GalleryEngagementSection({
     }
   }, [comments.length]);
 
-  // When compose opens or an edit starts, scroll the active input into view.
-  // keyboardDidShow covers the cold-open case; the timeout covers switching
-  // directly between rows while the keyboard is already up (no new show event).
+  // Hardware back (Android): while the composer is open, close it instead of
+  // leaving the keyboard up / closing the album.
   useEffect(() => {
-    if (!composeOpen && !editingId) return undefined;
-    const sub = Keyboard.addListener('keyboardDidShow', scrollToActiveInput);
-    const t = setTimeout(scrollToActiveInput, 120);
-    return () => { sub.remove(); clearTimeout(t); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composeOpen, editingId]);
-
-  const closeCompose = () => {
-    setComposeOpen(false);
-    setDraft('');
-    Keyboard.dismiss();
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditDraft('');
-    Keyboard.dismiss();
-  };
-
-  // Hardware back (Android): while composing/editing, dismiss the keyboard and
-  // cancel the inline input instead of leaving the keyboard up / closing the album.
-  useEffect(() => {
-    if (!composeOpen && !editingId) return undefined;
+    if (!composerMode) return undefined;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (editingId) { cancelEdit(); return true; }
-      if (composeOpen) { closeCompose(); return true; }
-      return false;
+      closeComposer();
+      return true;
     });
     return () => sub.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composeOpen, editingId]);
+  }, [composerMode]);
 
-  const submitComment = async () => {
-    const text = draft.trim();
+  const submitComposer = async () => {
+    const text = composerText.trim();
     if (!text || posting) return;
     setPosting(true);
     try {
-      await onAddComment(text);
-      setDraft('');
-      setComposeOpen(false);
-      Keyboard.dismiss();
+      if (composerMode === 'edit' && composerEditId) {
+        await onEditComment(composerEditId, text);
+      } else {
+        await onAddComment(text);
+      }
+      closeComposer();
     } finally {
       setPosting(false);
     }
-  };
-
-  const startEdit = (c: GalleryComment) => {
-    setOpenMenuId(null);
-    setEditingId(c.id);
-    setEditDraft(c.text);
-  };
-
-  const saveEdit = async () => {
-    if (!editingId) return;
-    const text = editDraft.trim();
-    if (!text) return;
-    await onEditComment(editingId, text);
-    setEditingId(null);
-    setEditDraft('');
   };
 
   const confirmDelete = (commentId: string) => {
@@ -289,13 +221,7 @@ export default function GalleryEngagementSection({
       viewOnly={viewOnly}
       canModerateComments={canModerateComments}
       currentUserId={currentUser?.id}
-      editingId={editingId}
-      editDraft={editDraft}
-      isLast={idx === comments.length - 1 && !composeOpen}
-      onSaveEdit={saveEdit}
-      onCancelEdit={cancelEdit}
-      onEditDraftChange={setEditDraft}
-      onRowLayout={(id, y) => { rowOffsets.current[id] = y; }}
+      isLast={idx === comments.length - 1}
       onOpenMenu={(id, x, y, w, _h) => {
         const { width: sw, height: sh } = Dimensions.get('window');
         setMenuBounds({ bottom: sh - y + 4, right: sw - (x + w) });
@@ -304,55 +230,7 @@ export default function GalleryEngagementSection({
     />
   ));
 
-  const composeBlock = composeOpen && !viewOnly ? (
-    <View ref={composeAnchorRef} style={styles.composeRow}>
-      {currentUser?.photoUrl ? (
-        <CachedImage uri={currentUser.photoUrl} style={styles.commentAvatar} resizeMode="cover" />
-      ) : (
-        <View style={[styles.commentAvatar, styles.commentAvatarPlaceholder]}>
-          <Text style={styles.commentInitial}>{userInitial}</Text>
-        </View>
-      )}
-      <View style={styles.composeBody}>
-        <TextInput
-          ref={composeRef}
-          value={draft}
-          onChangeText={(t) => setDraft(t.slice(0, GALLERY_COMMENT_MAX))}
-          placeholder="Write a comment…"
-          placeholderTextColor="#94a3b8"
-          style={styles.composeInput}
-          maxLength={GALLERY_COMMENT_MAX}
-          multiline={false}
-          numberOfLines={1}
-          returnKeyType="send"
-          onSubmitEditing={submitComment}
-          blurOnSubmit={false}
-          underlineColorAndroid="transparent"
-          cursorColor="#0d9488"
-          selectionColor="#0d9488"
-        />
-        <View style={styles.composeFooter}>
-          <Text style={[styles.charCount, draft.length >= GALLERY_COMMENT_MAX && styles.charCountLimit]}>
-            {draft.length}/{GALLERY_COMMENT_MAX}
-          </Text>
-          <View style={styles.composeActions}>
-            <TouchableOpacity onPress={closeCompose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={styles.composeCancel}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={submitComment}
-              disabled={!draft.trim() || posting}
-              style={[styles.composePostBtn, (!draft.trim() || posting) && styles.composePostBtnDisabled]}
-            >
-              {posting
-                ? <ActivityIndicator size="small" color="#0d9488" />
-                : <Text style={styles.composePost}>Post</Text>}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </View>
-  ) : null;
+  const canSubmit = composerText.trim().length > 0 && !posting;
 
   return (
     <View style={[styles.wrap, style]}>
@@ -374,8 +252,9 @@ export default function GalleryEngagementSection({
       </View>
 
       {scrollableComments ? (
-        // composeBlock lives inside the ScrollView so scrollToEnd always brings
-        // the compose input into view above the keyboard (both iOS and Android).
+        // Only the comment list scrolls — the album screen behind stays fixed.
+        // Composing/editing happens in the keyboard-anchored Modal below, so this
+        // list never needs to shift to keep an input above the keyboard.
         <ScrollView
           ref={commentScrollRef}
           style={styles.commentScroll}
@@ -386,14 +265,78 @@ export default function GalleryEngagementSection({
           decelerationRate="fast"
         >
           {commentRows}
-          {composeBlock}
         </ScrollView>
       ) : (
-        <>
-          {comments.length > 0 ? <View style={styles.commentList}>{commentRows}</View> : null}
-          {composeBlock}
-        </>
+        comments.length > 0 ? <View style={styles.commentList}>{commentRows}</View> : null
       )}
+
+      {/* Keyboard-anchored composer — new comment + edit. The sheet sits flush on
+          top of the keyboard: iOS pads via KeyboardAvoidingView; Android lets the
+          Modal window's adjustResize do it. The album screen behind never scrolls. */}
+      <Modal
+        visible={composerMode !== null}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeComposer}
+      >
+        <View style={styles.composerRoot}>
+          {/* Full-screen scrim — tap anywhere outside the sheet to dismiss. */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeComposer} />
+          <KeyboardAvoidingView
+            style={styles.composerAvoider}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            pointerEvents="box-none"
+          >
+            <View style={styles.composerSheet}>
+              <View style={styles.composerHeaderRow}>
+                <Text style={styles.composerTitle}>
+                  {composerMode === 'edit' ? 'Edit comment' : 'Add a comment'}
+                </Text>
+                <Text style={[styles.charCount, composerText.length >= GALLERY_COMMENT_MAX && styles.charCountLimit]}>
+                  {composerText.length}/{GALLERY_COMMENT_MAX}
+                </Text>
+              </View>
+              <View style={styles.composerInputRow}>
+                {currentUser?.photoUrl ? (
+                  <CachedImage uri={currentUser.photoUrl} style={styles.commentAvatar} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.commentAvatar, styles.commentAvatarPlaceholder]}>
+                    <Text style={styles.commentInitial}>{userInitial}</Text>
+                  </View>
+                )}
+                <TextInput
+                  ref={composerRef}
+                  value={composerText}
+                  onChangeText={(t) => setComposerText(t.slice(0, GALLERY_COMMENT_MAX))}
+                  placeholder="Write a comment…"
+                  placeholderTextColor="#94a3b8"
+                  style={styles.composerInput}
+                  maxLength={GALLERY_COMMENT_MAX}
+                  multiline={false}
+                  numberOfLines={1}
+                  returnKeyType="send"
+                  onSubmitEditing={submitComposer}
+                  blurOnSubmit={false}
+                  underlineColorAndroid="transparent"
+                  cursorColor="#0d9488"
+                  selectionColor="#0d9488"
+                />
+                <TouchableOpacity
+                  onPress={submitComposer}
+                  disabled={!canSubmit}
+                  style={[styles.composerSendBtn, !canSubmit && styles.composerSendBtnDisabled]}
+                  activeOpacity={0.85}
+                >
+                  {posting
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={styles.composerSendText}>{composerMode === 'edit' ? 'Save' : 'Post'}</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
       {/* Comment action modal — rendered outside the scroll view to avoid Android clipping */}
       {(() => {
@@ -462,34 +405,8 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   statCount: {
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#64748b',
-  },
-  composeRow: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingTop: 12,
-    marginTop: 4,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e2e8f0',
-  },
-  composeBody: {
-    flex: 1,
-    minWidth: 0,
-  },
-  composeInput: {
-    fontSize: 14,
-    color: '#334155',
-    lineHeight: 20,
-    paddingVertical: 4,
-    paddingHorizontal: 0,
-    height: 28,
-  },
-  composeFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 6,
   },
   charCount: {
     fontSize: 11,
@@ -499,27 +416,66 @@ const styles = StyleSheet.create({
   charCountLimit: {
     color: '#f59e0b',
   },
-  composeActions: {
+  // ── Keyboard-anchored composer ──
+  composerRoot: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+  },
+  composerAvoider: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  composerSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+  },
+  composerHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
-  composeCancel: {
-    fontSize: 13,
-    color: '#94a3b8',
-    fontWeight: '500',
+  composerTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
   },
-  composePostBtn: {
-    paddingHorizontal: 4,
-    paddingVertical: 2,
+  composerInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  composePostBtnDisabled: {
+  composerInput: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 14,
+    color: '#334155',
+    lineHeight: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 20,
+  },
+  composerSendBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    backgroundColor: '#0d9488',
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  composerSendBtnDisabled: {
     opacity: 0.45,
   },
-  composePost: {
+  composerSendText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#0d9488',
+    color: '#fff',
   },
   commentList: {
     marginTop: 2,
@@ -557,7 +513,7 @@ const styles = StyleSheet.create({
   },
   commentInitial: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0d9488',
   },
   commentBody: {
@@ -620,40 +576,6 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: '#475569',
     lineHeight: 18,
-  },
-  editRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  editInput: {
-    flex: 1,
-    minWidth: 0,
-    paddingHorizontal: 0,
-    paddingVertical: 4,
-    fontSize: 13,
-    color: '#334155',
-    height: 28,
-  },
-  editCharCount: {
-    fontSize: 11,
-    color: '#94a3b8',
-  },
-  editSaveBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    backgroundColor: '#0d9488',
-    borderRadius: 7,
-  },
-  editSave: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  editCancel: {
-    fontSize: 13,
-    color: '#94a3b8',
   },
   menuModalOverlay: {
     flex: 1,

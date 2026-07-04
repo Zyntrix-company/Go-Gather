@@ -695,8 +695,8 @@ const styles = StyleSheet.create({
   removeFriendBtn: { alignItems: 'center', justifyContent: 'center' },
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 3, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
-  avatarInitial: { fontSize: 38, fontWeight: '700', color: '#0d9488' },
-  name: { fontSize: 18, fontWeight: '400', color: '#0F172B', lineHeight: 22 },
+  avatarInitial: { fontSize: 38, fontWeight: '600', color: '#0d9488' },
+  name: { fontSize: 18, fontWeight: '500', color: '#0F172B', lineHeight: 22 },
   handle: { fontSize: 14, color: '#0d9488', fontWeight: '500' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   locationText: { fontSize: 14, color: '#45556C' },
@@ -706,9 +706,9 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionIcon: { alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontSize: 17, fontWeight: '400', color: '#0F172B' },
+  sectionTitle: { fontSize: 17, fontWeight: '500', color: '#0F172B' },
   countBadge: { backgroundColor: '#f0fdfa', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: '#ccfbf1' },
-  countBadgeText: { fontSize: 12, fontWeight: '700', color: '#0d9488' },
+  countBadgeText: { fontSize: 12, fontWeight: '600', color: '#0d9488' },
   sectionSpacer: { height: 24 },
 
   // Grid
@@ -741,5 +741,5 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 15, fontWeight: '400', color: '#334155' },
   emptySub: { fontSize: 13, color: '#94a3b8', textAlign: 'center' },
 
-  modalSubtitleText: { fontSize: 13, color: '#0d9488', fontWeight: '300', fontStyle: 'italic', marginTop: 3 },
+  modalSubtitleText: { fontSize: 13, color: '#0d9488', fontWeight: '400', fontStyle: 'italic', marginTop: 3 },
 });

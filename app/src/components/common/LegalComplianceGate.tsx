@@ -161,7 +161,7 @@ const s = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0f172a',
     textAlign: 'center',
     marginBottom: 8,
@@ -184,7 +184,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 12,
   },
-  linkText: { fontSize: 15, fontWeight: '700', color: '#0d9488' },
+  linkText: { fontSize: 15, fontWeight: '600', color: '#0d9488' },
   agreeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -216,6 +216,6 @@ const s = StyleSheet.create({
     width: '100%',
   },
   primaryDisabled: { backgroundColor: '#e2e8f0' },
-  primaryText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  primaryText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   primaryTextDisabled: { color: '#94a3b8' },
 });

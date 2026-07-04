@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
   avatarInner:   { width: 84, height: 84, borderRadius: 42, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImage:   { width: 84, height: 84, borderRadius: 42 },
   addBadge:      { position: 'absolute', bottom: 2, right: 2, width: 24, height: 24, borderRadius: 12, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
-  addBadgeText:  { color: '#fff', fontSize: 17, fontWeight: '700', lineHeight: 21, marginTop: -1 },
+  addBadgeText:  { color: '#fff', fontSize: 17, fontWeight: '600', lineHeight: 21, marginTop: -1 },
   photoHint:     { marginTop: 4, fontSize: 11, color: '#0d9488', fontWeight: '500' },
 
   // ── Fields — no marginBottom; parent space-between handles gaps ────────────
@@ -497,5 +497,5 @@ const styles = StyleSheet.create({
   bottomBlock:    { },
   apiErrorText:   { fontSize: 13, color: '#ef4444', textAlign: 'center', marginBottom: 8, fontWeight: '500' },
   primaryBtn:     { backgroundColor: '#0d9488', borderRadius: 8, paddingVertical: 13, alignItems: 'center', elevation: 2 },
-  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '400', letterSpacing: 0.1 },
+  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '600', letterSpacing: 0.1 },
 });

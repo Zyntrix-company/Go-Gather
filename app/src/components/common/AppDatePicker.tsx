@@ -721,11 +721,11 @@ const styles = StyleSheet.create({
   },
   dayTextToday: {
     color: '#065f5b',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   dayTextSelected: {
     color: '#ffffff',
-    fontWeight: '700',
+    fontWeight: '600',
   },
 
   // Footer

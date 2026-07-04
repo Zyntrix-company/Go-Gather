@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   TextInput, Image, Platform, Dimensions, Linking,
-  ActivityIndicator, FlatList, Animated,
+  ActivityIndicator, FlatList, Animated, Pressable,
 } from 'react-native';
 import { launchCamera } from 'react-native-image-picker';
 import AppModal from '../../components/common/AppModal';
@@ -506,6 +506,9 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const [isRefreshingExpenses, setIsRefreshingExpenses] = useState(false);
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
   const [settlingDebtKey, setSettlingDebtKey] = useState<string | null>(null);
+  const [showSettleModal, setShowSettleModal] = useState(false);
+  const [settleTarget, setSettleTarget] = useState<{ toUserId: string; toName: string; maxAmount: number; currency: string } | null>(null);
+  const [settleInputAmount, setSettleInputAmount] = useState('');
   const [members, setMembers] = useState<EventMemberLocal[]>([]);
   const membersRef = useRef(members);
   membersRef.current = members;
@@ -1121,31 +1124,43 @@ export default function EventDetailScreen({ route, navigation }: any) {
     });
   }
 
-  function handleSettleEventDebt(withUserId: string, amount: number, currency: string = 'INR') {
-    const amt = typeof amount === 'number' && !Number.isNaN(amount) ? amount : parseFloat(String(amount));
+  function handleSettleEventDebt(withUserId: string, maxAmount: number, currency: string = 'INR', toName: string = 'Member') {
+    const maxAmt = typeof maxAmount === 'number' && !Number.isNaN(maxAmount) ? maxAmount : parseFloat(String(maxAmount));
+    if (!maxAmt || maxAmt <= 0) {
+      showAlert({ title: 'Invalid amount', message: 'Enter a valid settlement amount.' });
+      return;
+    }
+    setSettleTarget({ toUserId: withUserId, toName, maxAmount: maxAmt, currency });
+    setSettleInputAmount(String(maxAmt));
+    setShowSettleModal(true);
+  }
+
+  async function handleConfirmSettle() {
+    if (!settleTarget) return;
+    const amt = parseFloat(settleInputAmount);
     if (!amt || amt <= 0) {
       showAlert({ title: 'Invalid amount', message: 'Enter a valid settlement amount.' });
       return;
     }
-    showConfirm({
-      title: 'Record settlement',
-      message: `Record a payment of ${formatCurrencyFull(amt, currency)} to settle this balance? Balances will update for everyone on this event.`,
-      confirmText: 'Settle',
-      destructive: false,
-      onConfirm: async () => {
-        const key = settleDebtKey(currentUserId, withUserId, currency);
-        setSettlingDebtKey(key);
-        try {
-          await settleEventDebt(event.id, { withUserId, amount: amt, currency });
-          await refreshExpenseData();
-          Toast.show({ type: 'success', text1: 'Settlement recorded' });
-        } catch (err) {
-          handleApiError(err);
-        } finally {
-          setSettlingDebtKey(null);
-        }
-      },
-    });
+    if (amt > settleTarget.maxAmount + 0.001) {
+      showAlert({ title: 'Amount too large', message: `You can settle at most ${formatCurrencyFull(settleTarget.maxAmount, settleTarget.currency)}.` });
+      return;
+    }
+    setShowSettleModal(false);
+    const key = settleDebtKey(currentUserId, settleTarget.toUserId, settleTarget.currency);
+    setSettlingDebtKey(key);
+    const { toUserId, currency, maxAmount } = settleTarget;
+    setSettleTarget(null);
+    try {
+      await settleEventDebt(event.id, { withUserId: toUserId, amount: amt, currency });
+      await refreshExpenseData();
+      const isPartial = amt < maxAmount - 0.001;
+      Toast.show({ type: 'success', text1: isPartial ? 'Partial settlement recorded' : 'Settlement recorded' });
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setSettlingDebtKey(null);
+    }
   }
 
   async function handleAddNote() {
@@ -1561,7 +1576,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                           <CachedImage uri={media.items[2].localUri ?? media.items[2].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
                           {remaining > 0 && (
                             <View style={{ ...StyleSheet.absoluteFillObject as any, backgroundColor: 'rgba(15,23,42,0.58)', alignItems: 'center', justifyContent: 'center' }}>
-                              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 18 }}>+{remaining}</Text>
+                              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 18 }}>+{remaining}</Text>
                             </View>
                           )}
                         </TouchableOpacity>
@@ -1595,12 +1610,12 @@ export default function EventDetailScreen({ route, navigation }: any) {
         ═══════════════════════════════════════════════════ */}
         <AppModal visible={showDocs} transparent animationType="fade" onRequestClose={() => setShowDocs(false)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '80%' }]}>
+            <View style={styles.dialog}>
               <DHeader title="Documents" subtitle="Store and share important event documents with your group." onClose={() => setShowDocs(false)} />
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.dBody}>
                   {/* Upload section */}
-                  <View style={styles.docSectionDivider}>
+                  <View style={[styles.docSectionDivider, { marginTop: 0 }]}>
                     <View style={styles.docDividerLine} />
                     <Text style={styles.docDividerLabel}>UPLOAD DOCUMENTS</Text>
                     <View style={styles.docDividerLine} />
@@ -1736,7 +1751,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         ═══════════════════════════════════════════════════ */}
         <AppModal visible={showEmailPicker} transparent animationType="slide" onRequestClose={() => setShowEmailPicker(false)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '85%' }]}>
+            <View style={styles.dialog}>
               <DHeader
                 title={`Import from ${emailProviderLabel(emailPickerProvider)}`}
                 leading={<EmailProviderIcon provider={emailPickerProvider} size={22} />}
@@ -1798,7 +1813,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         ═══════════════════════════════════════════════════ */}
         <AppModal visible={showDrivePicker} transparent animationType="slide" onRequestClose={() => setShowDrivePicker(false)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '85%' }]}>
+            <View style={styles.dialog}>
               <DHeader
                 title={drivePickerTarget === 'photos' ? 'Import photos from Google Drive' : 'Import from Google Drive'}
                 leading={<DriveBrandIcon size={22} />}
@@ -1869,7 +1884,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         ═══════════════════════════════════════════════════ */}
         <AppModal visible={showMembers} transparent animationType="fade" onRequestClose={() => setShowMembers(false)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+            <View style={styles.dialog}>
               <DHeader title="Event Members" subtitle={`Current members: ${memberCount}`} onClose={() => setShowMembers(false)} />
               <TabBar tabs={['Members', 'Invite Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -2025,6 +2040,63 @@ export default function EventDetailScreen({ route, navigation }: any) {
         </AppModal>
 
         {/* ═══════════════════════════════════════════════════
+            MODAL — Settle Debt
+        ═══════════════════════════════════════════════════ */}
+        <AppModal visible={showSettleModal} transparent animationType="fade" onRequestClose={() => setShowSettleModal(false)}>
+          <View style={styles.overlay}>
+            <View style={[styles.dialog, { paddingBottom: 4 }]}>
+              <DHeader
+                title="Settle Up"
+                subtitle={settleTarget ? `You owe ${settleTarget.toName}` : undefined}
+                onClose={() => setShowSettleModal(false)}
+              />
+              <View style={styles.dBody}>
+                {settleTarget && (
+                  <>
+                    <View style={{ backgroundColor: '#f0fdf9', borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#ccfbf1' }}>
+                      <Text style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>Total outstanding</Text>
+                      <Text style={{ fontSize: 20, fontWeight: '600', color: '#0f172a' }}>
+                        {formatCurrencyFull(settleTarget.maxAmount, settleTarget.currency)}
+                      </Text>
+                    </View>
+                    <Text style={styles.expFieldLabel}>Amount to settle now</Text>
+                    <TextInput
+                      style={styles.fInput}
+                      placeholder="0.00"
+                      placeholderTextColor="#94a3b8"
+                      value={settleInputAmount}
+                      onChangeText={setSettleInputAmount}
+                      keyboardType="decimal-pad"
+                      autoFocus
+                    />
+                    <TouchableOpacity
+                      style={{ marginTop: 6, marginBottom: 16, alignSelf: 'flex-start' }}
+                      onPress={() => setSettleInputAmount(String(settleTarget.maxAmount))}
+                      activeOpacity={0.7}>
+                      <Text style={{ fontSize: 12, color: '#0d9488', fontWeight: '500' }}>
+                        Settle in full ({formatCurrencyFull(settleTarget.maxAmount, settleTarget.currency)})
+                      </Text>
+                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 4, marginBottom: 8 }}>
+                      <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowSettleModal(false)} activeOpacity={0.7}>
+                        <Text style={styles.cancelTxt}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.tealBtnFull, { flex: 1, opacity: settlingDebtKey ? 0.6 : 1 }]}
+                        onPress={handleConfirmSettle}
+                        disabled={!!settlingDebtKey}
+                        activeOpacity={0.85}>
+                        <Text style={styles.tealBtnTxt}>Confirm Settlement</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
+          </View>
+        </AppModal>
+
+        {/* ═══════════════════════════════════════════════════
             MODAL 4 — Expenses
         ═══════════════════════════════════════════════════ */}
         <AppModal visible={showExpenses} transparent animationType="fade" onRequestClose={closeExpensesModal}>
@@ -2035,7 +2107,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
               <ScrollView
                 style={styles.expensesDialogScroll}
                 contentContainerStyle={styles.expensesDialogScrollContent}
-                showsVerticalScrollIndicator
+                showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled">
 
                 {expTab === 'Expense' && (
@@ -2268,10 +2340,10 @@ export default function EventDetailScreen({ route, navigation }: any) {
         <AppModal visible={showPolls} transparent animationType="fade" onRequestClose={() => { setShowPolls(false); setPollMenuId(null); }}>
           <Toast />
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+            <View style={styles.dialog}>
               <DHeader title="Polls" subtitle="Create polls, see what others think, and decide together." onClose={() => { setShowPolls(false); setPollMenuId(null); }} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                <View style={styles.dBody}>
+                <Pressable style={styles.dBody} onPress={() => setPollMenuId(null)}>
 
                   <TouchableOpacity style={styles.tealBtnFull} onPress={() => setShowPollForm(true)} activeOpacity={0.85}>
                     <Text style={styles.tealBtnTxt}>Create Poll</Text>
@@ -2431,7 +2503,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       <Text style={styles.emptySub}>Create the first poll above</Text>
                     </View>
                   )}
-                </View>
+                </Pressable>
               </ScrollView>
             </View>
           </View>
@@ -2440,7 +2512,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         {/* ── Create Poll sub-modal ── */}
         <AppModal visible={showPollForm} transparent animationType="slide" onRequestClose={() => { setShowPollForm(false); setPollQuestion(''); setPollOptions(['', '']); }}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+            <View style={styles.dialog}>
               <DHeader title="Create Poll" onClose={() => { setShowPollForm(false); setPollQuestion(''); setPollOptions(['', '']); }} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.dBody}>
@@ -2474,7 +2546,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         ═══════════════════════════════════════════════════ */}
         <AppModal visible={showNotes} transparent animationType="fade" onRequestClose={() => setShowNotes(false)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+            <View style={styles.dialog}>
               <DHeader title="Notes" onClose={() => setShowNotes(false)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.dBody}>
@@ -2536,7 +2608,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                                   <CachedImage uri={avatarUri} style={{ width: 38, height: 38, borderRadius: 19 } as any} resizeMode="cover" priority="normal" />
                                 ) : (
                                   <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#f0fdf9', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#0d9488' }}>{initial}</Text>
+                                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#0d9488' }}>{initial}</Text>
                                   </View>
                                 );
                               })()}
@@ -2569,7 +2641,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         ═══════════════════════════════════════════════════ */}
         <AppModal visible={!!viewingNote} transparent animationType="slide" onRequestClose={() => setViewingNote(null)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+            <View style={styles.dialog}>
               {/* Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
                 <TouchableOpacity onPress={() => setViewingNote(null)} activeOpacity={0.7} style={{ marginRight: 10 }}>
@@ -2645,7 +2717,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         ═══════════════════════════════════════════════════ */}
         <AppModal visible={showEditEvent} transparent animationType="fade" onRequestClose={() => setShowEditEvent(false)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, { maxHeight: '88%' }]}>
+            <View style={styles.dialog}>
               <DHeader title="Edit Event" onClose={() => setShowEditEvent(false)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
                 <View style={[styles.dBody, { zIndex: showEditTypeDrop ? 10 : 1 }]}>
@@ -2717,7 +2789,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   topBar: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2, flexDirection: 'row', alignItems: 'center' },
-  topBarTitle: { flex: 1, fontSize: 16, fontWeight: '500', color: '#0f172a', textAlign: 'center' },
+  topBarTitle: { flex: 1, fontSize: 16, fontWeight: '600', color: '#0f172a', textAlign: 'center' },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { paddingBottom: 150 },
 
@@ -2730,9 +2802,9 @@ const styles = StyleSheet.create({
   cardBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '600', lineHeight: 13 },
 
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
-  sectionTitle: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 5 },
+  sectionTitle: { fontSize: 15, fontWeight: '600', color: '#0f172a', marginBottom: 5 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle1: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
+  sectionTitle1: { fontSize: 15, fontWeight: '600', color: '#0f172a', marginBottom: 12 },
 
   descCard: { backgroundColor: 'transparent', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(13,148,136,0.2)' },
   descText: { fontSize: 13, color: '#475569', lineHeight: 19 },
@@ -2751,7 +2823,7 @@ const styles = StyleSheet.create({
   emptySub: { fontSize: 12, color: '#94a3b8', marginTop: 4, textAlign: 'center' },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
-  dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '90%', overflow: 'hidden' },
+  dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '82%', overflow: 'hidden' },
   expensesDialog: {
     height: EXPENSES_MODAL_HEIGHT,
     maxHeight: '92%',
@@ -2779,12 +2851,12 @@ const styles = StyleSheet.create({
   tealBtnFull: { flexDirection: 'row', backgroundColor: '#0d9488', borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
   tealBtnTxt: { color: '#fff', fontWeight: '500', fontSize: 13 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-  cancelTxt: { fontSize: 14, color: '#64748b', fontWeight: '500' },
+  cancelTxt: { fontSize: 14, color: '#64748b', fontWeight: '600' },
 
   docRow: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f1f5f9' },
   docSectionDivider: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 8 },
   docDividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: '#e2e8f0' },
-  docDividerLabel: { fontSize: 11, fontWeight: '700', color: '#94a3b8', letterSpacing: 0.5 },
+  docDividerLabel: { fontSize: 11, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.5 },
   docSubtitle: { fontSize: 13, color: '#94a3b8', paddingHorizontal: 20, paddingTop: 2, paddingBottom: 6 },
 
   memberSectionLabel: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 10 },
@@ -2795,8 +2867,8 @@ const styles = StyleSheet.create({
   memberName: { fontSize: 13, fontWeight: '500', color: '#0f172a' },
   ownerBadge: { backgroundColor: '#f0fdfa', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#99f6e4' },
   ownerTxt: { fontSize: 11, color: '#0d9488', fontWeight: '500' },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10, gap: 8 },
-  searchInput: { flex: 1, fontSize: 14, color: '#0f172a' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 10, gap: 8 },
+  searchInput: { flex: 1, fontSize: 13, color: '#0f172a' },
   checkCircle: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtnActive: { borderColor: '#0d9488', backgroundColor: '#0d9488' },
@@ -2824,15 +2896,15 @@ const styles = StyleSheet.create({
 
   pollSectionLabel: { fontSize: 11, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
   pollCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  pollQ: { fontSize: 14, fontWeight: '700', color: '#0f172a', lineHeight: 20 },
+  pollQ: { fontSize: 14, fontWeight: '600', color: '#0f172a', lineHeight: 20 },
   pollMeta: { fontSize: 11, color: '#64748b', fontWeight: '400', marginBottom: 10 },
   pollFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
   pollAvatarRow: { flexDirection: 'row', alignItems: 'center' },
   pollAvatar: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: '#fff' },
   pollAvatarPlaceholder: { backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
-  pollAvatarInitial: { fontSize: 9, fontWeight: '700', color: '#fff' },
+  pollAvatarInitial: { fontSize: 9, fontWeight: '600', color: '#fff' },
   pollAvatarMore: { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
-  pollAvatarMoreTxt: { fontSize: 8, fontWeight: '700', color: '#64748b' },
+  pollAvatarMoreTxt: { fontSize: 8, fontWeight: '600', color: '#64748b' },
   pollTotalVotes: { fontSize: 11, color: '#94a3b8', fontWeight: '500' },
   pollCompletedBadge: { backgroundColor: '#f0fdfa', borderWidth: 1, borderColor: '#0d9488', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
   pollCompletedTxt: { fontSize: 10, fontWeight: '600', color: '#0d9488' },
@@ -2848,7 +2920,7 @@ const styles = StyleSheet.create({
   catBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
 
   // ── Highlights sub-section styles ──
-  hlSubTitle: { fontSize: 12, fontWeight: '500', color: '#2a303c' },
+  hlSubTitle: { fontSize: 12, fontWeight: '600', color: '#2a303c' },
   seeAllLink: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
 
   hlDocRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, gap: 10 },

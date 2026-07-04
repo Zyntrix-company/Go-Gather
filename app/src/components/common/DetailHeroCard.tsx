@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
   },
   typeBadgeText: {
     fontSize: 10,
-    fontWeight: '400',
+    fontWeight: '500',
     color: '#009788',
     letterSpacing: 0.5,
   },
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   },
   daysNumber: {
     fontSize: 28,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#009788',
     lineHeight: 32,
   },
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: 6,
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     justifyContent: 'flex-start',
     alignItems: 'center',
   },

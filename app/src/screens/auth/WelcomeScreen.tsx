@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   },
   headlineWord: {
     fontSize: SCREEN_W < 375 ? 30 : SCREEN_W >= 768 ? 44 : 36,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.textPrimary,
     lineHeight: SCREEN_W < 375 ? 38 : SCREEN_W >= 768 ? 52 : 44,
     letterSpacing: -0.5,
@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
   primaryBtnText: {
     color: colors.accentForeground,
     fontSize: 15,
-    fontWeight: '400',
+    fontWeight: '600',
   },
   demoBtnWrap: {
     paddingVertical: 5,
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
   },
   demoBtnText: {
     fontSize: 14,
-    fontWeight: '400',
+    fontWeight: '600',
     color: colors.textPrimary,
     textDecorationLine: 'underline',
     textDecorationColor: colors.textPrimary,

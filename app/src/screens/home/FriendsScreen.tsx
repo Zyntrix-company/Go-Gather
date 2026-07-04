@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 13,
-    fontWeight: '300',
+    fontWeight: '400',
     color: '#0f172a',
     padding: 0,
     backgroundColor: 'transparent',
@@ -689,7 +689,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   friendInfo: {
     flex: 1,
@@ -780,7 +780,7 @@ const modalStyles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
-  dTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  dTitle: { fontSize: 16, fontWeight: '600', color: '#0f172a' },
   closeBtn: {
     width: 32,
     height: 32,
@@ -845,7 +845,7 @@ const modalStyles = StyleSheet.create({
   },
   primaryBtnTxt: {
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 15,
   },
 
@@ -872,5 +872,5 @@ const modalStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sendBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  sendBtnTxt: { color: '#fff', fontWeight: '600', fontSize: 14 },
 });

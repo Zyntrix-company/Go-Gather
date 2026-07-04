@@ -6,7 +6,7 @@ import { formatCurrencyFull } from '../../utils/currency';
 type Props = {
   debts: Debt[];
   currentUserId: string;
-  onSettle: (toUserId: string, amount: number, currency: string) => void;
+  onSettle: (toUserId: string, amount: number, currency: string, toName: string) => void;
   /** Disables settle for the active debt while a settlement is in flight. */
   settlingDebtKey?: string | null;
   styles: {
@@ -53,7 +53,7 @@ export default function OutstandingDebtsList({ debts, currentUserId, onSettle, s
                   { paddingHorizontal: 12, paddingVertical: 6 },
                   (settlingDebtKey != null) && { opacity: isSettling ? 0.6 : 0.4 },
                 ]}
-                onPress={() => onSettle(debt.to, debt.amount, debt.currency)}
+                onPress={() => onSettle(debt.to, debt.amount, debt.currency, debt.toName || 'Member')}
                 disabled={settlingDebtKey != null}
                 activeOpacity={0.85}>
                 <Text style={[s.tealBtnTxt, { fontSize: 12 }]}>{isSettling ? 'Settling…' : 'Settle'}</Text>

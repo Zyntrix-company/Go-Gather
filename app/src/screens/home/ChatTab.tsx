@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   },
   heroHeading: {
     fontSize: isSmallScreen ? 18 : 22,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#0f172a',
     textAlign: 'center',
     lineHeight: isSmallScreen ? 26 : 30,
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
   // Section label
   sectionLabel: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#0f172a',
     marginTop: 20,
     marginBottom: 8,
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: 32, paddingHorizontal: 24, gap: 8 },
   emptyTitle: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#0f172a',
     textAlign: 'center',
   },

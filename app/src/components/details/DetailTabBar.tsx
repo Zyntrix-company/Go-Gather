@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import colors from '../../theme/colors';
+import { colors, typeStyle } from '../../theme';
 
 interface DetailTabBarProps {
   tabs: string[];
@@ -47,12 +47,11 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.accent,
   },
   tabText: {
-    fontSize: 13,
+    ...typeStyle('label'),
     color: colors.textSecondary,
-    fontWeight: '500',
   },
   tabTextActive: {
     color: colors.accent,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

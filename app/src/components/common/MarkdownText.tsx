@@ -321,15 +321,15 @@ const styles = StyleSheet.create({
   italic: { fontStyle: 'italic' },
   boldItalic: { fontWeight: '700', fontStyle: 'italic' },
   brandName: { color: colors.accent, fontWeight: '600' },
-  h1: { fontSize: 17, fontWeight: '700', marginTop: 4, marginBottom: 2 },
-  h2: { fontSize: 15, fontWeight: '700', marginTop: 4, marginBottom: 2 },
-  h3: { fontSize: 14, fontWeight: '700', marginTop: 4, marginBottom: 2 },
+  h1: { fontSize: 17, fontWeight: '600', marginTop: 4, marginBottom: 2 },
+  h2: { fontSize: 15, fontWeight: '600', marginTop: 4, marginBottom: 2 },
+  h3: { fontSize: 14, fontWeight: '600', marginTop: 4, marginBottom: 2 },
   bulletList: { marginTop: 2, marginBottom: 2, gap: 3 },
   bulletRow: { flexDirection: 'row', alignItems: 'flex-start' },
   bulletDot: { lineHeight: 21 },
   bulletText: { flex: 1, lineHeight: 21 },
   spacer: { height: 6 },
-  cursor: { color: '#0d9488', fontWeight: '300' },
+  cursor: { color: '#0d9488', fontWeight: '400' },
 });
 
 const skeletonStyles = StyleSheet.create({
@@ -385,7 +385,7 @@ const tableStyles = StyleSheet.create({
   col1: { flex: 6, borderLeftWidth: 1, borderLeftColor: '#ccfbf1' },
   headerText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#ffffff',
   },
   cellText: {

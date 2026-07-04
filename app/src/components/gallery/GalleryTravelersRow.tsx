@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
   },
   initial: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0d9488',
   },
   moreBadge: {
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   },
   moreText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0d9488',
   },
 });

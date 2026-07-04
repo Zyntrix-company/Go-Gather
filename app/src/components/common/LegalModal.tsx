@@ -168,7 +168,7 @@ const s = StyleSheet.create({
   },
   headerLeft: { width: 36 },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#0f172a', letterSpacing: 0.1 },
+  headerTitle: { fontSize: 17, fontWeight: '600', color: '#0f172a', letterSpacing: 0.1 },
   headerSub: { fontSize: 11, color: '#94a3b8', marginTop: 2, textAlign: 'center' },
   closeBtn: {
     width: 36,

@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   },
   headline: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0d9488',
     textAlign: 'center',
     letterSpacing: -0.2,

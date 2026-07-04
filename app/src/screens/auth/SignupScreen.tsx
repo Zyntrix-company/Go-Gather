@@ -270,7 +270,7 @@ const modalStyles = StyleSheet.create({
   optionName: { flex: 1, fontSize: 15, color: '#0f172a' },
   optionNameSelected: { color: '#0d9488', fontWeight: '600' },
   optionCode: { fontSize: 14, color: '#64748b', fontWeight: '500' },
-  optionCodeSelected: { color: '#0d9488', fontWeight: '700' },
+  optionCodeSelected: { color: '#0d9488', fontWeight: '600' },
   cancelBtn: { marginTop: 10, backgroundColor: '#f1f5f9', borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
   cancelText: { fontSize: 15, color: '#64748b', fontWeight: '500' },
 });
@@ -672,7 +672,7 @@ const styles = StyleSheet.create({
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
   title: {
     fontSize: SCREEN_W < 375 ? 21 : 25,
-    fontWeight: '400',
+    fontWeight: '500',
     color: '#0f172a',
     textAlign: 'center',
     marginBottom: 34,
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   socialBtnGap: { marginTop: 8 },
-  socialBtnText: { fontSize: 16, color: '#334155', fontWeight: '400' },
+  socialBtnText: { fontSize: 16, color: '#334155', fontWeight: '600' },
 
   divider: { flexDirection: 'row', alignItems: 'center', gap: 13, marginVertical: 8 },
   dividerLine: { flex: 1, height: 1, backgroundColor: '#e2e8f0' },

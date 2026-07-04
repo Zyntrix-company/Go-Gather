@@ -201,5 +201,5 @@ export default function StackedAvatars({
 const st = StyleSheet.create({
   row:         { flexDirection: 'row', alignItems: 'center' },
   circle:      { borderWidth: 1.5, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  counterText: { fontWeight: '800' },
+  counterText: { fontWeight: '600' },
 });
