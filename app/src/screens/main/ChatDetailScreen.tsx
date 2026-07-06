@@ -6,18 +6,19 @@ import {
   StyleSheet,
   FlatList,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   Modal,
   ScrollView,
   ActivityIndicator,
   Animated,
+  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING, TAB_BAR_BASE_HEIGHT } from '../../components/common/AppScreenLayout';
 import MarkdownText from '../../components/common/MarkdownText';
 import SweeIcon from '../../components/common/SweeIcon';
+import { useKeyboardHeight } from '../../hooks/useKeyboardVisible';
 import useChatStore from '../../store/chatStore';
 import useAuthStore from '../../store/authStore';
 import {
@@ -74,6 +75,10 @@ function buildWelcomeVariants(firstName?: string | null): string[] {
 }
 
 const WELCOME_ID = 'welcome';
+
+// Bottom inset is managed manually (see the container's paddingBottom) so the
+// composer can track the keyboard exactly; opt the layout out of the bottom edge.
+const CHAT_SAFE_AREA_EDGES = ['top', 'left', 'right'] as const;
 
 function formatTime(date?: Date | string) {
   const d = date ? new Date(date) : new Date();
@@ -231,7 +236,21 @@ function TypingIndicator() {
 // ─── Main Screen ───────────────────────────────────────────────────────────
 
 export default function ChatDetailScreen({ route, navigation }: any) {
+  const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight();
+  const keyboardVisible = keyboardHeight > 0;
   const initialMessageParam = route?.params?.initialMessage;
+
+  // Bottom space below the composer (SafeAreaView's bottom edge is off, so this
+  // is the single source of truth — no double counting).
+  //  • Keyboard open: sit flush on the keyboard. On Android the view spans the
+  //    full screen behind the nav bar (edge-to-edge), but Keyboard reports its
+  //    height as if the window ended above the nav bar, so add insets.bottom
+  //    back. iOS reports height to the physical bottom already, so add nothing.
+  //  • Keyboard closed: clear the floating tab bar.
+  const composerBottomSpace = keyboardVisible
+    ? keyboardHeight + (Platform.OS === 'android' ? insets.bottom : 0)
+    : TAB_BAR_BASE_HEIGHT + insets.bottom;
   const paramConversationId = route?.params?.conversationId as string | undefined;
 
   const updateConversationInStore = useChatStore((s) => s.updateConversation);
@@ -395,10 +414,10 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     };
   }, [paramConversationId, route?.params?.tripContext, startWelcomeAnimation]);
 
-  // Scroll to bottom whenever messages change
+  // Scroll to bottom whenever messages change or the keyboard opens
   useEffect(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
-  }, [messages]);
+  }, [messages, keyboardVisible]);
 
   // Cleanup streaming on unmount
   useEffect(() => {
@@ -741,8 +760,15 @@ export default function ChatDetailScreen({ route, navigation }: any) {
   }
 
   return (
-    <AppScreenLayout navigation={navigation} activeTab="chat" safeAreaStyle={{ flex: 1 }} onLogoPress={() => navigation.goBack()}>
-      <View style={[styles.container, { paddingBottom: TAB_BAR_BASE_HEIGHT }]}>
+    <AppScreenLayout
+      navigation={navigation}
+      activeTab="chat"
+      safeAreaStyle={{ flex: 1 }}
+      onLogoPress={() => navigation.goBack()}
+      showFooter={!keyboardVisible}
+      edges={CHAT_SAFE_AREA_EDGES}
+    >
+      <View style={[styles.container, { paddingBottom: composerBottomSpace }]}>
 
         {/* ── Chat sub-header ── */}
         <View style={styles.header}>
@@ -776,6 +802,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         ) : (
           <FlatList
             ref={flatListRef}
+            style={styles.list}
             data={messages}
             keyExtractor={(item) => item.id}
             renderItem={renderMessage}
@@ -793,30 +820,31 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           />
         )}
 
-        {/* ── Input bar ── */}
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={styles.inputRow}>
-            <TextInput
-              style={styles.input}
-              placeholder="Ask Swee anything..."
-              placeholderTextColor="#94a3b8"
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-              maxLength={1000}
-              selectionColor="#0d9488"
-              editable={!isTyping && !isWelcomeTyping}
-            />
-            <TouchableOpacity
-              style={[styles.sendBtn, (!inputText.trim() || isTyping || isWelcomeTyping || isExecuting) && styles.sendBtnDisabled]}
-              onPress={sendMessage}
-              disabled={!inputText.trim() || isTyping || isWelcomeTyping || isExecuting}
-              activeOpacity={0.8}
-            >
-              <SendIcon />
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
+        {/* ── Input bar ──
+            The app window is translucent (styles.xml), so Android's adjustResize
+            never shrinks the window for the keyboard. We lift the bar manually by
+            the measured keyboard height (see container paddingBottom above). */}
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            placeholder="Ask Swee anything..."
+            placeholderTextColor="#94a3b8"
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+            maxLength={1000}
+            selectionColor="#0d9488"
+            editable={!isTyping && !isWelcomeTyping}
+          />
+          <TouchableOpacity
+            style={[styles.sendBtn, (!inputText.trim() || isTyping || isWelcomeTyping || isExecuting) && styles.sendBtnDisabled]}
+            onPress={sendMessage}
+            disabled={!inputText.trim() || isTyping || isWelcomeTyping || isExecuting}
+            activeOpacity={0.8}
+          >
+            <SendIcon />
+          </TouchableOpacity>
+        </View>
 
       </View>
 
@@ -966,11 +994,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center',
   },
   headerInfo: { flex: 1 },
-  headerName: { fontSize: 14, fontWeight: '600', color: '#009788' },
+  headerName: { fontSize: 14, fontWeight: '400', color: '#009788' },
   headerSubtitle: { fontSize: 11, color: '#64748b', marginTop: 1 },
 
+  list: { flex: 1 },
   messageList: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 8, gap: 10 },
-  historySkeleton: { paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
+  historySkeleton: { flex: 1, paddingHorizontal: 16, paddingVertical: 12, gap: 12 },
   olderLoader: { marginVertical: 8 },
 
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 4 },

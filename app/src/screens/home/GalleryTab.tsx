@@ -731,7 +731,14 @@ function PhotosModal({
 
   return (
     <>
-      <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
+      <Modal
+        visible={visible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={onClose}
+        statusBarTranslucent
+        navigationBarTranslucent
+      >
         <AlbumPhotosScreenLayout
           navigation={navigation}
           activeTab="gallery"
@@ -1204,7 +1211,14 @@ function CustomCardPhotosModal({
 
   return (
     <>
-      <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
+      <Modal
+        visible={visible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={onClose}
+        statusBarTranslucent
+        navigationBarTranslucent
+      >
         <AlbumPhotosScreenLayout
           navigation={navigation}
           activeTab="gallery"
@@ -1670,7 +1684,7 @@ const styles = StyleSheet.create({
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32 },
   avatarWrap: { position: 'relative' },
   profileInfo: { justifyContent: 'center', gap: 4 },
-  avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 3, borderColor: '#0d9488' },
+  avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 2, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
   avatarInitial: { fontSize: 38, fontWeight: '600', color: '#0d9488' },
   editBtn: { alignItems: 'center', justifyContent: 'center' },

@@ -497,5 +497,5 @@ const styles = StyleSheet.create({
   bottomBlock:    { },
   apiErrorText:   { fontSize: 13, color: '#ef4444', textAlign: 'center', marginBottom: 8, fontWeight: '500' },
   primaryBtn:     { backgroundColor: '#0d9488', borderRadius: 8, paddingVertical: 13, alignItems: 'center', elevation: 2 },
-  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '600', letterSpacing: 0.1 },
+  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '400', letterSpacing: 0.1 },
 });

@@ -672,7 +672,7 @@ const styles = StyleSheet.create({
   form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
   title: {
     fontSize: SCREEN_W < 375 ? 21 : 25,
-    fontWeight: '500',
+    fontWeight: '400',
     color: '#0f172a',
     textAlign: 'center',
     marginBottom: 34,
@@ -692,7 +692,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   socialBtnGap: { marginTop: 8 },
-  socialBtnText: { fontSize: 16, color: '#334155', fontWeight: '600' },
+  socialBtnText: { fontSize: 16, color: '#334155', fontWeight: '400' },
 
   divider: { flexDirection: 'row', alignItems: 'center', gap: 13, marginVertical: 8 },
   dividerLine: { flex: 1, height: 1, backgroundColor: '#e2e8f0' },

@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
   primaryBtnText: {
     color: colors.accentForeground,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   demoBtnWrap: {
     paddingVertical: 5,
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
   },
   demoBtnText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: colors.textPrimary,
     textDecorationLine: 'underline',
     textDecorationColor: colors.textPrimary,

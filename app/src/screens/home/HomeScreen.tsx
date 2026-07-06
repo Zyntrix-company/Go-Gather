@@ -26,6 +26,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import SweeIcon from '../../components/common/SweeIcon';
+import SweeFab from '../../components/details/SweeFab';
 import LinearGradient from 'react-native-linear-gradient';
 import {
   Search,
@@ -543,45 +544,6 @@ function mapApiTrip(t: any): Trip {
 
 
 
-// ─── Draggable Swee FAB ───────────────────────────────────────────────────────
-
-function SweeFab({ onPress }: { onPress: () => void }) {
-  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const hasMoved = useRef(false);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        pan.setOffset({ x: (pan.x as any)._value, y: (pan.y as any)._value });
-        pan.setValue({ x: 0, y: 0 });
-        hasMoved.current = false;
-      },
-      onPanResponderMove: (_, gesture) => {
-        if (Math.abs(gesture.dx) > 4 || Math.abs(gesture.dy) > 4) {
-          hasMoved.current = true;
-        }
-        Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false })(_, gesture);
-      },
-      onPanResponderRelease: (_, gesture) => {
-        pan.flattenOffset();
-        if (!hasMoved.current) {
-          onPress();
-        }
-      },
-    })
-  ).current;
-
-  return (
-    <Animated.View
-      style={[styles.sweeFab, { transform: pan.getTranslateTransform() }]}
-      {...panResponder.panHandlers}>
-      <SweeIcon size={24} />
-    </Animated.View>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function HomeScreen({ navigation, route }: any) {
@@ -960,7 +922,7 @@ export default function HomeScreen({ navigation, route }: any) {
   }) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 12 }}>
       {icon}
-      <Text style={{ fontSize: 16, fontWeight: '600', color }}>{title}</Text>
+      <Text style={{ fontSize: 16, fontWeight: '500', color }}>{title}</Text>
     </View>
   );
 
@@ -1006,7 +968,7 @@ export default function HomeScreen({ navigation, route }: any) {
         )}
         {/* ── 1. Welcome ── */}
         <Text style={{
-          fontWeight: '600',
+          fontWeight: '500',
           fontSize: 24,
           lineHeight: 32,
           color: '#45556C',
@@ -1081,7 +1043,7 @@ export default function HomeScreen({ navigation, route }: any) {
                 style={{
                   color: '#fff',
                   fontSize: isNarrowSearch ? 12 : 13,
-                  fontWeight: '600',
+                  fontWeight: '500',
                   ...(Platform.OS === 'android' ? { includeFontPadding: false, lineHeight: 16 } : {}),
                 }}
               >
@@ -1098,28 +1060,28 @@ export default function HomeScreen({ navigation, route }: any) {
             activeOpacity={0.85}
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#009788', borderRadius: 999, paddingVertical: 9, gap: 5 }}>
             <Plane size={15} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Create Trip</Text>
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>Create Trip</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setShowCreateEventModal(true)}
             activeOpacity={0.85}
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#61BFCE', borderRadius: 999, paddingVertical: 9, gap: 5 }}>
             <CalendarDays size={15} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Create Event</Text>
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>Create Event</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => navigation.navigate('HowItWorks')}
             activeOpacity={0.85}
             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFA76A', borderRadius: 999, paddingVertical: 9, gap: 5 }}>
             <HelpCircle size={15} color="#fff" />
-            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>How it works</Text>
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '500' }}>How it works</Text>
           </TouchableOpacity>
         </View>
 
         {/* ── 4. Get Inspired (Blogs Carousel) ── */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 20, marginBottom: 10 }}>
           <Compass size={19} color="#000000" strokeWidth={1.8} />
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#0F172B' }}>Get Inspired</Text>
+          <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Get Inspired</Text>
         </View>
         {blogsLoading ? (
           <View style={{ flexDirection: 'row', paddingLeft: H_PAD, gap: 10 }}>
@@ -1202,7 +1164,7 @@ export default function HomeScreen({ navigation, route }: any) {
         {/* ── 5. Explore Amazing Deals — horizontal scrollable carousel ── */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginTop: 24, marginBottom: 12 }}>
           <Settings2 size={19} color="#000000" strokeWidth={1.8} />
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#0F172B' }}>Explore Amazing Deals</Text>
+          <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B' }}>Explore Amazing Deals</Text>
         </View>
         {dealsLoading ? (
           <View style={{ flexDirection: 'row', paddingLeft: H_PAD, gap: 10 }}>
@@ -1268,7 +1230,7 @@ export default function HomeScreen({ navigation, route }: any) {
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginRight: H_PAD, marginTop: 24, marginBottom: 10 }}>
               <Plane size={19} color="#000000" strokeWidth={1.8} />
-              <Text style={{ fontSize: 14, fontWeight: '600', color: '#0F172B', flex: 1 }}>Upcoming Trips</Text>
+              <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B', flex: 1 }}>Upcoming Trips</Text>
               {upcoming.length > 3 && (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setActiveTab('trips')}>
                   <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '500' }}>View all</Text>
@@ -1310,7 +1272,7 @@ export default function HomeScreen({ navigation, route }: any) {
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: H_PAD, marginRight: H_PAD, marginTop: 24, marginBottom: 10 }}>
               <CalendarDays size={19} color="#000000" strokeWidth={1.8} />
-              <Text style={{ fontSize: 14, fontWeight: '600', color: '#0F172B', flex: 1 }}>Upcoming Events</Text>
+              <Text style={{ fontSize: 14, fontWeight: '500', color: '#0F172B', flex: 1 }}>Upcoming Events</Text>
               {homeEvents.length > 3 && (
                 <TouchableOpacity activeOpacity={0.8} onPress={() => setActiveTab('events')}>
                   <Text style={{ color: '#0d9488', fontSize: 13, fontWeight: '500' }}>View all</Text>
@@ -1623,7 +1585,7 @@ const styles = StyleSheet.create({
   // responsive: tighten spacing on small screens so Travel Insights is visible in first viewport
   welcomeCenter: { alignItems: 'center', marginTop: SCREEN_H < 700 ? 4 : 8, marginBottom: SCREEN_H < 700 ? 14 : 20 },
   // Figma: text-2xl font-bold text-slate-600 — reduced from 24 to 20
-  welcomeTitle: { fontSize: SCREEN_W < 375 ? 18 : 20, fontWeight: '600', color: '#45556C', textAlign: 'center', marginBottom: 8 },
+  welcomeTitle: { fontSize: SCREEN_W < 375 ? 18 : 20, fontWeight: '500', color: '#45556C', textAlign: 'center', marginBottom: 8 },
   // Figma: text-lg font-normal text-slate-900 — reduced from 18 to 15
   welcomeSubtitle: { fontSize: SCREEN_W < 375 ? 13 : 15, fontWeight: '400', color: '#0f172a', textAlign: 'center', lineHeight: 20 },
 
@@ -1655,7 +1617,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   // Figma: font-semibold (600)
-  createTripBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  createTripBtnText: { color: '#fff', fontSize: 15, fontWeight: '500' },
 
   // Figma: bg-gradient from-teal-500/10 to-cyan-500/10 rounded-xl p-3 border border-teal-100
   sweeBox: {
@@ -1752,7 +1714,7 @@ const styles = StyleSheet.create({
   // Section headers
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 8 },
   // Figma: text-lg font-normal text-slate-900 — reduced from 18 to 16
-  sectionTitle: { fontSize: SCREEN_W < 375 ? 14 : 16, fontWeight: '600', color: '#0f172a', marginBottom: 10 },
+  sectionTitle: { fontSize: SCREEN_W < 375 ? 14 : 16, fontWeight: '400', color: '#0f172a', marginBottom: 10 },
   seeAll: { fontSize: 13, color: '#0d9488', fontWeight: '500' },
 
   // ── Trips Tab ──
@@ -1767,13 +1729,13 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   // Figma: text-xl font-semibold
-  tripsCTATitle: { fontSize: 20, fontWeight: '600', color: '#45556C', textAlign: 'center', marginBottom: 10, paddingHorizontal: 24 },
+  tripsCTATitle: { fontSize: 20, fontWeight: '500', color: '#45556C', textAlign: 'center', marginBottom: 10, paddingHorizontal: 24 },
   // Figma: text-sm text-slate-600
   tripsCTASub: { fontSize: 14, color: '#64748b', marginBottom: 26, textAlign: 'center' },
 
   tripsListHeader: { marginBottom: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
   // Figma: text-lg font-bold
-  tripsListTitle: { fontSize: 18, fontWeight: '600', color: '#0F172B', lineHeight: 28, letterSpacing: 0 },
+  tripsListTitle: { fontSize: 18, fontWeight: '500', color: '#0F172B', lineHeight: 28, letterSpacing: 0 },
   tripsListSub: { fontSize: 13, color: '#64748b', marginTop: 2 },
 
   // Figma: text-sm font-semibold text-slate-500 uppercase tracking-wide
@@ -1929,7 +1891,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
-  emptyStateTitle: { fontSize: 18, fontWeight: '600', color: '#45556C' },
+  emptyStateTitle: { fontSize: 18, fontWeight: '500', color: '#45556C' },
   emptyStateSubtitle: { fontSize: 14, color: '#94a3b8', textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
 
   // ── Tab header rows (Events/Friends/Chat) ──
@@ -1945,27 +1907,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   fabInlineText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-
-  // ── Swee FAB — teal circle with white ring border ──
-  sweeFab: {
-    position: 'absolute',
-    bottom: 68,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#0d9488',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#ffffff',
-    shadowColor: '#0d9488',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 8,
-    zIndex: 50,
-  },
 
   // ── Bottom Tab Bar — Figma: gradient bg from-slate-50 via-teal-50 to-cyan-50 ──
   tabBar: {
@@ -2065,7 +2006,7 @@ const styles = StyleSheet.create({
 const hStyles = StyleSheet.create({
   scrollContent: { paddingBottom: 100 },
 
-  welcomeTitle: { fontSize: 26, fontWeight: '600', color: '#45556C', textAlign: 'center', marginTop: 16 },
+  welcomeTitle: { fontSize: 26, fontWeight: '500', color: '#45556C', textAlign: 'center', marginTop: 16 },
   welcomeSub:   { fontSize: 15, color: '#555', textAlign: 'center', marginTop: 4 },
 
   // Search row

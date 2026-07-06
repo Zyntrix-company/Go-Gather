@@ -12,6 +12,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import SweeIcon from '../../components/common/SweeIcon';
+import SweeFab from '../../components/details/SweeFab';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { WebView } from 'react-native-webview';
@@ -501,25 +502,6 @@ function ActionIcon({ path, color }: { path: string; color: string }) {
     case 'notes': return <Svg {...s} viewBox="0 0 24 24" fill="none"><Path d="M9 11l3 3L22 4" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /><Path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
     default: return null;
   }
-}
-
-// ─── Swee FAB ─────────────────────────────────────────────────────────────────
-
-function SweeFab({ onPress, fabStyle }: { onPress: () => void; fabStyle?: object }) {
-  const pan = useRef(new Animated.ValueXY()).current;
-  const moved = useRef(false);
-  const pr = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { pan.setOffset({ x: (pan.x as any)._value, y: (pan.y as any)._value }); pan.setValue({ x: 0, y: 0 }); moved.current = false; },
-    onPanResponderMove: (_, g) => { if (Math.abs(g.dx) > 4 || Math.abs(g.dy) > 4) moved.current = true; Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false })(_, g); },
-    onPanResponderRelease: () => { pan.flattenOffset(); if (!moved.current) onPress(); },
-  })).current;
-  return (
-    <Animated.View style={[styles.sweeFab, { transform: pan.getTranslateTransform() }]} {...pr.panHandlers}>
-      <SweeIcon size={22} />
-    </Animated.View>
-  );
 }
 
 // ─── Poll Skeleton ────────────────────────────────────────────────────────────
@@ -2324,7 +2306,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
               contextType: 'trip' as const,
             },
           })}
-          fabStyle={{ bottom: 78 }}
         />
 
         <FloatingTabBar activeTab="trips" navigation={navigation} />
@@ -3911,14 +3892,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   topBar: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2, flexDirection: 'row', alignItems: 'center' },
-  topBarTitle: { flex: 1, fontSize: 16, fontWeight: '600', color: '#0f172a', textAlign: 'center' },
+  topBarTitle: { flex: 1, fontSize: 16, fontWeight: '500', color: '#0f172a', textAlign: 'center' },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { paddingBottom: 150 },
 
   // Header card
   headerCard: { marginHorizontal: 16, marginBottom: 6, borderRadius: 20, borderWidth: 2, borderColor: '#99f6e4', padding: 16 },
   cardRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
-  tripName: { fontSize: 20, fontWeight: '600', color: '#0f172a', marginBottom: 3 },
+  tripName: { fontSize: 20, fontWeight: '500', color: '#0f172a', marginBottom: 3 },
   tripDates: { fontSize: 13, color: '#475569', marginBottom: 2 },
   tripLocation: { fontSize: 13, color: '#64748b' },
   daysArea: { alignItems: 'flex-end', paddingLeft: 8 },
@@ -3941,8 +3922,8 @@ const styles = StyleSheet.create({
 
   // Sections
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
-  sectionTitle: { fontSize: 15, fontWeight: '600', color: '#0f172a', marginBottom: 12 },
-  sectionTitleDark: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
+  sectionTitle: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
+  sectionTitleDark: { fontSize: 15, fontWeight: '500', color: '#0f172a' },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
 
   emptyBox: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#e2e8f0', paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center' },
@@ -3966,9 +3947,6 @@ const styles = StyleSheet.create({
   doneTxt: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
   trashBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
 
-  // FAB
-  sweeFab: { position: 'absolute', bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#fff', elevation: 8, shadowColor: '#0d9488', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, zIndex: 50 },
-
   // Modal base
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
   dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '82%', overflow: 'hidden' },
@@ -3987,7 +3965,7 @@ const styles = StyleSheet.create({
 
   // Dialog header
   dHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  dTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
+  dTitle: { fontSize: 14, fontWeight: '500', color: '#0f172a' },
   dSubtitle: { fontSize: 10, color: '#64748b', marginTop: 1 },
   dCloseBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
 
@@ -4029,8 +4007,8 @@ const styles = StyleSheet.create({
   docDividerLabel: { fontSize: 11, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.5 },
 
   // Members
-  memberSectionLabel: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 10 },
-  memberSectionLabelTitle: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 6 },
+  memberSectionLabel: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 10 },
+  memberSectionLabelTitle: { fontSize: 12, fontWeight: '500', color: '#64748b', marginBottom: 6 },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   memberAvatar: { width: 40, height: 40, borderRadius: 20 },
@@ -4070,7 +4048,7 @@ const styles = StyleSheet.create({
   // Polls
   pollSectionLabel: { fontSize: 11, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
   pollCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  pollQ: { fontSize: 14, fontWeight: '600', color: '#0f172a', lineHeight: 20 },
+  pollQ: { fontSize: 14, fontWeight: '500', color: '#0f172a', lineHeight: 20 },
   pollMeta: { fontSize: 11, color: '#64748b', fontWeight: '400', marginBottom: 10 },
   pollFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e2e8f0' },
   pollAvatarRow: { flexDirection: 'row', alignItems: 'center' },

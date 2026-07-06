@@ -1600,7 +1600,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
               contextType: 'event' as const,
             },
           })}
-          fabStyle={{ bottom: 78 }}
         />
 
         <FloatingTabBar activeTab="events" navigation={navigation} />
@@ -2789,7 +2788,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
   topBar: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 2, flexDirection: 'row', alignItems: 'center' },
-  topBarTitle: { flex: 1, fontSize: 16, fontWeight: '600', color: '#0f172a', textAlign: 'center' },
+  topBarTitle: { flex: 1, fontSize: 16, fontWeight: '500', color: '#0f172a', textAlign: 'center' },
   backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { paddingBottom: 150 },
 
@@ -2802,9 +2801,9 @@ const styles = StyleSheet.create({
   cardBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '600', lineHeight: 13 },
 
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
-  sectionTitle: { fontSize: 15, fontWeight: '600', color: '#0f172a', marginBottom: 5 },
+  sectionTitle: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 5 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle1: { fontSize: 15, fontWeight: '600', color: '#0f172a', marginBottom: 12 },
+  sectionTitle1: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
 
   descCard: { backgroundColor: 'transparent', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(13,148,136,0.2)' },
   descText: { fontSize: 13, color: '#475569', lineHeight: 19 },
@@ -2851,7 +2850,7 @@ const styles = StyleSheet.create({
   tealBtnFull: { flexDirection: 'row', backgroundColor: '#0d9488', borderRadius: 10, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
   tealBtnTxt: { color: '#fff', fontWeight: '500', fontSize: 13 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-  cancelTxt: { fontSize: 14, color: '#64748b', fontWeight: '600' },
+  cancelTxt: { fontSize: 14, color: '#64748b', fontWeight: '500' },
 
   docRow: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#f1f5f9' },
   docSectionDivider: { flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 8 },
@@ -2896,7 +2895,7 @@ const styles = StyleSheet.create({
 
   pollSectionLabel: { fontSize: 11, fontWeight: '600', color: '#94a3b8', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
   pollCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  pollQ: { fontSize: 14, fontWeight: '600', color: '#0f172a', lineHeight: 20 },
+  pollQ: { fontSize: 14, fontWeight: '500', color: '#0f172a', lineHeight: 20 },
   pollMeta: { fontSize: 11, color: '#64748b', fontWeight: '400', marginBottom: 10 },
   pollFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
   pollAvatarRow: { flexDirection: 'row', alignItems: 'center' },
@@ -2920,7 +2919,7 @@ const styles = StyleSheet.create({
   catBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
 
   // ── Highlights sub-section styles ──
-  hlSubTitle: { fontSize: 12, fontWeight: '600', color: '#2a303c' },
+  hlSubTitle: { fontSize: 12, fontWeight: '500', color: '#2a303c' },
   seeAllLink: { fontSize: 12, color: '#0d9488', fontWeight: '500' },
 
   hlDocRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0', paddingVertical: 10, paddingHorizontal: 12, gap: 10 },

@@ -1468,7 +1468,7 @@ const styles = StyleSheet.create({
     paddingTop: 4, paddingBottom: 12,
   },
   eventListHeader: { marginBottom: 16, paddingTop: 16 },
-  eventListTitle: {     fontFamily: 'Inter', fontSize: 15, fontWeight: '600', color: '#0F172B',
+  eventListTitle: {     fontFamily: 'Inter', fontSize: 15, fontWeight: '400', color: '#0F172B',
    lineHeight: 24, letterSpacing: 0 },
   eventListSub: { fontSize: 15, fontWeight: '400', color: '#45556C', lineHeight: 19, letterSpacing: 0, marginTop: 2, marginBottom: 8 },
   sectionLabel: {
@@ -1485,7 +1485,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
   },
-  newEventBtnText: { color: '#fff', fontSize: 14, fontWeight: '600', lineHeight: 20, textAlign: 'center' },
+  newEventBtnText: { color: '#fff', fontSize: 14, fontWeight: '500', lineHeight: 20, textAlign: 'center' },
 
   heroSection: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 16 },
   calendarCircle: {
@@ -1493,7 +1493,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   heroTitle: {
-    fontFamily: 'Inter', fontSize: 20, fontWeight: '600', color: '#0F172B',
+    fontFamily: 'Inter', fontSize: 20, fontWeight: '400', color: '#0F172B',
     textAlign: 'center', lineHeight: 28, letterSpacing: 0, width: 266,
   },
   heroSub: { fontFamily: 'Inter', fontSize: 16, fontWeight: '400', color: '#45556C', textAlign: 'center', lineHeight: 20, letterSpacing: 0, width: 316 },

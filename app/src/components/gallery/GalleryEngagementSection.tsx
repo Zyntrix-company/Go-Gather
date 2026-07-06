@@ -1,9 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator,
-  ScrollView, Keyboard, Modal, Pressable, Dimensions, BackHandler,
-  KeyboardAvoidingView, Platform,
+  ScrollView, Keyboard, Modal, Pressable, Dimensions, BackHandler, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { MoreVertical, Pen, Trash2 } from 'lucide-react-native';
 import CachedImage from '../common/CachedImage';
@@ -11,6 +11,7 @@ import { getRelativeTime } from '../../utils/relativeTime';
 import type { GalleryComment } from '../../api/gallery.api';
 import useAuthStore from '../../store/authStore';
 import { showConfirm } from '../../store/alertStore';
+import { useKeyboardHeight } from '../../hooks/useKeyboardVisible';
 import { GALLERY_COMMENT_MAX } from '../../constants/albumPhotosLayout';
 
 function HeartIcon({ filled }: { filled: boolean }) {
@@ -122,6 +123,19 @@ export default function GalleryEngagementSection({
   onDeleteComment,
 }: GalleryEngagementSectionProps) {
   const currentUser = useAuthStore((s) => s.user);
+  // Pin the composer sheet directly above the keyboard. The Modal is its own
+  // transparent window that does not honour the activity's adjustResize (which
+  // also breaks on large edge-to-edge screens), so the measured keyboard height
+  // is exactly how far to lift the sheet — consistent on every screen size.
+  const keyboardHeight = useKeyboardHeight();
+  const insets = useSafeAreaInsets();
+  // On Android edge-to-edge (RN's default), Keyboard.endCoordinates.height
+  // under-reports by the navigation-bar inset, but the translucent Modal draws
+  // its content all the way down behind the nav bar. Without compensating, the
+  // sheet is lifted too little and the input row hides behind the keyboard.
+  // iOS reports the height from the screen bottom already, so no extra offset.
+  const composerLift =
+    keyboardHeight + (Platform.OS === 'android' && keyboardHeight > 0 ? insets.bottom : 0);
   const commentScrollRef = useRef<ScrollView>(null);
   const composerRef = useRef<TextInput>(null);
   const [posting, setPosting] = useState(false);
@@ -270,22 +284,22 @@ export default function GalleryEngagementSection({
         comments.length > 0 ? <View style={styles.commentList}>{commentRows}</View> : null
       )}
 
-      {/* Keyboard-anchored composer — new comment + edit. The sheet sits flush on
-          top of the keyboard: iOS pads via KeyboardAvoidingView; Android lets the
-          Modal window's adjustResize do it. The album screen behind never scrolls. */}
+      {/* Keyboard-anchored composer — new comment + edit. The sheet is lifted to
+          sit flush on top of the keyboard by the measured keyboard height, so it
+          stays visible on every screen size. The album screen behind never scrolls. */}
       <Modal
         visible={composerMode !== null}
         transparent
         animationType="fade"
         statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={closeComposer}
       >
         <View style={styles.composerRoot}>
           {/* Full-screen scrim — tap anywhere outside the sheet to dismiss. */}
           <Pressable style={StyleSheet.absoluteFill} onPress={closeComposer} />
-          <KeyboardAvoidingView
-            style={styles.composerAvoider}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          <View
+            style={[styles.composerAvoider, { paddingBottom: composerLift }]}
             pointerEvents="box-none"
           >
             <View style={styles.composerSheet}>
@@ -334,7 +348,7 @@ export default function GalleryEngagementSection({
                 </TouchableOpacity>
               </View>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </View>
       </Modal>
 

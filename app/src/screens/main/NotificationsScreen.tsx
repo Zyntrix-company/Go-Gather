@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
   },
   notifTitleUnread: {
     color: '#080808',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   unreadDot: {
     width: 8,

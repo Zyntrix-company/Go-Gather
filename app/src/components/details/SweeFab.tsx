@@ -5,14 +5,23 @@
  */
 import React, { useRef } from 'react';
 import { Animated, PanResponder, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SweeIcon from '../common/SweeIcon';
+import { TAB_BAR_BASE_HEIGHT } from '../common/FloatingTabBar';
 
 interface SweeFabProps {
   onPress: () => void;
   fabStyle?: object;
 }
 
+// Gap between the FAB and the top of the footer tab bar.
+const FAB_FOOTER_GAP = 12;
+
 export default function SweeFab({ onPress, fabStyle }: SweeFabProps) {
+  const insets = useSafeAreaInsets();
+  // Sit just above the footer on every screen/device: the footer is
+  // `TAB_BAR_BASE_HEIGHT + insets.bottom` tall, so add a small gap on top.
+  const bottom = TAB_BAR_BASE_HEIGHT + insets.bottom + FAB_FOOTER_GAP;
   const pan = useRef(new Animated.ValueXY()).current;
   const moved = useRef(false);
 
@@ -43,7 +52,7 @@ export default function SweeFab({ onPress, fabStyle }: SweeFabProps) {
 
   return (
     <Animated.View
-      style={[styles.fab, fabStyle, { transform: pan.getTranslateTransform() }]}
+      style={[styles.fab, { bottom }, fabStyle, { transform: pan.getTranslateTransform() }]}
       {...pr.panHandlers}
     >
       <SweeIcon size={22} />
@@ -55,7 +64,6 @@ export default function SweeFab({ onPress, fabStyle }: SweeFabProps) {
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    bottom: 20,
     right: 20,
     width: 56,
     height: 56,

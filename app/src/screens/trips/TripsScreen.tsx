@@ -1679,7 +1679,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#cbfbf1',
     alignItems: 'center', justifyContent: 'center',
   },
-  tripsCTATitle: { fontFamily: 'Inter', fontSize: 20, fontWeight: '600', color: '#0F172B', textAlign: 'center', lineHeight: 28, letterSpacing: 0, width: 266 },
+  tripsCTATitle: { fontFamily: 'Inter', fontSize: 20, fontWeight: '400', color: '#0F172B', textAlign: 'center', lineHeight: 28, letterSpacing: 0, width: 266 },
   tripsCTASub: { fontFamily: 'Inter', fontSize: 16, fontWeight: '400', color: '#45556C', textAlign: 'center', lineHeight: 20, letterSpacing: 0, width: 316 },
   createTripBtn: {
    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -1691,9 +1691,9 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
   },
-  createTripBtnText: {  color: '#fff', fontSize: 14, fontWeight: '600', lineHeight: 20, textAlign: 'center' },
+  createTripBtnText: {  color: '#fff', fontSize: 14, fontWeight: '500', lineHeight: 20, textAlign: 'center' },
  tripsListHeader: { marginBottom: 16, paddingTop: 16 },
-  tripsListTitle: {     fontFamily: 'Inter', fontSize: 15, fontWeight: '600', color: '#0F172B',
+  tripsListTitle: {     fontFamily: 'Inter', fontSize: 15, fontWeight: '400', color: '#0F172B',
    lineHeight: 24, letterSpacing: 0 },
   tripsListSub: { fontSize: 15, fontWeight: '400', color: '#45556C', lineHeight: 19, letterSpacing: 0, marginTop: 2, marginBottom: 8 },
   sectionLabel: {

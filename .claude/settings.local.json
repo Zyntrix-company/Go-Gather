@@ -203,7 +203,8 @@
       "Bash(.\\\\gradlew.bat app:installDebug -x lint -PreactNativeDevServerPort=8081)",
       "Bash(Select-String \"^0\")",
       "Bash(Sort-Object)",
-      "Bash(Select-Object -Last 3)"
+      "Bash(Select-Object -Last 3)",
+      "PowerShell(Start-Process \"C:\\\\Users\\\\vansh\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\E--Go-Gather\\\\0ef50cea-cd96-49ff-b699-22d036b0aec1\\\\scratchpad\\\\hamburger-mockup.html\")"
     ]
   }
 }

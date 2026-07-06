@@ -35,8 +35,12 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
   // Slightly conservative scale + cap so wordmark reads refined, not oversized.
   const ICON_SIZE   = Math.round(Math.min(Math.max(screenH * 0.056, 38), 56));
   const WORDMARK_H  = ICON_SIZE;
-  const WORDMARK_W  = Math.round(ICON_SIZE * 4.35);
+  const WORDMARK_W  = Math.round(ICON_SIZE * 4.05);
   const GAP          = Math.round(screenW * 0.03);
+  // Lift the vertically-centred logo above dead-centre. Padding at the bottom
+  // shrinks the centring area, so the content rises by ~half this value.
+  // Height-relative → consistent nudge across all screen sizes.
+  const LIFT_UP      = Math.round(screenH * 0.14);
   const ICON_SHIFT_X = -((GAP + WORDMARK_W) / 2);
   // Drop distance: 27% of screen height keeps the icon above the fold on all sizes.
   const DROP_OFFSET  = Math.round(screenH * 0.27);
@@ -155,7 +159,7 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
 
   return (
     <BlobBackground>
-      <View style={styles.screen}>
+      <View style={[styles.screen, { paddingBottom: LIFT_UP }]}>
         {/*
           Flex-row container centred on screen.
           alignItems:'center' lets flexbox vertically align the icon and

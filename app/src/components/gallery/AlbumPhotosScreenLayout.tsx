@@ -8,6 +8,12 @@ import { useKeyboardVisible } from '../../hooks/useKeyboardVisible';
 
 export { useAlbumPhotosOverlay } from './AlbumPhotosContext';
 
+// The album owns its bottom spacing via `tabBarPad` (which already includes
+// insets.bottom), so opt the layout's SafeAreaView out of the bottom inset to
+// avoid counting it twice — a double gap that scales with the device's nav-bar
+// inset and pushes the content/footer up on large-inset screens.
+const ALBUM_SAFE_AREA_EDGES = ['top', 'left', 'right'] as const;
+
 type AlbumPhotosScreenLayoutProps = {
   navigation: any;
   activeTab: TabType;
@@ -78,6 +84,7 @@ export default function AlbumPhotosScreenLayout({
       activeTab={activeTab}
       onLogoPress={onClose}
       showFooter={!keyboardVisible}
+      edges={ALBUM_SAFE_AREA_EDGES}
     >
       <AlbumPhotosOverlayContext.Provider value={heroOverlay ?? null}>
         <AlbumPhotosScrollContext.Provider value={null}>

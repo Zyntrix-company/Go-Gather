@@ -357,7 +357,9 @@ const s = StyleSheet.create({
     gap: 3,
     justifyContent: 'center',
     minWidth: 0,            // allows flex child to shrink and truncate text
-    marginRight: -14,         // reclaim gap space for title (~20 chars before ellipsis)
+    // No negative marginRight: it would pull the avatar column left over the
+    // title, so the truncated text renders *under* the avatars instead of
+    // ending in a clean "name…". The card's gap:8 keeps the columns apart.
   },
   name: {
     fontSize: 14,

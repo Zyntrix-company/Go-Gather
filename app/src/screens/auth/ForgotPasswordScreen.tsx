@@ -154,11 +154,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   logoRow: { marginBottom: 0, alignItems: 'flex-start' },
-  form: { maxWidth: 400, width: '100%', alignSelf: 'center', flex: 1, justifyContent: 'center', paddingBottom: 60 },
+  // Top-aligned: content starts just below the logo with a fixed gap,
+  // instead of being vertically centred in the remaining space.
+  form: {
+    maxWidth: 400,
+    width: '100%',
+    alignSelf: 'center',
+    flex: 1,
+    justifyContent: 'flex-start',
+    marginTop: SCREEN_W < 375 ? 24 : 32,
+  },
 
   title: {
     fontSize: SCREEN_W < 375 ? 21 : 25,
-    fontWeight: '500',
+    fontWeight: '400',
     color: '#0f172a',
     textAlign: 'center',
     marginBottom: 10,

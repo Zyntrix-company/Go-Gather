@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
 
   sectionTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#0f172a',
     marginBottom: 8,
     marginLeft: 2,

@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { StyleSheet, ViewStyle } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import BlobBackground from './BlobBackground';
 import AppHeader from './AppHeader';
 import SubScreenHeader from './SubScreenHeader';
@@ -32,6 +32,10 @@ type AppScreenLayoutProps = {
   onBack?: () => void;
   safeAreaStyle?: ViewStyle;
   showFooter?: boolean;
+  /** Which edges get safe-area padding. Omit for all edges. Screens that manage
+   *  their own bottom spacing (e.g. a keyboard-tracking composer) pass
+   *  ['top','left','right'] to opt out of the bottom inset. */
+  edges?: readonly Edge[];
 };
 
 export default function AppScreenLayout({
@@ -46,6 +50,7 @@ export default function AppScreenLayout({
   onBack,
   safeAreaStyle,
   showFooter = true,
+  edges,
 }: AppScreenLayoutProps) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const user = useAuthStore((s) => s.user) as any;
@@ -61,7 +66,7 @@ export default function AppScreenLayout({
 
   return (
     <BlobBackground>
-      <SafeAreaView style={[styles.container, safeAreaStyle]}>
+      <SafeAreaView style={[styles.container, safeAreaStyle]} edges={edges}>
         <AppHeader
           title={onBack ? undefined : title}
           subtitle={onBack ? undefined : subtitle}
