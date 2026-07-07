@@ -19,8 +19,15 @@ const verifyParentAccess = (fixedParentType) => async (req, res, next) => {
     || req.params.tripId
     || req.params.eventId;
 
+  // Personal (user-scoped) parent — the user's own document space.
+  // parentId is always the authenticated user; any supplied value is ignored.
+  if (parentType === 'user') {
+    req.parent = { parentType: 'user', parentId: req.user.id, role: 'owner' };
+    return next();
+  }
+
   if (!['trip', 'event'].includes(parentType)) {
-    return res.status(400).json({ error: 'INVALID_PARENT_TYPE', message: 'parentType must be trip or event', statusCode: 400 });
+    return res.status(400).json({ error: 'INVALID_PARENT_TYPE', message: 'parentType must be trip, event, or user', statusCode: 400 });
   }
   if (!parentId) {
     return res.status(400).json({ error: 'MISSING_PARENT_ID', message: 'Parent ID is required', statusCode: 400 });

@@ -1,14 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import { StyleSheet, ViewStyle } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import BlobBackground from './BlobBackground';
 import AppHeader from './AppHeader';
 import SubScreenHeader from './SubScreenHeader';
 import FloatingTabBar, { TabType, TAB_BAR_BASE_HEIGHT } from './FloatingTabBar';
-import ProfileDropdown from '../../screens/home/ProfileDropdown';
-import useAuthStore from '../../store/authStore';
-import useAuth from '../../hooks/useAuth';
-import { showConfirm } from '../../store/alertStore';
 
 export { TAB_BAR_BASE_HEIGHT };
 export type { TabType };
@@ -52,17 +48,7 @@ export default function AppScreenLayout({
   showFooter = true,
   edges,
 }: AppScreenLayoutProps) {
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const user = useAuthStore((s) => s.user) as any;
-  const { logout, refreshProfile } = useAuth();
-  const firstName = user?.fullName?.split(' ')[0] || 'Explorer';
-
-  const openMenu = useCallback(() => {
-    refreshProfile();
-    setShowProfileMenu(true);
-  }, [refreshProfile]);
-
-  const handleMenuPress = onMenuPress ?? openMenu;
+  const handleMenuPress = onMenuPress ?? (() => navigation.navigate('Menu'));
 
   return (
     <BlobBackground>
@@ -79,26 +65,6 @@ export default function AppScreenLayout({
         ) : null}
         {children}
         {showFooter ? <FloatingTabBar activeTab={activeTab} navigation={navigation} /> : null}
-
-        {showProfileMenu && (
-          <ProfileDropdown
-            user={user}
-            firstName={firstName}
-            onClose={() => setShowProfileMenu(false)}
-            onNavigateToSettings={() => navigation.navigate('Settings')}
-            onNavigateToArchived={() => navigation.navigate('Archived')}
-            onLogout={() => {
-              setShowProfileMenu(false);
-              showConfirm({
-                title: 'Log out?',
-                message: 'Are you sure you want to log out of your account?',
-                confirmText: 'Log out',
-                destructive: true,
-                onConfirm: logout,
-              });
-            }}
-          />
-        )}
       </SafeAreaView>
     </BlobBackground>
   );

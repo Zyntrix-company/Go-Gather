@@ -15,6 +15,7 @@ const { docMaxBytes, docMaxCount, photoMaxBytes, videoMaxBytes } = require('../.
 const MAX_FILE_BYTES = docMaxBytes;
 const MAX_PHOTO_BYTES = photoMaxBytes;
 const MAX_DOCS = docMaxCount;
+const MAX_PERSONAL_DOCS = 10;
 
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
@@ -126,9 +127,10 @@ async function importFiles(userId, parentType, parentId, files) {
     [parentType, parentId],
   );
   const currentCount = parseInt(countRes.rows[0].count, 10);
-  if (currentCount + files.length > MAX_DOCS) {
-    const label = parentType === 'event' ? 'event' : 'trip';
-    const e = new Error(`This ${label} already has ${currentCount} documents. Adding ${files.length} more would exceed the ${MAX_DOCS} document limit.`);
+  const cap = parentType === 'user' ? MAX_PERSONAL_DOCS : MAX_DOCS;
+  if (currentCount + files.length > cap) {
+    const label = parentType === 'user' ? 'account' : (parentType === 'event' ? 'event' : 'trip');
+    const e = new Error(`This ${label} already has ${currentCount} documents. Adding ${files.length} more would exceed the ${cap} document limit.`);
     e.statusCode = 422; e.error = 'LIMIT_EXCEEDED'; throw e;
   }
 

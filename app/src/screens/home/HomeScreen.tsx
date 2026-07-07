@@ -62,7 +62,6 @@ import EventsScreen, { CreateEventModal } from '../events/EventsScreen';
 import FriendsScreen from './FriendsScreen';
 import ChatTab from './ChatTab';
 import GalleryTab from './GalleryTab';
-import ProfileDropdown from './ProfileDropdown';
 import { UnifiedCard } from '../../components/common/Cards';
 import { requireTripFromResponse, runSafePostCreate } from '../../utils/createEntityFlow';
 import { formatLocationsLabel, toLocationPayload, type LocationPoint } from '../../utils/locations';
@@ -548,12 +547,11 @@ function mapApiTrip(t: any): Trip {
 
 export default function HomeScreen({ navigation, route }: any) {
   const insets = useSafeAreaInsets();
-  const { logout, refreshProfile } = useAuth();
+  const { refreshProfile } = useAuth();
   const rawUser = useAuthStore((s) => s.user) as any;
   const avatarUpdatedAt = useAuthStore((s) => s.avatarUpdatedAt);
   const refreshUnreadCount = useNotificationStore((s) => s.refreshUnreadCount);
   const [activeTab, setActiveTab] = useState<Tab>('home');
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showTripMenu, setShowTripMenu] = useState<string | null>(null);
   const [showEventMenu, setShowEventMenu] = useState<string | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -1505,28 +1503,8 @@ export default function HomeScreen({ navigation, route }: any) {
         <AppHeader
           onLogoPress={() => setActiveTab('home')}
           onBellPress={() => navigation.navigate('Notifications')}
-          onMenuPress={() => { setShowProfileMenu(true); refreshProfile(); }}
+          onMenuPress={() => navigation.navigate('Menu')}
         />
-
-        {showProfileMenu && (
-          <ProfileDropdown
-            user={user}
-            firstName={firstName}
-            onClose={() => setShowProfileMenu(false)}
-            onNavigateToSettings={() => navigation.navigate('Settings')}
-            onNavigateToArchived={() => navigation.navigate('Archived')}
-            onLogout={() => {
-              setShowProfileMenu(false);
-              showConfirm({
-                title: 'Log out?',
-                message: 'Are you sure you want to log out of your account?',
-                confirmText: 'Log out',
-                destructive: true,
-                onConfirm: logout,
-              });
-            }}
-          />
-        )}
 
         {activeTab === 'home' && renderHomeTab()}
         {/* Keep TripsScreen mounted to allow nav from other places */}

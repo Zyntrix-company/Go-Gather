@@ -14,6 +14,11 @@ import SettingsScreen from '../screens/main/SettingsScreen';
 import ChangePasswordScreen from '../screens/main/ChangePasswordScreen';
 import ConnectedEmailScreen from '../screens/main/ConnectedEmailScreen';
 import FaqScreen from '../screens/main/FaqScreen';
+import MenuScreen from '../screens/home/MenuScreen';
+import ProfileScreen from '../screens/main/ProfileScreen';
+import SupportScreen from '../screens/main/SupportScreen';
+import LegalScreen from '../screens/main/LegalScreen';
+import PersonalDocumentsScreen from '../screens/main/PersonalDocumentsScreen';
 
 export type MainStackParamList = {
   Home: { initialTab?: string } | undefined;
@@ -41,6 +46,11 @@ export type MainStackParamList = {
   ChangePassword: undefined;
   ConnectedEmail: undefined;
   Faq: undefined;
+  Menu: undefined;
+  Profile: undefined;
+  Support: undefined;
+  Legal: undefined;
+  PersonalDocuments: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -68,6 +78,11 @@ export default function MainStack() {
       <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
       <Stack.Screen name="ConnectedEmail" component={ConnectedEmailScreen} />
       <Stack.Screen name="Faq" component={FaqScreen} />
+      <Stack.Screen name="Menu" component={MenuScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="Support" component={SupportScreen} />
+      <Stack.Screen name="Legal" component={LegalScreen} />
+      <Stack.Screen name="PersonalDocuments" component={PersonalDocumentsScreen} />
     </Stack.Navigator>
   );
 }

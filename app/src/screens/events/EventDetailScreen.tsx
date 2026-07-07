@@ -30,7 +30,6 @@ import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import SweeFab from '../../components/details/SweeFab';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
 import AppHeader from '../../components/common/AppHeader';
-import ProfileDropdown from '../home/ProfileDropdown';
 import useAuth from '../../hooks/useAuth';
 import {
   BackIcon, PencilIcon, TrashIcon, CheckIcon,
@@ -459,9 +458,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
   const currentUserName: string | null = rawUser?.fullName ?? rawUser?.profile?.fullName ?? null;
   const currentUserAvatar: string | null = rawUser?.avatarUrl ?? rawUser?.photoUrl ?? rawUser?.profile?.avatarUrl ?? null;
   const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
-  const { logout, refreshProfile } = useAuth();
-  const firstName = rawUser?.fullName?.split(' ')[0] || 'Explorer';
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  useAuth();
   const uploadLimits = useUploadLimits();
   const [failedAvatarIds, setFailedAvatarIds] = useState<Set<string>>(new Set());
 
@@ -1348,27 +1345,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
         <AppHeader
           onLogoPress={() => navigation.goBack()}
           onBellPress={() => navigation.navigate('Notifications')}
-          onMenuPress={() => { refreshProfile(); setShowProfileMenu(true); }}
+          onMenuPress={() => navigation.navigate('Menu')}
         />
-        {showProfileMenu && (
-          <ProfileDropdown
-            user={rawUser}
-            firstName={firstName}
-            onClose={() => setShowProfileMenu(false)}
-            onNavigateToSettings={() => navigation.navigate('Settings')}
-            onNavigateToArchived={() => navigation.navigate('Archived')}
-            onLogout={() => {
-              setShowProfileMenu(false);
-              showConfirm({
-                title: 'Log out?',
-                message: 'Are you sure you want to log out of your account?',
-                confirmText: 'Log out',
-                destructive: true,
-                onConfirm: logout,
-              });
-            }}
-          />
-        )}
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 

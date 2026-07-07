@@ -9,9 +9,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import LegalModal from '../../components/common/LegalModal';
-import CachedImage from '../../components/common/CachedImage';
 import colors from '../../theme/colors';
-import useAuthStore from '../../store/authStore';
 import useAuth from '../../hooks/useAuth';
 
 function Chevron() {
@@ -43,44 +41,16 @@ function SectionTitle({ children }: { children: string }) {
 }
 
 export default function SettingsScreen({ navigation }: { navigation: any }) {
-  const user = useAuthStore((s) => s.user);
-  const avatarUpdatedAt = useAuthStore((s) => s.avatarUpdatedAt);
   const { refreshProfile } = useAuth();
   const [legal, setLegal] = useState<'terms' | 'privacy' | null>(null);
 
   useFocusEffect(useCallback(() => { refreshProfile(); }, [])); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const displayName = user?.fullName || 'User';
-  const displayEmail = user?.email || '';
-  const avatarUrl = user?.photoUrl || user?.avatarUrl || (user?.profile as any)?.avatarUrl || null;
 
   return (
     <AppScreenLayout navigation={navigation} title="Settings">
         <ScrollView
           contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}>
-
-          <View style={styles.profileCard}>
-            <View style={styles.avatarRing}>
-              <View style={styles.avatarInner}>
-                {avatarUrl ? (
-                  <CachedImage
-                    key={`${avatarUrl}${avatarUpdatedAt}`}
-                    uri={avatarUrl}
-                    style={styles.avatarImage}
-                    resizeMode="cover"
-                    priority="high"
-                  />
-                ) : (
-                  <Text style={styles.avatarInitial}>{displayName.trim().charAt(0) || '?'}</Text>
-                )}
-              </View>
-            </View>
-            <View style={styles.profileText}>
-              <Text style={styles.profileName} numberOfLines={1}>{displayName}</Text>
-              <Text style={styles.profileEmail} numberOfLines={1}>{displayEmail || '—'}</Text>
-            </View>
-          </View>
 
           <SectionTitle>Account</SectionTitle>
           <View style={styles.card}>
@@ -130,44 +100,6 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 4 },
-
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    
-    
-    padding: 16,
-    marginBottom: 4,
-    overflow: 'hidden',
-  },
-  avatarRing: {
-    padding: 2,
-    borderRadius: 28,
-    backgroundColor: colors.accent,
-  },
-  avatarInner: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.gradientMid,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  avatarImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
-  avatarInitial: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: colors.accentHover,
-  },
-  profileText: { flex: 1, minWidth: 0 },
-  profileName: { fontSize: 15, fontWeight: '500', color: colors.textPrimary },
-  profileEmail: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
 
   sectionTitle: {
     fontSize: 15,

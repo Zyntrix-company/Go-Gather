@@ -1,9 +1,10 @@
 const { Router } = require('express');
 const controller = require('./controller');
+const userDocsCtrl = require('./userDocs.controller');
 const validators = require('./validators');
 const validate = require('../../middleware/validate');
 const authenticateJWT = require('../../middleware/authenticate');
-const { avatarUpload, photoUpload, handleMulterError } = require('../../middleware/upload.middleware');
+const { avatarUpload, photoUpload, docUpload, handleMulterError } = require('../../middleware/upload.middleware');
 const { limits } = require('../../config/uploadLimits');
 
 const router = Router();
@@ -221,6 +222,30 @@ router.delete(
   validate,
   controller.deleteGalleryComment,
 );
+
+// ── Personal documents (requires auth) ──────────────────────────────────────────
+// Registered under /me/ so Express never mistakes "me" for a UUID :id param.
+router.get('/me/docs', authenticateJWT, userDocsCtrl.getDocs);
+
+router.post(
+  '/me/docs',
+  authenticateJWT,
+  docUpload.array('file', limits.tripDoc.maxBatchFiles),
+  handleMulterError,
+  userDocsCtrl.uploadDoc,
+);
+
+router.patch('/me/docs/:docId', authenticateJWT, userDocsCtrl.renameDoc);
+
+router.put(
+  '/me/docs/:docId',
+  authenticateJWT,
+  docUpload.array('file', 1),
+  handleMulterError,
+  userDocsCtrl.replaceDoc,
+);
+
+router.delete('/me/docs/:docId', authenticateJWT, userDocsCtrl.deleteDoc);
 
 // ── Per-user routes ────────────────────────────────────────────────────────────
 

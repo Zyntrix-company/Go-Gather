@@ -27,7 +27,6 @@ import PollOptionItem from '../../components/common/PollOptionItem';
 import SharedDetailHeroCard from '../../components/common/DetailHeroCard';
 import FloatingTabBar from '../../components/common/FloatingTabBar';
 import AppHeader from '../../components/common/AppHeader';
-import ProfileDropdown from '../home/ProfileDropdown';
 import useAuth from '../../hooks/useAuth';
 import UploadOptionsRow from '../../components/common/UploadOptionsRow';
 import EmailOptionsRow from '../../components/common/EmailOptionsRow';
@@ -715,9 +714,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const currentUserName: string | null = rawUser?.fullName ?? rawUser?.profile?.fullName ?? null;
   const currentUserAvatar: string | null = rawUser?.avatarUrl ?? rawUser?.photoUrl ?? rawUser?.profile?.avatarUrl ?? null;
   const avatarUpdatedAt = useAuthStore(s => s.avatarUpdatedAt);
-  const { logout, refreshProfile } = useAuth();
-  const firstName = rawUser?.fullName?.split(' ')[0] || 'Explorer';
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  useAuth();
   const uploadLimits = useUploadLimits();
 
   // ── API-driven state ──
@@ -2089,27 +2086,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
         <AppHeader
           onLogoPress={() => navigation.goBack()}
           onBellPress={() => navigation.navigate('Notifications')}
-          onMenuPress={() => { refreshProfile(); setShowProfileMenu(true); }}
+          onMenuPress={() => navigation.navigate('Menu')}
         />
-        {showProfileMenu && (
-          <ProfileDropdown
-            user={rawUser}
-            firstName={firstName}
-            onClose={() => setShowProfileMenu(false)}
-            onNavigateToSettings={() => navigation.navigate('Settings')}
-            onNavigateToArchived={() => navigation.navigate('Archived')}
-            onLogout={() => {
-              setShowProfileMenu(false);
-              showConfirm({
-                title: 'Log out?',
-                message: 'Are you sure you want to log out of your account?',
-                confirmText: 'Log out',
-                destructive: true,
-                onConfirm: logout,
-              });
-            }}
-          />
-        )}
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
