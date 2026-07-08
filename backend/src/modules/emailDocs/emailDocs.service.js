@@ -12,11 +12,10 @@ const outlookProvider = require('./providers/outlook.provider');
 
 const PROVIDERS = { gmail: gmailProvider, outlook: outlookProvider };
 const ALLOWED_MIME_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
-const { docMaxBytes, docMaxCount } = require('../../config/uploadLimits');
+const { docMaxBytes, docMaxCount, personalDocMaxCount } = require('../../config/uploadLimits');
 
 const MAX_FILE_BYTES = docMaxBytes;
 const MAX_DOCS = docMaxCount;
-const MAX_PERSONAL_DOCS = 10;
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 function resolveProvider(provider) {
@@ -199,7 +198,7 @@ async function importAttachments(userId, parentType, parentId, attachments) {
     [parentType, parentId],
   );
   const currentCount = parseInt(countRes.rows[0].count, 10);
-  const cap = parentType === 'user' ? MAX_PERSONAL_DOCS : MAX_DOCS;
+  const cap = parentType === 'user' ? personalDocMaxCount : MAX_DOCS;
   if (currentCount + attachments.length > cap) {
     const label = parentType === 'user' ? 'account' : (parentType === 'event' ? 'event' : 'trip');
     const e = new Error(`This ${label} already has ${currentCount} documents. Adding ${attachments.length} more would exceed the ${cap} document limit.`);

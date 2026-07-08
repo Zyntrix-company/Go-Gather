@@ -10,12 +10,11 @@ const driveProvider              = require('../emailDocs/providers/drive.provide
 const emailDocsService = require('../emailDocs/emailDocs.service');
 
 const config = require('../../config');
-const { docMaxBytes, docMaxCount, photoMaxBytes, videoMaxBytes } = require('../../config/uploadLimits');
+const { docMaxBytes, docMaxCount, personalDocMaxCount, photoMaxBytes, videoMaxBytes } = require('../../config/uploadLimits');
 
 const MAX_FILE_BYTES = docMaxBytes;
 const MAX_PHOTO_BYTES = photoMaxBytes;
 const MAX_DOCS = docMaxCount;
-const MAX_PERSONAL_DOCS = 10;
 
 const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
@@ -127,7 +126,7 @@ async function importFiles(userId, parentType, parentId, files) {
     [parentType, parentId],
   );
   const currentCount = parseInt(countRes.rows[0].count, 10);
-  const cap = parentType === 'user' ? MAX_PERSONAL_DOCS : MAX_DOCS;
+  const cap = parentType === 'user' ? personalDocMaxCount : MAX_DOCS;
   if (currentCount + files.length > cap) {
     const label = parentType === 'user' ? 'account' : (parentType === 'event' ? 'event' : 'trip');
     const e = new Error(`This ${label} already has ${currentCount} documents. Adding ${files.length} more would exceed the ${cap} document limit.`);

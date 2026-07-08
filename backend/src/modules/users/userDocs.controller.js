@@ -1,11 +1,12 @@
 /**
  * Personal documents — user-scoped wrapper around the shared docs service.
- * parentType = 'user', parentId = the authenticated user's id. Capped at 10.
+ * parentType = 'user', parentId = the authenticated user's id.
+ * Cap is config-driven — see UPLOAD_PERSONAL_DOC_MAX_COUNT in config/uploadLimits.js.
  */
 const sharedDocs = require('../shared/docs/docs.service');
+const { personalDocMaxCount } = require('../../config/uploadLimits');
 
 const PARENT_TYPE = 'user';
-const MAX_PERSONAL_DOCS = 10;
 
 const respondError = (res, next, e) => {
   if (e.statusCode) return res.status(e.statusCode).json({ error: e.error, message: e.message, statusCode: e.statusCode });
@@ -15,7 +16,7 @@ const respondError = (res, next, e) => {
 const getDocs = async (req, res, next) => {
   try {
     const result = await sharedDocs.getDocs({ parentType: PARENT_TYPE, parentId: req.user.id });
-    res.status(200).json({ ...result, maxCount: MAX_PERSONAL_DOCS });
+    res.status(200).json({ ...result, maxCount: personalDocMaxCount });
   } catch (e) { next(e); }
 };
 
@@ -26,7 +27,7 @@ const uploadDoc = async (req, res, next) => {
       return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'At least one file is required', statusCode: 400 });
     }
     const result = await sharedDocs.uploadDocs(
-      { parentType: PARENT_TYPE, parentId: req.user.id, maxCount: MAX_PERSONAL_DOCS },
+      { parentType: PARENT_TYPE, parentId: req.user.id, maxCount: personalDocMaxCount },
       req.user.id,
       files,
     );

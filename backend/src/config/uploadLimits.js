@@ -8,6 +8,7 @@
  * UPLOAD_DOC_MAX_MB                — documents (default 15)
  * UPLOAD_DOC_MAX_COUNT             — max docs per trip/event (default 50)
  * UPLOAD_DOC_MAX_BATCH             — docs per upload request (default 10)
+ * UPLOAD_PERSONAL_DOC_MAX_COUNT    — max docs in a user's personal document space (default 10)
  * UPLOAD_PHOTO_MAX_BATCH           — photos+videos per request (default 20)
  * UPLOAD_ACTIVITY_PHOTO_MAX_COUNT  — max photos per activity (default 5)
  * UPLOAD_ACTIVITY_PHOTO_MAX_BATCH  — activity photos per request (default 5)
@@ -41,6 +42,7 @@ const videoMaxCount = envInt('UPLOAD_VIDEO_MAX_COUNT', 2);
 const docMaxBytes = envMb('UPLOAD_DOC_MAX_MB', 15);
 const docMaxCount = envInt('UPLOAD_DOC_MAX_COUNT', 50);
 const docMaxBatch = envInt('UPLOAD_DOC_MAX_BATCH', 10);
+const personalDocMaxCount = envInt('UPLOAD_PERSONAL_DOC_MAX_COUNT', 10);
 const photoMaxBatch = envInt('UPLOAD_PHOTO_MAX_BATCH', 20);
 const activityPhotoMaxCount = envInt('UPLOAD_ACTIVITY_PHOTO_MAX_COUNT', 5);
 const activityPhotoMaxBatch = envInt('UPLOAD_ACTIVITY_PHOTO_MAX_BATCH', 5);
@@ -101,6 +103,11 @@ const limits = {
     maxBatchFiles: docMaxBatch,
     maxFilesTotal: docMaxCount,
   },
+  personalDoc: {
+    maxFileBytes: docMaxBytes,
+    maxBatchFiles: docMaxBatch,
+    maxFilesTotal: personalDocMaxCount,
+  },
   galleryPhoto: {
     maxFileBytes: photoMaxBytes,
     maxBatchFiles: photoMaxBatch,
@@ -158,6 +165,7 @@ const getPublicUploadLimits = () => ({
   eventPhoto: toPublicSlice(limits.eventPhoto),
   eventVideo: toPublicSlice(limits.eventVideo),
   eventDoc: toPublicSlice(limits.eventDoc),
+  personalDoc: toPublicSlice(limits.personalDoc),
   galleryPhoto: toPublicSlice(limits.galleryPhoto),
   galleryVideo: toPublicSlice(limits.galleryVideo),
   avatar: toPublicSlice(limits.avatar),
@@ -172,6 +180,7 @@ module.exports = {
   docMaxBytes,
   docMaxCount,
   docMaxBatch,
+  personalDocMaxCount,
   photoMaxBytes,
   videoMaxBytes,
   videoMaxCount,
