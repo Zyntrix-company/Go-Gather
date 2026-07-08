@@ -383,7 +383,7 @@ function NavIcon({ name, active, onPress }: { name: Tab; active: boolean; onPres
   const labels: Record<Tab, string> = { home: 'Home', trips: 'Trips', events: 'Events', friends: 'Friends', chat: 'Swee', gallery: 'Gallery' };
 
   return (
-    <TouchableOpacity style={styles.navItem} onPress={onPress}>
+    <TouchableOpacity style={styles.navItem} onPress={onPress} activeOpacity={0.7}>
       {name === 'home' && (
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
           <Path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -1338,7 +1338,8 @@ export default function HomeScreen({ navigation, route }: any) {
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
             <TouchableOpacity
               onPress={() => { setBlogDetailVisible(false); setSelectedBlog(null); }}
-              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}
+              activeOpacity={0.7}>
               <ChevronLeft size={20} color="#1a1a2e" />
             </TouchableOpacity>
             <Text style={{ fontSize: 15, fontWeight: '600', color: '#1a1a2e', flex: 1 }} numberOfLines={1}>

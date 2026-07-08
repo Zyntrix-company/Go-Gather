@@ -875,7 +875,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           <View style={styles.reportModal}>
             <View style={styles.reportHeader}>
               <Text style={styles.reportTitle}>Report an issue</Text>
-              <TouchableOpacity onPress={() => setShowReportModal(false)}>
+              <TouchableOpacity onPress={() => setShowReportModal(false)} activeOpacity={0.7}>
                 <CloseIcon size={20} />
               </TouchableOpacity>
             </View>
@@ -942,7 +942,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           <View style={styles.aboutModal}>
             <View style={styles.reportHeader}>
               <Text style={styles.reportTitle}>About Swee</Text>
-              <TouchableOpacity onPress={() => setShowAboutModal(false)}>
+              <TouchableOpacity onPress={() => setShowAboutModal(false)} activeOpacity={0.7}>
                 <CloseIcon size={20} />
               </TouchableOpacity>
             </View>

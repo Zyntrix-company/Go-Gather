@@ -1,6 +1,7 @@
 /**
  * Personal Documents API — user-scoped docs (parentType 'user' on the backend).
- * Mirrors the trip/event docs endpoints but under /users/me/docs. Capped at 10.
+ * Mirrors the trip/event docs endpoints but under /users/me/docs.
+ * Cap is config-driven — see uploadLimits.personalDoc.maxFilesTotal (useUploadLimits()).
  */
 import client, { API_BASE } from './client';
 import storage from '../utils/storage';
@@ -11,8 +12,6 @@ type ImportResult = {
   imported: { docId: string; fileName: string; fileUrl: string }[];
   failed: { fileName: string; reason: string }[];
 };
-
-export const MAX_PERSONAL_DOCS = 10;
 
 export type { Doc };
 

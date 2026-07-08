@@ -57,6 +57,7 @@ export default function LocationMultiPicker({
                 onPress={() => removeLocation(index)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityLabel={`Remove ${loc.name}`}
+                activeOpacity={0.7}
               >
                 <Text style={styles.chipRemove}>×</Text>
               </TouchableOpacity>

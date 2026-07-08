@@ -106,7 +106,7 @@ function TravelerAvatar({ member }: { member: GalleryTraveler }) {
   return (
     <View style={styles.avatarWrap}>
       {member.avatarUrl ? (
-        <CachedImage uri={member.avatarUrl} style={styles.avatar} resizeMode="cover" />
+        <CachedImage uri={member.avatarUrl} style={styles.avatar} resizeMode="cover" blurUp />
       ) : (
         <View style={[styles.avatar, styles.avatarPlaceholder]}>
           <Text style={styles.initial}>{(member.fullName ?? '?')[0]?.toUpperCase()}</Text>

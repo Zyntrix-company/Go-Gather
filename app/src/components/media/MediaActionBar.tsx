@@ -1,16 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import { View, StyleSheet } from 'react-native';
 import UploadOptionsRow from '../common/UploadOptionsRow';
-
-function InfoIcon() {
-  return (
-    <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
-      <Circle cx={12} cy={12} r={10} stroke="#94a3b8" strokeWidth={2} />
-      <Path d="M12 16v-4M12 8h.01" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" />
-    </Svg>
-  );
-}
+import UploadLimitNote from '../common/UploadLimitNote';
 
 type MediaActionBarProps = {
   onUpload?: () => void;
@@ -44,12 +35,7 @@ export default function MediaActionBar({
         disabled={disabled}
       />
       {capTotal != null && (
-        <View style={styles.infoRow}>
-          <InfoIcon />
-          <Text style={styles.infoText}>
-            You can add up to {capTotal} media files for this {entityLabel}.
-          </Text>
-        </View>
+        <UploadLimitNote text={`You can add up to ${capTotal} media files for this ${entityLabel}.`} />
       )}
     </View>
   );
@@ -63,18 +49,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#e2e8f0',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 10,
-  },
-  infoText: {
-    fontSize: 11,
-    color: '#94a3b8',
-    lineHeight: 15,
-    textAlign: 'center',
   },
 });

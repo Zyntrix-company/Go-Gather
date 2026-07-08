@@ -22,11 +22,12 @@ export function promptConnectDrive(onCancel?: () => void): void {
     onConfirm: async () => {
       try {
         const { url } = await getDriveConnectUrl();
-        const ok = await Linking.canOpenURL(url);
-        if (!ok) {
-          Toast.show({ type: 'error', text1: 'Cannot open sign-in on this device' });
+        if (!url) {
+          Toast.show({ type: 'error', text1: 'Could not start Drive sign-in', text2: 'Please try again.' });
           return;
         }
+        // Note: Linking.canOpenURL returns false for https on Android 11+ (package
+        // visibility), so we open directly and let openURL throw if it truly can't.
         await Linking.openURL(url);
         Toast.show({
           type: 'info',
@@ -55,11 +56,12 @@ export function promptConnectEmail(
     onConfirm: async () => {
       try {
         const { url } = await getEmailConnectUrl(provider);
-        const ok = await Linking.canOpenURL(url);
-        if (!ok) {
-          Toast.show({ type: 'error', text1: 'Cannot open sign-in on this device' });
+        if (!url) {
+          Toast.show({ type: 'error', text1: `Could not start ${label} sign-in`, text2: 'Please try again.' });
           return;
         }
+        // Note: Linking.canOpenURL returns false for https on Android 11+ (package
+        // visibility), so we open directly and let openURL throw if it truly can't.
         await Linking.openURL(url);
         Toast.show({
           type: 'info',

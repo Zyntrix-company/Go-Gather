@@ -29,6 +29,8 @@ type UploadOptionsRowProps = {
   driveImporting?: boolean;
   disabled?: boolean;
   showDrive?: boolean;
+  /** Transparent (outlined) cards instead of the default filled grey. */
+  transparent?: boolean;
 };
 
 export default function UploadOptionsRow({
@@ -39,21 +41,23 @@ export default function UploadOptionsRow({
   driveImporting = false,
   disabled = false,
   showDrive = true,
+  transparent = false,
 }: UploadOptionsRowProps) {
   const busy = uploading || driveImporting || disabled;
+  const btnStyle = [styles.btn, transparent && styles.btnTransparent];
 
   return (
     <View style={styles.row}>
-      <TouchableOpacity style={[styles.btn, busy && styles.btnDisabled]} onPress={onUpload} disabled={busy} activeOpacity={0.85}>
+      <TouchableOpacity style={[btnStyle, busy && styles.btnDisabled]} onPress={onUpload} disabled={busy} activeOpacity={0.85}>
         {uploading ? <ActivityIndicator color={colors.accent} size="small" /> : <UploadIcon />}
         <Text style={styles.btnLabel}>Upload</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={[styles.btn, busy && styles.btnDisabled]} onPress={onCamera} disabled={busy} activeOpacity={0.85}>
+      <TouchableOpacity style={[btnStyle, busy && styles.btnDisabled]} onPress={onCamera} disabled={busy} activeOpacity={0.85}>
         <CameraIcon />
         <Text style={styles.btnLabel}>Camera</Text>
       </TouchableOpacity>
       {showDrive && (
-        <TouchableOpacity style={[styles.btn, busy && styles.btnDisabled]} onPress={onDrive} disabled={busy} activeOpacity={0.85}>
+        <TouchableOpacity style={[btnStyle, busy && styles.btnDisabled]} onPress={onDrive} disabled={busy} activeOpacity={0.85}>
           {driveImporting ? <ActivityIndicator color={colors.accent} size="small" /> : <DriveBrandIcon size={24} />}
           <Text style={styles.btnLabel}>Drive</Text>
         </TouchableOpacity>
@@ -76,6 +80,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     minHeight: 72,
+  },
+  btnTransparent: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   btnDisabled: {
     opacity: 0.5,

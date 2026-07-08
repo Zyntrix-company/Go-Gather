@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -54,28 +54,34 @@ function normalize(a: AvatarInput): { id: string; uri: string } {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-/** Single avatar: coloured circle base, photo overlaid and faded in once loaded. */
+const AnimatedImage = Animated.Image;
+
+/** Single avatar: coloured circle base, photo faded in smoothly once loaded (no pop-in). */
 function AvatarCircle({ uri, size, index }: { uri: string; size: number; index: number }) {
-  const [imgOk, setImgOk] = useState(false);
   const r = size / 2;
   const bg = FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+  const opacity = useRef(new Animated.Value(0)).current;
 
-  const prevUri = useRef(uri);
+  const prevUri = useRef<string | null>(null);
   useEffect(() => {
     if (prevUri.current !== uri) {
       prevUri.current = uri;
-      setImgOk(false);
+      opacity.setValue(0);
     }
-  }, [uri]);
+  }, [uri, opacity]);
+
+  const handleLoad = () => {
+    Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+  };
 
   return (
     <View style={[st.circle, { width: size, height: size, borderRadius: r, backgroundColor: bg }]}>
       {!!uri && (
-        <Image
+        <AnimatedImage
           source={{ uri }}
-          style={[StyleSheet.absoluteFill, { borderRadius: r, opacity: imgOk ? 1 : 0 }] as StyleProp<ImageStyle>}
-          onLoad={() => setImgOk(true)}
-          onError={() => setImgOk(false)}
+          style={[StyleSheet.absoluteFill, { borderRadius: r, opacity }] as StyleProp<ImageStyle>}
+          onLoad={handleLoad}
+          onError={() => opacity.setValue(0)}
         />
       )}
     </View>

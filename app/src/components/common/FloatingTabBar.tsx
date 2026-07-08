@@ -19,7 +19,7 @@ function NavIcon({ name, active, onPress }: { name: TabType; active: boolean; on
   const labels: Record<TabType, string> = { trips: 'Trips', events: 'Events', friends: 'Friends', chat: 'Swee', gallery: 'Gallery' };
 
   return (
-    <TouchableOpacity style={styles.navItem} onPress={onPress}>
+    <TouchableOpacity style={styles.navItem} onPress={onPress} activeOpacity={0.7}>
       {name === 'trips' && (
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
           <Path

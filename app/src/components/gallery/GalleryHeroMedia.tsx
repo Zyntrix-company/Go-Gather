@@ -177,27 +177,17 @@ export default function GalleryHeroMedia({ photo, active = true }: GalleryHeroMe
           )}
         </>
       ) : (
-        <>
-          <CachedImage
-            uri={uri}
-            style={styles.media}
-            resizeMode="cover"
-            onLoad={() => setLoading(false)}
-            onError={() => {
-              if (photo.localUri && !localUriFailed) {
-                setLocalUriFailed(true);
-                setLoading(true);
-              } else {
-                setLoading(false);
-              }
-            }}
-          />
-          {loading && (
-            <View style={styles.loader}>
-              <ActivityIndicator size="large" color="#0d9488" />
-            </View>
-          )}
-        </>
+        <CachedImage
+          uri={uri}
+          style={styles.media}
+          resizeMode="cover"
+          blurUp
+          onError={() => {
+            if (photo.localUri && !localUriFailed) {
+              setLocalUriFailed(true);
+            }
+          }}
+        />
       )}
     </View>
   );

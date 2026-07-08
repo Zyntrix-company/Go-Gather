@@ -27,6 +27,7 @@ export type UploadLimits = {
   eventPhoto: UploadLimitSlice;
   eventVideo: UploadLimitSlice;
   eventDoc: UploadLimitSlice;
+  personalDoc: UploadLimitSlice;
   galleryPhoto: UploadLimitSlice;
   galleryVideo: UploadLimitSlice;
   avatar: UploadLimitSlice;
@@ -57,6 +58,7 @@ export const DEFAULT_UPLOAD_LIMITS: UploadLimits = {
   eventPhoto: { maxFileBytes: 15 * MB, maxFileMB: 15, maxBatchFiles: 20, maxFilesTotal: null, maxModuleBytes: null },
   eventVideo: { maxFileBytes: 200 * MB, maxFileMB: 200, maxBatchFiles: 20, maxFilesTotal: 2, maxModuleBytes: 400 * MB },
   eventDoc: { maxFileBytes: 15 * MB, maxFileMB: 15, maxBatchFiles: 10, maxFilesTotal: 50, maxModuleBytes: 50 * 15 * MB },
+  personalDoc: { maxFileBytes: 15 * MB, maxFileMB: 15, maxBatchFiles: 10, maxFilesTotal: 10, maxModuleBytes: 10 * 15 * MB },
   galleryPhoto: { maxFileBytes: 15 * MB, maxFileMB: 15, maxBatchFiles: 20, maxFilesTotal: null, maxModuleBytes: null },
   galleryVideo: { maxFileBytes: 200 * MB, maxFileMB: 200, maxBatchFiles: 20, maxFilesTotal: 2, maxModuleBytes: 400 * MB },
   avatar: { maxFileBytes: 10 * MB, maxFileMB: 10, maxBatchFiles: 1, maxFilesTotal: 1, maxModuleBytes: 10 * MB },

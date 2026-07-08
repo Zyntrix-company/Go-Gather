@@ -21,6 +21,7 @@ import PollOptionItem from '../../components/common/PollOptionItem';
 import InviteViaChannels from '../../components/common/InviteViaChannels';
 import DetailDialogHeader from '../../components/details/DetailDialogHeader';
 import UploadOptionsRow from '../../components/common/UploadOptionsRow';
+import UploadLimitNote from '../../components/common/UploadLimitNote';
 import EmailOptionsRow from '../../components/common/EmailOptionsRow';
 import DocumentItem, { DocItemSkeleton, stripExt } from '../../components/common/DocumentItem';
 import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
@@ -71,6 +72,8 @@ import { markEventSectionViewed } from '../../api/events.api';
 import ExpenseTotalsTab from '../../components/common/ExpenseTotalsTab';
 import { ExpenseListSkeleton, TotalTabSkeleton, BalanceTabSkeleton } from '../../components/common/ExpenseTabSkeleton';
 import ExpenseBalanceSummary from '../../components/common/ExpenseBalanceSummary';
+import ExpenseCard from '../../components/common/ExpenseCard';
+import ExpenseStatsBar from '../../components/common/ExpenseStatsBar';
 import {
   EXPENSE_CATS,
   NOTE_CATS,
@@ -105,6 +108,7 @@ type ExpenseLocal = {
   currency: string;
   paidBy: string; splitType: 'equally' | 'amount' | 'percent'; splitAmong: string[]; date: string; myAmount?: number;
   createdByUserId?: string;
+  paidByAvatarUrl?: string | null;
   splitBreakdown?: { userId: string; amount: number; percentage: number | null }[];
 };
 type PollLocal = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null; createdBy?: string; createdByName?: string | null; createdAt?: string | null; status?: 'active' | 'completed' };
@@ -128,7 +132,7 @@ function normalizeDebtArray(
   }));
 }
 
-function mapApiEventExpenseToState(e: any, currentUserId: string, membersList: EventMemberLocal[]): ExpenseLocal {
+function mapApiEventExpenseToState(e: any, currentUserId: string, membersList: EventMemberLocal[], currentUserAvatar?: string | null): ExpenseLocal {
   const resolvePaidBy = (paidByRaw: any): string => {
     if (typeof paidByRaw === 'object' && paidByRaw !== null) {
       const uid = paidByRaw.userId ?? paidByRaw.id ?? '';
@@ -140,7 +144,19 @@ function mapApiEventExpenseToState(e: any, currentUserId: string, membersList: E
     const member = membersList.find(m => m.userId === uid);
     return member?.fullName ?? uid ?? 'Unknown';
   };
+  const resolvePaidByAvatar = (paidByRaw: any): string | null => {
+    const uid = typeof paidByRaw === 'object' && paidByRaw !== null
+      ? (paidByRaw.userId ?? paidByRaw.id ?? '')
+      : String(paidByRaw ?? '');
+    if (uid === currentUserId) return currentUserAvatar ?? null;
+    const member = membersList.find(m => m.userId === uid);
+    if (member?.avatarUrl) return member.avatarUrl;
+    if (typeof paidByRaw === 'object' && paidByRaw !== null)
+      return paidByRaw.avatarUrl ?? paidByRaw.avatar ?? null;
+    return null;
+  };
   const paidByStr = resolvePaidBy(e.paidBy);
+  const paidByAvatarUrl = resolvePaidByAvatar(e.paidBy);
   const splits = e.splits ?? [];
   const mySplit = splits.find((s: any) => s.userId === currentUserId);
   const myAmount = mySplit ? parseFloat(String(mySplit.amount ?? '0')) : 0;
@@ -156,6 +172,7 @@ function mapApiEventExpenseToState(e: any, currentUserId: string, membersList: E
     currency: (e.currency as string) || 'INR',
     category: catSlug,
     paidBy: paidByStr,
+    paidByAvatarUrl,
     splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
     splitAmong: splits.map((s: any) => s.userId),
     date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
@@ -381,7 +398,7 @@ function EventFriendAvatar({ uri, name, style }: { uri: string; name: string; st
       </View>
     );
   }
-  return <CachedImage uri={uri} style={style} resizeMode="cover" onError={() => setFailed(true)} />;
+  return <CachedImage uri={uri} style={style} resizeMode="cover" blurUp onError={() => setFailed(true)} />;
 }
 
 function resolveFriendAvatar(friend: any): string {
@@ -587,7 +604,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
               avatarUrl: m.avatarUrl,
               role: m.role,
             }));
-            setExpenses((expData.expenses ?? []).map(e => mapApiEventExpenseToState(e, currentUserId, membersForMap)));
+            setExpenses((expData.expenses ?? []).map(e => mapApiEventExpenseToState(e, currentUserId, membersForMap, currentUserAvatar)));
             setBalances(normalizeDebtArray(balData.debts, currentUserId, membersForMap));
             setMyBalances(balData.myBalances ?? (balData.myBalance !== undefined ? { INR: balData.myBalance } : {}));
             setTotalExpensesByCurrency(balData.totalExpensesByCurrency ?? (balData.totalExpenses !== undefined ? { INR: balData.totalExpenses } : {}));
@@ -627,7 +644,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
       };
 
       loadAllData();
-    }, [event.id, currentUserId])
+    }, [event.id, currentUserId, currentUserAvatar])
   );
 
   // Load friends when Members modal opens
@@ -786,7 +803,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         getEventExpenses(event.id),
         getEventBalances(event.id),
       ]);
-      setExpenses((expData.expenses ?? []).map(e => mapApiEventExpenseToState(e, currentUserId, membersList)));
+      setExpenses((expData.expenses ?? []).map(e => mapApiEventExpenseToState(e, currentUserId, membersList, currentUserAvatar)));
       setBalances(normalizeDebtArray(balData.debts, currentUserId, membersList));
       setMyBalances(balData.myBalances ?? (balData.myBalance !== undefined ? { INR: balData.myBalance } : {}));
       setTotalExpensesByCurrency(balData.totalExpensesByCurrency ?? (balData.totalExpenses !== undefined ? { INR: balData.totalExpenses } : {}));
@@ -796,7 +813,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
       setIsRefreshingExpenses(false);
       setIsLoadingExpenses(false);
     }
-  }, [event.id, currentUserId]);
+  }, [event.id, currentUserId, currentUserAvatar]);
 
   const handleExpenseTabSelect = useCallback((tab: 'Expense' | 'Total' | 'Balance') => {
     dismissExpenseOverlays();
@@ -884,7 +901,16 @@ export default function EventDetailScreen({ route, navigation }: any) {
   }
 
   async function openEmailPicker(provider: 'gmail' | 'outlook') {
-    if (!emailStatus[provider].connected) {
+    let connected = emailStatus[provider].connected;
+    if (!connected) {
+      // emailStatus can be stale — verify live before prompting to connect.
+      try {
+        const d: any = await getEmailStatus();
+        setEmailStatus({ gmail: { connected: Boolean(d?.gmail?.connected) }, outlook: { connected: Boolean(d?.outlook?.connected) } });
+        connected = Boolean(d?.[provider]?.connected);
+      } catch { /* fall through to connect prompt */ }
+    }
+    if (!connected) {
       promptConnectEmail(provider, () => {
         getEmailStatus().then((d: any) => {
           setEmailStatus({ gmail: { connected: Boolean(d?.gmail?.connected) }, outlook: { connected: Boolean(d?.outlook?.connected) } });
@@ -1616,6 +1642,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     onOutlook={() => openEmailPicker('outlook')}
                   />
 
+                  <UploadLimitNote text={`You can add up to ${uploadLimits.eventDoc.maxFilesTotal} documents for this event.`} />
+
                   {/* Documents list */}
                   <View style={styles.docSectionDivider}>
                     <View style={styles.docDividerLine} />
@@ -1878,6 +1906,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                               style={styles.memberAvatar as any}
                               resizeMode="cover"
                               priority="normal"
+                              blurUp
                               onError={() => setFailedAvatarIds(prev => { const s = new Set(prev); s.add(m.userId); return s; })}
                             />
                           : <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>}
@@ -2093,6 +2122,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       <ExpenseListSkeleton />
                     ) : (
                       <>
+                    <ExpenseStatsBar totalExpensesByCurrency={totalExpensesByCurrency} myBalances={myBalances} />
                     <TouchableOpacity style={styles.tealBtnFull} disabled={isSubmittingExpense} onPress={() => {
                       if (showAddExpense) {
                         dismissExpenseOverlays();
@@ -2214,30 +2244,17 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         {expenses.map(exp => {
                           const balanceLabel = getExpenseRowBalanceLabel(exp);
                           return (
-                            <View key={exp.id} style={styles.expRow}>
-                              <View style={styles.expIconBox}><ExpenseCategoryIcon category={exp.category} size={20} /></View>
-                              <View style={{ flex: 1, marginLeft: 10 }}>
-                                <Text style={styles.expName}>{exp.description}</Text>
-                                <Text style={styles.expMeta}>Paid by {exp.paidBy}</Text>
-                                <Text style={styles.expMeta}>{exp.date}</Text>
-                              </View>
-                              <View style={{ alignItems: 'flex-end' }}>
-                                <Text
-                                  style={styles.expAmt}
-                                  numberOfLines={1}
-                                  adjustsFontSizeToFit
-                                  minimumFontScale={0.8}>
-                                  {formatCurrencyFull(exp.amount, exp.currency)}
-                                </Text>
-                                {balanceLabel && (
-                                  <Text style={{ fontSize: 11, color: balanceLabel.color, marginBottom: 6 }}>{balanceLabel.text}</Text>
-                                )}
-                                <View style={{ flexDirection: 'row', gap: 12, marginTop: balanceLabel ? 0 : 6 }}>
-                                  <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={styles.expActionEdit}>Edit</Text></TouchableOpacity>
-                                  <TouchableOpacity onPress={() => handleDeleteExpense(exp.id)} activeOpacity={0.7}><Text style={styles.expActionDelete}>Delete</Text></TouchableOpacity>
-                                </View>
-                              </View>
-                            </View>
+                            <ExpenseCard
+                              key={exp.id}
+                              description={exp.description}
+                              paidByName={exp.paidBy}
+                              paidByAvatarUrl={exp.paidByAvatarUrl}
+                              date={exp.date}
+                              amountLabel={formatCurrencyFull(exp.amount, exp.currency)}
+                              balanceLabel={balanceLabel}
+                              onEdit={() => startEditExpense(exp)}
+                              onDelete={() => handleDeleteExpense(exp.id)}
+                            />
                           );
                         })}
                       </View>
@@ -2386,7 +2403,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                                   <View style={styles.pollAvatarRow}>
                                     {voterAvatars.map((m, idx) => (
                                       m.avatarUrl
-                                        ? <CachedImage key={m.userId} uri={m.avatarUrl} style={[styles.pollAvatar, { marginLeft: idx > 0 ? -8 : 0 }] as any} resizeMode="cover" priority="normal" />
+                                        ? <CachedImage key={m.userId} uri={m.avatarUrl} style={[styles.pollAvatar, { marginLeft: idx > 0 ? -8 : 0 }] as any} resizeMode="cover" priority="normal" blurUp />
                                         : <View key={m.userId} style={[styles.pollAvatar, styles.pollAvatarPlaceholder, { marginLeft: idx > 0 ? -8 : 0 }]}><Text style={styles.pollAvatarInitial}>{(m.fullName?.[0] || '?').toUpperCase()}</Text></View>
                                     ))}
                                     {extra > 0 && <View style={[styles.pollAvatar, styles.pollAvatarMore, { marginLeft: -8 }]}><Text style={styles.pollAvatarMoreTxt}>+{extra}</Text></View>}
@@ -2459,7 +2476,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                                   <View style={styles.pollAvatarRow}>
                                     {voterAvatars.map((m, idx) => (
                                       m.avatarUrl
-                                        ? <CachedImage key={m.userId} uri={m.avatarUrl} style={[styles.pollAvatar, { marginLeft: idx > 0 ? -8 : 0 }] as any} resizeMode="cover" priority="normal" />
+                                        ? <CachedImage key={m.userId} uri={m.avatarUrl} style={[styles.pollAvatar, { marginLeft: idx > 0 ? -8 : 0 }] as any} resizeMode="cover" priority="normal" blurUp />
                                         : <View key={m.userId} style={[styles.pollAvatar, styles.pollAvatarPlaceholder, { marginLeft: idx > 0 ? -8 : 0 }]}><Text style={styles.pollAvatarInitial}>{(m.fullName?.[0] || '?').toUpperCase()}</Text></View>
                                     ))}
                                     {extra > 0 && <View style={[styles.pollAvatar, styles.pollAvatarMore, { marginLeft: -8 }]}><Text style={styles.pollAvatarMoreTxt}>+{extra}</Text></View>}

@@ -67,7 +67,7 @@ export default function GalleryAlbumSubHeader({
 
   return (
     <View style={styles.wrap}>
-      <TouchableOpacity onPress={() => { Keyboard.dismiss(); onBack(); }} style={acs.headerBackGallery} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+      <TouchableOpacity onPress={() => { Keyboard.dismiss(); onBack(); }} style={acs.headerBackGallery} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
         <BackIcon />
       </TouchableOpacity>
 
@@ -100,14 +100,14 @@ export default function GalleryAlbumSubHeader({
       {!viewOnly ? (
         <View style={styles.actions}>
           {editMode ? (
-            <TouchableOpacity onPress={onDoneEdit} style={acs.heroOverlayBtnLight} disabled={saving}>
+            <TouchableOpacity onPress={onDoneEdit} style={acs.heroOverlayBtnLight} disabled={saving} activeOpacity={0.7}>
               <Svg width={17} height={17} viewBox="0 0 24 24" fill="none">
                 <Path d="M20 6L9 17l-5-5" stroke="#0d9488" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
               </Svg>
             </TouchableOpacity>
           ) : (
             <View ref={menuAnchorRef}>
-              <TouchableOpacity onPress={openMenu} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+              <TouchableOpacity onPress={openMenu} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} activeOpacity={0.7}>
                 <MoreVertical size={17} color="#0d9488" />
               </TouchableOpacity>
             </View>

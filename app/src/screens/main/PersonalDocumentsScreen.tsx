@@ -4,13 +4,16 @@ import {
   Modal, Pressable, TextInput, Dimensions, KeyboardAvoidingView, Platform, FlatList,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Upload, Camera, MoreVertical, Pen, Trash2, RefreshCw, X } from 'lucide-react-native';
+import { MoreVertical, Pen, Trash2, RefreshCw, X } from 'lucide-react-native';
 import { launchCamera } from 'react-native-image-picker';
 import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Toast from 'react-native-toast-message';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import DocTypeIcon from '../../components/common/DocTypeIcon';
-import { stripExt } from '../../components/common/DocumentItem';
+import { stripExt, DocItemSkeleton } from '../../components/common/DocumentItem';
+import UploadOptionsRow from '../../components/common/UploadOptionsRow';
+import EmailOptionsRow from '../../components/common/EmailOptionsRow';
+import UploadLimitNote from '../../components/common/UploadLimitNote';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
 import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
 import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
@@ -21,10 +24,11 @@ import {
   type EmailProvider, type EmailAttachment, type DriveFile, type EmailConnectionStatus,
 } from '../../api/trips.api';
 import { promptConnectEmail, checkDriveConnected, promptConnectDrive, watchDriveConnect } from '../../utils/drivePickerFlow';
+import useUploadLimits from '../../hooks/useUploadLimits';
 import {
   getPersonalDocs, uploadPersonalDoc, replacePersonalDoc, renamePersonalDoc, deletePersonalDoc,
   importEmailAttachmentsToPersonal, importDriveFilesToPersonal,
-  MAX_PERSONAL_DOCS, type Doc,
+  type Doc,
 } from '../../api/personalDocs.api';
 
 function formatDate(iso?: string) {
@@ -34,22 +38,7 @@ function formatDate(iso?: string) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-// ─── Upload / import cards ──────────────────────────────────────────────────────
-
-function ActionCard({
-  icon, label, onPress, disabled,
-}: { icon: React.ReactNode; label: string; onPress: () => void; disabled?: boolean }) {
-  return (
-    <TouchableOpacity
-      style={[styles.card, disabled && styles.cardDisabled]}
-      onPress={onPress}
-      activeOpacity={0.8}
-      disabled={disabled}>
-      <View style={styles.cardIcon}>{icon}</View>
-      <Text style={styles.cardLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
+// ─── Section divider ────────────────────────────────────────────────────────────
 
 function Divider({ label }: { label: string }) {
   return (
@@ -88,7 +77,7 @@ function DocRow({
 
   return (
     <View style={styles.docRow}>
-      <DocTypeIcon doc={doc} size={44} />
+      <DocTypeIcon doc={doc} size={36} />
       <View style={styles.docInfo}>
         <Text style={styles.docName} numberOfLines={1}>{stripExt(doc.fileName)}</Text>
       </View>
@@ -132,6 +121,9 @@ function DocRow({
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function PersonalDocumentsScreen({ navigation }: { navigation: any }) {
+  const uploadLimits = useUploadLimits();
+  const maxPersonalDocs = uploadLimits.personalDoc.maxFilesTotal ?? 10;
+
   const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -160,7 +152,7 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
 
   useEffect(() => () => { driveWatchRef.current?.(); }, []);
 
-  const isFull = docs.length >= MAX_PERSONAL_DOCS;
+  const isFull = docs.length >= maxPersonalDocs;
 
   const load = useCallback(async () => {
     try {
@@ -181,7 +173,7 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
 
   const guardFull = () => {
     if (isFull) {
-      showAlert({ title: 'Limit reached', message: `You can store up to ${MAX_PERSONAL_DOCS} documents. Delete one to add more.`, buttons: [{ text: 'OK' }] });
+      showAlert({ title: 'Limit reached', message: `You can store up to ${maxPersonalDocs} documents. Delete one to add more.`, buttons: [{ text: 'OK' }] });
       return true;
     }
     return false;
@@ -392,45 +384,50 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
     }
   }
 
-  const usedPct = Math.min(100, Math.round((docs.length / MAX_PERSONAL_DOCS) * 100));
-
   return (
-    <AppScreenLayout navigation={navigation} title="Personal Documents" onBack={() => navigation.goBack()}>
+    <AppScreenLayout navigation={navigation} title="Personal Documents" titleStyle={styles.headerTitle} onBack={() => navigation.goBack()}>
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
         showsVerticalScrollIndicator={false}>
 
-        <Text style={styles.subtitle}>Store and manage your important travel documents securely.</Text>
+        <Text style={styles.subtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+          Store and manage your important travel documents securely.
+        </Text>
 
         {/* Upload */}
         <Divider label="UPLOAD DOCUMENTS" />
-        <View style={styles.cardRow}>
-          <ActionCard icon={<Upload size={26} color={colors.accent} strokeWidth={2} />} label="Upload" onPress={handleUpload} disabled={uploading} />
-          <ActionCard icon={<Camera size={26} color={colors.accent} strokeWidth={2} />} label="Camera" onPress={handleCamera} disabled={uploading} />
-          <ActionCard icon={<DriveBrandIcon size={28} />} label="Drive" onPress={openDrivePicker} />
-        </View>
+        <UploadOptionsRow
+          onUpload={handleUpload}
+          onCamera={handleCamera}
+          onDrive={openDrivePicker}
+          uploading={uploading}
+          disabled={isFull}
+          transparent
+        />
 
         {/* Email import */}
         <Divider label="IMPORTED FROM EMAIL" />
-        <View style={styles.cardRow}>
-          <ActionCard icon={<EmailProviderIcon provider="gmail" size={28} />} label="Gmail" onPress={() => openEmailPicker('gmail')} />
-          <ActionCard icon={<EmailProviderIcon provider="outlook" size={28} />} label="Outlook" onPress={() => openEmailPicker('outlook')} />
-        </View>
+        <EmailOptionsRow
+          onGmail={() => openEmailPicker('gmail')}
+          onOutlook={() => openEmailPicker('outlook')}
+          disabled={isFull}
+          transparent
+        />
 
-        {/* Header + usage */}
+        <UploadLimitNote text={`You can add up to ${maxPersonalDocs} documents to your account.`} />
+
+        {/* Header */}
         <View style={styles.listHeader}>
-          <Text style={styles.listTitle}>MY DOCUMENTS ({docs.length}/{MAX_PERSONAL_DOCS})</Text>
-          <View style={styles.usageWrap}>
-            <Text style={styles.usageText}>{docs.length} of {MAX_PERSONAL_DOCS} documents used</Text>
-            <View style={styles.usageTrack}>
-              <View style={[styles.usageFill, { width: `${usedPct}%` }]} />
-            </View>
-          </View>
+          <Text style={styles.listTitle} numberOfLines={1}>My Documents</Text>
         </View>
 
         {/* List */}
         {loading ? (
-          <ActivityIndicator size="small" color={colors.accent} style={{ marginTop: 24 }} />
+          <View style={styles.list}>
+            <DocItemSkeleton />
+            <DocItemSkeleton />
+            <DocItemSkeleton />
+          </View>
         ) : docs.length === 0 ? (
           <Text style={styles.empty}>No documents yet. Upload your first one above.</Text>
         ) : (
@@ -497,7 +494,7 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
             <View style={styles.pickerHeader}>
               <EmailProviderIcon provider={emailProvider} size={22} />
               <Text style={styles.pickerTitle}>Import from {emailProviderLabel(emailProvider)}</Text>
-              <TouchableOpacity onPress={() => setShowEmailPicker(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={() => setShowEmailPicker(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
                 <X size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
@@ -561,7 +558,7 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
             <View style={styles.pickerHeader}>
               <DriveBrandIcon size={22} />
               <Text style={styles.pickerTitle}>Import from Google Drive</Text>
-              <TouchableOpacity onPress={() => setShowDrivePicker(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={() => setShowDrivePicker(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
                 <X size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
@@ -611,36 +608,24 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingHorizontal: 20, paddingTop: 6 },
-  subtitle: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginBottom: 6, lineHeight: 18 },
+  headerTitle: { fontWeight: '500' },
+  scroll: { paddingHorizontal: 20, paddingTop: 0 },
+  subtitle: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginTop: -2, marginBottom: 6, lineHeight: 18 },
 
   dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18, marginBottom: 14 },
   dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
   dividerText: { fontSize: 11, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.4 },
 
-  cardRow: { flexDirection: 'row', gap: 12 },
-  card: {
-    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10,
-    paddingVertical: 22, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: '#fff',
-  },
-  cardDisabled: { opacity: 0.55 },
-  cardIcon: { height: 30, alignItems: 'center', justifyContent: 'center' },
-  cardLabel: { fontSize: 14, fontWeight: '500', color: colors.textPrimary },
-
-  listHeader: { marginTop: 22, marginBottom: 6 },
-  listTitle: { fontSize: 14, fontWeight: '600', color: colors.textPrimary, letterSpacing: 0.3 },
-  usageWrap: { marginTop: 8 },
-  usageText: { fontSize: 12, color: colors.textSecondary, textAlign: 'right' },
-  usageTrack: { height: 5, borderRadius: 3, backgroundColor: '#e2e8f0', marginTop: 6, overflow: 'hidden' },
-  usageFill: { height: 5, borderRadius: 3, backgroundColor: colors.accent },
+  listHeader: { marginTop: 22, marginBottom: 10 },
+  listTitle: { fontSize: 15, fontWeight: '500', color: colors.textPrimary },
 
   empty: { fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 24 },
 
   list: { marginTop: 8 },
   listDivider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(148,163,184,0.18)' },
-  docRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
+  docRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
   docInfo: { flex: 1, minWidth: 0 },
-  docName: { fontSize: 15, fontWeight: '500', color: colors.textPrimary },
+  docName: { fontSize: 14, fontWeight: '400', color: colors.textPrimary },
   docDate: { fontSize: 13, color: colors.textSecondary },
   docMenuBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginLeft: 4 },
 
@@ -668,9 +653,9 @@ const styles = StyleSheet.create({
   renameSave: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: colors.accent, alignItems: 'center' },
   renameSaveText: { fontSize: 14, fontWeight: '600', color: '#fff' },
 
-  // Import pickers
-  pickerOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
-  pickerSheet: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 8, maxHeight: '80%' },
+  // Import pickers — centered dialog (matches trips/events)
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
+  pickerSheet: { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '82%', overflow: 'hidden', paddingBottom: 8 },
   pickerHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   pickerTitle: { flex: 1, fontSize: 16, fontWeight: '600', color: colors.textPrimary },
   pickerCenter: { padding: 36, alignItems: 'center', gap: 12 },

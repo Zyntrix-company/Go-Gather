@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
-import LegalModal from '../../components/common/LegalModal';
 import colors from '../../theme/colors';
 import useAuth from '../../hooks/useAuth';
 
@@ -42,24 +41,17 @@ function SectionTitle({ children }: { children: string }) {
 
 export default function SettingsScreen({ navigation }: { navigation: any }) {
   const { refreshProfile } = useAuth();
-  const [legal, setLegal] = useState<'terms' | 'privacy' | null>(null);
 
   useFocusEffect(useCallback(() => { refreshProfile(); }, [])); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <AppScreenLayout navigation={navigation} title="Settings">
+    <AppScreenLayout navigation={navigation} title="Settings" onBack={() => navigation.goBack()}>
         <ScrollView
           contentContainerStyle={[styles.scroll, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           showsVerticalScrollIndicator={false}>
 
           <SectionTitle>Account</SectionTitle>
           <View style={styles.card}>
-            <SettingsRow
-              label="Profile info"
-              sub="Name, photo, bio, and more"
-              onPress={() => navigation.navigate('EditProfile')}
-            />
-            <View style={styles.divider} />
             <SettingsRow
               label="Change password"
               sub="Update your sign-in password"
@@ -81,18 +73,7 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
               onPress={() => navigation.navigate('NotificationSettings')}
             />
           </View>
-
-          <SectionTitle>Privacy</SectionTitle>
-          <View style={styles.card}>
-            <SettingsRow
-              label="Privacy policy"
-              onPress={() => setLegal('privacy')}
-            />
-          </View>
         </ScrollView>
-
-        <LegalModal visible={legal === 'terms'} type="terms" onClose={() => setLegal(null)} />
-        <LegalModal visible={legal === 'privacy'} type="privacy" onClose={() => setLegal(null)} />
     </AppScreenLayout>
   );
 }

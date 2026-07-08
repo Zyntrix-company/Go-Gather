@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   TextInput,
   ActivityIndicator,
   Modal,
@@ -14,7 +13,6 @@ import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import BlobBackground from '../../components/common/BlobBackground';
 import { getFriends, createTrip, uploadTripPhotos, updateTrip as apiUpdateTrip } from '../../api/trips.api';
 import InviteViaChannels from '../../components/common/InviteViaChannels';
 import { showAlert } from '../../store/alertStore';
@@ -256,8 +254,8 @@ export default function FriendsScreen() {
   const showingEmptyState = !isLoading && friends.length === 0 && !searchQuery.trim();
 
   return (
-    <BlobBackground>
-      <SafeAreaView style={styles.safe}>
+    <>
+      <View style={styles.safe}>
 
         {/* ── Selection Action Bar ── */}
         {isSelecting && (
@@ -385,7 +383,7 @@ export default function FriendsScreen() {
             </>
           )}
         </ScrollView>
-      </SafeAreaView>
+      </View>
 
       {/* ── Invite Friends Modal ── */}
       <Modal visible={showInviteModal} transparent animationType="fade" onRequestClose={() => setShowInviteModal(false)}>
@@ -470,7 +468,7 @@ export default function FriendsScreen() {
           setSelectedIds(new Set());
         }}
       />
-    </BlobBackground>
+    </>
   );
 }
 

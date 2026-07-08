@@ -365,7 +365,7 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
           <View style={styles.pickerSheet}>
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Choose a contact</Text>
-              <TouchableOpacity onPress={() => setContactPickerOpen(false)} hitSlop={12}>
+              <TouchableOpacity onPress={() => setContactPickerOpen(false)} hitSlop={12} activeOpacity={0.7}>
                 <Text style={styles.pickerClose}>Done</Text>
               </TouchableOpacity>
             </View>

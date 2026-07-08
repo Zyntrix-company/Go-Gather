@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, type TextStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { typeStyle } from '../../theme';
 
@@ -20,15 +20,17 @@ function BackArrow() {
 type SubScreenHeaderProps = {
   title: string;
   onBack: () => void;
+  /** Optional per-screen override (e.g. lighter weight) — leaves other screens unaffected. */
+  titleStyle?: TextStyle;
 };
 
-export default function SubScreenHeader({ title, onBack }: SubScreenHeaderProps) {
+export default function SubScreenHeader({ title, onBack, titleStyle }: SubScreenHeaderProps) {
   return (
     <View style={s.header}>
       <TouchableOpacity style={s.backBtn} onPress={onBack} activeOpacity={0.7}>
         <BackArrow />
       </TouchableOpacity>
-      <Text style={s.title} numberOfLines={1}>{title}</Text>
+      <Text style={[s.title, titleStyle]} numberOfLines={1}>{title}</Text>
     </View>
   );
 }

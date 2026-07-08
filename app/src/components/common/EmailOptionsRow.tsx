@@ -9,6 +9,8 @@ type Props = {
   gmailImporting?: boolean;
   outlookImporting?: boolean;
   disabled?: boolean;
+  /** Transparent (outlined) cards instead of the default filled grey. */
+  transparent?: boolean;
 };
 
 export default function EmailOptionsRow({
@@ -17,13 +19,15 @@ export default function EmailOptionsRow({
   gmailImporting = false,
   outlookImporting = false,
   disabled = false,
+  transparent = false,
 }: Props) {
   const busy = disabled;
+  const btnStyle = [styles.btn, transparent && styles.btnTransparent];
 
   return (
     <View style={styles.row}>
       <TouchableOpacity
-        style={[styles.btn, (busy || gmailImporting) && styles.btnDisabled]}
+        style={[btnStyle, (busy || gmailImporting) && styles.btnDisabled]}
         onPress={onGmail}
         disabled={busy || gmailImporting}
         activeOpacity={0.85}
@@ -37,7 +41,7 @@ export default function EmailOptionsRow({
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.btn, (busy || outlookImporting) && styles.btnDisabled]}
+        style={[btnStyle, (busy || outlookImporting) && styles.btnDisabled]}
         onPress={onOutlook}
         disabled={busy || outlookImporting}
         activeOpacity={0.85}
@@ -67,6 +71,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     minHeight: 72,
+  },
+  btnTransparent: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   btnDisabled: {
     opacity: 0.5,

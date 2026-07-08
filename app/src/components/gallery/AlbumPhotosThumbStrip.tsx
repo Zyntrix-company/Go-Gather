@@ -4,7 +4,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   NativeSyntheticEvent,
   NativeScrollEvent,
   ListRenderItemInfo,
@@ -46,11 +45,9 @@ const AlbumStripThumb = React.memo(function AlbumStripThumb({
 }) {
   const isVideo = isVideoMime(photo.mimeType)
     || /\.(mp4|mov|m4v|mkv|webm|avi|3gp)(\?|$)/i.test(photo.localUri || photo.uri || '');
-  const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [localUriFailed, setLocalUriFailed] = useState(false);
   const displayUri = (photo.localUri && !localUriFailed) ? photo.localUri : (photo.uri ?? '');
-  const loadedUriRef = useRef<string | null>(null);
 
   const prevIdRef = useRef(photo.id);
   useEffect(() => {
@@ -58,38 +55,14 @@ const AlbumStripThumb = React.memo(function AlbumStripThumb({
       prevIdRef.current = photo.id;
       setLocalUriFailed(false);
       setFailed(false);
-      setLoading(true);
-      loadedUriRef.current = null;
     }
   }, [photo.id]);
-
-  const prevDisplayUriRef = useRef(displayUri);
-  useEffect(() => {
-    if (prevDisplayUriRef.current === displayUri) return;
-    prevDisplayUriRef.current = displayUri;
-    if (loadedUriRef.current === displayUri) {
-      setLoading(false);
-      setFailed(false);
-    } else {
-      setLoading(true);
-      setFailed(false);
-    }
-  }, [displayUri]);
-
-  const markLoaded = useCallback(() => {
-    if (!displayUri) return;
-    loadedUriRef.current = displayUri;
-    setLoading(false);
-    setFailed(false);
-  }, [displayUri]);
 
   const handleError = useCallback(() => {
     if (photo.localUri && !localUriFailed) {
       setLocalUriFailed(true);
-      setLoading(true);
       setFailed(false);
     } else {
-      setLoading(false);
       setFailed(true);
     }
   }, [photo.localUri, localUriFailed]);
@@ -116,23 +89,15 @@ const AlbumStripThumb = React.memo(function AlbumStripThumb({
     );
   }
 
-  const showLoader = loading && loadedUriRef.current !== displayUri;
-
   return (
     <View style={styles.thumbInner} collapsable={false}>
       <CachedImage
         uri={displayUri}
         style={styles.thumbImage}
         resizeMode="cover"
-        onLoad={markLoaded}
-        onLoadEnd={markLoaded}
+        blurUp
         onError={handleError}
       />
-      {showLoader && (
-        <View style={[styles.thumbLoader, galleryChrome && styles.thumbLoaderGallery]}>
-          <ActivityIndicator size="small" color={galleryChrome ? '#0d9488' : '#5eead4'} />
-        </View>
-      )}
     </View>
   );
 });
@@ -344,15 +309,6 @@ const styles = StyleSheet.create({
   thumbImage: {
     width: THUMB_INNER_W,
     height: THUMB_INNER_H,
-  },
-  thumbLoader: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(15,23,42,0.5)',
-  },
-  thumbLoaderGallery: {
-    backgroundColor: 'rgba(248,250,252,0.6)',
   },
   videoPlaceholder: {
     backgroundColor: '#1e293b',

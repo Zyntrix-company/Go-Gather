@@ -131,7 +131,7 @@ export default function LegalModal({ visible, type, onClose }: Props) {
         {!loading && err && (
           <View style={s.centerFill}>
             <Text style={s.errText}>{err}</Text>
-            <TouchableOpacity style={s.retryBtn} onPress={load}>
+            <TouchableOpacity style={s.retryBtn} onPress={load} activeOpacity={0.8}>
               <Text style={s.retryBtnText}>Retry</Text>
             </TouchableOpacity>
           </View>

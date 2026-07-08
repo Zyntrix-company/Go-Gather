@@ -3,7 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-nati
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AppScreenLayout, { tabBarContentPadding } from '../../components/common/AppScreenLayout';
+import DeviceInfo from 'react-native-device-info';
+import AppScreenLayout, { tabBarContentPadding, TAB_BAR_BASE_HEIGHT } from '../../components/common/AppScreenLayout';
 import CachedImage from '../../components/common/CachedImage';
 import SweeFab from '../../components/details/SweeFab';
 import colors from '../../theme/colors';
@@ -11,8 +12,8 @@ import useAuthStore from '../../store/authStore';
 import useAuth from '../../hooks/useAuth';
 import { showConfirm } from '../../store/alertStore';
 
-// App version shown at the bottom of the menu.
-const APP_VERSION = '1.0.0';
+// Real native app version (Android versionName / iOS CFBundleShortVersionString) — not hardcoded.
+const APP_VERSION = DeviceInfo.getVersion();
 
 // ─── Icons (line style, stroke #64748b — matches ProfileDropdown) ──────────────
 
@@ -126,6 +127,11 @@ export default function MenuScreen({ navigation }: { navigation: any }) {
 
   const contactParts = [maskPhone(user?.phone), maskEmail(user?.email)].filter(Boolean);
 
+  // Pin the version line just above the footer — same technique SweeFab uses —
+  // so the gap stays constant across phone sizes instead of depending on content height.
+  const VERSION_FOOTER_GAP = 14;
+  const versionBottom = TAB_BAR_BASE_HEIGHT + insets.bottom + VERSION_FOOTER_GAP;
+
   const confirmLogout = () => {
     showConfirm({
       title: 'Log out?',
@@ -139,7 +145,8 @@ export default function MenuScreen({ navigation }: { navigation: any }) {
   return (
     <AppScreenLayout navigation={navigation} activeTab={null}>
       <ScrollView
-        contentContainerStyle={[styles.scroll, { flexGrow: 1, paddingBottom: tabBarContentPadding(insets.bottom, 12) }]}
+        style={styles.scrollFlex}
+        contentContainerStyle={[styles.scroll, { paddingBottom: tabBarContentPadding(insets.bottom, VERSION_FOOTER_GAP + 34) }]}
         showsVerticalScrollIndicator={false}>
 
         {/* Profile header */}
@@ -180,9 +187,16 @@ export default function MenuScreen({ navigation }: { navigation: any }) {
         <MenuRow icon={<ArchiveIcon />}  label="Archive"  onPress={() => navigation.navigate('Archived')} />
         <View style={styles.rowDivider} />
         <MenuRow icon={<LogoutIcon />}   label="Logout"   danger onPress={confirmLogout} />
-
-        <Text style={styles.version}>GatherrGo · Version {APP_VERSION}</Text>
       </ScrollView>
+
+      <Text
+        style={[styles.version, { bottom: versionBottom }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+        pointerEvents="none">
+        GatherrGo · Version {APP_VERSION}
+      </Text>
 
       <SweeFab onPress={() => navigation.navigate('ChatDetail', {})} />
     </AppScreenLayout>
@@ -190,6 +204,7 @@ export default function MenuScreen({ navigation }: { navigation: any }) {
 }
 
 const styles = StyleSheet.create({
+  scrollFlex: { flex: 1 },
   scroll: { paddingHorizontal: 20, paddingTop: 8 },
 
   profileBlock: { alignItems: 'center', paddingTop: 8, paddingBottom: 18 },
@@ -227,5 +242,13 @@ const styles = StyleSheet.create({
   rowLabelDanger: { color: '#ef4444' },
   chevron: { fontSize: 22, color: colors.textMuted, lineHeight: 24 },
 
-  version: { textAlign: 'center', fontSize: 12, color: colors.textMuted, marginTop: 'auto', paddingTop: 26 },
+  version: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 12,
+    color: colors.textMuted,
+    paddingHorizontal: 20,
+  },
 });

@@ -178,7 +178,7 @@ export default function MediaPreviewOverlay({
               {!loading && (
                 <SafeAreaView edges={['bottom']} style={styles.videoControlsWrap}>
                   <View style={styles.videoControls}>
-                    <TouchableOpacity onPress={() => setPaused((p) => !p)} hitSlop={8}>
+                    <TouchableOpacity onPress={() => setPaused((p) => !p)} hitSlop={8} activeOpacity={0.7}>
                       {paused ? <Play size={22} color="#fff" fill="#fff" /> : <Pause size={22} color="#fff" fill="#fff" />}
                     </TouchableOpacity>
                     <Text style={styles.timeText}>{formatVideoTime(currentTime)}</Text>
@@ -199,7 +199,7 @@ export default function MediaPreviewOverlay({
                       </View>
                     </View>
                     <Text style={styles.timeText}>{formatVideoTime(duration)}</Text>
-                    <TouchableOpacity onPress={() => setMuted((m) => !m)} hitSlop={8}>
+                    <TouchableOpacity onPress={() => setMuted((m) => !m)} hitSlop={8} activeOpacity={0.7}>
                       {muted ? <VolumeX size={20} color="#fff" /> : <Volume2 size={20} color="#fff" />}
                     </TouchableOpacity>
                   </View>

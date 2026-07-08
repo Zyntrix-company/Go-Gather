@@ -826,7 +826,7 @@ export function CreateTripModal({
                   <Path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
                 <Text style={styles.ctDocChipText} numberOfLines={1}>{doc.name}</Text>
-                <TouchableOpacity onPress={() => setUploadedDocs(p => p.filter((_, j) => j !== i))}>
+                <TouchableOpacity onPress={() => setUploadedDocs(p => p.filter((_, j) => j !== i))} activeOpacity={0.7}>
                   <View style={styles.ctDocRemove}>
                     <Svg width={9} height={9} viewBox="0 0 24 24" fill="none">
                       <Path d="M18 6L6 18M6 6l12 12" stroke="#ef4444" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
@@ -859,7 +859,7 @@ export function CreateTripModal({
                   <Path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke={doc.provider === 'gmail' ? '#EA4335' : '#0078D4'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
                 <Text style={styles.ctDocChipText} numberOfLines={1}>{doc.fileName}</Text>
-                <TouchableOpacity onPress={() => setEmailSelectedDocs(p => p.filter((_, j) => j !== i))}>
+                <TouchableOpacity onPress={() => setEmailSelectedDocs(p => p.filter((_, j) => j !== i))} activeOpacity={0.7}>
                   <View style={styles.ctDocRemove}>
                     <Svg width={9} height={9} viewBox="0 0 24 24" fill="none">
                       <Path d="M18 6L6 18M6 6l12 12" stroke="#ef4444" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
@@ -938,6 +938,7 @@ export function CreateTripModal({
                   <TouchableOpacity
                     style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 12, padding: 4 }}
                     onPress={() => { setBannerImageUri(undefined); setBannerCropFraction(null); }}
+                    activeOpacity={0.7}
                   >
                     <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
                       <Path d="M18 6L6 18M6 6l12 12" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
@@ -1013,10 +1014,10 @@ export function CreateTripModal({
                   </TouchableOpacity>
                 </View>
                 <View style={styles.inviteTabBar}>
-                  <TouchableOpacity style={[styles.inviteTab, memberTab === 'friends' && styles.inviteTabActive]} onPress={() => setMemberTab('friends')}>
+                  <TouchableOpacity style={[styles.inviteTab, memberTab === 'friends' && styles.inviteTabActive]} onPress={() => setMemberTab('friends')} activeOpacity={0.8}>
                     <Text style={[styles.inviteTabText, memberTab === 'friends' && styles.inviteTabTextActive]}>Friends</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.inviteTab, memberTab === 'new' && styles.inviteTabActive]} onPress={() => setMemberTab('new')}>
+                  <TouchableOpacity style={[styles.inviteTab, memberTab === 'new' && styles.inviteTabActive]} onPress={() => setMemberTab('new')} activeOpacity={0.8}>
                     <Text style={[styles.inviteTabText, memberTab === 'new' && styles.inviteTabTextActive]}>Invite New</Text>
                   </TouchableOpacity>
                 </View>

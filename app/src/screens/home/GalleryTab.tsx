@@ -100,7 +100,7 @@ function SectionHeader({ title, count, onAdd, icon }: { title: string; count: nu
         )}
       </View>
       {onAdd && (
-        <TouchableOpacity onPress={onAdd} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity onPress={onAdd} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
           <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
             <Path d="M12 5v14M5 12h14" stroke="#0d9488" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
           </Svg>
@@ -274,7 +274,6 @@ type CustomCard = GalleryAlbumCard & {
 // ─── Photo thumbnail with loading state ──────────────────────────────────────
 
 function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void }) {
-  const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   // If localUri fails (e.g. OS cleaned the picker temp file), fall back to the
   // server URL (CloudFront CDN or presigned S3) rather than showing a placeholder.
@@ -287,7 +286,6 @@ function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void 
       prevId.current = photo.id;
       setLocalUriFailed(false);
       setFailed(false);
-      setLoading(true);
     }
   }, [photo.id]);
 
@@ -295,9 +293,7 @@ function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void 
     if (photo.localUri && !localUriFailed) {
       // localUri failed — retry with the server URL
       setLocalUriFailed(true);
-      setLoading(true);
     } else {
-      setLoading(false);
       setFailed(true);
     }
   };
@@ -305,20 +301,13 @@ function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.thumb}>
       {!failed ? (
-        <>
-          <CachedImage
-            uri={displayUri}
-            style={styles.thumbImg}
-            resizeMode="cover"
-            onLoad={() => setLoading(false)}
-            onError={handleError}
-          />
-          {loading && (
-            <View style={styles.thumbLoader}>
-              <ActivityIndicator size="small" color="#0d9488" />
-            </View>
-          )}
-        </>
+        <CachedImage
+          uri={displayUri}
+          style={styles.thumbImg}
+          resizeMode="cover"
+          blurUp
+          onError={handleError}
+        />
       ) : (
         <View style={styles.thumbError}>
           <CameraIcon />
@@ -811,6 +800,7 @@ function PhotosModal({
                         style={styles.thumbDeleteBtn}
                         hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                         disabled={deletingId === ph.id}
+                        activeOpacity={0.7}
                       >
                         {deletingId === ph.id
                           ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
@@ -871,7 +861,7 @@ function PhotosModal({
                 <DriveBrandIcon size={22} />
                 <Text style={styles.dialogTitle} numberOfLines={1}>Import photos from Drive</Text>
               </View>
-              <TouchableOpacity onPress={() => setShowDrivePicker(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity onPress={() => setShowDrivePicker(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
                 <CloseIcon />
               </TouchableOpacity>
             </View>
@@ -975,7 +965,7 @@ function CreateCardModal({
                 {type === 'trip' ? 'Save your travel memories' : 'Capture the moment'}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} activeOpacity={0.7}>
               <CloseIcon />
             </TouchableOpacity>
           </View>
@@ -1302,6 +1292,7 @@ function CustomCardPhotosModal({
                       style={styles.thumbDeleteBtn}
                       hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                       disabled={deletingId === ph.id}
+                      activeOpacity={0.7}
                     >
                       {deletingId === ph.id
                         ? <ActivityIndicator size="small" color="#fff" style={{ width: 9, height: 9 }} />
@@ -1311,6 +1302,7 @@ function CustomCardPhotosModal({
                       onPress={() => setPhotoAsCover(ph.uri)}
                       style={[styles.thumbCoverBtn, isCover && styles.thumbCoverBtnActive]}
                       hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      activeOpacity={0.7}
                     >
                       <Text style={{ fontSize: 8, fontWeight: '600', color: isCover ? '#0d9488' : '#fff' }}>Cover</Text>
                     </TouchableOpacity>
@@ -1770,7 +1762,6 @@ const styles = StyleSheet.create({
   thumbRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   thumb: { width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: '#e2e8f0' },
   thumbImg: { width: 80, height: 80, borderRadius: 8 },
-  thumbLoader: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' },
   thumbError: { width: 80, height: 80, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9' },
 
   // Per-photo delete button inside CustomCardPhotosModal

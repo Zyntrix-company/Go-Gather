@@ -29,6 +29,7 @@ import FloatingTabBar from '../../components/common/FloatingTabBar';
 import AppHeader from '../../components/common/AppHeader';
 import useAuth from '../../hooks/useAuth';
 import UploadOptionsRow from '../../components/common/UploadOptionsRow';
+import UploadLimitNote from '../../components/common/UploadLimitNote';
 import EmailOptionsRow from '../../components/common/EmailOptionsRow';
 import DocumentItem, { DocItemSkeleton, stripExt } from '../../components/common/DocumentItem';
 import InviteViaChannels from '../../components/common/InviteViaChannels';
@@ -92,6 +93,8 @@ import { markTripSectionViewed } from '../../api/trips.api';
 import ExpenseTotalsTab from '../../components/common/ExpenseTotalsTab';
 import { ExpenseListSkeleton, TotalTabSkeleton, BalanceTabSkeleton } from '../../components/common/ExpenseTabSkeleton';
 import ExpenseBalanceSummary from '../../components/common/ExpenseBalanceSummary';
+import ExpenseCard from '../../components/common/ExpenseCard';
+import ExpenseStatsBar from '../../components/common/ExpenseStatsBar';
 import {
   EXPENSE_CATS as EXPENSE_CATEGORY_OPTIONS,
   NOTE_CATS as NOTE_CATEGORY_OPTIONS,
@@ -137,6 +140,7 @@ type Expense = {
   myAmount?: number;   // current user's share of this expense
   /** Expense author (for edit/delete permissions) */
   createdByUserId?: string;
+  paidByAvatarUrl?: string | null;
   splitBreakdown?: { userId: string; amount: number; percentage: number | null }[];
 };
 type Poll = { id: string; question: string; options: { id: string; text: string; voteCount: number; votedByMe: boolean }[]; myVoteOptionId?: string | null; createdBy?: string; createdByName?: string | null; createdAt?: string | null; status?: 'active' | 'completed' };
@@ -152,7 +156,7 @@ const FRIENDS = [
   { id: '5', name: 'Carlos Rodriguez', email: 'carlos.r@example.com', avatar: 'https://i.pravatar.cc/150?img=12' },
 ];
 
-function mapApiExpenseToState(e: any, currentUserId: string, members: TripMember[]): Expense {
+function mapApiExpenseToState(e: any, currentUserId: string, members: TripMember[], currentUserAvatar?: string | null): Expense {
   const resolvePaidBy = (paidByRaw: any): string => {
     const uid = typeof paidByRaw === 'object' && paidByRaw !== null
       ? (paidByRaw.userId ?? paidByRaw.id ?? '')
@@ -164,7 +168,19 @@ function mapApiExpenseToState(e: any, currentUserId: string, members: TripMember
       return (paidByRaw.name ?? paidByRaw.fullName ?? uid) || 'Unknown';
     return uid || 'Unknown';
   };
+  const resolvePaidByAvatar = (paidByRaw: any): string | null => {
+    const uid = typeof paidByRaw === 'object' && paidByRaw !== null
+      ? (paidByRaw.userId ?? paidByRaw.id ?? '')
+      : String(paidByRaw ?? '');
+    if (uid === currentUserId) return currentUserAvatar ?? null;
+    const member = members.find(m => m.userId === uid);
+    if (member?.avatarUrl) return member.avatarUrl;
+    if (typeof paidByRaw === 'object' && paidByRaw !== null)
+      return paidByRaw.avatarUrl ?? paidByRaw.avatar ?? null;
+    return null;
+  };
   const paidByStr = resolvePaidBy(e.paidBy);
+  const paidByAvatarUrl = resolvePaidByAvatar(e.paidBy);
   const mySplit = (e.splits ?? []).find((s: any) => s.userId === currentUserId);
   const myAmount = mySplit ? parseFloat(String(mySplit.amount ?? '0')) : 0;
   const creatorRaw = e.createdBy ?? e.created_by;
@@ -178,6 +194,7 @@ function mapApiExpenseToState(e: any, currentUserId: string, members: TripMember
     currency: (e.currency as string) || 'INR',
     category: e.category ?? 'general',
     paidBy: paidByStr,
+    paidByAvatarUrl,
     splitType: e.splitType === 'equal' ? 'equally' : e.splitType === 'percentage' ? 'percent' : 'amount',
     splitAmong: (e.splits ?? []).map((s: any) => s.userId),
     date: new Date(e.createdAt).toLocaleDateString('default', { day: 'numeric', month: 'short' }),
@@ -701,7 +718,7 @@ function FriendAvatar({ uri, name, style }: { uri: string; name: string; style: 
       </View>
     );
   }
-  return <CachedImage uri={uri} style={style} resizeMode="cover" onError={() => setFailed(true)} />;
+  return <CachedImage uri={uri} style={style} resizeMode="cover" blurUp onError={() => setFailed(true)} />;
 }
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
@@ -979,7 +996,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         getExpenses(tripId),
         getBalances(tripId),
       ]);
-      const mapped = (expRes.expenses ?? []).map(e => mapApiExpenseToState(e, currentUserId, membersList));
+      const mapped = (expRes.expenses ?? []).map(e => mapApiExpenseToState(e, currentUserId, membersList, currentUserAvatar));
       setExpenses(mapped);
       const parsed = parseBalanceResponse(balRes, currentUserId, membersList);
       setBalances(parsed.debts);
@@ -991,7 +1008,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       setIsRefreshingExpenses(false);
       setIsLoadingExpenses(false);
     }
-  }, [tripId, currentUserId]);
+  }, [tripId, currentUserId, currentUserAvatar]);
 
   const handleExpenseTabSelect = useCallback((tab: 'Expense' | 'Total' | 'Balance') => {
     dismissExpenseOverlays();
@@ -1378,7 +1395,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         linkedExpenseId = expRes.expense.id;
         // Sync to expenses list so main expense management reflects it
         const exp = expRes.expense;
-        setExpenses(prev => [...prev, mapApiExpenseToState(exp, currentUserId, members)]);
+        setExpenses(prev => [...prev, mapApiExpenseToState(exp, currentUserId, members, currentUserAvatar)]);
         if (expRes.balances) setBalances(normalizeDebtArray(expRes.balances, currentUserId, members));
       }
 
@@ -1593,7 +1610,16 @@ export default function TripDetailScreen({ route, navigation }: any) {
   }
 
   async function openEmailPicker(provider: 'gmail' | 'outlook') {
-    if (!emailStatus[provider].connected) {
+    let connected = emailStatus[provider].connected;
+    if (!connected) {
+      // emailStatus can be stale — verify live before prompting to connect.
+      try {
+        const d: any = await getEmailStatus();
+        setEmailStatus({ gmail: { connected: Boolean(d?.gmail?.connected) }, outlook: { connected: Boolean(d?.outlook?.connected) } });
+        connected = Boolean(d?.[provider]?.connected);
+      } catch { /* fall through to connect prompt */ }
+    }
+    if (!connected) {
       promptConnectEmail(provider, () => {
         getEmailStatus().then((d: any) => {
           setEmailStatus({ gmail: { connected: Boolean(d?.gmail?.connected) }, outlook: { connected: Boolean(d?.outlook?.connected) } });
@@ -2675,6 +2701,8 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     onOutlook={() => openEmailPicker('outlook')}
                   />
 
+                  <UploadLimitNote text={`You can add up to ${uploadLimits.tripDoc.maxFilesTotal} documents for this trip.`} />
+
                   {/* Documents list */}
                   <View style={styles.docSectionDivider}>
                     <View style={styles.docDividerLine} />
@@ -2936,6 +2964,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                               style={styles.memberAvatar as any}
                               resizeMode="cover"
                               priority="normal"
+                              blurUp
                               onError={() => setFailedAvatarIds(prev => { const s = new Set(prev); s.add(m.userId); return s; })}
                             />
                           : <View style={styles.avatarPlaceholder}><Text style={{ fontSize: 18 }}>👤</Text></View>}
@@ -3141,6 +3170,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       <ExpenseListSkeleton />
                     ) : (
                       <>
+                    <ExpenseStatsBar totalExpensesByCurrency={totalExpensesByCurrency} myBalances={myBalances} />
                     <TouchableOpacity style={styles.tealBtnFull} disabled={isSubmitting} onPress={() => {
                       if (showAddExpense) {
                         dismissExpenseOverlays();
@@ -3294,31 +3324,18 @@ export default function TripDetailScreen({ route, navigation }: any) {
                           const renderExpRow = (exp: Expense) => {
                             const balanceLabel = getExpenseRowBalanceLabel(exp);
                             return (
-                              <View key={exp.id} style={styles.expRow}>
-                                <View style={styles.expIconBox}><ExpenseCategoryIcon category={exp.category} size={20} /></View>
-                                <View style={{ flex: 1, marginLeft: 10 }}>
-                                  <Text style={styles.expName}>{exp.description}</Text>
-                                  <Text style={styles.expMeta}>Paid by {exp.paidBy}</Text>
-                                  <Text style={styles.expMeta}>{exp.date}</Text>
-                                  <Text style={styles.expMeta}>Split {exp.splitType} • {exp.splitAmong.length} person</Text>
-                                </View>
-                                <View style={{ alignItems: 'flex-end' }}>
-                                  <Text
-                                    style={styles.expAmt}
-                                    numberOfLines={1}
-                                    adjustsFontSizeToFit
-                                    minimumFontScale={0.8}>
-                                    {formatCurrencyFull(exp.amount, exp.currency)}
-                                  </Text>
-                                  {balanceLabel && (
-                                    <Text style={{ fontSize: 11, color: balanceLabel.color, marginBottom: 6 }}>{balanceLabel.text}</Text>
-                                  )}
-                                  <View style={{ flexDirection: 'row', gap: 12, marginTop: balanceLabel ? 0 : 6 }}>
-                                    <TouchableOpacity onPress={() => startEditExpense(exp)} activeOpacity={0.7}><Text style={styles.expActionEdit}>Edit</Text></TouchableOpacity>
-                                    <TouchableOpacity onPress={() => handleDeleteExpense(exp.id)} activeOpacity={0.7}><Text style={styles.expActionDelete}>Delete</Text></TouchableOpacity>
-                                  </View>
-                                </View>
-                              </View>
+                              <ExpenseCard
+                                key={exp.id}
+                                description={exp.description}
+                                paidByName={exp.paidBy}
+                                paidByAvatarUrl={exp.paidByAvatarUrl}
+                                date={exp.date}
+                                splitLine={`Split ${exp.splitType} • ${exp.splitAmong.length} person`}
+                                amountLabel={formatCurrencyFull(exp.amount, exp.currency)}
+                                balanceLabel={balanceLabel}
+                                onEdit={() => startEditExpense(exp)}
+                                onDelete={() => handleDeleteExpense(exp.id)}
+                              />
                             );
                           };
 
@@ -3491,7 +3508,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                   <View style={styles.pollAvatarRow}>
                                     {voterAvatars.map((m, idx) => (
                                       m.avatarUrl
-                                        ? <CachedImage key={m.userId} uri={m.avatarUrl} style={[styles.pollAvatar, { marginLeft: idx > 0 ? -8 : 0 }] as any} resizeMode="cover" priority="normal" />
+                                        ? <CachedImage key={m.userId} uri={m.avatarUrl} style={[styles.pollAvatar, { marginLeft: idx > 0 ? -8 : 0 }] as any} resizeMode="cover" priority="normal" blurUp />
                                         : <View key={m.userId} style={[styles.pollAvatar, styles.pollAvatarPlaceholder, { marginLeft: idx > 0 ? -8 : 0 }]}><Text style={styles.pollAvatarInitial}>{(m.fullName?.[0] || '?').toUpperCase()}</Text></View>
                                     ))}
                                     {extra > 0 && <View style={[styles.pollAvatar, styles.pollAvatarMore, { marginLeft: -8 }]}><Text style={styles.pollAvatarMoreTxt}>+{extra}</Text></View>}
@@ -3564,7 +3581,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                   <View style={styles.pollAvatarRow}>
                                     {voterAvatars.map((m, idx) => (
                                       m.avatarUrl
-                                        ? <CachedImage key={m.userId} uri={m.avatarUrl} style={[styles.pollAvatar, { marginLeft: idx > 0 ? -8 : 0 }] as any} resizeMode="cover" priority="normal" />
+                                        ? <CachedImage key={m.userId} uri={m.avatarUrl} style={[styles.pollAvatar, { marginLeft: idx > 0 ? -8 : 0 }] as any} resizeMode="cover" priority="normal" blurUp />
                                         : <View key={m.userId} style={[styles.pollAvatar, styles.pollAvatarPlaceholder, { marginLeft: idx > 0 ? -8 : 0 }]}><Text style={styles.pollAvatarInitial}>{(m.fullName?.[0] || '?').toUpperCase()}</Text></View>
                                     ))}
                                     {extra > 0 && <View style={[styles.pollAvatar, styles.pollAvatarMore, { marginLeft: -8 }]}><Text style={styles.pollAvatarMoreTxt}>+{extra}</Text></View>}

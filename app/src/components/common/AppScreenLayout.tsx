@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, ViewStyle } from 'react-native';
+import { StyleSheet, ViewStyle, type TextStyle } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import BlobBackground from './BlobBackground';
 import AppHeader from './AppHeader';
@@ -21,6 +21,8 @@ type AppScreenLayoutProps = {
   children: React.ReactNode;
   title?: string;
   subtitle?: string;
+  /** Optional override for the sub-screen header title (only used when onBack is set). */
+  titleStyle?: TextStyle;
   activeTab?: TabType | null;
   onLogoPress?: () => void;
   onBellPress?: () => void;
@@ -39,6 +41,7 @@ export default function AppScreenLayout({
   children,
   title,
   subtitle,
+  titleStyle,
   activeTab = null,
   onLogoPress,
   onBellPress,
@@ -61,7 +64,7 @@ export default function AppScreenLayout({
           onMenuPress={handleMenuPress}
         />
         {onBack ? (
-          <SubScreenHeader title={title ?? ''} onBack={onBack} />
+          <SubScreenHeader title={title ?? ''} onBack={onBack} titleStyle={titleStyle} />
         ) : null}
         {children}
         {showFooter ? <FloatingTabBar activeTab={activeTab} navigation={navigation} /> : null}
