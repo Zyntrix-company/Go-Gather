@@ -8,7 +8,7 @@
  *   - Stats row inside the card: members | docs | photos | expenses
  */
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ImageBackground, ImageSourcePropType } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { PenIcon } from './Icons';
@@ -39,6 +39,8 @@ export interface DetailHeroCardProps {
   onEdit?: () => void;
   /** Gradient colors — defaults to trip-style mint/cyan */
   gradientColors?: [string, string, ...string[]];
+  /** Optional decorative background image drawn behind the gradient/content */
+  backgroundImage?: ImageSourcePropType;
 }
 
 // ─── Stat Icon Helpers ───────────────────────────────────────────────────────
@@ -87,6 +89,7 @@ export default function DetailHeroCard({
   typeBadgeColor = '#fef3c7',
   onEdit,
   gradientColors = ['#ffffff', '#d1fef9'],
+  backgroundImage,
 }: DetailHeroCardProps) {
   const expenseDisplay = (() => {
     if (totalExpenses == null || totalExpenses === '') return null;
@@ -97,12 +100,12 @@ export default function DetailHeroCard({
     return totalExpenses;
   })();
 
-  return (
+  const content = (
     <LinearGradient
-      colors={gradientColors}
+      colors={backgroundImage ? ['rgba(255,255,255,0.25)', 'rgba(209,254,249,0.25)'] : gradientColors}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={styles.card}
+      style={backgroundImage ? styles.overlay : styles.card}
     >
       {/* Optional type badge */}
       {!!typeBadge && (
@@ -188,6 +191,21 @@ export default function DetailHeroCard({
       </View>
     </LinearGradient>
   );
+
+  if (backgroundImage) {
+    return (
+      <ImageBackground
+        source={backgroundImage}
+        style={styles.card}
+        imageStyle={styles.cardImage}
+        resizeMode="cover"
+      >
+        {content}
+      </ImageBackground>
+    );
+  }
+
+  return content;
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -200,6 +218,15 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     padding: 16,
     borderColor: '#9FE7E0',
+    overflow: 'hidden',
+  },
+  cardImage: {
+    borderRadius: 20,
+  },
+  overlay: {
+    flex: 1,
+    margin: -16,
+    padding: 16,
   },
   typeBadge: {
     alignSelf: 'flex-start',

@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator,
   Modal, Pressable, TextInput, Dimensions, KeyboardAvoidingView, Platform, FlatList,
+  Image, SafeAreaView,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { useFocusEffect } from '@react-navigation/native';
 import { MoreVertical, Pen, Trash2, RefreshCw, X } from 'lucide-react-native';
 import { launchCamera } from 'react-native-image-picker';
@@ -76,7 +78,7 @@ function DocRow({
   const run = (fn: () => void) => { setMenuOpen(false); fn(); };
 
   return (
-    <View style={styles.docRow}>
+    <View style={[styles.docRow, busy && styles.docRowBusy]}>
       <DocTypeIcon doc={doc} size={36} />
       <View style={styles.docInfo}>
         <Text style={styles.docName} numberOfLines={1}>{stripExt(doc.fileName)}</Text>
@@ -132,6 +134,8 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
   const [renameTarget, setRenameTarget] = useState<Doc | null>(null);
   const [renameText, setRenameText] = useState('');
   const [renameSaving, setRenameSaving] = useState(false);
+
+  const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
 
   // Email import
   const [emailStatus, setEmailStatus] = useState<EmailConnectionStatus | null>(null);
@@ -432,18 +436,28 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
           <Text style={styles.empty}>No documents yet. Upload your first one above.</Text>
         ) : (
           <View style={styles.list}>
-            {docs.map((doc, i) => (
-              <View key={doc.id}>
-                {i > 0 && <View style={styles.listDivider} />}
-                <DocRow
-                  doc={doc}
-                  busy={busyDocId === doc.id}
-                  onReplace={() => handleReplace(doc)}
-                  onRename={() => openRename(doc)}
-                  onDelete={() => handleDelete(doc)}
-                />
-              </View>
-            ))}
+            {docs.map((doc, i) => {
+              const busy = busyDocId === doc.id;
+              const url = doc.downloadUrl ?? doc.fileUrl;
+              return (
+                <View key={doc.id}>
+                  {i > 0 && <View style={styles.listDivider} />}
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    disabled={busy}
+                    onPress={() => url ? setDocPreviewUrl(url) : showAlert({ title: 'Error', message: 'Document URL not available.' })}
+                  >
+                    <DocRow
+                      doc={doc}
+                      busy={busy}
+                      onReplace={() => handleReplace(doc)}
+                      onRename={() => openRename(doc)}
+                      onDelete={() => handleDelete(doc)}
+                    />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -485,6 +499,30 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Document preview modal — in-app WebView */}
+      <Modal visible={!!docPreviewUrl} transparent={false} animationType="slide" onRequestClose={() => setDocPreviewUrl(null)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#1e293b' }}>
+            <TouchableOpacity onPress={() => setDocPreviewUrl(null)} activeOpacity={0.7} style={{ marginRight: 12 }}>
+              <Text style={{ color: '#5eead4', fontSize: 15, fontWeight: '500' }}>✕ Close</Text>
+            </TouchableOpacity>
+            <Text style={{ color: '#f1f5f9', fontSize: 14, fontWeight: '500', flex: 1 }} numberOfLines={1}>Document Preview</Text>
+          </View>
+          {docPreviewUrl && (() => {
+            const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|heic)(\?|$)/i.test(docPreviewUrl) ||
+              docs.find(d => (d.downloadUrl ?? d.fileUrl) === docPreviewUrl)?.mimeType?.startsWith('image/');
+            return isImage
+              ? <Image source={{ uri: docPreviewUrl }} style={{ flex: 1 }} resizeMode="contain" />
+              : <WebView
+                source={{ uri: `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(docPreviewUrl)}` }}
+                style={{ flex: 1 }}
+                startInLoadingState
+                javaScriptEnabled
+              />;
+          })()}
+        </SafeAreaView>
       </Modal>
 
       {/* Email attachment picker */}
@@ -624,6 +662,7 @@ const styles = StyleSheet.create({
   list: { marginTop: 8 },
   listDivider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(148,163,184,0.18)' },
   docRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  docRowBusy: { opacity: 0.45 },
   docInfo: { flex: 1, minWidth: 0 },
   docName: { fontSize: 14, fontWeight: '400', color: colors.textPrimary },
   docDate: { fontSize: 13, color: colors.textSecondary },

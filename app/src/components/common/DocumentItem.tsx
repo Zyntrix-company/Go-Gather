@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   Image,
@@ -29,6 +30,7 @@ type Props = {
   canEdit: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  isDeleting?: boolean;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -112,7 +114,7 @@ export function DocItemSkeleton() {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function DocumentItem({ doc, canEdit, onEdit, onDelete }: Props) {
+export default function DocumentItem({ doc, canEdit, onEdit, onDelete, isDeleting }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
   const menuBtnRef = useRef<React.ElementRef<typeof TouchableOpacity>>(null);
@@ -144,7 +146,7 @@ export default function DocumentItem({ doc, canEdit, onEdit, onDelete }: Props) 
   ].filter(Boolean);
 
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, isDeleting && styles.rowDeleting]}>
       {/* Avatar */}
       <View style={[styles.avatar, { backgroundColor: bg }]}>
         {uploaderAvatar ? (
@@ -163,15 +165,21 @@ export default function DocumentItem({ doc, canEdit, onEdit, onDelete }: Props) 
       </View>
 
       {/* Three-dot button */}
-      <TouchableOpacity
-        ref={menuBtnRef}
-        style={styles.menuBtn}
-        onPress={openMenu}
-        activeOpacity={0.7}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <MoreVertical size={16} color="#64748b" strokeWidth={1.8} />
-      </TouchableOpacity>
+      {isDeleting ? (
+        <View style={styles.menuBtn}>
+          <ActivityIndicator size="small" color="#64748b" />
+        </View>
+      ) : (
+        <TouchableOpacity
+          ref={menuBtnRef}
+          style={styles.menuBtn}
+          onPress={openMenu}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <MoreVertical size={16} color="#64748b" strokeWidth={1.8} />
+        </TouchableOpacity>
+      )}
 
       {/* Dropdown menu */}
       <Modal
@@ -196,7 +204,7 @@ export default function DocumentItem({ doc, canEdit, onEdit, onDelete }: Props) 
                 onPress={() => { setMenuOpen(false); onEdit(); }}
               >
                 <Pen size={14} color="#64748b" strokeWidth={2} />
-                <Text style={styles.menuText}>Edit</Text>
+                <Text style={styles.menuText}>Rename</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -220,6 +228,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingVertical: 10,
+  },
+  rowDeleting: {
+    opacity: 0.45,
   },
   avatar: {
     width: 36,

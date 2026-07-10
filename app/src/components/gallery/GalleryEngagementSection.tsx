@@ -135,7 +135,11 @@ export default function GalleryEngagementSection({
   // sheet is lifted too little and the input row hides behind the keyboard.
   // iOS reports the height from the screen bottom already, so no extra offset.
   const composerLift =
-    keyboardHeight + (Platform.OS === 'android' && keyboardHeight > 0 ? insets.bottom : 0);
+    keyboardHeight > 0
+      ? keyboardHeight + (Platform.OS === 'android' ? insets.bottom : 0)
+      // Keyboard not up yet (or focus hasn't landed): still clear the nav bar /
+      // home indicator so the sheet never sits underneath it.
+      : insets.bottom;
   const commentScrollRef = useRef<ScrollView>(null);
   const composerRef = useRef<TextInput>(null);
   const [posting, setPosting] = useState(false);
@@ -170,13 +174,12 @@ export default function GalleryEngagementSection({
     Keyboard.dismiss();
   };
 
-  // Focus the composer input shortly after the Modal mounts so the keyboard
-  // animates up and reports its height (which pins the bar above it).
-  useEffect(() => {
-    if (!composerMode) return undefined;
-    const t = setTimeout(() => composerRef.current?.focus(), 60);
-    return () => clearTimeout(t);
-  }, [composerMode]);
+  // Focus once the Modal's native window has actually finished presenting —
+  // a fixed timeout tied to the state change races the native Dialog on
+  // Android and can silently drop the focus() call, leaving the keyboard closed.
+  const handleComposerShow = () => {
+    setTimeout(() => composerRef.current?.focus(), Platform.OS === 'android' ? 150 : 50);
+  };
 
   // Scroll to latest comment whenever the list grows
   useEffect(() => {
@@ -293,6 +296,7 @@ export default function GalleryEngagementSection({
         animationType="fade"
         statusBarTranslucent
         navigationBarTranslucent
+        onShow={handleComposerShow}
         onRequestClose={closeComposer}
       >
         <View style={styles.composerRoot}>
@@ -363,6 +367,7 @@ export default function GalleryEngagementSection({
             visible
             transparent
             animationType="fade"
+            statusBarTranslucent
             onRequestClose={() => setOpenMenuId(null)}
           >
             <Pressable style={styles.menuModalOverlay} onPress={() => setOpenMenuId(null)}>

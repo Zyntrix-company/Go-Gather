@@ -748,7 +748,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   // ── Loading / submitting flags ──
   const [, setIsLoadingInit] = useState(true);
-  const [, setIsLoadingDocs] = useState(false);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
   const [isLoadingExpenses, setIsLoadingExpenses] = useState(false);
   const [isRefreshingExpenses, setIsRefreshingExpenses] = useState(false);
@@ -2134,6 +2134,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
             photoCount={media.items.length > 0 ? media.items.length : (apiStats?.photoVideoCount ?? 0)}
             totalExpenses={expenseLabel}
             onEdit={openEditTrip}
+            backgroundImage={require('../../assets/images/trip_hero_bg.png')}
           />
           {role === 'admin' && (
             <TouchableOpacity
@@ -2157,7 +2158,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
             <View style={styles.actionsRow}>
               {[
                 { label: 'Activity', bg: '#E7F8F2', ic: '#0D9488', p: 'plus', fn: () => setShowAddAct(true), count: 0 },
-                { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => setShowDocs(true), count: badgeCounts.docs },
+                { label: 'Docs', bg: '#F6E8D8', ic: '#B45309', p: 'docs', fn: () => setShowDocs(true), count: badgeCounts.docs },
                 { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => setShowMembers(true), count: badgeCounts.members },
                 { label: 'Media', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => { setShowPhotos(true); setAlbumDescExpanded(false); }, count: badgeCounts.photos },
               ].map(btn => (
@@ -2712,7 +2713,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <View style={styles.docDividerLine} />
                   </View>
 
-                  {docs.length === 0 && !uploadPending ? (
+                  {isLoadingDocs && docs.length === 0 ? (
+                    <View>
+                      <View style={styles.docRow}><DocItemSkeleton /></View>
+                      <View style={styles.docRow}><DocItemSkeleton /></View>
+                      <DocItemSkeleton />
+                    </View>
+                  ) : docs.length === 0 && !uploadPending ? (
                     <View style={styles.emptyCenter}>
                       <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
                         <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
@@ -2729,14 +2736,11 @@ export default function TripDetailScreen({ route, navigation }: any) {
                         const canEdit = role === 'admin' || uploaderId === currentUserId;
                         const isDeleting = deletingDocIds.has(doc.id);
                         const isLast = idx === docs.length - 1 && !uploadPending;
-                        return isDeleting ? (
-                          <View key={doc.id} style={!isLast ? styles.docRow : undefined}>
-                            <DocItemSkeleton />
-                          </View>
-                        ) : (
+                        return (
                           <TouchableOpacity
                             key={doc.id}
                             activeOpacity={0.7}
+                            disabled={isDeleting}
                             onPress={() => doc.uri ? setDocPreviewUrl(doc.uri) : showAlert({ title: 'Error', message: 'Document URL not available.' })}
                             style={!isLast ? styles.docRow : undefined}
                           >
@@ -2750,6 +2754,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                                 uploadedBy: doc.uploadedBy ?? '',
                               }}
                               canEdit={canEdit}
+                              isDeleting={isDeleting}
                               onEdit={() => { setRenameTarget(doc); setRenameText(doc.name); }}
                               onDelete={() => showConfirm({
                                 title: 'Remove document?',
@@ -2781,7 +2786,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         <AppModal visible={renameTarget !== null} transparent animationType="slide" onRequestClose={() => setRenameTarget(null)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { paddingBottom: 8 }]}>
-              <DHeader title="Edit Document" onClose={() => setRenameTarget(null)} />
+              <DHeader title="Rename Document" onClose={() => setRenameTarget(null)} />
               <View style={[styles.dBody, { gap: 16 }]}>
                 <TextInput
                   value={renameText}

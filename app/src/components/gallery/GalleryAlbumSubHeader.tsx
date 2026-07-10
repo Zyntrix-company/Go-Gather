@@ -107,7 +107,7 @@ export default function GalleryAlbumSubHeader({
             </TouchableOpacity>
           ) : (
             <View ref={menuAnchorRef}>
-              <TouchableOpacity onPress={openMenu} style={acs.heroOverlayBtnLight} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} activeOpacity={0.7}>
+              <TouchableOpacity onPress={openMenu} style={styles.menuBtn} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} activeOpacity={0.7}>
                 <MoreVertical size={17} color="#0d9488" />
               </TouchableOpacity>
             </View>
@@ -117,7 +117,7 @@ export default function GalleryAlbumSubHeader({
         <View style={styles.actionsPlaceholder} />
       )}
 
-      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+      <Modal visible={menuOpen} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setMenuOpen(false)}>
         <Pressable style={styles.menuOverlay} onPress={() => setMenuOpen(false)}>
           <View style={[styles.menuSheet, menuPos ? { top: menuPos.top, right: menuPos.right } : styles.menuSheetFallback]}>
             <TouchableOpacity style={styles.menuItem} activeOpacity={0.8} onPress={() => runAction(onEdit)}>
@@ -196,6 +196,14 @@ const styles = StyleSheet.create({
   },
   actionsPlaceholder: {
     width: 38,
+  },
+  menuBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   menuOverlay: {
     flex: 1,

@@ -1376,10 +1376,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
-          {loadingDetail && (
-            <ActivityIndicator size="small" color="#0d9488" style={{ marginVertical: 8 }} />
-          )}
-
           {/* Hero Card — with stats row inside */}
           <SharedDetailHeroCard
             name={event.name}
@@ -1396,6 +1392,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
             photoCount={media.items.length}
             totalExpenses={expenseLabel}
             onEdit={openEditEvent}
+            backgroundImage={require('../../assets/images/event_hero_bg.png')}
           />
 
           {/* ── Action Buttons: 4 top row, 2 bottom aligned under Docs & Members ── */}
@@ -1403,7 +1400,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
             {/* Row 1: Docs | Members | Photos | Expenses */}
             <View style={styles.actionsRow}>
               {[
-                { label: 'Docs', bg: '#E8F5EE', ic: '#0D9488', p: 'docs', fn: () => { setShowDocs(true); setUnreadCounts(p => ({ ...p, docs: 0 })); markEventSectionViewed(event.id, 'docs'); }, count: badgeCounts.docs },
+                { label: 'Docs', bg: '#F6E8D8', ic: '#B45309', p: 'docs', fn: () => { setShowDocs(true); setUnreadCounts(p => ({ ...p, docs: 0 })); markEventSectionViewed(event.id, 'docs'); }, count: badgeCounts.docs },
                 { label: 'Members', bg: '#F1E8FF', ic: '#8B5CF6', p: 'members', fn: () => { setShowMembers(true); setUnreadCounts(p => ({ ...p, members: 0 })); markEventSectionViewed(event.id, 'members'); }, count: badgeCounts.members },
                 { label: 'Media', bg: '#FFEAF0', ic: '#F43F5E', p: 'photos', fn: () => { setShowPhotos(true); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); }, count: badgeCounts.photos },
                 { label: 'Expenses', bg: '#FFF0DD', ic: '#F59E0B', p: 'expenses', fn: () => { setShowExpenses(true); setUnreadCounts(p => ({ ...p, expenses: 0 })); markEventSectionViewed(event.id, 'expenses'); }, count: badgeCounts.expenses },
@@ -1666,9 +1663,6 @@ export default function EventDetailScreen({ route, navigation }: any) {
                     <View>
                       {docs.map((doc, idx) => {
                         const isDeleting = deletingDocIds.has(doc.id);
-                        if (isDeleting) {
-                          return <View key={doc.id} style={idx < docs.length - 1 ? styles.docRow : undefined}><DocItemSkeleton /></View>;
-                        }
                         const uploaderObj = typeof doc.uploadedBy === 'object' && doc.uploadedBy !== null ? doc.uploadedBy : null;
                         const uploaderId = uploaderObj ? (uploaderObj as any).userId : doc.uploadedBy;
                         const canEdit = myMemberRole === 'admin' || uploaderId === currentUserId;
@@ -1676,6 +1670,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                           <TouchableOpacity
                             key={doc.id}
                             activeOpacity={0.7}
+                            disabled={isDeleting}
                             onPress={() => doc.uri ? setDocPreviewUrl(doc.uri) : showAlert({ title: 'Error', message: 'Document URL not available.' })}
                             style={idx < docs.length - 1 ? styles.docRow : undefined}
                           >
@@ -1689,6 +1684,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                                 uploadedBy: doc.uploadedBy ?? '',
                               }}
                               canEdit={canEdit}
+                              isDeleting={isDeleting}
                               onEdit={() => { setRenameTarget(doc); setRenameText(doc.name); }}
                               onDelete={() => showConfirm({
                                 title: 'Remove document?',
@@ -1723,7 +1719,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         <AppModal visible={renameTarget !== null} transparent animationType="slide" onRequestClose={() => setRenameTarget(null)}>
           <View style={styles.overlay}>
             <View style={[styles.dialog, { paddingBottom: 8 }]}>
-              <DHeader title="Edit Document" onClose={() => setRenameTarget(null)} />
+              <DHeader title="Rename Document" onClose={() => setRenameTarget(null)} />
               <View style={[styles.dBody, { gap: 16 }]}>
                 <TextInput
                   value={renameText}
