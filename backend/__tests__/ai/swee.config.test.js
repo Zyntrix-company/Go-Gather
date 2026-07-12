@@ -22,12 +22,26 @@ describe('swee.config buildSweetSystemPrompt', () => {
     expect(prompt).toMatch(/Asia\/Kolkata/);
   });
 
-  it('includes female persona and conversational trip flow', () => {
+  it('includes female persona and form-driven trip flow', () => {
     const prompt = buildSweetSystemPrompt(baseContext, null, 1);
     expect(prompt).toMatch(/female AI/i);
     expect(prompt).toMatch(/CREATE FLOW — TRIPS/i);
-    expect(prompt).toMatch(/FINAL CONFIRMATION TABLE/i);
-    expect(prompt).not.toMatch(/show a complete form immediately/i);
+    // Trip creation is now collected via the structured planning card (showForm),
+    // not a text confirmation table.
+    expect(prompt).toMatch(/showForm/);
+    expect(prompt).toMatch(/planning form/i);
+  });
+
+  it('teaches the trip vs event distinction and mismatch handling', () => {
+    const prompt = buildSweetSystemPrompt(baseContext, null, 1);
+    expect(prompt).toMatch(/TRIP vs EVENT/i);
+    expect(prompt).toMatch(/multi-day trip than an event/i);
+  });
+
+  it('explains attachment (document/photo) handling', () => {
+    const prompt = buildSweetSystemPrompt(baseContext, null, 1);
+    expect(prompt).toMatch(/ATTACHMENTS/i);
+    expect(prompt).toMatch(/itinerary/i);
   });
 
   it('requires trip disambiguation before identify_update chips', () => {

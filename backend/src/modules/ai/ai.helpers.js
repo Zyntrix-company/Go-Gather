@@ -125,6 +125,9 @@ function validatePendingAction(action) {
       return { valid: false, reason: 'create_event_missing_draft' };
     }
   }
+  if (action.showForm != null && action.showForm !== 'trip' && action.showForm !== 'event') {
+    return { valid: false, reason: 'invalid_showForm' };
+  }
   return { valid: true };
 }
 
@@ -158,7 +161,10 @@ function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
       };
     }
 
-    const meaningful = action.readyToCreate || action.intent === 'identify_update';
+    const meaningful = action.readyToCreate
+      || action.intent === 'identify_update'
+      || action.showForm === 'trip'
+      || action.showForm === 'event';
     return {
       reply: visibleReply || (meaningful ? ACTION_FALLBACK_REPLY : ''),
       pendingAction: meaningful ? action : null,

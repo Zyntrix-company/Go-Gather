@@ -111,10 +111,6 @@ export default function NotificationSettingsScreen({ navigation }: any) {
                 </View>
               </View>
             </View>
-
-            <Text style={styles.footNote}>
-              Quiet hours default to 22:00 – 08:00. Contact support to adjust your schedule.
-            </Text>
           </>
         )}
       </ScrollView>
@@ -141,7 +137,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 14,
     paddingVertical: 4,
-    marginBottom: 20,
+    marginBottom: 8,
     overflow: 'hidden',
   },
 
@@ -180,12 +176,4 @@ const styles = StyleSheet.create({
   pillActive:     { backgroundColor: colors.accent },
   pillText:       { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
   pillTextActive: { color: '#fff', fontWeight: '600' },
-
-  footNote: {
-    fontSize: 11,
-    color: colors.textMuted,
-    lineHeight: 16,
-    marginTop: 4,
-    marginHorizontal: 2,
-  },
 });

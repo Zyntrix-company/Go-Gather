@@ -15,9 +15,18 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import { launchImageLibrary } from 'react-native-image-picker';
+import {
+  pick as pickDocument,
+  types as docTypes,
+  keepLocalCopy,
+  isErrorWithCode,
+  errorCodes,
+} from '@react-native-documents/picker';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING, TAB_BAR_BASE_HEIGHT } from '../../components/common/AppScreenLayout';
 import MarkdownText from '../../components/common/MarkdownText';
 import SweeIcon from '../../components/common/SweeIcon';
+import { TripPlanForm, EventPlanForm } from '../../components/chat/SweePlanForm';
 import { useKeyboardHeight } from '../../hooks/useKeyboardVisible';
 import useChatStore from '../../store/chatStore';
 import useAuthStore from '../../store/authStore';
@@ -33,6 +42,7 @@ import {
   type PendingAction,
   type ExecuteResult,
   type AiMessage,
+  type ChatAttachment,
 } from '../../api/ai.api';
 import { animateTextStream } from '../../utils/animateTextStream';
 import { loadChatDraft, saveChatDraft, clearChatDraft } from '../../utils/chatDraftStorage';
@@ -50,7 +60,29 @@ type Message = {
   pendingAction?: PendingAction | null;
   // When this Swee message is a success confirmation with navigation
   createdResult?: ExecuteResult['created'];
+  // File chips to show on a user message that carried attachments
+  attachments?: { name: string; kind: 'image' | 'file' }[];
 };
+
+// A file the user has staged in the composer (base64 payload sent to Swee).
+type LocalAttachment = ChatAttachment & { id: string; kind: 'image' | 'file' };
+
+const MAX_CHAT_ATTACHMENTS = 4;
+
+/** Read a local file URI into base64 (no data: prefix). */
+async function fileUriToBase64(uri: string): Promise<string> {
+  const res = await fetch(uri);
+  const blob = await res.blob();
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read failed'));
+    reader.onloadend = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      resolve(result.includes(',') ? result.split(',')[1] : result);
+    };
+    reader.readAsDataURL(blob);
+  });
+}
 
 // ─── Welcome message variants (picked randomly, typed on screen open) ───────
 
@@ -271,6 +303,8 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
+  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [isWelcomeTyping, setIsWelcomeTyping] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -478,7 +512,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     }
   }, [conversationId, isExecuting, updateConversationInStore]);
 
-  const streamToSwee = useCallback((text: string, currentMessages: Message[], userMsg: Message) => {
+  const streamToSwee = useCallback((text: string, currentMessages: Message[], userMsg: Message, msgAttachments?: ChatAttachment[]) => {
     const streamingMsgId = `s_${Date.now() + 1}`;
     const streamingMsg: Message = {
       id: streamingMsgId,
@@ -551,37 +585,105 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         setIsTyping(false);
         abortRef.current = null;
       },
+      msgAttachments,
     );
   }, [conversationId, tripContext, updateConversationInStore, prependConversationInStore]);
+
+  const addImageAttachment = useCallback(async () => {
+    setShowAttachMenu(false);
+    try {
+      const result = await launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, includeBase64: true });
+      const asset = result.assets?.[0];
+      if (!asset?.base64) return;
+      setAttachments((prev) =>
+        prev.length >= MAX_CHAT_ATTACHMENTS
+          ? prev
+          : [...prev, {
+              id: `att_${Date.now()}`,
+              name: asset.fileName || 'photo.jpg',
+              mimeType: asset.type || 'image/jpeg',
+              data: asset.base64!,
+              kind: 'image',
+            }],
+      );
+    } catch {
+      // cancelled / failed — no-op
+    }
+  }, []);
+
+  const addDocumentAttachment = useCallback(async () => {
+    setShowAttachMenu(false);
+    try {
+      const [picked] = await pickDocument({ type: [docTypes.pdf, docTypes.images, docTypes.plainText] });
+      if (!picked?.uri) return;
+      const [localCopy] = await keepLocalCopy({
+        files: [{ uri: picked.uri, fileName: picked.name ?? `file_${Date.now()}` }],
+        destination: 'cachesDirectory',
+      });
+      const uri = localCopy.status === 'success' ? localCopy.localUri : picked.uri;
+      const base64 = await fileUriToBase64(uri);
+      if (!base64) return;
+      setAttachments((prev) =>
+        prev.length >= MAX_CHAT_ATTACHMENTS
+          ? prev
+          : [...prev, {
+              id: `att_${Date.now()}`,
+              name: picked.name || 'document',
+              mimeType: picked.type || 'application/pdf',
+              data: base64,
+              kind: 'file',
+            }],
+      );
+    } catch (err: any) {
+      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
+      // other errors — silently ignore, user can retry
+    }
+  }, []);
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }, []);
 
   const sendMessage = useCallback((overrideText?: unknown) => {
     const resolvedText = typeof overrideText === 'string' ? overrideText : inputText;
     const text = resolvedText.trim();
-    if (!text || isTyping || isExecuting || isWelcomeTyping) return;
+    const outgoing = attachments;
+    if ((!text && outgoing.length === 0) || isTyping || isExecuting || isWelcomeTyping) return;
 
     const userMsg: Message = {
       id: `u_${Date.now()}`,
       text,
       sender: 'user',
       time: formatTime(),
+      attachments: outgoing.length
+        ? outgoing.map((a) => ({ name: a.name, kind: a.kind }))
+        : undefined,
     };
 
     setInputText('');
+    setAttachments([]);
     clearChatDraft(draftConversationKey);
+
+    const apiAttachments: ChatAttachment[] = outgoing.map((a) => ({
+      name: a.name,
+      mimeType: a.mimeType,
+      data: a.data,
+    }));
 
     setMessages((prev) => {
       const pending = findPendingConfirmation(prev);
       const withUser = [...prev, userMsg];
 
-      if (pending && isAffirmativeConfirmation(text)) {
+      // A typed "yes" only confirms when there are no new attachments to read.
+      if (pending && outgoing.length === 0 && isAffirmativeConfirmation(text)) {
         queueMicrotask(() => handleConfirmAction(pending.action, pending.msgId));
         return withUser;
       }
 
-      queueMicrotask(() => streamToSwee(text, prev, userMsg));
+      queueMicrotask(() => streamToSwee(text, prev, userMsg, apiAttachments));
       return withUser;
     });
-  }, [inputText, isTyping, isExecuting, isWelcomeTyping, handleConfirmAction, streamToSwee, draftConversationKey]);
+  }, [inputText, attachments, isTyping, isExecuting, isWelcomeTyping, handleConfirmAction, streamToSwee, draftConversationKey]);
 
   const handleIdentifyResponse = useCallback((msgId: string, affirmative: boolean) => {
     if (isTyping || isExecuting) return;
@@ -659,16 +761,29 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     const showConfirmChips = !isUser && !item.streaming && item.pendingAction?.readyToCreate === true;
     const showIdentifyChips = !isUser && !item.streaming && item.pendingAction?.intent === 'identify_update';
     const showViewBtn = !isUser && !item.streaming && item.createdResult;
+    const formType = !isUser && !item.streaming ? item.pendingAction?.showForm : undefined;
+    const hasAttachments = isUser && !!item.attachments?.length;
 
     return (
+      <View>
       <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowSwee, hasTable && styles.msgRowWide]}>
         <View style={[
           styles.msgBubble,
           isUser ? styles.msgBubbleUser : styles.msgBubbleSwee,
           hasTable && styles.msgBubbleWide,
         ]}>
+          {hasAttachments && (
+            <View style={styles.msgAttachList}>
+              {item.attachments!.map((a, i) => (
+                <View key={i} style={styles.msgAttachChip}>
+                  <Text style={styles.msgAttachIcon}>{a.kind === 'image' ? '🖼️' : '📄'}</Text>
+                  <Text style={styles.msgAttachName} numberOfLines={1}>{a.name}</Text>
+                </View>
+              ))}
+            </View>
+          )}
           {isUser ? (
-            <Text style={textStyle}>{item.text}</Text>
+            item.text ? <Text style={textStyle}>{item.text}</Text> : null
           ) : (
             <MarkdownText
               text={item.text}
@@ -756,6 +871,23 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           )}
         </View>
       </View>
+
+      {/* ── Structured planning card (trip / event questionnaire) ── */}
+      {formType === 'trip' && (
+        <TripPlanForm
+          draft={item.pendingAction?.draft}
+          submitting={isExecuting}
+          onSubmit={(action) => handleConfirmAction(action, item.id)}
+        />
+      )}
+      {formType === 'event' && (
+        <EventPlanForm
+          draft={item.pendingAction?.draft}
+          submitting={isExecuting}
+          onSubmit={(action) => handleConfirmAction(action, item.id)}
+        />
+      )}
+      </View>
     );
   }
 
@@ -824,7 +956,28 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             The app window is translucent (styles.xml), so Android's adjustResize
             never shrinks the window for the keyboard. We lift the bar manually by
             the measured keyboard height (see container paddingBottom above). */}
+        {attachments.length > 0 && (
+          <View style={styles.composerAttachments}>
+            {attachments.map((a) => (
+              <View key={a.id} style={styles.composerChip}>
+                <Text style={styles.composerChipIcon}>{a.kind === 'image' ? '🖼️' : '📄'}</Text>
+                <Text style={styles.composerChipName} numberOfLines={1}>{a.name}</Text>
+                <TouchableOpacity onPress={() => removeAttachment(a.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <CloseIcon size={14} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
         <View style={styles.inputRow}>
+          <TouchableOpacity
+            style={styles.attachBtn}
+            onPress={() => setShowAttachMenu(true)}
+            disabled={isTyping || isWelcomeTyping || isExecuting || attachments.length >= MAX_CHAT_ATTACHMENTS}
+            activeOpacity={0.7}
+          >
+            <AttachIcon />
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
             placeholder="Ask Swee anything..."
@@ -837,9 +990,9 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             editable={!isTyping && !isWelcomeTyping}
           />
           <TouchableOpacity
-            style={[styles.sendBtn, (!inputText.trim() || isTyping || isWelcomeTyping || isExecuting) && styles.sendBtnDisabled]}
+            style={[styles.sendBtn, ((!inputText.trim() && attachments.length === 0) || isTyping || isWelcomeTyping || isExecuting) && styles.sendBtnDisabled]}
             onPress={sendMessage}
-            disabled={!inputText.trim() || isTyping || isWelcomeTyping || isExecuting}
+            disabled={(!inputText.trim() && attachments.length === 0) || isTyping || isWelcomeTyping || isExecuting}
             activeOpacity={0.8}
           >
             <SendIcon />
@@ -969,6 +1122,31 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         </View>
       </Modal>
 
+      {/* ── Attachment menu (Photo / Document) ── */}
+      <Modal visible={showAttachMenu} transparent animationType="slide" onRequestClose={() => setShowAttachMenu(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAttachMenu(false)}>
+          <View style={styles.attachSheet}>
+            <View style={styles.attachSheetHandle} />
+            <Text style={styles.attachSheetTitle}>Share with Swee</Text>
+            <Text style={styles.attachSheetSubtitle}>Attach an itinerary or photo and Swee will read it.</Text>
+            <TouchableOpacity style={styles.attachOption} onPress={addImageAttachment} activeOpacity={0.8}>
+              <Text style={styles.attachOptionIcon}>🖼️</Text>
+              <View style={styles.attachOptionInfo}>
+                <Text style={styles.attachOptionTitle}>Photo</Text>
+                <Text style={styles.attachOptionDesc}>Pick an image from your gallery</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.attachOption} onPress={addDocumentAttachment} activeOpacity={0.8}>
+              <Text style={styles.attachOptionIcon}>📄</Text>
+              <View style={styles.attachOptionInfo}>
+                <Text style={styles.attachOptionTitle}>Document</Text>
+                <Text style={styles.attachOptionDesc}>PDF, image or text file</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </AppScreenLayout>
   );
 }
@@ -1058,6 +1236,54 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: '#f1f5f9',
     backgroundColor: 'rgba(255,255,255,0.95)', gap: 10,
   },
+  attachBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#f0fdfa', borderWidth: 1.5, borderColor: '#ccfbf1',
+    alignItems: 'center', justifyContent: 'center',
+  },
+
+  // Staged attachments in the composer
+  composerAttachments: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+    paddingHorizontal: 16, paddingTop: 10,
+  },
+  composerChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#f0fdfa', borderWidth: 1, borderColor: '#ccfbf1',
+    borderRadius: 10, paddingVertical: 6, paddingHorizontal: 10, maxWidth: 200,
+  },
+  composerChipIcon: { fontSize: 14 },
+  composerChipName: { flex: 1, fontSize: 12, color: '#0f172a', fontWeight: '500' },
+
+  // Attachment chips shown on a sent user message
+  msgAttachList: { gap: 6, marginBottom: 6 },
+  msgAttachChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 8,
+    paddingVertical: 6, paddingHorizontal: 8,
+  },
+  msgAttachIcon: { fontSize: 14 },
+  msgAttachName: { flex: 1, fontSize: 12, color: '#ffffff', fontWeight: '500' },
+
+  // Attachment bottom sheet
+  attachSheet: {
+    backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 20, paddingBottom: 40,
+  },
+  attachSheetHandle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: '#e2e8f0',
+    alignSelf: 'center', marginBottom: 16,
+  },
+  attachSheetTitle: { fontSize: 17, fontWeight: '600', color: '#0f172a' },
+  attachSheetSubtitle: { fontSize: 13, color: '#64748b', marginTop: 4, marginBottom: 12 },
+  attachOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    paddingVertical: 14, paddingHorizontal: 4,
+  },
+  attachOptionIcon: { fontSize: 26 },
+  attachOptionInfo: { flex: 1 },
+  attachOptionTitle: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
+  attachOptionDesc: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
   input: {
     flex: 1, backgroundColor: '#f8fafc',
     borderWidth: 1.5, borderColor: '#e2e8f0', borderRadius: 22,

@@ -10,12 +10,14 @@ import { MoreVertical, Pen, Trash2, RefreshCw, X } from 'lucide-react-native';
 import { launchCamera } from 'react-native-image-picker';
 import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import Toast from 'react-native-toast-message';
+import Svg, { Circle, Path } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import DocTypeIcon from '../../components/common/DocTypeIcon';
 import { stripExt, DocItemSkeleton } from '../../components/common/DocumentItem';
 import UploadOptionsRow from '../../components/common/UploadOptionsRow';
 import EmailOptionsRow from '../../components/common/EmailOptionsRow';
 import UploadLimitNote from '../../components/common/UploadLimitNote';
+import DateInfoPopover from '../../components/common/DateInfoPopover';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
 import { DriveBrandIcon } from '../../components/common/GoogleWorkspaceIcons';
 import { EmailProviderIcon, emailProviderLabel } from '../../components/common/EmailProviderIcons';
@@ -136,6 +138,10 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
   const [renameSaving, setRenameSaving] = useState(false);
 
   const [docPreviewUrl, setDocPreviewUrl] = useState<string | null>(null);
+
+  const [showDocsInfoTooltip, setShowDocsInfoTooltip] = useState(false);
+  const [docsIconPos, setDocsIconPos] = useState({ x: 0, y: 0 });
+  const docsIconRef = useRef<any>(null);
 
   // Email import
   const [emailStatus, setEmailStatus] = useState<EmailConnectionStatus | null>(null);
@@ -395,7 +401,7 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
         showsVerticalScrollIndicator={false}>
 
         <Text style={styles.subtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-          Store and manage your important travel documents securely.
+          Store and manage your important documents securely.
         </Text>
 
         {/* Upload */}
@@ -423,6 +429,23 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
         {/* Header */}
         <View style={styles.listHeader}>
           <Text style={styles.listTitle} numberOfLines={1}>My Documents</Text>
+          <TouchableOpacity
+            ref={docsIconRef}
+            style={styles.docsInfoIcon}
+            onPress={() => {
+              if (docsIconRef.current) {
+                docsIconRef.current.measure((_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
+                  setDocsIconPos({ x: pageX + width / 2, y: pageY + height / 2 });
+                });
+              }
+              setShowDocsInfoTooltip(true);
+            }}
+            activeOpacity={0.6}>
+            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+              <Circle cx={12} cy={12} r={10} stroke="#0d9488" strokeWidth={2} />
+              <Path d="M12 7v5M12 17a1 1 0 100-2 1 1 0 000 2z" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </TouchableOpacity>
         </View>
 
         {/* List */}
@@ -468,6 +491,14 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
           </View>
         )}
       </ScrollView>
+
+      <DateInfoPopover
+        visible={showDocsInfoTooltip}
+        onClose={() => setShowDocsInfoTooltip(false)}
+        iconX={docsIconPos.x}
+        iconY={docsIconPos.y}
+        message="Don’t upload financial documents or card photos. GatherrGo isn’t liable for misuse or fraud."
+      />
 
       {/* Rename modal */}
       <Modal visible={!!renameTarget} transparent animationType="fade" onRequestClose={() => setRenameTarget(null)}>
@@ -654,8 +685,9 @@ const styles = StyleSheet.create({
   dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
   dividerText: { fontSize: 11, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.4 },
 
-  listHeader: { marginTop: 22, marginBottom: 10 },
+  listHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 22, marginBottom: 10 },
   listTitle: { fontSize: 15, fontWeight: '500', color: colors.textPrimary },
+  docsInfoIcon: { padding: 2, marginTop: 3 },
 
   empty: { fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: 24 },
 

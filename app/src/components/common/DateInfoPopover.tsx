@@ -10,6 +10,7 @@ interface DateInfoPopoverProps {
   onClose: () => void;
   iconX?: number;
   iconY?: number;
+  message?: string;
 }
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -18,7 +19,13 @@ const POPOVER_HEIGHT = 85;
 const ARROW_SIZE = 10;
 const ARROW_OFFSET = 15; // Distance below icon
 
-export default function DateInfoPopover({ visible, onClose, iconX = SCREEN_W / 2, iconY = 100 }: DateInfoPopoverProps) {
+export default function DateInfoPopover({
+  visible,
+  onClose,
+  iconX = SCREEN_W / 2,
+  iconY = 100,
+  message = 'You can only select dates within 365 days from today.',
+}: DateInfoPopoverProps) {
   const [popoverPos, setPopoverPos] = useState({ top: iconY + ARROW_OFFSET, left: SCREEN_W / 2 - POPOVER_WIDTH / 2 });
   const [arrowPos, setArrowPos] = useState(POPOVER_WIDTH / 2);
   const [showAbove, setShowAbove] = useState(false);
@@ -73,7 +80,7 @@ export default function DateInfoPopover({ visible, onClose, iconX = SCREEN_W / 2
             ]}
           />
           <View style={styles.content}>
-            <Text style={styles.text}>You can only select dates within 365 days from today.</Text>
+            <Text style={styles.text}>{message}</Text>
           </View>
           <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.7}>
             <Text style={styles.closeBtnText}>×</Text>

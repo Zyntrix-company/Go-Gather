@@ -18,12 +18,22 @@ export type TripContext = {
 export type PendingAction = {
   intent: 'create_trip' | 'create_event' | 'update_trip' | 'update_event' | 'add_note' | 'identify_update' | 'none';
   readyToCreate: boolean;
+  /** When set, the app renders the structured trip/event planning card inline. */
+  showForm?: 'trip' | 'event';
   draft?: Record<string, any>;
   tripId?: string;
   targetTripName?: string;
   eventId?: string;
   targetEventName?: string;
   noteContent?: string;
+};
+
+/** A document/photo the user attaches for Swee to read (sent inline as base64). */
+export type ChatAttachment = {
+  name: string;
+  mimeType: string;
+  /** base64-encoded file contents (no data: prefix). */
+  data: string;
 };
 
 export type ExecuteResult = {
@@ -141,6 +151,7 @@ export function sendMessageStream(
   onPartial: (partial: string) => void,
   onDone: (result: ChatDoneResult) => void,
   onError: (err: string) => void,
+  attachments?: ChatAttachment[],
 ): () => void {
   let aborted = false;
   let cancelAnim: (() => void) | null = null;
@@ -152,7 +163,8 @@ export function sendMessageStream(
         conversationId: conversationId ?? undefined,
         conversationHistory: history,
         tripContext: tripContext ?? undefined,
-      }, { timeout: 60000 });
+        attachments: attachments && attachments.length ? attachments : undefined,
+      }, { timeout: 90000 });
 
       if (aborted) return;
 

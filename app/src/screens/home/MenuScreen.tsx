@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
 
   profileBlock: { alignItems: 'center', paddingTop: 8, paddingBottom: 18 },
   avatarRing: {
-    padding: 3,
+    padding: 2,
     borderRadius: 52,
     backgroundColor: colors.accent,
   },

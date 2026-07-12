@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   TextInput, Animated, PanResponder, Image, Platform, Linking,
-  ActivityIndicator, FlatList, Dimensions, Easing, InteractionManager, Pressable,
+  ActivityIndicator, FlatList, Dimensions, Pressable,
 } from 'react-native';
 import AppModal from '../../components/common/AppModal';
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -389,117 +389,62 @@ function ActivityGroupsList({
   collapsedDates,
   onToggleDate,
   onActivityPress,
-  animateKey,
-  canAnimate,
   collapseKeyPrefix = '',
 }: {
   activities: Activity[];
   collapsedDates: Set<string>;
   onToggleDate: (collapseKey: string) => void;
   onActivityPress: (act: Activity) => void;
-  animateKey: number;
-  canAnimate: boolean;
   collapseKeyPrefix?: string;
 }) {
   const entries = useMemo(() => groupActivitiesByDate(activities), [activities]);
-  const animRefs = useRef<Animated.Value[]>([]);
-  const lastStartedKey = useRef(-1);
-
-  const ensureAnim = (index: number) => {
-    if (!animRefs.current[index]) {
-      animRefs.current[index] = new Animated.Value(0);
-    }
-    return animRefs.current[index];
-  };
-
-  useLayoutEffect(() => {
-    lastStartedKey.current = -1;
-    animRefs.current = entries.map((_, i) => {
-      const existing = animRefs.current[i];
-      if (existing) {
-        existing.setValue(0);
-        return existing;
-      }
-      return new Animated.Value(0);
-    });
-  }, [entries.length, animateKey]);
-
-  useEffect(() => {
-    if (!canAnimate) lastStartedKey.current = -1;
-  }, [canAnimate]);
-
-  useEffect(() => {
-    if (!canAnimate || entries.length === 0) return;
-    if (lastStartedKey.current === animateKey) return;
-
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    const interactionTask = InteractionManager.runAfterInteractions(() => {
-      timeoutId = setTimeout(() => {
-        lastStartedKey.current = animateKey;
-        const anims = animRefs.current.slice(0, entries.length);
-        anims.forEach(v => v.setValue(0));
-        Animated.stagger(
-          72,
-          anims.map(v =>
-            Animated.timing(v, {
-              toValue: 1,
-              duration: 340,
-              easing: Easing.out(Easing.cubic),
-              useNativeDriver: true,
-            }),
-          ),
-        ).start();
-      }, 100);
-    });
-
-    return () => {
-      interactionTask.cancel();
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [canAnimate, animateKey, entries.length]);
 
   return (
     <View>
       {entries.map(([dateKey, acts], index) => {
         const collapseKey = `${collapseKeyPrefix}${dateKey}`;
         const isCollapsed = collapsedDates.has(collapseKey);
-        const progress = ensureAnim(index);
+        const isLast = index === entries.length - 1;
         return (
-          <Animated.View
-            key={collapseKey}
-            style={{
-              marginBottom: 4,
-              opacity: progress,
-              transform: [{
-                translateY: progress.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-14, 0],
-                }),
-              }],
-            }}>
-            <TouchableOpacity style={styles.actDateRow} onPress={() => onToggleDate(collapseKey)} activeOpacity={0.7}>
-              <Text style={styles.actDateLabel}>
-                {formatActivityDate(dateKey === '__nodate__' ? '' : dateKey)}
-              </Text>
-              {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
-            </TouchableOpacity>
-            {!isCollapsed && (
-              <View style={styles.actItemsWrap}>
-                {acts.map((act, idx) => (
-                  <TouchableOpacity
-                    key={act.id}
-                    style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]}
-                    onPress={() => onActivityPress(act)}
-                    activeOpacity={0.7}>
-                    <Text style={[styles.actItemLine, styles.actTimeLabel]}>
-                      {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
-                    </Text>
-                    <Text style={[styles.actItemLine, styles.actItemTitle]} numberOfLines={1}>{act.title}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </Animated.View>
+          <View key={collapseKey} style={styles.timelineRow}>
+            <View style={styles.timelineRail}>
+              <View style={styles.timelineDot} />
+              {!isLast && (
+                <View style={styles.timelineConnector}>
+                  <View style={styles.timelineConnectorDot} />
+                  <View style={styles.timelineConnectorDot} />
+                  <View style={styles.timelineConnectorDot} />
+                  <View style={styles.timelineConnectorDot} />
+                  <View style={styles.timelineConnectorDot} />
+                  <View style={styles.timelineConnectorDot} />
+                </View>
+              )}
+            </View>
+            <View style={[styles.timelineContent, !isLast && { paddingBottom: 8 }]}>
+              <TouchableOpacity style={styles.actDateRow} onPress={() => onToggleDate(collapseKey)} activeOpacity={0.7}>
+                <Text style={styles.actDateLabel}>
+                  {formatActivityDate(dateKey === '__nodate__' ? '' : dateKey)}
+                </Text>
+                {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
+              </TouchableOpacity>
+              {!isCollapsed && (
+                <View style={styles.actItemsWrap}>
+                  {acts.map((act, idx) => (
+                    <TouchableOpacity
+                      key={act.id}
+                      style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]}
+                      onPress={() => onActivityPress(act)}
+                      activeOpacity={0.7}>
+                      <Text style={[styles.actItemLine, styles.actTimeLabel]}>
+                        {act.hour ? `${String(act.hour).padStart(2, '0')}:${(act.minute || '00').padStart(2, '0')}` : '     '}
+                      </Text>
+                      <Text style={[styles.actItemLine, styles.actItemTitle]} numberOfLines={1}>{act.title}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
         );
       })}
     </View>
@@ -769,7 +714,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [apiFriends, setApiFriends] = useState<{ id: string; name: string; avatarUrl: string | null }[]>([]);
   const [showCompleted, setShowCompleted] = useState(false);
   const [showUpcoming, setShowUpcoming] = useState(true);
-  const [activitiesAnimKey, setActivitiesAnimKey] = useState(0);
   const [tripDetailReady, setTripDetailReady] = useState(false);
 
   const tripId: string = trip?.id ?? '';
@@ -1082,9 +1026,6 @@ export default function TripDetailScreen({ route, navigation }: any) {
       } finally {
         setIsLoadingInit(false);
         setTripDetailReady(true);
-        requestAnimationFrame(() => {
-          setActivitiesAnimKey(k => k + 1);
-        });
       }
     })();
   }, [tripId, currentUserId]));
@@ -2171,7 +2112,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       </View>
                     )}
                   </View>
-                  <Text style={styles.actionLabel}>{btn.label}</Text>
+                  <Text style={styles.actionLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{btn.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -2190,7 +2131,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                       </View>
                     )}
                   </View>
-                  <Text style={styles.actionLabel}>{btn.label}</Text>
+                  <Text style={styles.actionLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{btn.label}</Text>
                 </TouchableOpacity>
               ))}
               {/* Invisible spacer to keep alignment under first row */}
@@ -2211,24 +2152,24 @@ export default function TripDetailScreen({ route, navigation }: any) {
               {showUpcoming ? <ChevUp /> : <ChevDown />}
             </TouchableOpacity>
             {showUpcoming && (
-              !tripDetailReady
-                ? (
-                  <View style={styles.activitiesLoading}>
-                    <ActivityIndicator size="small" color="#0d9488" />
-                  </View>
-                )
-                : upcomingActs.length === 0
-                  ? <Text style={styles.emptySub}>No upcoming activities yet</Text>
-                  : (
-                    <ActivityGroupsList
-                      activities={upcomingActs}
-                      collapsedDates={collapsedDates}
-                      onToggleDate={toggleActivityDate}
-                      onActivityPress={startEditActivity}
-                      animateKey={activitiesAnimKey}
-                      canAnimate={tripDetailReady}
-                    />
+              <View style={styles.activityCard}>
+                {!tripDetailReady
+                  ? (
+                    <View style={styles.activitiesLoading}>
+                      <ActivityIndicator size="small" color="#0d9488" />
+                    </View>
                   )
+                  : upcomingActs.length === 0
+                    ? <Text style={styles.emptySub}>No upcoming activities yet</Text>
+                    : (
+                      <ActivityGroupsList
+                        activities={upcomingActs}
+                        collapsedDates={collapsedDates}
+                        onToggleDate={toggleActivityDate}
+                        onActivityPress={startEditActivity}
+                      />
+                    )}
+              </View>
             )}
           </View>}
 
@@ -2240,7 +2181,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <Rect x={3} y={4} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
                   <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
-                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Activities</Text>
+                <Text style={styles.sectionTitleDark}>Activities</Text>
               </View>
               {activities.length === 0 ? (
                 <View style={styles.emptyBox}>
@@ -2252,14 +2193,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <ActivityIndicator size="small" color="#0d9488" />
                 </View>
               ) : (
-                <ActivityGroupsList
-                  activities={activities}
-                  collapsedDates={collapsedDates}
-                  onToggleDate={toggleActivityDate}
-                  onActivityPress={startEditActivity}
-                  animateKey={activitiesAnimKey}
-                  canAnimate={tripDetailReady}
-                />
+                <View style={styles.activityCard}>
+                  <ActivityGroupsList
+                    activities={activities}
+                    collapsedDates={collapsedDates}
+                    onToggleDate={toggleActivityDate}
+                    onActivityPress={startEditActivity}
+                  />
+                </View>
               )}
             </View>
           ) : (
@@ -2275,25 +2216,25 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 {showCompleted ? <ChevUp /> : <ChevDown />}
               </TouchableOpacity>
               {showCompleted && (
-                completed.length === 0
-                  ? (
-                    <Text style={styles.emptySub}>No completed activities yet</Text>
-                  )
-                  : !tripDetailReady ? (
-                    <View style={styles.activitiesLoading}>
-                      <ActivityIndicator size="small" color="#0d9488" />
-                    </View>
-                  ) : (
-                    <ActivityGroupsList
-                      activities={completed}
-                      collapsedDates={collapsedDates}
-                      onToggleDate={toggleActivityDate}
-                      onActivityPress={startEditActivity}
-                      animateKey={activitiesAnimKey}
-                      canAnimate={tripDetailReady}
-                      collapseKeyPrefix="completed:"
-                    />
-                  )
+                <View style={styles.activityCard}>
+                  {completed.length === 0
+                    ? (
+                      <Text style={styles.emptySub}>No completed activities yet</Text>
+                    )
+                    : !tripDetailReady ? (
+                      <View style={styles.activitiesLoading}>
+                        <ActivityIndicator size="small" color="#0d9488" />
+                      </View>
+                    ) : (
+                      <ActivityGroupsList
+                        activities={completed}
+                        collapsedDates={collapsedDates}
+                        onToggleDate={toggleActivityDate}
+                        onActivityPress={startEditActivity}
+                        collapseKeyPrefix="completed:"
+                      />
+                    )}
+                </View>
               )}
             </View>
           )}
@@ -3916,14 +3857,23 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   actionBtn: { alignItems: 'center', width: 62, gap: 4 },
   actionCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
-  actionLabel: { fontSize: 13, fontWeight: '500', color: '#0f172a', textAlign: 'center', lineHeight: 16 },
+  actionLabel: { fontSize: 13, fontWeight: '400', color: '#0f172a', textAlign: 'center', lineHeight: 16 },
   cardBadge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#ffffff', paddingHorizontal: 3, zIndex: 10 },
   cardBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '600', lineHeight: 13 },
 
   // Sections
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
+  activityCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    paddingLeft: 0,
+    paddingRight: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
   sectionTitle: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
-  sectionTitleDark: { fontSize: 15, fontWeight: '500', color: '#0f172a' },
+  sectionTitleDark: { fontSize: 13, fontWeight: '600', color: '#64748b', letterSpacing: 0.6 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
 
   emptyBox: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#e2e8f0', paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center' },
@@ -3936,9 +3886,17 @@ const styles = StyleSheet.create({
   actTitle: { fontSize: 12, fontWeight: '400', color: '#0f172a', marginBottom: 2 },
   actMeta: { fontSize: 11, color: '#94a3b8' },
   activitiesLoading: { paddingVertical: 28, alignItems: 'center', justifyContent: 'center' },
+
+  timelineRow: { flexDirection: 'row' },
+  timelineRail: { width: 16, alignItems: 'center' },
+  timelineDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0d9488', marginTop: 8 },
+  timelineConnector: { flex: 1, minHeight: 8, alignItems: 'center', justifyContent: 'space-evenly', paddingVertical: 4 },
+  timelineConnectorDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#99f6e4' },
+  timelineContent: { flex: 1 },
+
   actDateRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 4, marginBottom: 2 },
-  actDateLabel: { fontSize: 13, fontWeight: '500', color: '#334155' },
-  actItemsWrap: { marginLeft: 14, marginTop: 2, paddingBottom: 4 },
+  actDateLabel: { fontSize: 13, fontWeight: '600', color: '#0d9488' },
+  actItemsWrap: { marginLeft: 2, marginTop: 2, paddingBottom: 4 },
   actItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, paddingLeft: 4, paddingRight: 4, borderWidth: 1, borderColor: 'transparent', borderRadius: 10, backgroundColor: 'transparent', gap: 8, marginBottom: 2 },
   actItemLine: { fontSize: 12, fontWeight: '400', color: '#0f172a' },
   actTimeLabel: { minWidth: 44 },

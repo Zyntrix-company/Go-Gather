@@ -79,7 +79,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
           {/* Logo top-left */}
           <View style={styles.logoRow}>
             <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.8}>
-              <Logo size="small" />
+              <Logo size="default" />
             </TouchableOpacity>
           </View>
 

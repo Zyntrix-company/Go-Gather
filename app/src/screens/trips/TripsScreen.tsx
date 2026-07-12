@@ -1563,9 +1563,7 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
 
         {/* Loading / empty states */}
         {isLoadingTrips && trips.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateSubtitle}>Loading your trips...</Text>
-          </View>
+          <ActivityIndicator size="large" color="#0d9488" style={{ marginTop: 40 }} />
         )}
         {!isLoadingTrips && trips.length === 0 && (
           <View style={styles.emptyState}>

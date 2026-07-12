@@ -14,22 +14,50 @@ function isUuid(value) {
  * POST /ai/chat
  * Returns { reply, pendingAction, conversationId, messageId }.
  */
+// Attachments sent inline as base64 with the chat message (documents / photos Swee reads).
+const MAX_ATTACHMENTS = 4;
+const MAX_ATTACHMENT_BYTES = 12 * 1024 * 1024; // ~12MB decoded per file
+const ALLOWED_ATTACHMENT_MIME = /^(image\/(png|jpe?g|webp|heic|heif)|application\/pdf|text\/plain)$/i;
+
+function sanitizeAttachments(raw) {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  const cleaned = [];
+  for (const a of raw.slice(0, MAX_ATTACHMENTS)) {
+    if (!a || typeof a !== 'object') continue;
+    const { mimeType, data, name } = a;
+    if (typeof mimeType !== 'string' || !ALLOWED_ATTACHMENT_MIME.test(mimeType)) continue;
+    if (typeof data !== 'string' || !data) continue;
+    // base64 length → approx decoded byte size
+    if (Math.floor((data.length * 3) / 4) > MAX_ATTACHMENT_BYTES) continue;
+    cleaned.push({
+      mimeType,
+      data,
+      name: typeof name === 'string' ? name.slice(0, 200) : 'attachment',
+    });
+  }
+  return cleaned;
+}
+
 const chat = async (req, res, next) => {
   try {
-    const { message, conversationHistory, tripContext, conversationId } = req.body;
+    const { message, conversationHistory, tripContext, conversationId, attachments } = req.body;
 
-    if (!message || typeof message !== 'string' || !message.trim()) {
-      return res.status(400).json({ error: 'BadRequest', message: 'message is required' });
+    const attachmentList = sanitizeAttachments(attachments);
+    const hasText = typeof message === 'string' && message.trim();
+
+    if (!hasText && attachmentList.length === 0) {
+      return res.status(400).json({ error: 'BadRequest', message: 'message or an attachment is required' });
     }
 
     if (conversationId && !isUuid(conversationId)) {
       return res.status(400).json({ error: 'BadRequest', message: 'conversationId must be a valid UUID' });
     }
 
-    const result = await aiService.chat(req.user.id, message.trim(), {
+    const result = await aiService.chat(req.user.id, hasText ? message.trim() : '', {
       conversationId: conversationId || null,
       conversationHistory,
       tripContext,
+      attachments: attachmentList,
     });
 
     sweeMetrics.recordChatResult(true);

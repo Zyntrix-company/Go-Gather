@@ -4,7 +4,13 @@
       "PowerShell(Get-ChildItem \"E:\\\\Go Gather\\\\backend\" | Where-Object { $_.Name -ne 'node_modules' } | Select-Object Name)",
       "PowerShell(adb tcpip *)",
       "PowerShell(adb shell *)",
-      "PowerShell(adb connect *)"
+      "PowerShell(adb connect *)",
+      "Read(//e//**)",
+      "Bash(node -c src/modules/ai/swee.config.js)",
+      "Bash(node -c src/modules/ai/ai.helpers.js)",
+      "Bash(node -c src/modules/ai/ai.controller.js)",
+      "Bash(node -c src/modules/ai/ai.service.js)",
+      "Bash(node -e \"const p=require\\('@react-native-documents/picker'\\); console.log\\(Object.keys\\(p.types\\)\\)\")"
     ]
   }
 }

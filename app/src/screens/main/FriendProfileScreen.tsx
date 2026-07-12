@@ -693,7 +693,7 @@ const styles = StyleSheet.create({
   profileInfo: { justifyContent: 'center', gap: 4 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   removeFriendBtn: { alignItems: 'center', justifyContent: 'center' },
-  avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 3, borderColor: '#0d9488' },
+  avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 2, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
   avatarInitial: { fontSize: 38, fontWeight: '600', color: '#0d9488' },
   name: { fontSize: 18, fontWeight: '500', color: '#0F172B', lineHeight: 22 },

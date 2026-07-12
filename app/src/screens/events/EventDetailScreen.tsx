@@ -1414,7 +1414,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       </View>
                     )}
                   </View>
-                  <Text style={styles.actionLabel}>{btn.label}</Text>
+                  <Text style={styles.actionLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{btn.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -1456,7 +1456,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                   <Rect x={3} y={2} width={18} height={18} rx={2} stroke="#0d9488" strokeWidth={2} />
                   <Path d="M16 2v4M8 2v4M3 10h18" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
-                <Text style={styles.sectionTitle}>Description</Text>
+                <Text style={styles.sectionTitleDark}>Description</Text>
               </View>
               {!editingDesc && (
                 <TouchableOpacity
@@ -1526,7 +1526,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 <Circle cx={8.5} cy={8.5} r={1.5} fill="#0d9488" />
                 <Path d="M21 15l-5-5L5 21" stroke="#0d9488" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
               </Svg>
-              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Photos</Text>
+              <Text style={styles.sectionTitleDark}>Photos</Text>
             </View>
 
             {media.items.length === 0 ? (
@@ -2787,12 +2787,13 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   actionBtn: { alignItems: 'center', width: isSmall ? 52 : 62, gap: 4 },
   actionCircle: { width: isSmall ? 38 : 44, height: isSmall ? 38 : 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
-  actionLabel: { fontSize: 13, fontWeight: '500', color: '#0f172a', textAlign: 'center', lineHeight: 16 },
+  actionLabel: { fontSize: 13, fontWeight: '400', color: '#0f172a', textAlign: 'center', lineHeight: 16 },
   cardBadge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#ffffff', paddingHorizontal: 3, zIndex: 10 },
   cardBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '600', lineHeight: 13 },
 
   section: { paddingHorizontal: 16, marginTop: 20, marginBottom: 4 },
   sectionTitle: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 5 },
+  sectionTitleDark: { fontSize: 13, fontWeight: '600', color: '#64748b', letterSpacing: 0.6 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle1: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
 

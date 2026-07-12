@@ -296,18 +296,31 @@ function classifyGeminiError(err) {
   return err;
 }
 
-async function geminiChatOnce(message, history, systemPrompt) {
+/** Build the current-turn payload for Gemini: text plus any inline attachments. */
+function buildMessageParts(message, attachments = []) {
+  if (!Array.isArray(attachments) || attachments.length === 0) {
+    return message;
+  }
+  const parts = [];
+  parts.push({ text: message || 'The user attached the file(s) below. Read them and respond per your instructions.' });
+  for (const a of attachments) {
+    parts.push({ inlineData: { mimeType: a.mimeType, data: a.data } });
+  }
+  return parts;
+}
+
+async function geminiChatOnce(message, history, systemPrompt, attachments) {
   const model = getGeminiModel(systemPrompt);
   const geminiHistory = toGeminiHistory(history);
   const chatSession = model.startChat({ history: geminiHistory });
-  const result = await chatSession.sendMessage(message);
+  const result = await chatSession.sendMessage(buildMessageParts(message, attachments));
   return result.response.text();
 }
 
-async function geminiChat(message, history, systemPrompt) {
+async function geminiChat(message, history, systemPrompt, attachments) {
   const attempt = async () => {
     try {
-      return await geminiChatOnce(message, history, systemPrompt);
+      return await geminiChatOnce(message, history, systemPrompt, attachments);
     } catch (err) {
       throw classifyGeminiError(err);
     }
@@ -361,7 +374,7 @@ async function geminiChatStream(message, history, systemPrompt, res) {
  * Main chat handler. Loads history from DB when conversationId is set,
  * calls Gemini, persists messages, returns { reply, pendingAction, conversationId, messageId }.
  */
-const chat = async (userId, message, { conversationId, conversationHistory, tripContext } = {}) => {
+const chat = async (userId, message, { conversationId, conversationHistory, tripContext, attachments = [] } = {}) => {
   let resolvedConversationId = conversationId;
   let resolvedTripContext = tripContext || null;
 
@@ -416,7 +429,7 @@ const chat = async (userId, message, { conversationId, conversationHistory, trip
 
   let rawReply;
   try {
-    rawReply = await geminiChat(message, history, systemPrompt);
+    rawReply = await geminiChat(message, history, systemPrompt, attachments);
   } catch (err) {
     if (err.sweeErrorCode === 'GEMINI_RATE_LIMIT') {
       logger.warn('Swee Gemini rate_limited', { userId, code: 429, conversationId: resolvedConversationId });
@@ -448,8 +461,16 @@ const chat = async (userId, message, { conversationId, conversationHistory, trip
   }
   const { reply, pendingAction } = parsed;
 
+  // Persist a readable marker for attachment-carrying turns (binaries are not stored).
+  let persistedUserContent = message;
+  if (attachments.length > 0) {
+    const names = attachments.map((a) => a.name || 'file').join(', ');
+    const marker = `📎 ${attachments.length === 1 ? 'Attached' : 'Attached'}: ${names}`;
+    persistedUserContent = message ? `${message}\n\n${marker}` : marker;
+  }
+
   const savedMessage = await conversationsService.appendMessages(userId, resolvedConversationId, {
-    userContent: message,
+    userContent: persistedUserContent,
     assistantContent: reply,
     pendingAction: pendingAction || null,
     tripContext: tripContext || null,

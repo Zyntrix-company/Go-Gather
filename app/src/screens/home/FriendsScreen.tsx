@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  ActivityIndicator,
   Modal,
 } from 'react-native';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
+import { SkeletonBox } from '../../components/common/ExpenseTabSkeleton';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { getFriends, createTrip, uploadTripPhotos, updateTrip as apiUpdateTrip } from '../../api/trips.api';
 import InviteViaChannels from '../../components/common/InviteViaChannels';
@@ -162,13 +162,36 @@ function FriendRow({
   );
 }
 
+function FriendRowSkeleton() {
+  return (
+    <View style={styles.skeletonRow}>
+      <SkeletonBox width={40} height={40} style={{ borderRadius: 20 }} />
+      <View style={{ flex: 1, gap: 6 }}>
+        <SkeletonBox height={14} width="45%" />
+        <SkeletonBox height={11} width="65%" />
+      </View>
+      <SkeletonBox width={52} height={26} style={{ borderRadius: 90 }} />
+    </View>
+  );
+}
+
+function FriendListSkeleton() {
+  return (
+    <View style={styles.friendsList}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <FriendRowSkeleton key={i} />
+      ))}
+    </View>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function FriendsScreen() {
   const navigation = useNavigation<any>();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Multi-select
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -320,7 +343,7 @@ export default function FriendsScreen() {
                 <Text style={styles.emptyTitle}>No friends yet</Text>
                 <Text style={styles.emptyText}>Invite your friends to join GatherrGo</Text>
                 <TouchableOpacity style={[styles.inviteBtn, { marginTop: 20 }]} onPress={handleInviteFriends} activeOpacity={0.85}>
-                  <Text style={styles.inviteBtnText}>Invite Friends</Text>
+                  <Text style={styles.inviteBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Invite Friends</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -328,7 +351,7 @@ export default function FriendsScreen() {
             <>
               {!isSelecting && (
                 <TouchableOpacity style={styles.inviteBtn} onPress={handleInviteFriends} activeOpacity={0.85}>
-                  <Text style={styles.inviteBtnText}>Invite Friends</Text>
+                  <Text style={styles.inviteBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>Invite Friends</Text>
                 </TouchableOpacity>
               )}
 
@@ -352,10 +375,7 @@ export default function FriendsScreen() {
               )}
 
               {isLoading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color="#0d9488" />
-                  <Text style={styles.loadingText}>Loading friends...</Text>
-                </View>
+                <FriendListSkeleton />
               ) : (
                 <View style={styles.friendsList}>
                   {friends.length > 0 ? (
@@ -565,10 +585,9 @@ const styles = StyleSheet.create({
 
   // Invite Button
   inviteBtn: {
-    backgroundColor: '#0d9488',
-    borderRadius: 999,
-    paddingVertical: 9,
-    paddingHorizontal: 22,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#009788', borderRadius: 999,
+    width: 130, height: 40, gap: 4,
     alignSelf: 'center',
     marginBottom: 16,
     shadowColor: '#000',
@@ -579,8 +598,9 @@ const styles = StyleSheet.create({
   },
   inviteBtnText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
     textAlign: 'center',
   },
 
@@ -626,21 +646,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 20,
   },
-  loadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 24,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#94a3b8',
-  },
-
   // Friends List
   friendsList: {
     marginBottom: 20,
+  },
+  skeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
   },
   friendRow: {
     flexDirection: 'row',

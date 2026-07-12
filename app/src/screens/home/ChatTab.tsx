@@ -227,12 +227,9 @@ const styles = StyleSheet.create({
     width: isSmallScreen ? 60 : 72,
     height: isSmallScreen ? 60 : 72,
     borderRadius: isSmallScreen ? 30 : 36,
-    backgroundColor: '#f0fdfa',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: isSmallScreen ? 12 : 16,
-    borderWidth: 1,
-    borderColor: '#ccfbf1',
   },
   heroHeading: {
     fontSize: isSmallScreen ? 18 : 22,
@@ -251,19 +248,18 @@ const styles = StyleSheet.create({
 
   // New Chat button
   newChatBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#009788', borderRadius: 999,
+    width: 130, height: 40, gap: 4,
     alignSelf: 'center',
-    backgroundColor: '#0d9488',
-    borderRadius: 999,
-    paddingHorizontal: 40,
-    paddingVertical: 13,
     marginBottom: 16,
-    shadowColor: '#0d9488',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  newChatText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  newChatText: { color: '#fff', fontSize: 14, fontWeight: '500', lineHeight: 20, textAlign: 'center' },
 
   // Search bar
   searchBar: {
