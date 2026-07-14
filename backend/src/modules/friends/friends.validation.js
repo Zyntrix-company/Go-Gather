@@ -36,6 +36,14 @@ const inviteFriendValidation = [
     .optional()
     .isEmail()
     .withMessage('each email must be a valid email address'),
+  body('phones')
+    .optional()
+    .isArray()
+    .withMessage('phones must be an array'),
+  body('phones.*')
+    .optional()
+    .isString()
+    .withMessage('each phone must be a string'),
 ];
 
 const searchFriendsValidation = [

@@ -4,7 +4,7 @@
  */
 import client, { API_BASE } from './client';
 import storage from '../utils/storage';
-import { parseError, handleApiError, ApiError, Doc, Photo, Expense, SplitUser, Debt, Note, Poll, TripMember, LocationPoint } from './trips.api';
+import { parseError, handleApiError, ApiError, Doc, Photo, Expense, SplitUser, Debt, Note, Poll, TripMember, LocationPoint, InviteResult } from './trips.api';
 import useAuthStore from '../store/authStore';
 
 function normalizeMimeForUpload(mime: string | undefined): string {
@@ -182,12 +182,7 @@ export async function inviteToEvent(eventId: string, body: {
   shareOnly?: boolean;
 }) {
   const res = await client.post(`/events/${eventId}/invite`, body);
-  return res.data as {
-    added: { userId: string; name: string; method: string }[];
-    invited: { email?: string; phone?: string; branchUrl: string; expiresAt: string }[];
-    skipped: { userId: string; reason: string }[];
-    shareText?: string;
-  };
+  return res.data as InviteResult;
 }
 
 // ─── 3. Docs ──────────────────────────────────────────────────────────────────

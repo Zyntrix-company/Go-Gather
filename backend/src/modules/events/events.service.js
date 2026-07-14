@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
 const { sendEmail, wrapEmail } = require('../../utils/mailer');
-const { createAndSendNotification, createAndSendNotifications } = require('../../utils/fcm.util');
+const { createAndSendNotification, createAndSendNotifications, notifySafely } = require('../../utils/fcm.util');
 const { batchDeleteFromS3, getPresignedDownloadUrl } = require('../../utils/s3.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
 const { generateInviteShareText } = require('../../utils/shareText.util');
@@ -110,14 +110,9 @@ const createEvent = async (userId, body) => {
     friendIds = [], emails = [], bannerImageUrl, bannerCropFraction = null,
   } = body;
 
+  // Location is optional for events — "leave empty if not decided yet".
+  // primaryFromLocations([]) yields a null name, and location_name is nullable.
   const normalizedLocations = normalizeLocationInput(body);
-  if (normalizedLocations.length === 0) {
-    const err = new Error('At least one location is required');
-    err.statusCode = 422;
-    err.error = 'VALIDATION_ERROR';
-    throw err;
-  }
-
   const primary = primaryFromLocations(normalizedLocations);
 
   const resolvedBanner = bannerImageUrl
@@ -216,7 +211,7 @@ const createEvent = async (userId, body) => {
           try {
             branchUrl = await createInviteSmartLink({ token, inviterName, context: name, type: 'event' });
           } catch (e) {
-            branchUrl = `${config.appDeepLinkBaseUrl || 'https://gathergo.app'}/invite/event/${token}`;
+            branchUrl = `${config.appDeepLinkBaseUrl || 'https://gatherrgo.com'}/invite/event/${token}`;
             logger.warn('Branch link failed, using plain URL', { error: e.message });
           }
           await db(
@@ -578,7 +573,7 @@ const deleteEvent = async (eventId) => {
 // ─── Invite Members — friend vs non-friend flow (parity with trips) ───────────
 
 const processEventEmailOrPhoneInvite = async ({
-  email, phone, eventId, eventName, invitedBy, inviterName, invited, added, skipped,
+  email, phone, eventId, eventName, invitedBy, inviterName, invited, requested, skipped,
 }) => {
   const identifier = email || phone;
   try {
@@ -591,41 +586,17 @@ const processEventEmailOrPhoneInvite = async ({
       existingUser = r.rows[0] || null;
     }
 
+    // They already have an account — send a request, not a link. Friendship is not
+    // required: approving the request is the consent step.
     if (existingUser) {
-      const memberCheck = await db(
-        'SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2',
-        [eventId, existingUser.id],
-      );
-      if (memberCheck.rowCount > 0) {
-        skipped.push({ userId: existingUser.id, reason: 'already_member' });
-        return;
-      }
-
-      const friendCheck = await db(
-        `SELECT id FROM friend_connections
-         WHERE status = 'accepted'
-           AND ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))`,
-        [invitedBy, existingUser.id],
-      );
-
-      if (friendCheck.rowCount > 0) {
-        await db(
-          `INSERT INTO event_members (event_id, user_id, role) VALUES ($1, $2, 'member')
-           ON CONFLICT (event_id, user_id) DO NOTHING`,
-          [eventId, existingUser.id],
-        );
-        const profile = await db('SELECT full_name AS name FROM profiles WHERE user_id = $1', [existingUser.id]);
-        createAndSendNotification(
-          existingUser.id,
-          { title: `${eventName} — ${inviterName} added you!`, body: 'Open GatherGo to see the event' },
-          'EVENT_MEMBER_ADDED',
-          { eventId, screen: 'events' },
-        ).catch((err) => logger.error('Notification failed', { err: err.message }));
-        added.push({ userId: existingUser.id, name: profile.rows[0]?.name || null, method: 'direct' });
-        return;
-      }
+      await createEventRequest({
+        eventId, eventName, invitedBy, inviterName, userId: existingUser.id, requested, skipped,
+      });
+      return;
     }
 
+    // No account — create invite token + link + email. They sign up with this same
+    // email/phone and signup matching turns this row into a request.
     const token = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
     let branchUrl = null;
@@ -633,7 +604,7 @@ const processEventEmailOrPhoneInvite = async ({
     try {
       branchUrl = await createInviteSmartLink({ token, inviterName, context: eventName, type: 'event' });
     } catch (e) {
-      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gathergo.app'}/invite/event/${token}`;
+      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gatherrgo.com'}/invite/event/${token}`;
       logger.warn('Branch link failed, using plain URL', { error: e.message });
     }
 
@@ -678,7 +649,7 @@ const inviteToEvent = async (eventId, invitedBy, { friendIds = [], emails = [], 
     try {
       branchUrl = await createInviteSmartLink({ token, inviterName, context: eventName, type: 'event' });
     } catch (e) {
-      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gathergo.app'}/invite/event/${token}`;
+      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gatherrgo.com'}/invite/event/${token}`;
       logger.warn('Branch link failed, using plain URL', { error: e.message });
     }
     await db(
@@ -690,11 +661,12 @@ const inviteToEvent = async (eventId, invitedBy, { friendIds = [], emails = [], 
     return { added: [], invited: [{ branchUrl, expiresAt: expiresAt.toISOString() }], skipped: [], shareText };
   }
 
-  const added = [];
-  const invited = [];
+  const added = [];      // nobody is auto-added any more — kept so the response shape is stable
+  const requested = [];  // existing users who now have a pending request
+  const invited = [];    // no account yet — sent an install link
   const skipped = [];
 
-  // ── Path A: friendIds — direct add ──────────────────────────
+  // ── Path A: friendIds — pending request ─────────────────────
   for (const friendId of friendIds) {
     const friendCheck = await db(
       `SELECT id FROM friend_connections
@@ -707,41 +679,75 @@ const inviteToEvent = async (eventId, invitedBy, { friendIds = [], emails = [], 
       e.statusCode = 400; e.error = 'NOT_A_FRIEND'; e.userId = friendId; throw e;
     }
 
-    const insertResult = await db(
-      `INSERT INTO event_members (event_id, user_id, role) VALUES ($1, $2, 'member')
-       ON CONFLICT (event_id, user_id) DO NOTHING`,
-      [eventId, friendId],
-    );
-
-    if (insertResult.rowCount === 0) {
-      skipped.push({ userId: friendId, reason: 'already_member' });
-      continue;
-    }
-
-    const profile = await db('SELECT full_name AS name FROM profiles WHERE user_id = $1', [friendId]);
-    createAndSendNotification(
-      friendId,
-      { title: `${eventName} — ${inviterName} added you!`, body: 'Open GatherGo to see the event' },
-      'EVENT_MEMBER_ADDED',
-      { eventId, screen: 'events' },
-    ).catch((err) => logger.error('Notification failed', { err: err.message }));
-
-    added.push({ userId: friendId, name: profile.rows[0]?.name || null, method: 'direct' });
+    await createEventRequest({ eventId, eventName, invitedBy, inviterName, userId: friendId, requested, skipped });
   }
 
   for (const email of emails) {
     await processEventEmailOrPhoneInvite({
-      email, phone: null, eventId, eventName, invitedBy, inviterName, invited, added, skipped,
+      email, phone: null, eventId, eventName, invitedBy, inviterName, invited, requested, skipped,
     });
   }
 
   for (const phone of phones) {
     await processEventEmailOrPhoneInvite({
-      email: null, phone, eventId, eventName, invitedBy, inviterName, invited, added, skipped,
+      email: null, phone, eventId, eventName, invitedBy, inviterName, invited, requested, skipped,
     });
   }
 
-  return { added, invited, skipped };
+  return { added, requested, invited, skipped };
+};
+
+/**
+ * Create a pending event request for a user who already has an account.
+ * They see it in their Requests tab and must approve it to become a member.
+ */
+const createEventRequest = async ({ eventId, eventName, invitedBy, inviterName, userId, requested, skipped }) => {
+  if (userId === invitedBy) {
+    skipped.push({ userId, reason: 'self' });
+    return;
+  }
+
+  const memberCheck = await db(
+    'SELECT 1 FROM event_members WHERE event_id = $1 AND user_id = $2',
+    [eventId, userId],
+  );
+  if (memberCheck.rowCount > 0) {
+    skipped.push({ userId, reason: 'already_member' });
+    return;
+  }
+
+  const token = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
+
+  // The partial unique index on (event_id, user_id) WHERE status = 'pending' makes
+  // re-inviting someone who already has an open request a no-op.
+  const insertResult = await db(
+    `INSERT INTO event_invites (event_id, invited_by, user_id, token, expires_at, status)
+     VALUES ($1, $2, $3, $4, $5, 'pending')
+     ON CONFLICT DO NOTHING
+     RETURNING id`,
+    [eventId, invitedBy, userId, token, expiresAt.toISOString()],
+  );
+
+  if (insertResult.rowCount === 0) {
+    skipped.push({ userId, reason: 'already_invited' });
+    return;
+  }
+
+  const inviteId = insertResult.rows[0].id;
+  const profile = await db('SELECT full_name AS name FROM profiles WHERE user_id = $1', [userId]);
+
+  notifySafely(() => createAndSendNotification(
+    userId,
+    {
+      title: `${inviterName} invited you to "${eventName}"`,
+      body: 'Open Requests to approve or decline',
+    },
+    'EVENT_REQUEST',
+    { eventId, inviteId, screen: 'requests' },
+  ), 'EVENT_REQUEST');
+
+  requested.push({ userId, inviteId, name: profile.rows[0]?.name || null, method: 'request' });
 };
 
 // ─── Token-based invite ───────────────────────────────────────────────────────

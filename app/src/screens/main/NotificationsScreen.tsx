@@ -10,13 +10,22 @@ import {
   RefreshControl,
 } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
+import Toast from 'react-native-toast-message';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import useNotificationStore from '../../store/notificationStore';
 import useAuthStore from '../../store/authStore';
 import { getRelativeTime } from '../../utils/relativeTime';
+import { showAlert } from '../../store/alertStore';
+import {
+  getRequests,
+  respondToRequest,
+  type IncomingRequest,
+  type RequestType,
+} from '../../api/requests.api';
 
-// Notification types that live in the Requests tab
-const REQUEST_TYPES = ['FRIEND_REQUEST', 'TRIP_MEMBER_ADDED', 'EVENT_MEMBER_ADDED'];
+// These arrive as real pending requests via GET /requests, so their notification
+// rows would be duplicates — the Requests tab is the place to act on them.
+const REQUEST_TYPES = ['FRIEND_REQUEST', 'TRIP_REQUEST', 'EVENT_REQUEST'];
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -117,6 +126,8 @@ function getNotificationIcon(type: string, data?: Record<string, string>) {
       );
 
     case 'trip_invite':
+    case 'TRIP_REQUEST':
+    case 'EVENT_REQUEST':
     case 'TRIP_MEMBER_ADDED':
       return (
         <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -187,8 +198,10 @@ function getIconBg(type: string) {
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
-export default function NotificationsScreen({ navigation }: any) {
-  const [activeTab, setActiveTab] = useState<'notifications' | 'requests'>('notifications');
+export default function NotificationsScreen({ navigation, route }: any) {
+  const [activeTab, setActiveTab] = useState<'notifications' | 'requests'>(
+    route?.params?.initialTab === 'requests' ? 'requests' : 'notifications',
+  );
   const currentUserId = useAuthStore((s) => s.user?.id);
   const {
     notifications,
@@ -200,6 +213,20 @@ export default function NotificationsScreen({ navigation }: any) {
   } = useNotificationStore();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [requests, setRequests] = useState<IncomingRequest[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(true);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
+
+  const loadRequests = useCallback(async () => {
+    try {
+      const res = await getRequests();
+      setRequests(res.requests);
+    } catch {
+      // A failed fetch leaves the last known list in place rather than blanking the tab.
+    } finally {
+      setRequestsLoading(false);
+    }
+  }, []);
 
   // Opening this screen marks every notification as read (bell badge clears app-wide).
   useFocusEffect(
@@ -207,28 +234,58 @@ export default function NotificationsScreen({ navigation }: any) {
       let cancelled = false;
       (async () => {
         await markAllRead();
-        if (!cancelled) await fetchNotifications(true);
+        if (cancelled) return;
+        await Promise.all([fetchNotifications(true), loadRequests()]);
       })();
       return () => {
         cancelled = true;
       };
-    }, [markAllRead, fetchNotifications]),
+    }, [markAllRead, fetchNotifications, loadRequests]),
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchNotifications(true);
+    await Promise.all([fetchNotifications(true), loadRequests()]);
     setRefreshing(false);
-  }, [fetchNotifications]);
+  }, [fetchNotifications, loadRequests]);
 
-  // Split by type
+  // Request-type notifications are dropped here — the Requests tab shows the real thing.
   const notificationsTabItems = notifications.filter(n => !REQUEST_TYPES.includes(n.type));
-  const requestsTabItems      = notifications.filter(n =>  REQUEST_TYPES.includes(n.type));
-  const displayed             = activeTab === 'notifications' ? notificationsTabItems : requestsTabItems;
+  const displayed: any[] = activeTab === 'notifications' ? notificationsTabItems : requests;
 
-  // Per-tab unread counts (for tab badges; cleared after mark-all-read on screen open)
   const notificationsUnread = notificationsTabItems.filter(n => !n.read).length;
-  const requestsUnread      = requestsTabItems.filter(n => !n.read).length;
+  const requestsUnread      = requests.length;
+
+  const handleRespond = useCallback(
+    async (item: IncomingRequest, action: 'approve' | 'decline') => {
+      if (respondingId) return;
+      setRespondingId(item.id);
+
+      // Optimistic: the row goes away immediately, and comes back if the call fails.
+      const previous = requests;
+      setRequests(rs => rs.filter(r => r.id !== item.id));
+
+      try {
+        await respondToRequest(item.type as RequestType, item.id, action);
+        if (action === 'approve') {
+          Toast.show({
+            type: 'success',
+            text1:
+              item.type === 'friend'
+                ? `You and ${item.from.name ?? 'they'} are now friends`
+                : `You joined "${item.context?.name ?? 'it'}"`,
+          });
+        }
+        loadRequests();
+      } catch {
+        setRequests(previous);
+        showAlert({ title: 'Error', message: 'Could not respond to this request. Please try again.' });
+      } finally {
+        setRespondingId(null);
+      }
+    },
+    [requests, respondingId, loadRequests],
+  );
 
   const onEndReached = useCallback(() => {
     if (activeTab === 'notifications' && !loading && hasMore) {
@@ -242,6 +299,79 @@ export default function NotificationsScreen({ navigation }: any) {
       <View style={styles.footerLoader}>
         <ActivityIndicator size="small" color="#0d9488" />
       </View>
+    );
+  };
+
+  const openRequestContext = (item: IncomingRequest) => {
+    if (item.type === 'friend') {
+      navigation.navigate('FriendProfile', {
+        userId: item.from.id,
+        friendName: item.from.name ?? 'Friend',
+      });
+    }
+    // Trip/event context intentionally isn't openable — you aren't a member until you approve.
+  };
+
+  const renderRequest = (item: IncomingRequest) => {
+    const busy = respondingId === item.id;
+    const inviter = item.from.name ?? 'Someone';
+    const title =
+      item.type === 'friend'
+        ? `${inviter} wants to be your friend`
+        : `${inviter} invited you to "${item.context?.name ?? 'a ' + item.type}"`;
+    const subtitle =
+      item.type === 'friend'
+        ? 'Approve to connect on GatherGo'
+        : [item.context?.locationName, item.context?.startDate?.slice(0, 10)]
+            .filter(Boolean)
+            .join(' · ') || `Approve to join this ${item.type}`;
+
+    return (
+      <TouchableOpacity
+        style={styles.notifCard}
+        onPress={() => openRequestContext(item)}
+        activeOpacity={item.type === 'friend' ? 0.7 : 1}>
+        <View style={styles.unreadAccent} />
+
+        <View style={styles.notifIconWrap}>
+          {getNotificationIcon(
+            item.type === 'friend' ? 'FRIEND_REQUEST' : item.type === 'trip' ? 'TRIP_REQUEST' : 'EVENT_REQUEST',
+          )}
+        </View>
+
+        <View style={styles.notifContent}>
+          <View style={styles.notifTitleRow}>
+            <Text style={[styles.notifTitle, styles.notifTitleUnread]} numberOfLines={2}>
+              {title}
+            </Text>
+          </View>
+          <Text style={styles.notifMessage} numberOfLines={2}>{subtitle}</Text>
+          <View style={styles.notifMeta}>
+            <Text style={styles.notifTime}>{getRelativeTime(item.createdAt)}</Text>
+          </View>
+
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={[styles.acceptBtn, busy && styles.btnDisabled]}
+              onPress={() => handleRespond(item, 'approve')}
+              disabled={busy}
+              activeOpacity={0.8}>
+              {busy ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.acceptBtnText}>Approve</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.declineBtn, busy && styles.btnDisabled]}
+              onPress={() => handleRespond(item, 'decline')}
+              disabled={busy}
+              activeOpacity={0.8}>
+              <Text style={styles.declineBtnText}>Decline</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -350,7 +480,7 @@ export default function NotificationsScreen({ navigation }: any) {
             />
           }
           ListEmptyComponent={
-            !loading ? (
+            (activeTab === 'requests' ? !requestsLoading : !loading) ? (
               <View style={styles.emptyState}>
                 <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
                   <Path
@@ -365,12 +495,15 @@ export default function NotificationsScreen({ navigation }: any) {
                   {activeTab === 'requests' ? 'No requests' : 'No notifications'}
                 </Text>
                 <Text style={styles.emptySubtitle}>
-                  {activeTab === 'requests' ? 'No pending requests' : 'Nothing here yet'}
+                  {activeTab === 'requests'
+                    ? 'Trip, event and friend invites will show up here'
+                    : 'Nothing here yet'}
                 </Text>
               </View>
             ) : null
           }
           renderItem={({ item }) => (
+            activeTab === 'requests' ? renderRequest(item as IncomingRequest) : (
             <TouchableOpacity
               style={[styles.notifCard, !item.read && styles.notifCardUnread]}
               onPress={() => handleCardPress(item)}
@@ -400,32 +533,9 @@ export default function NotificationsScreen({ navigation }: any) {
                     </Text>
                   )}
                 </View>
-
-                {/* Accept / Decline — FRIEND_REQUEST only */}
-                {item.type === 'FRIEND_REQUEST' && (
-                  <View style={styles.actionRow}>
-                    <TouchableOpacity
-                      style={styles.acceptBtn}
-                      onPress={() => {
-                        markRead(item.id);
-                        navigation.navigate('FriendProfile', {
-                          userId: item.data?.fromUserId ?? item.data?.userId,
-                          friendName: item.title,
-                        });
-                      }}
-                      activeOpacity={0.8}>
-                      <Text style={styles.acceptBtnText}>Accept</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.declineBtn}
-                      onPress={() => markRead(item.id)}
-                      activeOpacity={0.8}>
-                      <Text style={styles.declineBtnText}>Decline</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
               </View>
             </TouchableOpacity>
+            )
           )}
         />
     </AppScreenLayout>
@@ -575,11 +685,14 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // Accept / Decline action row (FRIEND_REQUEST)
+  // Approve / Decline action row (Requests tab)
   actionRow: {
     flexDirection: 'row',
     gap: 8,
     marginTop: 10,
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
   acceptBtn: {
     flex: 1,
@@ -587,6 +700,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 7,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 30,
   },
   acceptBtnText: {
     fontSize: 13,

@@ -71,21 +71,29 @@ function Chip({
   selected,
   onPress,
   disabled,
+  compact,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   return (
     <TouchableOpacity
-      style={[styles.chip, selected && styles.chipSelected, disabled && !selected && styles.chipDisabled]}
+      style={[
+        styles.chip,
+        compact && styles.chipCompact,
+        selected && styles.chipSelected,
+        disabled && !selected && styles.chipDisabled,
+      ]}
       onPress={onPress}
       activeOpacity={0.8}
       disabled={disabled && !selected}
     >
-      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
-      {selected && <Check size={13} color="#fff" strokeWidth={3} style={{ marginLeft: 5 }} />}
+      <Text style={[styles.chipText, compact && styles.chipTextCompact, selected && styles.chipTextSelected]}>{label}</Text>
+      {/* Compact chips (single-line rows) drop the check to save width — fill colour signals selection. */}
+      {selected && !compact && <Check size={13} color="#fff" strokeWidth={3} style={{ marginLeft: 5 }} />}
     </TouchableOpacity>
   );
 }
@@ -290,19 +298,19 @@ export function TripPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
         <Stepper label="Seniors" value={seniors} onChange={setSeniors} />
       </View>
 
-      {/* Group Type */}
+      {/* Group Type — single line where it fits, wraps only on very small screens */}
       <SectionLabel icon={<UsersRound size={17} color="#0f172a" />}>Group Type</SectionLabel>
-      <View style={styles.chipWrap}>
+      <View style={styles.chipWrapCompact}>
         {TRIP_GROUP_TYPES.map((g) => (
-          <Chip key={g} label={g} selected={groupType === g} onPress={() => setGroupType(groupType === g ? '' : g)} />
+          <Chip key={g} label={g} compact selected={groupType === g} onPress={() => setGroupType(groupType === g ? '' : g)} />
         ))}
       </View>
 
-      {/* Budget */}
+      {/* Budget — single line where it fits */}
       <SectionLabel icon={<Wallet size={17} color="#0f172a" />}>Budget</SectionLabel>
-      <View style={styles.chipWrap}>
+      <View style={styles.chipWrapCompact}>
         {BUDGET_TIERS.map((b) => (
-          <Chip key={b} label={b} selected={budget === b} onPress={() => setBudget(budget === b ? '' : b)} />
+          <Chip key={b} label={b} compact selected={budget === b} onPress={() => setBudget(budget === b ? '' : b)} />
         ))}
       </View>
 
@@ -364,7 +372,7 @@ export function EventPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
   const [location, setLocation] = useState<string>(draft.location || '');
   const [description, setDescription] = useState<string>(draft.description || '');
 
-  const canCreate = !!name.trim() && !!eventDate && !!location.trim() && !submitting;
+  const canCreate = !!name.trim() && !!eventDate && !submitting;
 
   const submit = () => {
     if (!canCreate) return;
@@ -411,16 +419,16 @@ export function EventPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
         </View>
       </View>
 
-      {/* Group Type */}
+      {/* Group Type — single line where it fits, wraps only on very small screens */}
       <SectionLabel icon={<UsersRound size={17} color="#0f172a" />}>Group Type</SectionLabel>
-      <View style={styles.chipWrap}>
+      <View style={styles.chipWrapCompact}>
         {EVENT_GROUP_TYPES.map((g) => (
-          <Chip key={g} label={g} selected={groupType === g} onPress={() => setGroupType(groupType === g ? '' : g)} />
+          <Chip key={g} label={g} compact selected={groupType === g} onPress={() => setGroupType(groupType === g ? '' : g)} />
         ))}
       </View>
 
-      {/* Location */}
-      <SectionLabel icon={<MapPin size={17} color="#0f172a" />}>Location</SectionLabel>
+      {/* Location (optional) */}
+      <SectionLabel icon={<MapPin size={17} color="#0f172a" />} hint="(optional)">Location</SectionLabel>
       <View style={styles.inputWrap}>
         <TextInput
           style={styles.input}
@@ -431,6 +439,7 @@ export function EventPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
           selectionColor={PRIMARY}
         />
       </View>
+      <Text style={styles.fieldSubtext}>Leave empty if location is not decided yet.</Text>
 
       {/* Description */}
       <SectionLabel icon={<FileText size={17} color="#0f172a" />} hint="(optional)">
@@ -460,7 +469,7 @@ export function EventPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
           </>
         )}
       </TouchableOpacity>
-      {!canCreate && !submitting && <Text style={styles.helperText}>Add a name, date and location to continue.</Text>}
+      {!canCreate && !submitting && <Text style={styles.helperText}>Add a name and date to continue.</Text>}
     </View>
   );
 }
@@ -515,6 +524,7 @@ const styles = StyleSheet.create({
 
   // Chips
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chipWrapCompact: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -525,9 +535,11 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
     backgroundColor: '#f8fafc',
   },
+  chipCompact: { paddingHorizontal: 10, paddingVertical: 7 },
   chipSelected: { backgroundColor: PRIMARY, borderColor: PRIMARY },
   chipDisabled: { opacity: 0.45 },
   chipText: { fontSize: 13, color: '#475569', fontWeight: '500' },
+  chipTextCompact: { fontSize: 11.5 },
   chipTextSelected: { color: '#fff', fontWeight: '600' },
 
   // Text fields
@@ -559,6 +571,7 @@ const styles = StyleSheet.create({
   },
   inputMultiline: { minHeight: 72, textAlignVertical: 'top', paddingTop: 12 },
   counter: { position: 'absolute', right: 10, bottom: 8, fontSize: 11, color: '#94a3b8' },
+  fieldSubtext: { fontSize: 11.5, color: '#94a3b8', marginTop: 6 },
 
   // Submit
   submitBtn: {

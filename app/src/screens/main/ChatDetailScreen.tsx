@@ -15,6 +15,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import { Image as ImageIcon, FileText } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import {
   pick as pickDocument,
@@ -275,13 +276,15 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
   // Bottom space below the composer (SafeAreaView's bottom edge is off, so this
   // is the single source of truth — no double counting).
-  //  • Keyboard open: sit flush on the keyboard. On Android the view spans the
-  //    full screen behind the nav bar (edge-to-edge), but Keyboard reports its
-  //    height as if the window ended above the nav bar, so add insets.bottom
-  //    back. iOS reports height to the physical bottom already, so add nothing.
-  //  • Keyboard closed: clear the floating tab bar.
+  //  • Keyboard open:
+  //      – Android uses adjustResize (see AndroidManifest): the window is already
+  //        resized to end above the keyboard, so the composer needs NO manual
+  //        lift. Adding keyboardHeight here double-counts and leaves a big gap.
+  //      – iOS never resizes the window, so lift the composer by the keyboard
+  //        height to keep it flush above the keyboard.
+  //  • Keyboard closed: clear the floating tab bar + safe-area inset.
   const composerBottomSpace = keyboardVisible
-    ? keyboardHeight + (Platform.OS === 'android' ? insets.bottom : 0)
+    ? (Platform.OS === 'ios' ? keyboardHeight : 0)
     : TAB_BAR_BASE_HEIGHT + insets.bottom;
   const paramConversationId = route?.params?.conversationId as string | undefined;
 
@@ -761,7 +764,16 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     const showConfirmChips = !isUser && !item.streaming && item.pendingAction?.readyToCreate === true;
     const showIdentifyChips = !isUser && !item.streaming && item.pendingAction?.intent === 'identify_update';
     const showViewBtn = !isUser && !item.streaming && item.createdResult;
-    const formType = !isUser && !item.streaming ? item.pendingAction?.showForm : undefined;
+    let formType = !isUser && !item.streaming ? item.pendingAction?.showForm : undefined;
+    // Don't render a live, re-submittable card once a trip/event was already
+    // created after it (prevents a persisted card re-appearing on reload and
+    // letting the user create a duplicate).
+    if (formType) {
+      const idx = messages.findIndex((m) => m.id === item.id);
+      if (idx >= 0 && messages.slice(idx + 1).some((m) => m.createdResult)) {
+        formType = undefined;
+      }
+    }
     const hasAttachments = isUser && !!item.attachments?.length;
 
     return (
@@ -776,7 +788,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             <View style={styles.msgAttachList}>
               {item.attachments!.map((a, i) => (
                 <View key={i} style={styles.msgAttachChip}>
-                  <Text style={styles.msgAttachIcon}>{a.kind === 'image' ? '🖼️' : '📄'}</Text>
+                  {a.kind === 'image' ? <ImageIcon size={14} color="#fff" /> : <FileText size={14} color="#fff" />}
                   <Text style={styles.msgAttachName} numberOfLines={1}>{a.name}</Text>
                 </View>
               ))}
@@ -938,7 +950,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             data={messages}
             keyExtractor={(item) => item.id}
             renderItem={renderMessage}
-            contentContainerStyle={[styles.messageList, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
+            contentContainerStyle={[styles.messageList, { paddingBottom: keyboardVisible ? 12 : TAB_BAR_SCROLL_PADDING }]}
             showsVerticalScrollIndicator={false}
             onScroll={(e) => {
               if (e.nativeEvent.contentOffset.y < 48) loadOlderMessages();
@@ -960,7 +972,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           <View style={styles.composerAttachments}>
             {attachments.map((a) => (
               <View key={a.id} style={styles.composerChip}>
-                <Text style={styles.composerChipIcon}>{a.kind === 'image' ? '🖼️' : '📄'}</Text>
+                {a.kind === 'image' ? <ImageIcon size={14} color="#0d9488" /> : <FileText size={14} color="#0d9488" />}
                 <Text style={styles.composerChipName} numberOfLines={1}>{a.name}</Text>
                 <TouchableOpacity onPress={() => removeAttachment(a.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <CloseIcon size={14} />
@@ -1130,14 +1142,18 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             <Text style={styles.attachSheetTitle}>Share with Swee</Text>
             <Text style={styles.attachSheetSubtitle}>Attach an itinerary or photo and Swee will read it.</Text>
             <TouchableOpacity style={styles.attachOption} onPress={addImageAttachment} activeOpacity={0.8}>
-              <Text style={styles.attachOptionIcon}>🖼️</Text>
+              <View style={styles.attachOptionIconWrap}>
+                <ImageIcon size={22} color="#0d9488" />
+              </View>
               <View style={styles.attachOptionInfo}>
                 <Text style={styles.attachOptionTitle}>Photo</Text>
                 <Text style={styles.attachOptionDesc}>Pick an image from your gallery</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.attachOption} onPress={addDocumentAttachment} activeOpacity={0.8}>
-              <Text style={styles.attachOptionIcon}>📄</Text>
+              <View style={styles.attachOptionIconWrap}>
+                <FileText size={22} color="#0d9488" />
+              </View>
               <View style={styles.attachOptionInfo}>
                 <Text style={styles.attachOptionTitle}>Document</Text>
                 <Text style={styles.attachOptionDesc}>PDF, image or text file</Text>
@@ -1252,7 +1268,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0fdfa', borderWidth: 1, borderColor: '#ccfbf1',
     borderRadius: 10, paddingVertical: 6, paddingHorizontal: 10, maxWidth: 200,
   },
-  composerChipIcon: { fontSize: 14 },
   composerChipName: { flex: 1, fontSize: 12, color: '#0f172a', fontWeight: '500' },
 
   // Attachment chips shown on a sent user message
@@ -1262,7 +1277,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 8,
     paddingVertical: 6, paddingHorizontal: 8,
   },
-  msgAttachIcon: { fontSize: 14 },
   msgAttachName: { flex: 1, fontSize: 12, color: '#ffffff', fontWeight: '500' },
 
   // Attachment bottom sheet
@@ -1280,7 +1294,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 14,
     paddingVertical: 14, paddingHorizontal: 4,
   },
-  attachOptionIcon: { fontSize: 26 },
+  attachOptionIconWrap: {
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: '#f0fdfa', borderWidth: 1, borderColor: '#ccfbf1',
+    alignItems: 'center', justifyContent: 'center',
+  },
   attachOptionInfo: { flex: 1 },
   attachOptionTitle: { fontSize: 15, fontWeight: '600', color: '#0f172a' },
   attachOptionDesc: { fontSize: 12, color: '#94a3b8', marginTop: 2 },

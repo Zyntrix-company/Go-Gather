@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 
 const authenticateJWT = require('../../middleware/authenticate');
 const tripMemberMW = require('../../middleware/tripMember.middleware');
+const tripAdminMW = require('../../middleware/tripAdmin.middleware');
 const validate = require('../../middleware/validate');
 const { docUpload, photoUpload, activityPhotoUpload, tripFilesUpload, handleMulterError } = require('../../middleware/upload.middleware');
 const { limits } = require('../../config/uploadLimits');
@@ -76,11 +77,11 @@ router.post(
 );
 router.get('/', validators.getTripsQuery, validate, tripsController.getTrips);
 router.get('/:id', validators.tripIdParam, validate, tripMemberMW, tripsController.getTripById);
-router.put('/:id', validators.updateTripValidation, validate, tripMemberMW, tripsController.updateTrip);
+router.put('/:id', validators.updateTripValidation, validate, tripMemberMW, tripAdminMW, tripsController.updateTrip);
 router.post('/:id/confirm', validators.tripIdParam, validate, tripMemberMW, tripsController.confirmTrip);
 router.post('/:id/archive', validators.tripIdParam, validate, tripMemberMW, tripsController.archiveTrip);
 router.post('/:id/unarchive', validators.tripIdParam, validate, tripMemberMW, tripsController.unarchiveTrip);
-router.delete('/:id', validators.tripIdParam, validate, tripMemberMW, tripsController.deleteTrip);
+router.delete('/:id', validators.tripIdParam, validate, tripMemberMW, tripAdminMW, tripsController.deleteTrip);
 
 // ─── Invites ──────────────────────────────────────────────────────────────────
 router.post(

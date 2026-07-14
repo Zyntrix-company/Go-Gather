@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
 const config = require('../../config');
-const { createAndSendNotification } = require('../../utils/fcm.util');
+const { createAndSendNotification, notifySafely } = require('../../utils/fcm.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
 const { generateInviteShareText } = require('../../utils/shareText.util');
 const { sendEmail, wrapEmail, sendConnectionRequestEmail, sendRequestAcceptedEmail } = require('../../utils/mailer');
@@ -106,15 +106,15 @@ const sendFriendRequest = async (requesterId, addresseeId) => {
   );
   const requesterName = requesterResult.rows[0]?.full_name || 'Someone';
 
-  createAndSendNotification(
+  notifySafely(() => createAndSendNotification(
     addresseeId,
     {
       title: `${requesterName} sent you a friend request`,
-      body: 'Tap to accept or decline',
+      body: 'Open Requests to approve or decline',
     },
     'FRIEND_REQUEST',
-    { connectionId, fromUserId: requesterId, screen: 'friends' },
-  ).catch((err) => logger.error('Notification failed', { err: err.message }));
+    { connectionId, fromUserId: requesterId, screen: 'requests' },
+  ), 'FRIEND_REQUEST');
 
   // Immediate email to addressee — fire-and-forget
   db('SELECT u.email, p.full_name FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = $1', [addresseeId])
@@ -348,13 +348,58 @@ const removeFriend = async (currentUserId, targetUserId) => {
 
 // ─── Create Friend Invite (Branch smart link) ─────────────────────────────────
 
-const createFriendInvite = async (inviterId, { channels, emails = [] }) => {
+const createFriendInvite = async (inviterId, { channels, emails = [], phones = [] }) => {
   // Get inviter's name
   const inviterResult = await db(
     'SELECT full_name FROM profiles WHERE user_id = $1',
     [inviterId],
   );
   const inviterName = inviterResult.rows[0]?.full_name || 'A GatherGo user';
+
+  // Anyone we were given who already has an account gets a real friend request —
+  // it lands in their Requests tab. Only the rest need an invite link.
+  const requested = [];
+  const pendingEmails = [];
+  const pendingPhones = [];
+
+  for (const email of emails) {
+    const r = await db('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+    const target = r.rows[0];
+    if (!target || target.id === inviterId) {
+      pendingEmails.push(email);
+      continue;
+    }
+    try {
+      const res = await sendFriendRequest(inviterId, target.id);
+      requested.push({ userId: target.id, connectionId: res.connectionId, email });
+    } catch (err) {
+      // Already friends / already requested — nothing left to do for this person.
+      logger.info('Friend invite skipped for existing user', { email, reason: err.error });
+      requested.push({ userId: target.id, connectionId: null, email, skipped: err.error });
+    }
+  }
+
+  for (const phone of phones) {
+    const r = await db('SELECT id FROM users WHERE phone = $1', [phone]);
+    const target = r.rows[0];
+    if (!target || target.id === inviterId) {
+      pendingPhones.push(phone);
+      continue;
+    }
+    try {
+      const res = await sendFriendRequest(inviterId, target.id);
+      requested.push({ userId: target.id, connectionId: res.connectionId, phone });
+    } catch (err) {
+      logger.info('Friend invite skipped for existing user', { phone, reason: err.error });
+      requested.push({ userId: target.id, connectionId: null, phone, skipped: err.error });
+    }
+  }
+
+  // Everyone named already has an account — no link needed.
+  const isAnonymousShare = emails.length === 0 && phones.length === 0;
+  if (!isAnonymousShare && pendingEmails.length === 0 && pendingPhones.length === 0) {
+    return { token: null, branchUrl: null, shareText: null, expiresAt: null, requested };
+  }
 
   const token = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 7 * 24 * 3600000); // 7 days
@@ -373,16 +418,25 @@ const createFriendInvite = async (inviterId, { channels, emails = [] }) => {
 
   const shareText = generateInviteShareText({ inviterName, branchUrl, type: 'friend' });
 
-  // Persist invite
+  // Persist invite. Storing who it was addressed to is what lets signup matching
+  // turn it into a friend request when they install and sign up.
   await db(
-    `INSERT INTO friend_invites (invited_by, token, branch_url, expires_at, platform)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [inviterId, token, branchUrl, expiresAt.toISOString(), channels[0] || 'share'],
+    `INSERT INTO friend_invites (invited_by, token, branch_url, expires_at, platform, email, phone)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      inviterId,
+      token,
+      branchUrl,
+      expiresAt.toISOString(),
+      channels[0] || 'share',
+      pendingEmails[0] || null,
+      pendingPhones[0] || null,
+    ],
   );
 
   // Fire-and-forget email invites (SES) if email channel requested
-  if (channels.includes('email') && emails.length > 0) {
-    for (const email of emails) {
+  if (channels.includes('email') && pendingEmails.length > 0) {
+    for (const email of pendingEmails) {
       sendEmail({
         to: email,
         subject: `${inviterName} invited you to GatherGo`,
@@ -421,11 +475,6 @@ const createFriendInvite = async (inviterId, { channels, emails = [] }) => {
         logger.error('Invite email send failed', { err: err.message, email }),
       );
 
-      // Store email on invite row (last one wins for simplicity)
-      db(
-        'UPDATE friend_invites SET email = $1 WHERE token = $2',
-        [email, token],
-      ).catch((err) => logger.error('Failed to update invite email', { err: err.message }));
     }
   }
 
@@ -434,6 +483,7 @@ const createFriendInvite = async (inviterId, { channels, emails = [] }) => {
     branchUrl,
     shareText,
     expiresAt: expiresAt.toISOString(),
+    requested,
   };
 };
 

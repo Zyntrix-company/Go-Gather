@@ -319,13 +319,21 @@ export async function removeTripMember(tripId: string, userId: string) {
 
 export async function inviteToTrip(tripId: string, body: { friendIds?: string[]; emails?: string[]; phones?: string[]; shareOnly?: boolean }) {
   const res = await client.post(`/trips/${tripId}/invite`, body);
-  return res.data as {
-    added: { userId: string; name: string | null; method: string }[];
-    invited: { email?: string; phone?: string; branchUrl: string; expiresAt: string }[];
-    skipped?: { userId: string; reason: string }[];
-    shareText?: string;
-  };
+  return res.data as InviteResult;
 }
+
+/**
+ * Nobody is auto-added. Someone who already has an account lands in `requested`
+ * (a pending request in their Requests tab); someone with no account lands in
+ * `invited` and gets a link to install and sign up.
+ */
+export type InviteResult = {
+  added: { userId: string; name: string | null; method: string }[];
+  requested: { userId: string; inviteId: string; name: string | null; method: string }[];
+  invited: { email?: string; phone?: string; branchUrl: string; expiresAt: string }[];
+  skipped?: { userId: string; reason: string }[];
+  shareText?: string;
+};
 
 // ─── 3. Trip Activities ───────────────────────────────────────────────────────
 
@@ -698,24 +706,18 @@ export async function setPollStatus(tripId: string, pollId: string, status: 'act
   return res.data as { poll: Poll };
 }
 
-// ─── 9. Invite Deep-Link Flow ─────────────────────────────────────────────────
+// ─── 9. Friends list (for friend picker in Create Trip / Invite) ──────────────
 
-export async function previewTripInvite(token: string) {
-  // Public route — no auth header needed
-  const res = await client.get(`/trips/invite/${token}`);
-  return res.data as { tripId: string; tripName: string; inviterName: string; expiresAt: string };
-}
-
-export async function acceptTripInvite(token: string) {
-  const res = await client.post(`/trips/invite/${token}/accept`);
-  return res.data as { success: boolean; tripId: string };
-}
-
-// ─── 10. Friends list (for friend picker in Create Trip / Invite) ─────────────
-
-export async function createFriendInvite(body: { channels: string[]; emails?: string[] }) {
+export async function createFriendInvite(body: { channels: string[]; emails?: string[]; phones?: string[] }) {
   const res = await client.post('/friends/invite', body);
-  return res.data as { token: string; branchUrl: string; shareText: string; expiresAt: string };
+  return res.data as {
+    // null when everyone named already has an account — they got a friend request instead.
+    token: string | null;
+    branchUrl: string | null;
+    shareText: string | null;
+    expiresAt: string | null;
+    requested: { userId: string; connectionId: string | null; email?: string; phone?: string; skipped?: string }[];
+  };
 }
 
 export async function getUserProfile(userId: string) {

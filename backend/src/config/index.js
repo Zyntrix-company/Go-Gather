@@ -95,7 +95,7 @@ module.exports = {
   clientUrl: process.env.CLIENT_URL || 'http://localhost:3001',
   websiteUrl: process.env.WEBSITE_URL || 'https://www.gatherrgo.com',
   passwordResetUrl: process.env.PASSWORD_RESET_URL || 'http://localhost:3001/reset-password',
-  appDeepLinkBaseUrl: process.env.APP_DEEP_LINK_BASE_URL || 'https://gathergo.app',
+  appDeepLinkBaseUrl: process.env.APP_DEEP_LINK_BASE_URL || 'https://gatherrgo.com',
 
   // ─── Firebase / FCM v1 ───────────────────────
   // GOOGLE_APPLICATION_CREDENTIALS = path to Firebase service account JSON
@@ -118,7 +118,7 @@ module.exports = {
 
   // ─── Invite & App Store Links ─────────────────
   invite: {
-    baseUrl:          process.env.APP_INVITE_BASE_URL || 'https://gathergo.app/invite',
+    baseUrl:          process.env.APP_INVITE_BASE_URL || 'https://gatherrgo.com/invite',
     appIsLive:        process.env.APP_IS_LIVE === 'true',
     androidApkUrl:    process.env.ANDROID_APK_URL,
     iosTfUrl:         process.env.IOS_TESTFLIGHT_URL,
@@ -140,7 +140,7 @@ module.exports = {
 
   // ─── Universal Links ─────────────────────────
   universalLinks: {
-    appBundleId:      process.env.APP_BUNDLE_ID      || 'com.gathergo',
+    appBundleId:      process.env.APP_BUNDLE_ID      || 'com.gathergo.app',
     appTeamId:        process.env.APP_TEAM_ID        || 'XXXXXXXXXX',
     androidSha256:    process.env.ANDROID_SHA256_CERT,
   },

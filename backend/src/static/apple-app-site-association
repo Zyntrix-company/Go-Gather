@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appID": "XXXXXXXXXX.com.gathergo",
+        "appID": "XXXXXXXXXX.com.gathergo.app",
         "paths": [
           "/invite/*",
           "/trips/invite/*",

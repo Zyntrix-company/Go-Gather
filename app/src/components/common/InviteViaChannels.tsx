@@ -42,6 +42,11 @@ type Props = {
 
 const BTN_SIZE = 52;
 
+function requireId(id: string | undefined, message: string): string {
+  if (!id) throw new Error(message);
+  return id;
+}
+
 /** WhatsApp mark as vector paths (no icon font — avoids missing-glyph “X” when fonts aren’t bundled). */
 function WhatsAppGlyph({ color }: { color: string }) {
   return (
@@ -96,9 +101,19 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
     );
   }, [contacts, contactSearch]);
 
+  /**
+   * Someone who already has a GatherGo account gets a request in their Requests tab —
+   * there is nothing to send them, so the messaging app never opens. Only people with
+   * no account get a link, which exists to get them to install and sign up.
+   */
+  type InviteOutcome =
+    | { kind: 'share'; shareText: string }
+    | { kind: 'requested'; name: string | null };
+
   const fetchWhatsAppShareText = useCallback(async (): Promise<string> => {
     if (variant === 'friend') {
       const res = await createFriendInvite({ channels: ['whatsapp'], emails: [] });
+      if (!res.shareText) throw new Error('No invite link returned');
       return res.shareText;
     }
     if (variant === 'event') {
@@ -111,30 +126,34 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
     return res.shareText ?? buildTripInviteMessage(inviterName, tripName || 'a trip', res.invited[0].branchUrl);
   }, [variant, tripId, tripName, eventId, eventName, inviterName]);
 
-  const fetchSmsShareText = useCallback(
-    async (phone: string): Promise<string> => {
+  const fetchSmsOutcome = useCallback(
+    async (phone: string): Promise<InviteOutcome> => {
       if (variant === 'friend') {
-        const res = await createFriendInvite({ channels: ['sms'], emails: [] });
-        return res.shareText;
+        const res = await createFriendInvite({ channels: ['sms'], phones: [phone] });
+        if (res.requested.length > 0) return { kind: 'requested', name: null };
+        if (!res.shareText) throw new Error('No invite link returned');
+        return { kind: 'share', shareText: res.shareText };
       }
-      if (variant === 'event') {
-        if (!eventId) throw new Error('Event not found');
-        const res = await inviteToEvent(eventId, { phones: [phone] });
-        if ((res.added?.length ?? 0) > 0 && !(res.invited?.length)) {
-          throw new Error('ALREADY_MEMBER');
-        }
-        const branchUrl = res.invited?.[0]?.branchUrl;
-        if (!branchUrl) throw new Error('No invite link returned');
-        return res.shareText ?? buildEventInviteMessage(inviterName, eventName || 'an event', branchUrl);
+
+      const res =
+        variant === 'event'
+          ? await inviteToEvent(requireId(eventId, 'Event not found'), { phones: [phone] })
+          : await inviteToTrip(requireId(tripId, 'Trip not found'), { phones: [phone] });
+
+      if (res.requested?.length) {
+        return { kind: 'requested', name: res.requested[0].name };
       }
-      if (!tripId) throw new Error('Trip not found');
-      const res = await inviteToTrip(tripId, { phones: [phone] });
-      if ((res.added?.length ?? 0) > 0 && !(res.invited?.length)) {
-        throw new Error('ALREADY_MEMBER');
-      }
+      const blocked = res.skipped?.[0]?.reason;
+      if (blocked === 'already_member') throw new Error('ALREADY_MEMBER');
+      if (blocked === 'already_invited') throw new Error('ALREADY_INVITED');
+
       const branchUrl = res.invited?.[0]?.branchUrl;
       if (!branchUrl) throw new Error('No invite link returned');
-      return res.shareText ?? buildTripInviteMessage(inviterName, tripName || 'a trip', branchUrl);
+      const fallback =
+        variant === 'event'
+          ? buildEventInviteMessage(inviterName, eventName || 'an event', branchUrl)
+          : buildTripInviteMessage(inviterName, tripName || 'a trip', branchUrl);
+      return { kind: 'share', shareText: res.shareText ?? fallback };
     },
     [variant, tripId, tripName, eventId, eventName, inviterName],
   );
@@ -148,14 +167,36 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
     if (busy) return;
     setBusy(true);
     try {
+      let onGatherGo = false;
+      let alreadyMember = false;
+
       if (variant === 'friend') {
-        await createFriendInvite({ channels: ['email'], emails: [email] });
-      } else if (variant === 'event' && eventId) {
-        await inviteToEvent(eventId, { emails: [email] });
-      } else if (tripId) {
-        await inviteToTrip(tripId, { emails: [email] });
+        const res = await createFriendInvite({ channels: ['email'], emails: [email] });
+        onGatherGo = res.requested.length > 0;
+      } else {
+        const res =
+          variant === 'event'
+            ? await inviteToEvent(requireId(eventId, 'Event not found'), { emails: [email] })
+            : await inviteToTrip(requireId(tripId, 'Trip not found'), { emails: [email] });
+        onGatherGo = (res.requested?.length ?? 0) > 0;
+        alreadyMember = res.skipped?.[0]?.reason === 'already_member';
       }
-      Toast.show({ type: 'success', text1: 'Invite sent!' });
+
+      if (alreadyMember) {
+        showAlert({
+          title: variant === 'event' ? 'Already on event' : 'Already on trip',
+          message: 'This person is already a member.',
+        });
+        return;
+      }
+
+      Toast.show({
+        type: 'success',
+        text1: onGatherGo ? 'Request sent!' : 'Invite sent!',
+        text2: onGatherGo
+          ? "They'll see it in their Requests — you'll be notified once they approve"
+          : 'They will get an email with a link to join GatherGo',
+      });
       setEmailInput('');
       onComplete?.();
     } catch {
@@ -188,8 +229,21 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
     if (busy) return;
     setBusy(true);
     try {
-      const shareText = await fetchSmsShareText(phone);
-      await openSms(phone, shareText);
+      const outcome = await fetchSmsOutcome(phone);
+
+      // They are already on GatherGo — the request is waiting for them in-app,
+      // so there is nothing to text.
+      if (outcome.kind === 'requested') {
+        Toast.show({
+          type: 'success',
+          text1: `Request sent${outcome.name ? ` to ${outcome.name}` : ''}`,
+          text2: "They're on GatherGo — it's waiting in their Requests",
+        });
+        onComplete?.();
+        return;
+      }
+
+      await openSms(phone, outcome.shareText);
       Toast.show({ type: 'success', text1: 'Ready to send', text2: 'Finish sending in Messages' });
       onComplete?.();
     } catch (err: unknown) {
@@ -201,6 +255,11 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
             variant === 'event'
               ? 'This person is already a member of this event.'
               : 'This person is already a member of this trip.',
+        });
+      } else if (msg === 'ALREADY_INVITED') {
+        showAlert({
+          title: 'Already invited',
+          message: 'They already have a pending request waiting for them.',
         });
       } else {
         showAlert({ title: 'Error', message: 'Could not prepare the invite. Please try again.' });

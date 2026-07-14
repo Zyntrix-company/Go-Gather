@@ -23,7 +23,7 @@ import PersonalDocumentsScreen from '../screens/main/PersonalDocumentsScreen';
 export type MainStackParamList = {
   Home: { initialTab?: string } | undefined;
   EditProfile: undefined;
-  Notifications: undefined;
+  Notifications: { initialTab?: 'notifications' | 'requests' } | undefined;
   TripDetail: { trip: any };
   EventDetail: { event: any };
   ChatDetail: {

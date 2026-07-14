@@ -16,12 +16,26 @@ const {
 } = require('../../utils/mailer');
 const logger = require('../../utils/logger');
 const { syncUserLegalAckFromCurrent } = require('../legal/legal.service');
+const { linkPendingInvitesToUser } = require('../invites/invites.service');
 const { resolveAuthEmail, normalizeAuthEmail, sanitizeAuthEmail } = require('../../utils/email.util');
 
 const { getPresignedDownloadUrl } = require('../../utils/s3.util');
 
 const SALT_ROUNDS = 12;
 const googleClient = new OAuth2Client(config.google.clientId);
+
+/**
+ * Someone who was invited before they had an account signs up with the same
+ * email/phone — attach those invites now so they land in their Requests tab.
+ * Never allowed to fail the sign-up it is attached to.
+ */
+const attachPendingInvites = async (userId, { email, phone }) => {
+  try {
+    await linkPendingInvitesToUser(userId, { email: email || null, phone: phone || null });
+  } catch (err) {
+    logger.error('Pending invite matching failed', { userId, err: err.message });
+  }
+};
 
 /* ───────────────────────────────────────────
  * Helpers
@@ -289,6 +303,7 @@ const googleAuth = async ({ idToken, deviceToken, platform }) => {
     );
 
     await syncUserLegalAckFromCurrent(user.id);
+    await attachPendingInvites(user.id, { email: user.email, phone: user.phone });
   }
 
   const user = result.rows[0];
@@ -360,6 +375,7 @@ const facebookAuth = async ({ accessToken, deviceToken, platform }) => {
     );
 
     await syncUserLegalAckFromCurrent(user.id);
+    await attachPendingInvites(user.id, { email: user.email, phone: user.phone });
   }
 
   const user = result.rows[0];
@@ -491,6 +507,7 @@ const verifyEmail = async ({ email, otp, deviceToken, platform }) => {
   await db.query('DELETE FROM otps WHERE id = $1', [otpResult.rows[0].id]);
 
   await registerDeviceToken(userId, deviceToken, platform);
+  await attachPendingInvites(userId, { email: userRow.email, phone: userRow.phone });
 
   const user = { id: userId, email: userRow.email };
   const tokens = await issueTokenPair(user);

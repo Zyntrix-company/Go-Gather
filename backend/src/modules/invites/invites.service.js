@@ -1,5 +1,5 @@
 const { query: db, getClient } = require('../../config/database');
-const { createAndSendNotification, createAndSendNotifications } = require('../../utils/fcm.util');
+const { createAndSendNotification, createAndSendNotifications, notifySafely } = require('../../utils/fcm.util');
 const logger = require('../../utils/logger');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -121,11 +121,11 @@ const claimInvite = async (token, claimantId) => {
   }
 
   if (type === 'trip') {
-    return claimTripInvite(token, claimantId, found.row);
+    return acceptTripInvite({ token }, claimantId);
   }
 
   if (type === 'event') {
-    return claimEventInvite(token, claimantId, found.row);
+    return acceptEventInvite({ token }, claimantId);
   }
 
   const err = new Error('Unknown invite type');
@@ -244,15 +244,15 @@ const claimFriendInvite = async (token, claimantId, _preloaded) => {
     const claimantProfile = await db('SELECT full_name FROM profiles WHERE user_id = $1', [claimantId]);
     const claimantName = claimantProfile.rows[0]?.full_name || 'Someone';
 
-    createAndSendNotification(
+    notifySafely(() => createAndSendNotification(
       inviterId,
       {
         title: `${claimantName} wants to be your friend on GatherGo`,
         body: 'Tap to accept or decline',
       },
       'FRIEND_REQUEST',
-      { connectionId, fromUserId: claimantId, screen: 'friends' },
-    ).catch((err) => logger.error('Notification failed', { err: err.message }));
+      { connectionId, fromUserId: claimantId, screen: 'requests' },
+    ), 'FRIEND_REQUEST');
 
     return { type: 'friend', status: 'pending', connectionId };
   } catch (error) {
@@ -263,217 +263,420 @@ const claimFriendInvite = async (token, claimantId, _preloaded) => {
   }
 };
 
-// ── Claim Trip Invite ─────────────────────────────────────────────────────────
+// ── Accept Trip Invite (by token from a link, or by id from the Requests tab) ──
 
-const claimTripInvite = async (token, claimantId, preloaded) => {
+const acceptTripInvite = async ({ token = null, inviteId = null }, userId) => {
   const client = await getClient();
+  let invite;
   try {
     await client.query('BEGIN');
 
-    // Lock the invite row
     const lockResult = await client.query(
-      `SELECT id, trip_id, invited_by, accepted_at, user_id
+      `SELECT id, trip_id, invited_by, user_id
        FROM trip_invites
-       WHERE token = $1 AND expires_at > NOW() AND accepted_at IS NULL
+       WHERE ($1::text IS NULL OR token = $1)
+         AND ($2::uuid IS NULL OR id = $2)
+         AND expires_at > NOW()
+         AND status = 'pending'
        FOR UPDATE`,
-      [token],
+      [token, inviteId],
     );
 
     if (lockResult.rows.length === 0) {
-      // Idempotent check
-      const idempotentCheck = await client.query(
-        'SELECT trip_id, user_id FROM trip_invites WHERE token = $1',
-        [token],
+      // Idempotent: if this user already accepted it, treat as success.
+      const existing = await client.query(
+        `SELECT trip_id, user_id, status FROM trip_invites
+         WHERE ($1::text IS NULL OR token = $1) AND ($2::uuid IS NULL OR id = $2)`,
+        [token, inviteId],
       );
       await client.query('ROLLBACK');
 
-      if (idempotentCheck.rows[0]?.user_id === claimantId) {
-        return { type: 'trip', tripId: idempotentCheck.rows[0].trip_id };
+      const row = existing.rows[0];
+      if (row?.user_id === userId && row.status === 'accepted') {
+        return { type: 'trip', tripId: row.trip_id };
       }
 
-      const err = new Error('Invite is invalid, expired, or already claimed');
+      const err = new Error('Invite is invalid, expired, or already responded to');
       err.statusCode = 404;
       err.error = 'INVALID_INVITE';
       throw err;
     }
 
-    const invite = lockResult.rows[0];
+    invite = lockResult.rows[0];
 
-    // Add user to trip_members (ignore if already a member)
+    // A request addressed to someone else can never be accepted by this user.
+    if (invite.user_id && invite.user_id !== userId) {
+      await client.query('ROLLBACK');
+      const err = new Error('This invite belongs to another user');
+      err.statusCode = 403;
+      err.error = 'FORBIDDEN';
+      throw err;
+    }
+
     await client.query(
       `INSERT INTO trip_members (trip_id, user_id, role)
        VALUES ($1, $2, 'member')
        ON CONFLICT (trip_id, user_id) DO NOTHING`,
-      [invite.trip_id, claimantId],
+      [invite.trip_id, userId],
     );
 
-    // Mark invite accepted
     await client.query(
       `UPDATE trip_invites
-       SET accepted_at = NOW(), user_id = $1
-       WHERE token = $2`,
-      [claimantId, token],
+       SET status = 'accepted', accepted_at = NOW(), user_id = $1
+       WHERE id = $2`,
+      [userId, invite.id],
     );
 
     await client.query('COMMIT');
-
-    // Persist + push to trip admin (fire-and-forget)
-    const [adminResult, claimantProfile] = await Promise.all([
-      db(
-        `SELECT tm.user_id
-         FROM trip_members tm
-         WHERE tm.trip_id = $1 AND tm.role = 'admin'
-         LIMIT 1`,
-        [invite.trip_id],
-      ),
-      db('SELECT full_name FROM profiles WHERE user_id = $1', [claimantId]),
-    ]);
-    const adminId      = adminResult.rows[0]?.user_id;
-    const claimantName = claimantProfile.rows[0]?.full_name || 'Someone';
-
-    if (adminId) {
-      createAndSendNotification(
-        adminId,
-        {
-          title: `${claimantName} accepted your trip invite`,
-          body: 'Tap to see trip members',
-        },
-        'TRIP_INVITE_ACCEPTED',
-        { tripId: invite.trip_id, newMemberId: claimantId, screen: 'trip' },
-      ).catch((err) => logger.error('Notification failed', { err: err.message }));
-    }
-
-    // Notify other members (not admin, not new joiner) — fire-and-forget
-    const tripName = preloaded.context_name || 'Your trip';
-    db(
-      `SELECT u.id, u.fcm_token FROM trip_members tm
-       JOIN users u ON u.id = tm.user_id
-       WHERE tm.trip_id = $1 AND tm.user_id != $2 AND tm.user_id != $3`,
-      [invite.trip_id, claimantId, adminId || claimantId],
-    ).then((otherMembers) => {
-      if (otherMembers.rows.length === 0) return;
-      createAndSendNotifications(
-        otherMembers.rows,
-        { title: 'New Member Joined', body: `${claimantName} joined "${tripName}".` },
-        'NEW_MEMBER_JOINED',
-        { tripId: invite.trip_id },
-      ).catch((err) => logger.error('NEW_MEMBER_JOINED notification failed', { err: err.message }));
-    }).catch((err) => logger.error('Failed to fetch other trip members for notification', { err: err.message }));
-
-    return { type: 'trip', tripId: invite.trip_id, tripName: preloaded.context_name || null };
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     throw error;
   } finally {
     client.release();
   }
+
+  // Everything below is post-commit and must not be able to fail the acceptance.
+  let tripName = 'Your trip';
+  try {
+    const [tripResult, adminResult, joinerProfile] = await Promise.all([
+      db('SELECT name FROM trips WHERE id = $1', [invite.trip_id]),
+      db(`SELECT user_id FROM trip_members WHERE trip_id = $1 AND role = 'admin' LIMIT 1`, [invite.trip_id]),
+      db('SELECT full_name FROM profiles WHERE user_id = $1', [userId]),
+    ]);
+    tripName = tripResult.rows[0]?.name || tripName;
+    const adminId    = adminResult.rows[0]?.user_id;
+    const joinerName = joinerProfile.rows[0]?.full_name || 'Someone';
+
+    if (adminId) {
+      notifySafely(() => createAndSendNotification(
+        adminId,
+        { title: `${joinerName} accepted your trip invite`, body: 'Tap to see trip members' },
+        'TRIP_INVITE_ACCEPTED',
+        { tripId: invite.trip_id, newMemberId: userId, screen: 'trip' },
+      ), 'TRIP_INVITE_ACCEPTED');
+    }
+
+    const otherMembers = await db(
+      `SELECT u.id, u.fcm_token FROM trip_members tm
+       JOIN users u ON u.id = tm.user_id
+       WHERE tm.trip_id = $1 AND tm.user_id != $2 AND tm.user_id != $3`,
+      [invite.trip_id, userId, adminId || userId],
+    );
+    if (otherMembers.rows.length > 0) {
+      notifySafely(() => createAndSendNotifications(
+        otherMembers.rows,
+        { title: 'New Member Joined', body: `${joinerName} joined "${tripName}".` },
+        'NEW_MEMBER_JOINED',
+        { tripId: invite.trip_id },
+      ), 'NEW_MEMBER_JOINED');
+    }
+  } catch (err) {
+    logger.error('Post-accept notifications failed', { tripId: invite.trip_id, err: err.message });
+  }
+
+  return { type: 'trip', tripId: invite.trip_id, tripName };
 };
 
-// ── Claim Event Invite ────────────────────────────────────────────────────────
+// ── Accept Event Invite ───────────────────────────────────────────────────────
 
-const claimEventInvite = async (token, claimantId, preloaded) => {
+const acceptEventInvite = async ({ token = null, inviteId = null }, userId) => {
   const client = await getClient();
+  let invite;
   try {
     await client.query('BEGIN');
 
-    // Lock the invite row
     const lockResult = await client.query(
-      `SELECT id, event_id, invited_by, accepted_at, user_id
+      `SELECT id, event_id, invited_by, user_id
        FROM event_invites
-       WHERE token = $1 AND expires_at > NOW() AND accepted_at IS NULL
+       WHERE ($1::text IS NULL OR token = $1)
+         AND ($2::uuid IS NULL OR id = $2)
+         AND expires_at > NOW()
+         AND status = 'pending'
        FOR UPDATE`,
-      [token],
+      [token, inviteId],
     );
 
     if (lockResult.rows.length === 0) {
-      // Idempotent check
-      const idempotentCheck = await client.query(
-        'SELECT event_id, user_id FROM event_invites WHERE token = $1',
-        [token],
+      const existing = await client.query(
+        `SELECT event_id, user_id, status FROM event_invites
+         WHERE ($1::text IS NULL OR token = $1) AND ($2::uuid IS NULL OR id = $2)`,
+        [token, inviteId],
       );
       await client.query('ROLLBACK');
 
-      if (idempotentCheck.rows[0]?.user_id === claimantId) {
-        return { type: 'event', eventId: idempotentCheck.rows[0].event_id };
+      const row = existing.rows[0];
+      if (row?.user_id === userId && row.status === 'accepted') {
+        return { type: 'event', eventId: row.event_id };
       }
 
-      const err = new Error('Invite is invalid, expired, or already claimed');
+      const err = new Error('Invite is invalid, expired, or already responded to');
       err.statusCode = 404;
       err.error = 'INVALID_INVITE';
       throw err;
     }
 
-    const invite = lockResult.rows[0];
+    invite = lockResult.rows[0];
 
-    // Add user to event_members (ignore if already a member)
+    if (invite.user_id && invite.user_id !== userId) {
+      await client.query('ROLLBACK');
+      const err = new Error('This invite belongs to another user');
+      err.statusCode = 403;
+      err.error = 'FORBIDDEN';
+      throw err;
+    }
+
     await client.query(
       `INSERT INTO event_members (event_id, user_id, role)
        VALUES ($1, $2, 'member')
        ON CONFLICT (event_id, user_id) DO NOTHING`,
-      [invite.event_id, claimantId],
+      [invite.event_id, userId],
     );
 
-    // Mark invite accepted
     await client.query(
-      `UPDATE event_invites SET accepted_at = NOW(), user_id = $1 WHERE token = $2`,
-      [claimantId, token],
+      `UPDATE event_invites
+       SET status = 'accepted', accepted_at = NOW(), user_id = $1
+       WHERE id = $2`,
+      [userId, invite.id],
     );
 
     await client.query('COMMIT');
-
-    // Persist + push to event admin (fire-and-forget)
-    const [adminResult, claimantProfile] = await Promise.all([
-      db(
-        `SELECT em.user_id
-         FROM event_members em
-         WHERE em.event_id = $1 AND em.role = 'admin'
-         LIMIT 1`,
-        [invite.event_id],
-      ),
-      db('SELECT full_name FROM profiles WHERE user_id = $1', [claimantId]),
-    ]);
-    const adminId      = adminResult.rows[0]?.user_id;
-    const claimantName = claimantProfile.rows[0]?.full_name || 'Someone';
-
-    if (adminId) {
-      createAndSendNotification(
-        adminId,
-        {
-          title: `${claimantName} accepted your event invite`,
-          body: 'Tap to see event members',
-        },
-        'EVENT_INVITE_ACCEPTED',
-        { eventId: invite.event_id, newMemberId: claimantId, screen: 'events' },
-      ).catch((err) => logger.error('Notification failed', { err: err.message }));
-    }
-
-    // Notify other members (not admin, not new joiner) — fire-and-forget
-    const eventName = preloaded.context_name || 'Your event';
-    db(
-      `SELECT u.id, u.fcm_token FROM event_members em
-       JOIN users u ON u.id = em.user_id
-       WHERE em.event_id = $1 AND em.user_id != $2 AND em.user_id != $3`,
-      [invite.event_id, claimantId, adminId || claimantId],
-    ).then((otherMembers) => {
-      if (otherMembers.rows.length === 0) return;
-      createAndSendNotifications(
-        otherMembers.rows,
-        { title: 'New Member Joined', body: `${claimantName} joined "${eventName}".` },
-        'NEW_MEMBER_JOINED',
-        { eventId: invite.event_id },
-      ).catch((err) => logger.error('NEW_MEMBER_JOINED notification failed', { err: err.message }));
-    }).catch((err) => logger.error('Failed to fetch other event members for notification', { err: err.message }));
-
-    return { type: 'event', eventId: invite.event_id, eventName: preloaded.context_name || null };
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     throw error;
   } finally {
     client.release();
   }
+
+  let eventName = 'Your event';
+  try {
+    const [eventResult, adminResult, joinerProfile] = await Promise.all([
+      db('SELECT name FROM events WHERE id = $1', [invite.event_id]),
+      db(`SELECT user_id FROM event_members WHERE event_id = $1 AND role = 'admin' LIMIT 1`, [invite.event_id]),
+      db('SELECT full_name FROM profiles WHERE user_id = $1', [userId]),
+    ]);
+    eventName = eventResult.rows[0]?.name || eventName;
+    const adminId    = adminResult.rows[0]?.user_id;
+    const joinerName = joinerProfile.rows[0]?.full_name || 'Someone';
+
+    if (adminId) {
+      notifySafely(() => createAndSendNotification(
+        adminId,
+        { title: `${joinerName} accepted your event invite`, body: 'Tap to see event members' },
+        'EVENT_INVITE_ACCEPTED',
+        { eventId: invite.event_id, newMemberId: userId, screen: 'events' },
+      ), 'EVENT_INVITE_ACCEPTED');
+    }
+
+    const otherMembers = await db(
+      `SELECT u.id, u.fcm_token FROM event_members em
+       JOIN users u ON u.id = em.user_id
+       WHERE em.event_id = $1 AND em.user_id != $2 AND em.user_id != $3`,
+      [invite.event_id, userId, adminId || userId],
+    );
+    if (otherMembers.rows.length > 0) {
+      notifySafely(() => createAndSendNotifications(
+        otherMembers.rows,
+        { title: 'New Member Joined', body: `${joinerName} joined "${eventName}".` },
+        'NEW_MEMBER_JOINED',
+        { eventId: invite.event_id },
+      ), 'NEW_MEMBER_JOINED');
+    }
+  } catch (err) {
+    logger.error('Post-accept notifications failed', { eventId: invite.event_id, err: err.message });
+  }
+
+  return { type: 'event', eventId: invite.event_id, eventName };
+};
+
+// ── Decline ───────────────────────────────────────────────────────────────────
+
+const declineInvite = async (table, inviteId, userId) => {
+  const result = await db(
+    `UPDATE ${table}
+     SET status = 'declined', declined_at = NOW()
+     WHERE id = $1 AND user_id = $2 AND status = 'pending'
+     RETURNING id`,
+    [inviteId, userId],
+  );
+
+  if (result.rows.length === 0) {
+    const err = new Error('Request not found, already responded to, or not yours');
+    err.statusCode = 404;
+    err.error = 'INVALID_INVITE';
+    throw err;
+  }
+
+  // The inviter is deliberately not notified of a decline (privacy — mirrors friend requests).
+  return { id: inviteId, status: 'declined' };
+};
+
+const declineTripInvite  = (inviteId, userId) => declineInvite('trip_invites', inviteId, userId);
+const declineEventInvite = (inviteId, userId) => declineInvite('event_invites', inviteId, userId);
+
+// ─── Signup matching ──────────────────────────────────────────────────────────
+//
+// Someone with no account gets an email/SMS invite, installs the app, and signs up
+// with that same email/phone. This attaches every invite that was waiting for them
+// so it shows up in their Requests tab immediately.
+
+const linkPendingInvitesToUser = async (userId, { email = null, phone = null } = {}) => {
+  if (!email && !phone) return { trips: 0, events: 0, friends: 0 };
+
+  const summary = { trips: 0, events: 0, friends: 0 };
+
+  // ── Trips ──
+  try {
+    const trips = await db(
+      `WITH matched AS (
+         SELECT DISTINCT ON (ti.trip_id) ti.id
+         FROM trip_invites ti
+         WHERE ti.user_id IS NULL
+           AND ti.status = 'pending'
+           AND ti.expires_at > NOW()
+           AND ti.invited_by <> $1
+           AND ((                $2::text IS NOT NULL AND LOWER(ti.email) = LOWER($2))
+             OR (                $3::text IS NOT NULL AND ti.phone = $3))
+           AND NOT EXISTS (SELECT 1 FROM trip_members tm
+                            WHERE tm.trip_id = ti.trip_id AND tm.user_id = $1)
+           AND NOT EXISTS (SELECT 1 FROM trip_invites x
+                            WHERE x.trip_id = ti.trip_id AND x.user_id = $1 AND x.status = 'pending')
+         ORDER BY ti.trip_id, ti.created_at DESC
+       )
+       UPDATE trip_invites ti
+       SET user_id = $1
+       FROM matched m, trips t, profiles p
+       WHERE ti.id = m.id AND t.id = ti.trip_id AND p.user_id = ti.invited_by
+       RETURNING ti.id, ti.trip_id, t.name AS trip_name, p.full_name AS inviter_name`,
+      [userId, email, phone],
+    );
+    summary.trips = trips.rows.length;
+
+    for (const row of trips.rows) {
+      notifySafely(() => createAndSendNotification(
+        userId,
+        {
+          title: `${row.inviter_name || 'Someone'} invited you to "${row.trip_name}"`,
+          body: 'Open Requests to approve or decline',
+        },
+        'TRIP_REQUEST',
+        { tripId: row.trip_id, inviteId: row.id, screen: 'requests' },
+      ), 'TRIP_REQUEST');
+    }
+  } catch (err) {
+    logger.error('Failed to link pending trip invites', { userId, err: err.message });
+  }
+
+  // ── Events ──
+  try {
+    const events = await db(
+      `WITH matched AS (
+         SELECT DISTINCT ON (ei.event_id) ei.id
+         FROM event_invites ei
+         WHERE ei.user_id IS NULL
+           AND ei.status = 'pending'
+           AND ei.expires_at > NOW()
+           AND ei.invited_by <> $1
+           AND ((                $2::text IS NOT NULL AND LOWER(ei.email) = LOWER($2))
+             OR (                $3::text IS NOT NULL AND ei.phone = $3))
+           AND NOT EXISTS (SELECT 1 FROM event_members em
+                            WHERE em.event_id = ei.event_id AND em.user_id = $1)
+           AND NOT EXISTS (SELECT 1 FROM event_invites x
+                            WHERE x.event_id = ei.event_id AND x.user_id = $1 AND x.status = 'pending')
+         ORDER BY ei.event_id, ei.created_at DESC
+       )
+       UPDATE event_invites ei
+       SET user_id = $1
+       FROM matched m, events e, profiles p
+       WHERE ei.id = m.id AND e.id = ei.event_id AND p.user_id = ei.invited_by
+       RETURNING ei.id, ei.event_id, e.name AS event_name, p.full_name AS inviter_name`,
+      [userId, email, phone],
+    );
+    summary.events = events.rows.length;
+
+    for (const row of events.rows) {
+      notifySafely(() => createAndSendNotification(
+        userId,
+        {
+          title: `${row.inviter_name || 'Someone'} invited you to "${row.event_name}"`,
+          body: 'Open Requests to approve or decline',
+        },
+        'EVENT_REQUEST',
+        { eventId: row.event_id, inviteId: row.id, screen: 'requests' },
+      ), 'EVENT_REQUEST');
+    }
+  } catch (err) {
+    logger.error('Failed to link pending event invites', { userId, err: err.message });
+  }
+
+  // ── Friends ──
+  // A friend invite addressed to this email/phone becomes a pending friend request
+  // from the inviter, so it lands in the same Requests tab.
+  try {
+    const friendInvites = await db(
+      `SELECT DISTINCT ON (fi.invited_by) fi.id, fi.token, fi.invited_by,
+              p.full_name AS inviter_name
+       FROM friend_invites fi
+       LEFT JOIN profiles p ON p.user_id = fi.invited_by
+       WHERE fi.claimed_at IS NULL
+         AND fi.expires_at > NOW()
+         AND fi.invited_by <> $1
+         AND ((       $2::text IS NOT NULL AND LOWER(fi.email) = LOWER($2))
+           OR (       $3::text IS NOT NULL AND fi.phone = $3))
+       ORDER BY fi.invited_by, fi.created_at DESC`,
+      [userId, email, phone],
+    );
+
+    for (const invite of friendInvites.rows) {
+      const conn = await db(
+        `INSERT INTO friend_connections (requester_id, addressee_id, status)
+         VALUES ($1, $2, 'pending')
+         ON CONFLICT (requester_id, addressee_id) DO NOTHING
+         RETURNING id`,
+        [invite.invited_by, userId],
+      );
+
+      await db(
+        'UPDATE friend_invites SET claimed_at = NOW(), claimed_by = $1 WHERE id = $2',
+        [userId, invite.id],
+      );
+
+      await db(
+        `INSERT INTO referrals (referrer_id, referred_user_id, invite_token)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (referred_user_id) DO NOTHING`,
+        [invite.invited_by, userId, invite.token],
+      ).catch(() => {});
+
+      if (conn.rows.length === 0) continue; // already connected in some form
+      summary.friends += 1;
+
+      notifySafely(() => createAndSendNotification(
+        userId,
+        {
+          title: `${invite.inviter_name || 'Someone'} wants to be your friend`,
+          body: 'Open Requests to approve or decline',
+        },
+        'FRIEND_REQUEST',
+        { connectionId: conn.rows[0].id, fromUserId: invite.invited_by, screen: 'requests' },
+      ), 'FRIEND_REQUEST');
+    }
+  } catch (err) {
+    logger.error('Failed to link pending friend invites', { userId, err: err.message });
+  }
+
+  if (summary.trips || summary.events || summary.friends) {
+    logger.info('Linked pending invites to new user', { userId, ...summary });
+  }
+
+  return summary;
 };
 
 module.exports = {
   validateInvite,
   claimInvite,
+  acceptTripInvite,
+  acceptEventInvite,
+  declineTripInvite,
+  declineEventInvite,
+  linkPendingInvitesToUser,
 };

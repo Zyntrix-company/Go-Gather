@@ -204,7 +204,16 @@
       "Bash(Select-String \"^0\")",
       "Bash(Sort-Object)",
       "Bash(Select-Object -Last 3)",
-      "PowerShell(Start-Process \"C:\\\\Users\\\\vansh\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\E--Go-Gather\\\\0ef50cea-cd96-49ff-b699-22d036b0aec1\\\\scratchpad\\\\hamburger-mockup.html\")"
+      "PowerShell(Start-Process \"C:\\\\Users\\\\vansh\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\E--Go-Gather\\\\0ef50cea-cd96-49ff-b699-22d036b0aec1\\\\scratchpad\\\\hamburger-mockup.html\")",
+      "Bash(npx eslint *)",
+      "Bash(sed -i \"s|https://gathergo\\\\.app|https://gatherrgo.com|g; s|https://api\\\\.gathergo\\\\.app|https://api.gatherrgo.com|g; s|https://cdn\\\\.gathergo\\\\.app|https://cdn.gatherrgo.com|g; s|support@gathergo\\\\.app|support@gatherrgo.com|g; s|id=com\\\\.gathergo\\\\b|id=com.gathergo.app|g; s|^APP_BUNDLE_ID=com\\\\.gathergo$|APP_BUNDLE_ID=com.gathergo.app|\" .env.example src/config/index.js src/modules/trips/trips.service.js src/modules/events/events.service.js)",
+      "Bash(sed -i 's|\"package_name\": \"com.gathergo\"|\"package_name\": \"com.gathergo.app\"|; ' src/static/assetlinks.json)",
+      "Bash(sed -i 's|XXXXXXXXXX\\\\.com\\\\.gathergo\"|XXXXXXXXXX.com.gathergo.app\"|' src/static/apple-app-site-association)",
+      "Bash(grep -n -B 2 -A 12 \"router.put\\(\\\\s*$\\\\|router.put\\('/:id'\" src/modules/trips/trips.routes.js)",
+      "Bash(NODE_OPTIONS=--max-old-space-size=6144 npx jest __tests__/trips --runInBand)",
+      "Bash(grep -vE \"^\\\\s*$\")",
+      "Read(//e//**)",
+      "Bash(git worktree *)"
     ]
   }
 }

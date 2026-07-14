@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
 const { sendEmail, wrapEmail, sendTripCancelledEmail } = require('../../utils/mailer');
-const { createAndSendNotifications, createAndSendNotification } = require('../../utils/fcm.util');
+const { createAndSendNotifications, createAndSendNotification, notifySafely } = require('../../utils/fcm.util');
 const { batchDeleteFromS3, getPresignedDownloadUrl } = require('../../utils/s3.util');
 const { createInviteSmartLink } = require('../../utils/branch.util');
 const { generateInviteShareText } = require('../../utils/shareText.util');
@@ -204,7 +204,7 @@ const createTrip = async (userId, body) => {
           try {
             branchUrl = await createInviteSmartLink({ token, inviterName, context: name, type: 'trip' });
           } catch (e) {
-            branchUrl = `${config.appDeepLinkBaseUrl || 'https://gathergo.app'}/invite/trip/${token}`;
+            branchUrl = `${config.appDeepLinkBaseUrl || 'https://gatherrgo.com'}/invite/trip/${token}`;
             logger.warn('Branch link failed, using plain URL', { error: e.message });
           }
           await db(
@@ -636,11 +636,16 @@ const deleteTrip = async (tripId, actorId) => {
   }
 };
 
-// ─── Invite Members — friend vs non-friend flow ───────────────────────────────
+// ─── Invite Members ───────────────────────────────────────────────────────────
 //
-// friendIds → verified friendship → direct DB insert + FCM
-// emails / phones → check existing user → if friend: same as friendIds
-//                                       → else: Branch link + SES email
+// Nobody is ever added to a trip without their consent. An invite creates a
+// *pending request* that the invitee approves or declines in their Requests tab.
+//
+// friendIds / email / phone that matches an account → pending request + push
+// email / phone with no account                     → invite link (they sign up,
+//                                                     signup matching turns it into
+//                                                     a request — see
+//                                                     invites.service.linkPendingInvitesToUser)
 
 const inviteToTrip = async (tripId, invitedBy, { friendIds = [], emails = [], phones = [], shareOnly = false }) => {
   const inviterResult = await db(
@@ -662,7 +667,7 @@ const inviteToTrip = async (tripId, invitedBy, { friendIds = [], emails = [], ph
     try {
       branchUrl = await createInviteSmartLink({ token, inviterName, context: tripName, type: 'trip' });
     } catch (e) {
-      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gathergo.app'}/invite/trip/${token}`;
+      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gatherrgo.com'}/invite/trip/${token}`;
       logger.warn('Branch link failed, using plain URL', { error: e.message });
     }
     await db(
@@ -674,11 +679,12 @@ const inviteToTrip = async (tripId, invitedBy, { friendIds = [], emails = [], ph
     return { added: [], invited: [{ branchUrl, expiresAt: expiresAt.toISOString() }], skipped: [], shareText };
   }
 
-  const added = [];
-  const invited = [];
+  const added = [];      // nobody is auto-added any more — kept so the response shape is stable
+  const requested = [];  // existing users who now have a pending request
+  const invited = [];    // no account yet — sent an install link
   const skipped = [];
 
-  // ── Path A: friendIds — direct add ──────────────────────────
+  // ── Path A: friendIds — pending request ─────────────────────
   for (const friendId of friendIds) {
     // Verify friendship (bidirectional)
     const friendCheck = await db(
@@ -692,50 +698,78 @@ const inviteToTrip = async (tripId, invitedBy, { friendIds = [], emails = [], ph
       e.statusCode = 400; e.error = 'NOT_A_FRIEND'; e.userId = friendId; throw e;
     }
 
-    // Add to trip_members (skip if already a member)
-    const insertResult = await db(
-      `INSERT INTO trip_members (trip_id, user_id, role) VALUES ($1, $2, 'member')
-       ON CONFLICT (trip_id, user_id) DO NOTHING`,
-      [tripId, friendId],
-    );
-
-    if (insertResult.rowCount === 0) {
-      skipped.push({ userId: friendId, reason: 'already_member' });
-      continue;
-    }
-
-    // Fetch profile for response
-    const profile = await db(
-      'SELECT full_name AS name FROM profiles WHERE user_id = $1',
-      [friendId],
-    );
-
-    createAndSendNotification(
-      friendId,
-      { title: `${tripName} — ${inviterName} added you!`, body: 'Open GatherGo to see the trip' },
-      'TRIP_MEMBER_ADDED',
-      { tripId, screen: 'trips' },
-    ).catch((err) => logger.error('Notification failed', { err: err.message }));
-
-    added.push({ userId: friendId, name: profile.rows[0]?.name || null, method: 'direct' });
+    await createTripRequest({ tripId, tripName, invitedBy, inviterName, userId: friendId, requested, skipped });
   }
 
   // ── Path B: emails ───────────────────────────────────────────
   for (const email of emails) {
-    await processEmailOrPhoneInvite({ email, phone: null, tripId, tripName, invitedBy, inviterName, invited, added, skipped });
+    await processEmailOrPhoneInvite({ email, phone: null, tripId, tripName, invitedBy, inviterName, invited, requested, skipped });
   }
 
   // ── Path C: phones ───────────────────────────────────────────
   for (const phone of phones) {
-    await processEmailOrPhoneInvite({ email: null, phone, tripId, tripName, invitedBy, inviterName, invited, added, skipped });
+    await processEmailOrPhoneInvite({ email: null, phone, tripId, tripName, invitedBy, inviterName, invited, requested, skipped });
   }
 
-  return { added, invited, skipped };
+  return { added, requested, invited, skipped };
+};
+
+/**
+ * Create a pending trip request for a user who already has an account.
+ * They see it in their Requests tab and must approve it to become a member.
+ */
+const createTripRequest = async ({ tripId, tripName, invitedBy, inviterName, userId, requested, skipped }) => {
+  if (userId === invitedBy) {
+    skipped.push({ userId, reason: 'self' });
+    return;
+  }
+
+  const memberCheck = await db(
+    'SELECT 1 FROM trip_members WHERE trip_id = $1 AND user_id = $2',
+    [tripId, userId],
+  );
+  if (memberCheck.rowCount > 0) {
+    skipped.push({ userId, reason: 'already_member' });
+    return;
+  }
+
+  const token = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
+
+  // The partial unique index on (trip_id, user_id) WHERE status = 'pending' makes
+  // re-inviting someone who already has an open request a no-op.
+  const insertResult = await db(
+    `INSERT INTO trip_invites (trip_id, invited_by, user_id, token, expires_at, status)
+     VALUES ($1, $2, $3, $4, $5, 'pending')
+     ON CONFLICT DO NOTHING
+     RETURNING id`,
+    [tripId, invitedBy, userId, token, expiresAt.toISOString()],
+  );
+
+  if (insertResult.rowCount === 0) {
+    skipped.push({ userId, reason: 'already_invited' });
+    return;
+  }
+
+  const inviteId = insertResult.rows[0].id;
+  const profile = await db('SELECT full_name AS name FROM profiles WHERE user_id = $1', [userId]);
+
+  notifySafely(() => createAndSendNotification(
+    userId,
+    {
+      title: `${inviterName} invited you to "${tripName}"`,
+      body: 'Open Requests to approve or decline',
+    },
+    'TRIP_REQUEST',
+    { tripId, inviteId, screen: 'requests' },
+  ), 'TRIP_REQUEST');
+
+  requested.push({ userId, inviteId, name: profile.rows[0]?.name || null, method: 'request' });
 };
 
 // Helper for email/phone invite path
 const processEmailOrPhoneInvite = async ({
-  email, phone, tripId, tripName, invitedBy, inviterName, invited, added, skipped,
+  email, phone, tripId, tripName, invitedBy, inviterName, invited, requested, skipped,
 }) => {
   const identifier = email || phone;
   try {
@@ -749,46 +783,17 @@ const processEmailOrPhoneInvite = async ({
       existingUser = r.rows[0] || null;
     }
 
+    // They already have an account — send a request, not a link. Friendship is not
+    // required: approving the request is the consent step.
     if (existingUser) {
-      // Check if they're already a trip member
-      const memberCheck = await db(
-        'SELECT 1 FROM trip_members WHERE trip_id = $1 AND user_id = $2',
-        [tripId, existingUser.id],
-      );
-      if (memberCheck.rowCount > 0) {
-        skipped.push({ userId: existingUser.id, reason: 'already_member' });
-        return;
-      }
-
-      // Check friendship
-      const friendCheck = await db(
-        `SELECT id FROM friend_connections
-         WHERE status = 'accepted'
-           AND ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))`,
-        [invitedBy, existingUser.id],
-      );
-
-      if (friendCheck.rowCount > 0) {
-        // Is a friend — add directly
-        await db(
-          `INSERT INTO trip_members (trip_id, user_id, role) VALUES ($1, $2, 'member')
-           ON CONFLICT (trip_id, user_id) DO NOTHING`,
-          [tripId, existingUser.id],
-        );
-        const profile = await db('SELECT full_name AS name FROM profiles WHERE user_id = $1', [existingUser.id]);
-        createAndSendNotification(
-          existingUser.id,
-          { title: `${tripName} — ${inviterName} added you!`, body: 'Open GatherGo to see the trip' },
-          'TRIP_MEMBER_ADDED',
-          { tripId, screen: 'trips' },
-        ).catch((err) => logger.error('Notification failed', { err: err.message }));
-        added.push({ userId: existingUser.id, name: profile.rows[0]?.name || null, method: 'direct' });
-        return;
-      }
-      // Not a friend — fall through to Branch invite
+      await createTripRequest({
+        tripId, tripName, invitedBy, inviterName, userId: existingUser.id, requested, skipped,
+      });
+      return;
     }
 
-    // Create invite token + Branch link + SES
+    // No account — create invite token + link + email. They sign up with this same
+    // email/phone and signup matching turns this row into a request.
     const token = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
     let branchUrl = null;
@@ -796,7 +801,7 @@ const processEmailOrPhoneInvite = async ({
     try {
       branchUrl = await createInviteSmartLink({ token, inviterName, context: tripName, type: 'trip' });
     } catch (e) {
-      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gathergo.app'}/invite/trip/${token}`;
+      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gatherrgo.com'}/invite/trip/${token}`;
       logger.warn('Branch link failed, using plain URL', { error: e.message });
     }
 

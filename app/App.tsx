@@ -22,17 +22,23 @@ import { loadUploadLimits } from './src/utils/uploadLimits';
 // Configure geolocation to use native Android location provider
 Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLevel: 'whenInUse' });
 
+// Invites are approval-based: these open the Requests tab, never the trip/event
+// itself — you are not a member until you approve.
+const REQUEST_PUSH_TYPES = ['FRIEND_REQUEST', 'TRIP_REQUEST', 'EVENT_REQUEST'];
+
 function navigateFromPushData(
   nav: NavigationContainerRef<any> | null,
   data?: Record<string, string>,
   type?: string,
 ) {
   if (!nav || !data) return;
-  if (data.tripId && type !== 'FRIEND_REQUEST' && type !== 'FRIEND_ACCEPTED') {
+  if (type && REQUEST_PUSH_TYPES.includes(type)) {
+    nav.navigate('Notifications' as never, { initialTab: 'requests' } as never);
+  } else if (data.tripId && type !== 'FRIEND_ACCEPTED') {
     nav.navigate('TripDetail' as never, { trip: { id: data.tripId } } as never);
   } else if (data.eventId) {
     nav.navigate('EventDetail' as never, { event: { id: data.eventId } } as never);
-  } else if (type === 'FRIEND_REQUEST' || type === 'FRIEND_ACCEPTED') {
+  } else if (type === 'FRIEND_ACCEPTED') {
     if (data.fromUserId || data.userId) {
       nav.navigate('FriendProfile' as never, {
         userId: data.fromUserId ?? data.userId,

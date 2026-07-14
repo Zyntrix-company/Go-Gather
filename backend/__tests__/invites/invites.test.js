@@ -17,6 +17,11 @@ jest.mock('../../src/config/aws', () => ({
 jest.mock('../../src/utils/fcm.util', () => ({
   sendFCMNotification: jest.fn().mockResolvedValue(true),
   notifyUsers: jest.fn().mockResolvedValue(true),
+  createAndSendNotification: jest.fn().mockResolvedValue(true),
+  createAndSendNotifications: jest.fn().mockResolvedValue(true),
+  registerDeviceToken: jest.fn().mockResolvedValue(true),
+  isInQuietHours: jest.fn().mockReturnValue(false),
+  notifySafely: jest.fn((factory) => { try { const r = factory(); if (r?.catch) r.catch(() => {}); } catch { /* swallowed */ } }),
 }));
 
 const db = require('../../src/config/database');
@@ -58,7 +63,8 @@ describe('Invites Routes', () => {
     it('returns valid=false with reason NOT_FOUND for unknown token', async () => {
       db.query
         .mockResolvedValueOnce({ rows: [] })  // friend_invites
-        .mockResolvedValueOnce({ rows: [] }); // trip_invites
+        .mockResolvedValueOnce({ rows: [] })  // trip_invites
+        .mockResolvedValueOnce({ rows: [] }); // event_invites
 
       const res = await request(app).get('/invites/validate/unknowntoken');
 
@@ -135,7 +141,8 @@ describe('Invites Routes', () => {
     it('returns 404 when token is not found', async () => {
       db.query
         .mockResolvedValueOnce({ rows: [] })  // no friend invite
-        .mockResolvedValueOnce({ rows: [] }); // no trip invite
+        .mockResolvedValueOnce({ rows: [] })  // no trip invite
+        .mockResolvedValueOnce({ rows: [] }); // no event invite
 
       const res = await request(app)
         .post('/invites/claim/unknowntoken')

@@ -17,15 +17,27 @@ jest.mock('../../src/config/aws', () => ({
 jest.mock('../../src/utils/fcm.util', () => ({
   sendFCMNotification: jest.fn().mockResolvedValue(true),
   notifyUsers: jest.fn().mockResolvedValue(true),
+  createAndSendNotification: jest.fn().mockResolvedValue(true),
+  createAndSendNotifications: jest.fn().mockResolvedValue(true),
+  registerDeviceToken: jest.fn().mockResolvedValue(true),
+  isInQuietHours: jest.fn().mockReturnValue(false),
+  notifySafely: jest.fn((factory) => { try { const r = factory(); if (r?.catch) r.catch(() => {}); } catch { /* swallowed */ } }),
 }));
 
 jest.mock('../../src/utils/branch.util', () => ({
-  createInviteSmartLink: jest.fn().mockResolvedValue('https://gathergo.app.link/test-invite'),
+  createInviteSmartLink: jest.fn().mockResolvedValue('https://gatherrgo.com/invite/test'),
 }));
 
 jest.mock('../../src/utils/mailer', () => ({
   sendEmail: jest.fn().mockResolvedValue(true),
   sendVerificationOTPEmail: jest.fn().mockResolvedValue(true),
+  sendPasswordResetOTPEmail: jest.fn().mockResolvedValue(true),
+  sendWelcomeEmail: jest.fn().mockResolvedValue(true),
+  sendTripCancelledEmail: jest.fn().mockResolvedValue(true),
+  sendConnectionRequestEmail: jest.fn().mockResolvedValue(true),
+  sendRequestAcceptedEmail: jest.fn().mockResolvedValue(true),
+  sendLegalUpdateEmail: jest.fn().mockResolvedValue(true),
+  wrapEmail: jest.fn((html) => html),
 }));
 
 const db = require('../../src/config/database');

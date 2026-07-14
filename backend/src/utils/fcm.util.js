@@ -419,4 +419,20 @@ const createAndSendNotifications = async (users, notification, type, data = {}, 
   );
 };
 
-module.exports = { sendFCMNotification, notifyUsers, createAndSendNotification, createAndSendNotifications, isInQuietHours, registerDeviceToken };
+/**
+ * Fire-and-forget a notification. Notifications are always a side effect of some
+ * other action that has already committed, so neither a rejected promise nor a
+ * synchronous throw inside `promiseFactory` may be allowed to escape.
+ */
+const notifySafely = (promiseFactory, context) => {
+  try {
+    const result = promiseFactory();
+    if (result && typeof result.catch === 'function') {
+      result.catch((err) => logger.error('Notification failed', { context, err: err.message }));
+    }
+  } catch (err) {
+    logger.error('Notification threw synchronously', { context, err: err.message });
+  }
+};
+
+module.exports = { sendFCMNotification, notifyUsers, createAndSendNotification, createAndSendNotifications, isInQuietHours, registerDeviceToken, notifySafely };

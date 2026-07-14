@@ -560,7 +560,8 @@ const executeAction = async (userId, pendingAction) => {
   if (intent === 'create_event') {
     const name = requireNonEmptyString(draft.name, 'Event name').slice(0, 255);
     const eventDate = requireIsoDate(draft.eventDate, 'Event date');
-    const location = requireNonEmptyString(draft.location, 'Location');
+    // Location is optional — the user may not have decided a venue yet.
+    const location = typeof draft.location === 'string' ? draft.location.trim() : '';
 
     const eventsService = require('../events/events.service');
 
@@ -573,7 +574,7 @@ const executeAction = async (userId, pendingAction) => {
       eventTime: eventTime || undefined,
       eventType,
       description: draft.description || undefined,
-      location: { name: location },
+      location: location ? { name: location } : undefined,
       reminders: true,
     };
 
