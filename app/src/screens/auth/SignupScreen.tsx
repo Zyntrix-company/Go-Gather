@@ -789,7 +789,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     elevation: 2,
   },
-  primaryBtnText: { color: '#ffffff', fontSize: SCREEN_W < 375 ? 15 : 17, fontWeight: '600', letterSpacing: 0.1 },
+  primaryBtnText: { color: '#ffffff', fontSize: SCREEN_W < 375 ? 15 : 17, fontWeight: '400', letterSpacing: 0.1 },
 
   linkRow: {
     flexDirection: 'row',

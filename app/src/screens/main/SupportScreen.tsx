@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch', marginTop: 4,
   },
   reportBtnDisabled: { backgroundColor: '#cbd5e1' },
-  reportBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  reportBtnText: { color: '#fff', fontSize: 15, fontWeight: '400' },
 
   reportSent: { alignItems: 'center', paddingVertical: 20, gap: 10 },
   reportSentIcon: {

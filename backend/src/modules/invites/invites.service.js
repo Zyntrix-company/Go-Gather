@@ -1,6 +1,7 @@
 const { query: db, getClient } = require('../../config/database');
 const { createAndSendNotification, createAndSendNotifications, notifySafely } = require('../../utils/fcm.util');
 const logger = require('../../utils/logger');
+const { phoneKey } = require('../../utils/phone.util');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -520,7 +521,11 @@ const declineEventInvite = (inviteId, userId) => declineInvite('event_invites', 
 // so it shows up in their Requests tab immediately.
 
 const linkPendingInvitesToUser = async (userId, { email = null, phone = null } = {}) => {
-  if (!email && !phone) return { trips: 0, events: 0, friends: 0 };
+  // Match on the normalized key, never the raw string: the number we were invited on
+  // came from a contact book ("+91 98765 43210") and the one we signed up with was
+  // typed by hand ("9876543210").
+  const phoneMatch = phoneKey(phone);
+  if (!email && !phoneMatch) return { trips: 0, events: 0, friends: 0 };
 
   const summary = { trips: 0, events: 0, friends: 0 };
 
@@ -535,7 +540,7 @@ const linkPendingInvitesToUser = async (userId, { email = null, phone = null } =
            AND ti.expires_at > NOW()
            AND ti.invited_by <> $1
            AND ((                $2::text IS NOT NULL AND LOWER(ti.email) = LOWER($2))
-             OR (                $3::text IS NOT NULL AND ti.phone = $3))
+             OR (                $3::text IS NOT NULL AND ti.phone_key = $3))
            AND NOT EXISTS (SELECT 1 FROM trip_members tm
                             WHERE tm.trip_id = ti.trip_id AND tm.user_id = $1)
            AND NOT EXISTS (SELECT 1 FROM trip_invites x
@@ -547,7 +552,7 @@ const linkPendingInvitesToUser = async (userId, { email = null, phone = null } =
        FROM matched m, trips t, profiles p
        WHERE ti.id = m.id AND t.id = ti.trip_id AND p.user_id = ti.invited_by
        RETURNING ti.id, ti.trip_id, t.name AS trip_name, p.full_name AS inviter_name`,
-      [userId, email, phone],
+      [userId, email, phoneMatch],
     );
     summary.trips = trips.rows.length;
 
@@ -577,7 +582,7 @@ const linkPendingInvitesToUser = async (userId, { email = null, phone = null } =
            AND ei.expires_at > NOW()
            AND ei.invited_by <> $1
            AND ((                $2::text IS NOT NULL AND LOWER(ei.email) = LOWER($2))
-             OR (                $3::text IS NOT NULL AND ei.phone = $3))
+             OR (                $3::text IS NOT NULL AND ei.phone_key = $3))
            AND NOT EXISTS (SELECT 1 FROM event_members em
                             WHERE em.event_id = ei.event_id AND em.user_id = $1)
            AND NOT EXISTS (SELECT 1 FROM event_invites x
@@ -589,7 +594,7 @@ const linkPendingInvitesToUser = async (userId, { email = null, phone = null } =
        FROM matched m, events e, profiles p
        WHERE ei.id = m.id AND e.id = ei.event_id AND p.user_id = ei.invited_by
        RETURNING ei.id, ei.event_id, e.name AS event_name, p.full_name AS inviter_name`,
-      [userId, email, phone],
+      [userId, email, phoneMatch],
     );
     summary.events = events.rows.length;
 
@@ -621,9 +626,9 @@ const linkPendingInvitesToUser = async (userId, { email = null, phone = null } =
          AND fi.expires_at > NOW()
          AND fi.invited_by <> $1
          AND ((       $2::text IS NOT NULL AND LOWER(fi.email) = LOWER($2))
-           OR (       $3::text IS NOT NULL AND fi.phone = $3))
+           OR (       $3::text IS NOT NULL AND fi.phone_key = $3))
        ORDER BY fi.invited_by, fi.created_at DESC`,
-      [userId, email, phone],
+      [userId, email, phoneMatch],
     );
 
     for (const invite of friendInvites.rows) {

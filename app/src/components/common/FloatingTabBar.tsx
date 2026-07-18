@@ -56,7 +56,8 @@ function NavIcon({ name, active, onPress }: { name: TabType; active: boolean; on
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function FloatingTabBar({ activeTab, navigation }: FloatingTabBarProps) {
   const insets = useSafeAreaInsets();
-  const tabs: TabType[] = ['trips', 'events', 'friends', 'chat', 'gallery'];
+  // Swee (chat) sits in the centre slot — it is the app's headline feature.
+  const tabs: TabType[] = ['trips', 'events', 'chat', 'friends', 'gallery'];
 
   const handleTabPress = (tabName: TabType) => {
     if (activeTab != null && tabName === activeTab) {

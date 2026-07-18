@@ -1443,7 +1443,18 @@ export default function TripDetailScreen({ route, navigation }: any) {
     }
   }
 
-  async function handleRemoveExistingActPhoto(photoId: string) {
+  function handleRemoveExistingActPhoto(photoId: string) {
+    if (!editingActivityId) return;
+    showConfirm({
+      title: 'Remove photo?',
+      message: 'This photo will be permanently removed from the activity.',
+      confirmText: 'Remove',
+      destructive: true,
+      onConfirm: () => { void removeExistingActPhoto(photoId); },
+    });
+  }
+
+  async function removeExistingActPhoto(photoId: string) {
     if (!editingActivityId) return;
     try {
       await deleteActivityPhoto(tripId, editingActivityId, photoId);

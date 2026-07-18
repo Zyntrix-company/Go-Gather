@@ -558,7 +558,7 @@ const styles = StyleSheet.create({
   primaryBtnText: {
     color: '#ffffff',
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '400',
     letterSpacing: 0.2,
   },
   backBtn: {

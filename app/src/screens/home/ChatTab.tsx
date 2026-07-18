@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   TextInput,
   Platform,
-  Dimensions,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -18,9 +17,6 @@ import ChatListSkeleton from '../../components/chat/ChatListSkeleton';
 import SweeIcon from '../../components/common/SweeIcon';
 import useChatStore from '../../store/chatStore';
 import { type AiConversation } from '../../api/ai.api';
-
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const isSmallScreen = SCREEN_H < 700;
 
 type Props = {
   onOpenConversation: (conversationId: string) => void;
@@ -46,10 +42,10 @@ type HeaderProps = {
 function ListHeader({ hasConversations, searchQuery, onSearchChange, onNewChat }: HeaderProps) {
   return (
     <View>
-      {/* Hero */}
+      {/* Hero — mirrors the Trips/Events hero (icon circle → title → sub → pill CTA) */}
       <View style={styles.hero}>
         <View style={styles.heroIconWrap}>
-          <SweeIcon size={isSmallScreen ? 28 : 36} color="#0d9488" />
+          <SweeIcon size={28} color="#0d9488" />
         </View>
         <Text style={styles.heroHeading}>
           Ask Swee anything — trips, tips, or just chat!
@@ -57,16 +53,14 @@ function ListHeader({ hasConversations, searchQuery, onSearchChange, onNewChat }
         <Text style={styles.heroSubtitle}>
           Your AI travel companion, always ready to help
         </Text>
+        <TouchableOpacity
+          style={styles.newChatBtn}
+          onPress={onNewChat}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.newChatText}>New Chat</Text>
+        </TouchableOpacity>
       </View>
-
-      {/* New Chat button */}
-      <TouchableOpacity
-        style={styles.newChatBtn}
-        onPress={onNewChat}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.newChatText}>New Chat</Text>
-      </TouchableOpacity>
 
       {/* Search bar */}
       <View style={styles.searchBar}>
@@ -82,9 +76,12 @@ function ListHeader({ hasConversations, searchQuery, onSearchChange, onNewChat }
         />
       </View>
 
-      {/* Section label */}
+      {/* List header — mirrors "Your Trips" / "Your Events" */}
       {hasConversations && (
-        <Text style={styles.sectionLabel}>Recent chats</Text>
+        <View style={styles.listHeader}>
+          <Text style={styles.listTitle}>Your Chats</Text>
+          <Text style={styles.listSub}>Pick up where you left off</Text>
+        </View>
       )}
     </View>
   );
@@ -216,43 +213,27 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
-  // Hero
-  hero: {
-    alignItems: 'center',
-    paddingTop: isSmallScreen ? 16 : 24,
-    paddingBottom: isSmallScreen ? 14 : 20,
-    paddingHorizontal: 16,
-  },
+  // Hero — same metrics as TripsScreen.tripsCTA / EventsScreen.heroSection
+  hero: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 16 },
   heroIconWrap: {
-    width: isSmallScreen ? 60 : 72,
-    height: isSmallScreen ? 60 : 72,
-    borderRadius: isSmallScreen ? 30 : 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: isSmallScreen ? 12 : 16,
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: '#ccfbf1',
+    alignItems: 'center', justifyContent: 'center',
   },
   heroHeading: {
-    fontSize: isSmallScreen ? 18 : 22,
-    fontWeight: '500',
-    color: '#0f172a',
-    textAlign: 'center',
-    lineHeight: isSmallScreen ? 26 : 30,
-    marginBottom: 8,
+    fontFamily: 'Inter', fontSize: 20, fontWeight: '400', color: '#0F172B',
+    textAlign: 'center', lineHeight: 28, letterSpacing: 0, width: 266,
   },
   heroSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
-    textAlign: 'center',
-    lineHeight: 20,
+    fontFamily: 'Inter', fontSize: 16, fontWeight: '400', color: '#45556C',
+    textAlign: 'center', lineHeight: 20, letterSpacing: 0, width: 316,
   },
 
-  // New Chat button
+  // New Chat button — same pill as Create Trip / Create Event
   newChatBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#009788', borderRadius: 999,
     width: 130, height: 40, gap: 4,
-    alignSelf: 'center',
-    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.12,
@@ -282,13 +263,15 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
   },
 
-  // Section label
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#0f172a',
-    marginTop: 20,
-    marginBottom: 8,
+  // List header — same metrics as "Your Trips" / "Your Events"
+  listHeader: { marginBottom: 16, paddingTop: 16 },
+  listTitle: {
+    fontFamily: 'Inter', fontSize: 15, fontWeight: '400', color: '#0F172B',
+    lineHeight: 24, letterSpacing: 0,
+  },
+  listSub: {
+    fontSize: 15, fontWeight: '400', color: '#45556C',
+    lineHeight: 19, letterSpacing: 0, marginTop: 2, marginBottom: 8,
   },
 
   // Skeleton inside list

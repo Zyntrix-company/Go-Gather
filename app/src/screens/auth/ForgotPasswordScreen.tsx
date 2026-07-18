@@ -146,38 +146,30 @@ const SCREEN_W = Dimensions.get('window').width;
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   kav: { flex: 1 },
+  // Layout mirrors LoginScreen/SignupScreen: same horizontal padding, same top
+  // offset, logo pinned at the top with a fixed gap before the form.
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: SCREEN_W < 375 ? 16 : 24,
-    paddingTop: SCREEN_W < 375 ? 16 : 22,
-    paddingBottom: SCREEN_W < 375 ? 32 : 40,
-    justifyContent: 'space-between',
+    paddingTop: SCREEN_W < 375 ? 12 : 16,
+    paddingBottom: SCREEN_W < 375 ? 24 : 32,
   },
-  logoRow: { marginBottom: 0, alignItems: 'flex-start' },
-  // Top-aligned: content starts just below the logo with a fixed gap,
-  // instead of being vertically centred in the remaining space.
-  form: {
-    maxWidth: 400,
-    width: '100%',
-    alignSelf: 'center',
-    flex: 1,
-    justifyContent: 'flex-start',
-    marginTop: SCREEN_W < 375 ? 24 : 32,
-  },
+  logoRow: { marginBottom: 58, alignItems: 'flex-start' },
+  form: { maxWidth: 400, width: '100%', alignSelf: 'center' },
 
   title: {
     fontSize: SCREEN_W < 375 ? 21 : 25,
     fontWeight: '400',
     color: '#0f172a',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   subtitle: {
-    fontSize: SCREEN_W < 375 ? 12 : 14,
-    color: '#566170',
+    fontSize: SCREEN_W < 375 ? 13 : 15,
+    color: '#505c6dff',
     textAlign: 'center',
     lineHeight: SCREEN_W < 375 ? 18 : 20,
-    marginBottom: 28,
+    marginBottom: 36,
   },
 
   fieldLabel: {
@@ -192,17 +184,19 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#e2e8f0',
     borderRadius: 9,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
     fontSize: SCREEN_W < 375 ? 14 : 16,
     color: '#0f172a',
+    marginTop: 8,
   },
   inputFocused: { borderColor: '#0d9488' },
   inputError: { borderColor: '#ef4444' },
   errorText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#ef4444',
-    marginTop: 5,
+    marginTop: 4,
+    marginBottom: 2,
     marginLeft: 2,
   },
   helperText: {
@@ -216,7 +210,7 @@ const styles = StyleSheet.create({
   primaryBtn: {
     backgroundColor: '#0d9488',
     borderRadius: 9,
-    paddingVertical: 13,
+    paddingVertical: 10,
     alignItems: 'center',
     marginTop: 16,
     marginBottom: 16,
@@ -225,7 +219,7 @@ const styles = StyleSheet.create({
   primaryBtnText: {
     color: '#ffffff',
     fontSize: SCREEN_W < 375 ? 15 : 17,
-    fontWeight: '600',
+    fontWeight: '400',
     letterSpacing: 0.1,
   },
 

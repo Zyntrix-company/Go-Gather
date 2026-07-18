@@ -17,6 +17,8 @@ const {
   attachLocationsToEvent,
 } = require('../../utils/locations.util');
 const { resolveBannerUrl } = require('../../utils/banner.util');
+const { phoneKey } = require('../../utils/phone.util');
+const { normalizeAuthEmail } = require('../../utils/email.util');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -579,10 +581,12 @@ const processEventEmailOrPhoneInvite = async ({
   try {
     let existingUser = null;
     if (email) {
-      const r = await db('SELECT id FROM users WHERE email = $1', [email]);
+      const r = await db('SELECT id FROM users WHERE email_normalized = $1', [
+        normalizeAuthEmail(email),
+      ]);
       existingUser = r.rows[0] || null;
     } else if (phone) {
-      const r = await db('SELECT id FROM users WHERE phone = $1', [phone]);
+      const r = await db('SELECT id FROM users WHERE phone_key = $1', [phoneKey(phone)]);
       existingUser = r.rows[0] || null;
     }
 

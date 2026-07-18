@@ -15,6 +15,7 @@ const {
   sendPasswordResetOTPEmail,
 } = require('../../utils/mailer');
 const logger = require('../../utils/logger');
+const { phoneKey } = require('../../utils/phone.util');
 const { syncUserLegalAckFromCurrent } = require('../legal/legal.service');
 const { linkPendingInvitesToUser } = require('../invites/invites.service');
 const { resolveAuthEmail, normalizeAuthEmail, sanitizeAuthEmail } = require('../../utils/email.util');
@@ -464,7 +465,9 @@ const forgotPassword = async ({ email, phone }) => {
   if (email) {
     user = await findUserByAuthEmail(email);
   } else if (phone) {
-    const result = await db.query('SELECT id, email FROM users WHERE phone = $1', [phone]);
+    const result = await db.query('SELECT id, email FROM users WHERE phone_key = $1', [
+      phoneKey(phone),
+    ]);
     user = result.rows[0] || null;
   }
 

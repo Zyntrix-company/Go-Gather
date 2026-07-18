@@ -124,28 +124,33 @@ function GridCard({ item, onPress, chip }: { item: any; onPress: () => void; chi
   const hasImage = item.bannerImageUrl && !imgError;
   const borderColor = chip ? CHIP_CONFIG[chip].bg : undefined;
 
+  // The shadow lives on an outer wrapper: iOS will not paint a shadow on a view
+  // that also clips its children (overflow: 'hidden'), which the card needs to
+  // round off the banner image.
   return (
-    <TouchableOpacity
-      style={[styles.gridCard, borderColor && { borderWidth: 3, borderColor }]}
-      onPress={onPress}
-      activeOpacity={0.85}
-    >
-      {hasImage ? (
-        <CachedImage
-          uri={item.bannerImageUrl}
-          style={styles.gridCardImage}
-          resizeMode="cover"
-          onError={() => setImgError(true)}
-        />
-      ) : (
-        <View style={styles.gridCardPlaceholder}>
-          <CameraIcon />
+    <View style={styles.gridCardShadow}>
+      <TouchableOpacity
+        style={[styles.gridCard, borderColor && { borderWidth: 3, borderColor }]}
+        onPress={onPress}
+        activeOpacity={0.85}
+      >
+        {hasImage ? (
+          <CachedImage
+            uri={item.bannerImageUrl}
+            style={styles.gridCardImage}
+            resizeMode="cover"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <View style={styles.gridCardPlaceholder}>
+            <CameraIcon />
+          </View>
+        )}
+        <View style={styles.gridCardOverlay}>
+          <Text style={styles.gridCardText} numberOfLines={1}>{item.name}</Text>
         </View>
-      )}
-      <View style={styles.gridCardOverlay}>
-        <Text style={styles.gridCardText} numberOfLines={1}>{item.name}</Text>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -1348,7 +1353,6 @@ function CustomCardPhotosModal({
 
 interface GalleryTabProps {
   user: any;
-  trips?: any[];
   onEditProfile: () => void;
   onNavigateToTrip: (trip: any) => void;
   onSetActiveTab: (tab: string) => void;
@@ -1357,7 +1361,6 @@ interface GalleryTabProps {
 
 export default function GalleryTab({
   user,
-  trips: propTrips = [],
   onEditProfile,
 }: GalleryTabProps) {
   const [avatarError, setAvatarError] = useState(false);
@@ -1500,7 +1503,10 @@ export default function GalleryTab({
         const data = await getUserGallery(userId);
         if (!cancelled) applyGalleryData(data);
       } catch {
-        if (!cancelled) setGalleryTrips(propTrips);
+        // Privacy: never fall back to the local trip list — it contains active and
+        // upcoming trips. /users/:id/gallery is the only source that is filtered to
+        // past trips, so on failure the gallery stays empty rather than leaking them.
+        if (!cancelled) setGalleryTrips([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -1509,7 +1515,7 @@ export default function GalleryTab({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
-  const displayTrips = galleryTrips.length > 0 ? galleryTrips : propTrips;
+  const displayTrips = galleryTrips;
 
   return (
     <>
@@ -1702,7 +1708,17 @@ const styles = StyleSheet.create({
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 
-  gridCard: { width: CARD_W, height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: '#f1f5f9' },
+  gridCardShadow: {
+    width: CARD_W,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 7,
+    elevation: 3,
+  },
+  gridCard: { width: '100%', height: 140, borderRadius: 14, overflow: 'hidden', backgroundColor: '#f1f5f9' },
   gridCardTall: { height: 160 },
   gridCardImage: { width: '100%', height: '100%' },
   gridCardPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
@@ -1831,7 +1847,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   createAlbumBtnDisabled: { opacity: 0.45 },
-  createAlbumBtnText: { fontSize: 16, fontWeight: '600', color: '#fff' },
+  createAlbumBtnText: { fontSize: 16, fontWeight: '400', color: '#fff' },
 
   addPhotosBtn: {
     marginTop: 16,

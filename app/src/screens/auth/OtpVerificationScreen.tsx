@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   primaryBtnText: {
     color: '#ffffff',
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: '400',
     letterSpacing: 0.1,
   },
   resendRow: {

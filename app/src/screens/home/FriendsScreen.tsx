@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,15 +7,18 @@ import {
   ScrollView,
   TextInput,
   Modal,
+  Pressable,
+  Dimensions,
 } from 'react-native';
+import { MoreVertical, Eye, Trash2 } from 'lucide-react-native';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
 import { SkeletonBox } from '../../components/common/ExpenseTabSkeleton';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { getFriends, createTrip, uploadTripPhotos, updateTrip as apiUpdateTrip } from '../../api/trips.api';
+import { getFriends, createTrip, uploadTripPhotos, updateTrip as apiUpdateTrip, removeFriend } from '../../api/trips.api';
 import InviteViaChannels from '../../components/common/InviteViaChannels';
-import { showAlert } from '../../store/alertStore';
+import { showAlert, showConfirm } from '../../store/alertStore';
 import { CreateTripModal, BannerCropFraction } from '../trips/TripsScreen';
 import { CreateEventModal } from '../events/EventsScreen';
 import { requireTripFromResponse, runSafePostCreate } from '../../utils/createEntityFlow';
@@ -54,6 +57,7 @@ function FriendRow({
   friend,
   index,
   onView,
+  onRemove,
   isSelecting,
   isSelected,
   onSelect,
@@ -62,11 +66,24 @@ function FriendRow({
   friend: Friend;
   index: number;
   onView: (friend: Friend) => void;
+  onRemove: (friend: Friend) => void;
   isSelecting: boolean;
   isSelected: boolean;
   onSelect: (friend: Friend) => void;
   onLongPress: (friend: Friend) => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
+  const menuBtnRef = useRef<React.ElementRef<typeof TouchableOpacity>>(null);
+
+  const openMenu = () => {
+    menuBtnRef.current?.measureInWindow((x, y, width, height) => {
+      const screenWidth = Dimensions.get('window').width;
+      setAnchor({ top: y + height + 4, right: screenWidth - (x + width) });
+      setMenuOpen(true);
+    });
+  };
+
   const fallbackAvatar = `https://i.pravatar.cc/150?u=${encodeURIComponent(friend.user.id)}`;
   const primaryUri = friend.user.avatarUrl || fallbackAvatar;
   const [imgFailed, setImgFailed] = useState(false);
@@ -148,15 +165,48 @@ function FriendRow({
         {!isSelecting && (
           <View style={styles.friendActions}>
             <TouchableOpacity
-              style={styles.viewBtn}
-              onPress={() => onView(friend)}
-              activeOpacity={0.8}
+              ref={menuBtnRef}
+              style={styles.menuBtn}
+              onPress={openMenu}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityLabel={`Options for ${friend.user.name || 'friend'}`}
             >
-              <Text style={styles.viewBtnText}>View</Text>
+              <MoreVertical size={16} color="#64748b" strokeWidth={1.8} />
             </TouchableOpacity>
           </View>
         )}
       </TouchableOpacity>
+
+      {/* Overflow menu — anchored under the dots button (matches ExpenseCard) */}
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <Pressable style={styles.menuOverlay} onPress={() => setMenuOpen(false)}>
+          <View
+            style={[
+              styles.menuSheet,
+              anchor ? { top: anchor.top, right: anchor.right } : { bottom: '40%', right: 16 },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.menuItem}
+              activeOpacity={0.8}
+              onPress={() => { setMenuOpen(false); onView(friend); }}
+            >
+              <Eye size={14} color="#64748b" strokeWidth={2} />
+              <Text style={styles.menuText}>View</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.menuItem, styles.menuItemBorder]}
+              activeOpacity={0.8}
+              onPress={() => { setMenuOpen(false); onRemove(friend); }}
+            >
+              <Trash2 size={14} color="#ef4444" strokeWidth={2} />
+              <Text style={[styles.menuText, styles.menuTextDanger]}>Remove friend</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
       <View style={styles.separator} />
     </>
   );
@@ -170,7 +220,7 @@ function FriendRowSkeleton() {
         <SkeletonBox height={14} width="45%" />
         <SkeletonBox height={11} width="65%" />
       </View>
-      <SkeletonBox width={52} height={26} style={{ borderRadius: 90 }} />
+      <SkeletonBox width={24} height={24} style={{ borderRadius: 12 }} />
     </View>
   );
 }
@@ -236,6 +286,26 @@ export default function FriendsScreen() {
 
   function handleViewFriend(friend: Friend) {
     navigation.navigate('FriendProfile', { userId: friend.user.id, friendName: friend.user.name ?? 'Friend', avatarUrl: friend.user.avatarUrl ?? null });
+  }
+
+  function handleRemoveFriend(friend: Friend) {
+    const name = friend.user.name || 'This friend';
+    showConfirm({
+      title: 'Remove friend?',
+      message: `${name} will be removed from your friends list.`,
+      confirmText: 'Remove',
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await removeFriend(friend.user.id);
+          setFriends(prev => prev.filter(f => f.user.id !== friend.user.id));
+          Toast.show({ type: 'success', text1: 'Friend removed' });
+        } catch (error) {
+          console.error('[FriendsScreen] removeFriend failed', error);
+          Toast.show({ type: 'error', text1: 'Could not remove friend', text2: 'Please try again.' });
+        }
+      },
+    });
   }
 
   function handleLongPress(friend: Friend) {
@@ -385,6 +455,7 @@ export default function FriendsScreen() {
                         friend={friend}
                         index={idx}
                         onView={handleViewFriend}
+                        onRemove={handleRemoveFriend}
                         isSelecting={isSelecting}
                         isSelected={selectedIds.has(friend.user.id)}
                         onSelect={handleToggleSelect}
@@ -728,18 +799,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  viewBtn: {
-    backgroundColor: '#eeffff',
-    borderRadius: 90,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+  // Overflow menu — mirrors ExpenseCard's dots menu
+  menuBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  viewBtnText: {
-    color: '#0d9488',
-    fontSize: 12,
-    fontWeight: '600',
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  menuSheet: {
+    position: 'absolute',
+    width: 168,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  menuItemBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#f1f5f9',
+  },
+  menuText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#334155',
+  },
+  menuTextDanger: {
+    color: '#ef4444',
   },
   separator: {
     height: 1,

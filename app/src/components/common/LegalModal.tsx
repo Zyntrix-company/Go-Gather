@@ -202,5 +202,5 @@ const s = StyleSheet.create({
     paddingVertical: 13,
     alignItems: 'center',
   },
-  doneBtnText: { fontSize: 16, fontWeight: '600', color: '#ffffff', letterSpacing: 0.1 },
+  doneBtnText: { fontSize: 16, fontWeight: '400', color: '#ffffff', letterSpacing: 0.1 },
 });

@@ -7,6 +7,7 @@ const { generateInviteShareText } = require('../../utils/shareText.util');
 const { sendEmail, wrapEmail, sendConnectionRequestEmail, sendRequestAcceptedEmail } = require('../../utils/mailer');
 const { getPresignedDownloadUrl } = require('../../utils/s3.util');
 const logger = require('../../utils/logger');
+const { phoneKey } = require('../../utils/phone.util');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -380,7 +381,7 @@ const createFriendInvite = async (inviterId, { channels, emails = [], phones = [
   }
 
   for (const phone of phones) {
-    const r = await db('SELECT id FROM users WHERE phone = $1', [phone]);
+    const r = await db('SELECT id FROM users WHERE phone_key = $1', [phoneKey(phone)]);
     const target = r.rows[0];
     if (!target || target.id === inviterId) {
       pendingPhones.push(phone);

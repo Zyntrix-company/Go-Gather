@@ -10,7 +10,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Animated,
-  Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,6 +30,7 @@ import { TripPlanForm, EventPlanForm } from '../../components/chat/SweePlanForm'
 import { useKeyboardHeight } from '../../hooks/useKeyboardVisible';
 import useChatStore from '../../store/chatStore';
 import useAuthStore from '../../store/authStore';
+import { showConfirm } from '../../store/alertStore';
 import {
   sendMessageStream,
   reportMessage,
@@ -276,15 +276,15 @@ export default function ChatDetailScreen({ route, navigation }: any) {
 
   // Bottom space below the composer (SafeAreaView's bottom edge is off, so this
   // is the single source of truth — no double counting).
-  //  • Keyboard open:
-  //      – Android uses adjustResize (see AndroidManifest): the window is already
-  //        resized to end above the keyboard, so the composer needs NO manual
-  //        lift. Adding keyboardHeight here double-counts and leaves a big gap.
-  //      – iOS never resizes the window, so lift the composer by the keyboard
-  //        height to keep it flush above the keyboard.
+  //  • Keyboard open: lift the composer by the keyboard height on BOTH platforms.
+  //      – iOS never resizes the window.
+  //      – Android declares adjustResize (AndroidManifest) but the theme sets
+  //        android:windowIsTranslucent=true (res/values/styles.xml), and a
+  //        translucent window is NOT resized for the keyboard. Without the manual
+  //        lift the composer stays behind the keyboard and typed text is unreadable.
   //  • Keyboard closed: clear the floating tab bar + safe-area inset.
   const composerBottomSpace = keyboardVisible
-    ? (Platform.OS === 'ios' ? keyboardHeight : 0)
+    ? keyboardHeight
     : TAB_BAR_BASE_HEIGHT + insets.bottom;
   const paramConversationId = route?.params?.conversationId as string | undefined;
 
@@ -706,11 +706,8 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     navigation.setParams({ initialMessage: undefined });
   }, [initialMessageParam, isTyping, navigation, sendMessage]);
 
-  const handleDeleteChat = useCallback(async () => {
-    if (!conversationId) {
-      navigation.goBack();
-      return;
-    }
+  const performDeleteChat = useCallback(async () => {
+    if (!conversationId) return;
     abortRef.current?.();
     abortRef.current = null;
     setShowOverflow(false);
@@ -725,6 +722,23 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     }
     navigation.goBack();
   }, [conversationId, navigation, removeConversationFromStore]);
+
+  // Deleting a chat is irreversible — always confirm first. ("Close chat" on an
+  // unsaved conversation destroys nothing, so it goes straight back.)
+  const handleDeleteChat = useCallback(() => {
+    if (!conversationId) {
+      navigation.goBack();
+      return;
+    }
+    setShowOverflow(false);
+    showConfirm({
+      title: 'Delete chat?',
+      message: `"${conversationTitle}" and all its messages will be permanently deleted. This cannot be undone.`,
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: () => { void performDeleteChat(); },
+    });
+  }, [conversationId, conversationTitle, navigation, performDeleteChat]);
 
   const openReportModal = useCallback(() => {
     const lastSweeMsg = [...messages].reverse().find((m) => m.sender === 'swee');
@@ -1360,7 +1374,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch', marginTop: 4,
   },
   reportBtnDisabled: { backgroundColor: '#cbd5e1' },
-  reportBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  reportBtnText: { color: '#fff', fontSize: 15, fontWeight: '400' },
 
   reportSent: { alignItems: 'center', paddingVertical: 20, gap: 10 },
   reportSentIcon: {

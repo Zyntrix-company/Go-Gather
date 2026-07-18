@@ -740,5 +740,5 @@ const styles = StyleSheet.create({
   selMeta: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
   pickerFooter: { padding: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   importBtn: { backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
-  importBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  importBtnText: { color: '#fff', fontSize: 15, fontWeight: '400' },
 });

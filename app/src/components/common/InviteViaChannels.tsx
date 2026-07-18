@@ -343,6 +343,10 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
         })}
       </View>
 
+      {/* Fixed-height panel area: the email / sms / whatsapp bodies have
+          different intrinsic heights, which made the dialog jump when switching
+          channels. The floor matches the tallest (sms) so the box stays put. */}
+      <View style={styles.channelPanel}>
       {channel === 'email' && (
         <View style={styles.manualRow}>
           <TextInput
@@ -418,6 +422,7 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
           </TouchableOpacity>
         </>
       )}
+      </View>
 
       <Modal visible={contactPickerOpen} transparent animationType="slide" onRequestClose={() => setContactPickerOpen(false)}>
         <View style={styles.pickerOverlay}>
@@ -484,6 +489,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconBtnActive: { borderColor: '#0d9488', backgroundColor: '#0d9488' },
+  // Floor equal to the tallest panel (sms: hint + button + manual-entry toggle),
+  // so email/whatsapp pad out to the same height instead of shrinking the dialog.
+  channelPanel: { minHeight: 140 },
   hint: { fontSize: 12, color: '#64748b', lineHeight: 18, marginBottom: 14 },
   chooseBtn: {
     backgroundColor: '#0d9488',
@@ -502,7 +510,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   chooseBtnDisabled: { opacity: 0.7 },
-  chooseBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  chooseBtnText: { color: '#fff', fontWeight: '400', fontSize: 15 },
   manualToggle: { alignItems: 'center', marginTop: 12, marginBottom: 4 },
   manualToggleText: { fontSize: 13, color: '#0d9488', fontWeight: '600' },
   manualRow: { flexDirection: 'row', gap: 10, marginTop: 4 },

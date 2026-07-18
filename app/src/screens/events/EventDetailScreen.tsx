@@ -33,7 +33,7 @@ import FloatingTabBar from '../../components/common/FloatingTabBar';
 import AppHeader from '../../components/common/AppHeader';
 import useAuth from '../../hooks/useAuth';
 import {
-  BackIcon, PencilIcon, TrashIcon, CheckIcon,
+  BackIcon, TrashIcon, CheckIcon,
 } from '../../components/common/Icons';
 import {
   getEventDetail,
@@ -1458,13 +1458,8 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 </Svg>
                 <Text style={styles.sectionTitleDark}>Description</Text>
               </View>
-              {!editingDesc && (
-                <TouchableOpacity
-                  onPress={() => { setDescDraft(event.description); setEditingDesc(true); }}
-                  activeOpacity={0.7} style={{ padding: 4 }}>
-                  <PencilIcon size={14} color="#64748b" />
-                </TouchableOpacity>
-              )}
+              {/* No edit affordance here — tapping the description card itself
+                  opens the editor, so a pencil icon would be redundant. */}
             </View>
             {editingDesc ? (
               <View style={styles.descEditCard}>
@@ -1541,49 +1536,37 @@ export default function EventDetailScreen({ route, navigation }: any) {
                 <Text style={[styles.emptySub, { marginTop: 2 }]}>Photos shared in the Media section will appear here</Text>
               </View>
             ) : (() => {
-              const openAt = (_idx: number) => { setShowPhotos(true); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); };
-              const remaining = media.items.length - 3;
+              const openPhotos = () => { setShowPhotos(true); setAlbumDescExpanded(false); setUnreadCounts(p => ({ ...p, photos: 0 })); markEventSectionViewed(event.id, 'photos'); };
+              // Uniform 3-up grid — same equal-square treatment as the media
+              // dialog's grid, so every thumbnail reads at the same weight.
+              const preview = media.items.slice(0, 3);
+              const remaining = media.items.length - preview.length;
               return (
-                <View style={{ borderRadius: 14, overflow: 'hidden' }}>
-                  {media.items.length === 1 ? (
-                    /* ── Single photo ── */
-                    <TouchableOpacity onPress={() => openAt(0)} activeOpacity={0.88}>
+                <View style={styles.photoGrid}>
+                  {preview.map((p, idx) => (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={styles.photoCell}
+                      onPress={openPhotos}
+                      activeOpacity={0.88}
+                    >
                       <CachedImage
-                        uri={media.items[0].localUri ?? media.items[0].uri}
-                        style={{ width: '100%', height: 220, backgroundColor: '#e2e8f0' }}
+                        uri={p.localUri ?? p.uri}
+                        style={styles.photoCellImage}
                         resizeMode="cover"
                       />
+                      {remaining > 0 && idx === preview.length - 1 && (
+                        <View style={styles.photoMoreOverlay}>
+                          <Text style={styles.photoMoreText}>+{remaining}</Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
-                  ) : media.items.length === 2 ? (
-                    /* ── Two photos side by side ── */
-                    <View style={{ flexDirection: 'row', gap: 2, height: 180 }}>
-                      {media.items.slice(0, 2).map((p, idx) => (
-                        <TouchableOpacity key={p.id} style={{ flex: 1 }} onPress={() => openAt(idx)} activeOpacity={0.88}>
-                          <CachedImage uri={p.localUri ?? p.uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  ) : (
-                    /* ── 3+ photos: large left + 2 stacked right ── */
-                    <View style={{ flexDirection: 'row', gap: 2, height: 210 }}>
-                      <TouchableOpacity style={{ flex: 2 }} onPress={() => openAt(0)} activeOpacity={0.88}>
-                        <CachedImage uri={media.items[0].localUri ?? media.items[0].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
-                      </TouchableOpacity>
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <TouchableOpacity style={{ flex: 1 }} onPress={() => openAt(1)} activeOpacity={0.88}>
-                          <CachedImage uri={media.items[1].localUri ?? media.items[1].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={{ flex: 1 }} onPress={() => openAt(2)} activeOpacity={0.88}>
-                          <CachedImage uri={media.items[2].localUri ?? media.items[2].uri} style={{ width: '100%', height: '100%', backgroundColor: '#e2e8f0' }} resizeMode="cover" />
-                          {remaining > 0 && (
-                            <View style={{ ...StyleSheet.absoluteFillObject as any, backgroundColor: 'rgba(15,23,42,0.58)', alignItems: 'center', justifyContent: 'center' }}>
-                              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 18 }}>+{remaining}</Text>
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
+                  ))}
+                  {/* Keep the row left-aligned when there are fewer than 3 photos */}
+                  {preview.length < 3 &&
+                    Array.from({ length: 3 - preview.length }).map((_, i) => (
+                      <View key={`spacer-${i}`} style={styles.photoCell} />
+                    ))}
                 </View>
               );
             })()}
@@ -2796,6 +2779,18 @@ const styles = StyleSheet.create({
   sectionTitleDark: { fontSize: 13, fontWeight: '600', color: '#64748b', letterSpacing: 0.6 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle1: { fontSize: 15, fontWeight: '500', color: '#0f172a', marginBottom: 12 },
+
+  // Photo preview grid — uniform squares, 3 per row (mirrors MediaGridSection)
+  photoGrid: { flexDirection: 'row', gap: 8 },
+  photoCell: { flex: 1, aspectRatio: 1, borderRadius: 12, overflow: 'hidden' },
+  photoCellImage: { width: '100%', height: '100%', backgroundColor: '#e2e8f0' },
+  photoMoreOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15,23,42,0.58)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoMoreText: { color: '#fff', fontWeight: '600', fontSize: 18 },
 
   descCard: { backgroundColor: 'transparent', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(13,148,136,0.2)' },
   descText: { fontSize: 13, color: '#475569', lineHeight: 19 },

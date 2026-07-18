@@ -213,7 +213,14 @@
       "Bash(NODE_OPTIONS=--max-old-space-size=6144 npx jest __tests__/trips --runInBand)",
       "Bash(grep -vE \"^\\\\s*$\")",
       "Read(//e//**)",
-      "Bash(git worktree *)"
+      "Bash(git worktree *)",
+      "Bash(git --no-pager diff -- backend/src/modules/auth/service.js)",
+      "Bash(git --no-pager diff --stat -- backend/src/modules/auth/service.js)",
+      "Bash(git --no-pager diff -U3 -- backend/src/modules/auth/service.js)",
+      "Bash(git --no-pager show 4c483c5 --stat)",
+      "Bash(git --no-pager show 4c483c5 -- backend/src/modules/auth/service.js)",
+      "Bash(git --no-pager show 4c483c5 -- app/src/components/common/InviteViaChannels.tsx)",
+      "Bash(grep -rn \"FROM users WHERE email = \\\\$1\\\\|FROM users WHERE phone = \\\\$1\\\\|email_normalized = \" src/modules/)"
     ]
   }
 }

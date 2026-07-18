@@ -1526,7 +1526,6 @@ export default function HomeScreen({ navigation, route }: any) {
         {activeTab === 'gallery' && (
           <GalleryTab
             user={user}
-            trips={trips}
             onEditProfile={() => navigation.navigate('EditProfile')}
             onNavigateToTrip={navigateToTrip}
             onSetActiveTab={setActiveTab}
@@ -1544,7 +1543,8 @@ export default function HomeScreen({ navigation, route }: any) {
             { transform: [{ translateY: tabBarSlide.interpolate({ inputRange: [0, 1], outputRange: [0, 58 + insets.bottom] }) }] },
           ]}
         >
-          {(['trips', 'events', 'friends', 'chat', 'gallery'] as Tab[]).map(tab => (
+          {/* Order must match FloatingTabBar — Swee (chat) holds the centre slot. */}
+          {(['trips', 'events', 'chat', 'friends', 'gallery'] as Tab[]).map(tab => (
             <NavIcon key={tab} name={tab} active={activeTab === tab} onPress={() => setActiveTab(tab)} />
           ))}
         </Animated.View>
@@ -1972,7 +1972,7 @@ const styles = StyleSheet.create({
   inviteChip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f0fdfa', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, marginTop: 8, borderWidth: 1, borderColor: '#ccfbf1' },
   inviteChipText: { fontSize: 13, color: '#0d9488', fontWeight: '500' },
   modalSaveBtn: { backgroundColor: '#0d9488', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 20 },
-  modalSaveBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  modalSaveBtnText: { color: '#fff', fontSize: 16, fontWeight: '400' },
 
   // Keep these for old compatibility (modals/dropdown)
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
