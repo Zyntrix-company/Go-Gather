@@ -105,13 +105,30 @@ jobs:
           if docker ps -a --format '{{.Names}}' | grep -q '^gathergo-container$'; then
             echo "Disabling restart policy..."
             docker update --restart=no gathergo-container || true
-            CPID=$(docker inspect --format '{{.State.Pid}}' gathergo-container 2>/dev/null || echo "0")
+
+            # If the container is crash-looping, State.Pid flips between a real
+            # pid and 0 as it restarts, so a single read can land on the 0 gap.
+            # Poll briefly for a live pid before giving up on the direct kill.
+            CPID=0
+            for i in $(seq 1 10); do
+              CPID=$(docker inspect --format '{{.State.Pid}}' gathergo-container 2>/dev/null || echo "0")
+              if [ -n "$CPID" ] && [ "$CPID" != "0" ]; then
+                break
+              fi
+              sleep 1
+            done
             if [ -n "$CPID" ] && [ "$CPID" != "0" ]; then
               echo "Killing container process PID=$CPID"
               sudo kill -9 "$CPID" || true
               sleep 3
+            else
+              echo "No live PID found after polling; container is mid restart-backoff"
             fi
-            docker rm gathergo-container 2>/dev/null || true
+
+            # Plain `docker rm` refuses a container Docker still considers
+            # running/restarting even after the OS process is gone; force it.
+            docker rm -f gathergo-container 2>/dev/null || true
+            sleep 2
           fi
 
           # ── 6. Verify clean slate ──────────────────────────────────────────────
