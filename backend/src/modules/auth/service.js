@@ -202,7 +202,7 @@ const signup = async ({ email, phone, password }) => {
 const login = async ({ email, password, deviceToken, platform }) => {
   const user = await findUserByAuthEmail(email);
 
-  if (!user) {
+  if (!user || user.deleted_at) {
     const err = new Error('Invalid email or password');
     err.statusCode = 401;
     err.error = 'InvalidCredentials';

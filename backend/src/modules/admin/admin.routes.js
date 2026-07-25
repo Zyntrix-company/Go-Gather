@@ -4,7 +4,7 @@ const { GetSendQuotaCommand } = require('@aws-sdk/client-ses');
 const { HeadBucketCommand } = require('@aws-sdk/client-s3');
 const { GoogleAuth } = require('google-auth-library');
 const authenticateJWT = require('../../middleware/authenticate');
-const { requirePlatformAdmin, getCount30m } = require('./admin.middleware');
+const { requireAnyAdmin, requireFullAdminRole, getCount30m } = require('./admin.middleware');
 const { blogImageUpload, dealImageUpload, promoVideoUpload, handleMulterError } = require('../../middleware/upload.middleware');
 const { query } = require('../../config/database');
 const { sesClient, s3Client } = require('../../config/aws');
@@ -17,9 +17,30 @@ const legalService = require('../legal/legal.service');
 const router = express.Router();
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 
-router.use(authenticateJWT, requirePlatformAdmin);
+router.use(authenticateJWT, requireAnyAdmin);
+
+/* ─── Current admin identity (role-aware nav on the frontend) ──── */
+
+router.get('/me', (req, res) => {
+  res.json({ id: req.user.id, email: req.user.email, role: req.adminRole });
+});
 
 /* ─── Helpers ────────────────────────────────────────────────── */
+
+/** Parses an admin-panel date-range query (?from=&to=&label=) into ISO bounds. Falls back to nulls (→ last 30 days) when absent/invalid. */
+function parseDateRange(query) {
+  const parseDate = (v) => {
+    if (!v) return null;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  };
+  const from = parseDate(query.from);
+  const to = parseDate(query.to);
+  const label = typeof query.label === 'string' && query.label.trim()
+    ? query.label.trim().slice(0, 60)
+    : 'within the last 30 days';
+  return { from, to, label };
+}
 
 function mapBlog(row) {
   return {
@@ -35,15 +56,17 @@ function mapBlog(row) {
 /* ─── Business Insights: summary ────────────────────────────── */
 
 router.get('/dashboard/summary', async (req, res, next) => {
+  const { from, to, label } = parseDateRange(req.query);
   try {
     const { rows } = await query(`
       SELECT
         -- Registered users (exclude platform admins from count)
         (SELECT COUNT(*) FROM users WHERE is_platform_admin = false)                     AS registered_users,
-        -- Active users: logged in within last 30 days (non-admin)
+        -- Active users: logged in within the selected range (non-admin)
         (SELECT COUNT(*) FROM users
           WHERE is_platform_admin = false
-            AND last_login_at >= NOW() - INTERVAL '30 days')                             AS active_users,
+            AND last_login_at >= COALESCE($1::timestamptz, NOW() - INTERVAL '30 days')
+            AND last_login_at <= COALESCE($2::timestamptz, NOW()))                       AS active_users,
 
         -- Trips buckets
         (SELECT COUNT(*) FROM trips WHERE archived_at IS NULL AND start_date > NOW())    AS trips_upcoming,
@@ -62,14 +85,14 @@ router.get('/dashboard/summary', async (req, res, next) => {
         -- Contact
         (SELECT COUNT(*) FROM contact_submissions)                                       AS contact_total,
         (SELECT COUNT(*) FROM contact_submissions WHERE read_at IS NULL)                 AS contact_unread
-    `);
+    `, [from, to]);
 
     const r = rows[0];
     res.json({
       users: {
         registered: Number(r.registered_users),
         active: Number(r.active_users),
-        activeDefinition: 'Signed in within the last 30 days (admins excluded)',
+        activeDefinition: `Signed in ${label} (admins excluded)`,
       },
       trips: {
         upcoming:  Number(r.trips_upcoming),
@@ -94,33 +117,36 @@ router.get('/dashboard/summary', async (req, res, next) => {
 /* ─── Business Insights: growth time-series ─────────────────── */
 
 router.get('/dashboard/growth', async (req, res, next) => {
-  const days = Math.min(parseInt(req.query.days, 10) || 30, 90);
+  const { from, to, label } = parseDateRange(req.query);
   try {
     const [usersRes, tripsRes, eventsRes] = await Promise.all([
       query(
         `SELECT date_trunc('day', created_at)::date AS date, COUNT(*)::int AS count
            FROM users WHERE is_platform_admin = false
-             AND created_at >= NOW() - ($1 || ' days')::INTERVAL
-           GROUP BY 1 ORDER BY 1`, [days],
+             AND created_at >= COALESCE($1::timestamptz, NOW() - INTERVAL '30 days')
+             AND created_at <= COALESCE($2::timestamptz, NOW())
+           GROUP BY 1 ORDER BY 1`, [from, to],
       ),
       query(
         `SELECT date_trunc('day', created_at)::date AS date, COUNT(*)::int AS count
-           FROM trips WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
-           GROUP BY 1 ORDER BY 1`, [days],
+           FROM trips WHERE created_at >= COALESCE($1::timestamptz, NOW() - INTERVAL '30 days')
+             AND created_at <= COALESCE($2::timestamptz, NOW())
+           GROUP BY 1 ORDER BY 1`, [from, to],
       ),
       query(
         `SELECT date_trunc('day', created_at)::date AS date, COUNT(*)::int AS count
-           FROM events WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
-           GROUP BY 1 ORDER BY 1`, [days],
+           FROM events WHERE created_at >= COALESCE($1::timestamptz, NOW() - INTERVAL '30 days')
+             AND created_at <= COALESCE($2::timestamptz, NOW())
+           GROUP BY 1 ORDER BY 1`, [from, to],
       ),
     ]);
-    res.json({ days, users: usersRes.rows, trips: tripsRes.rows, events: eventsRes.rows });
+    res.json({ label, users: usersRes.rows, trips: tripsRes.rows, events: eventsRes.rows });
   } catch (err) { next(err); }
 });
 
 /* ─── Users list ─────────────────────────────────────────────── */
 
-router.get('/users', async (req, res, next) => {
+router.get('/users', requireFullAdminRole, async (req, res, next) => {
   const page  = Math.max(parseInt(req.query.page,  10) || 1,   1);
   const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
   const offset = (page - 1) * limit;
@@ -130,11 +156,15 @@ router.get('/users', async (req, res, next) => {
     const [listRes, countRes] = await Promise.all([
       query(
         `SELECT u.id, u.email, u.is_verified, u.is_profile_complete,
-                u.is_platform_admin, u.created_at, u.last_login_at,
-                p.full_name
+                u.is_platform_admin, u.is_content_admin, u.created_at, u.last_login_at,
+                p.full_name, p.country,
+                COALESCE(t.trip_count, 0)::int AS trip_count,
+                COALESCE(e.event_count, 0)::int AS event_count
            FROM users u
            LEFT JOIN profiles p ON p.user_id = u.id
-          WHERE u.is_platform_admin = false
+           LEFT JOIN (SELECT created_by, COUNT(*) AS trip_count FROM trips GROUP BY created_by) t ON t.created_by = u.id
+           LEFT JOIN (SELECT created_by, COUNT(*) AS event_count FROM events GROUP BY created_by) e ON e.created_by = u.id
+          WHERE u.is_platform_admin = false AND u.deleted_at IS NULL
             AND ($1::text IS NULL OR u.email ILIKE $1 OR p.full_name ILIKE $1)
           ORDER BY u.last_login_at DESC NULLS LAST
           LIMIT $2 OFFSET $3`,
@@ -144,7 +174,7 @@ router.get('/users', async (req, res, next) => {
         `SELECT COUNT(*)::int AS total
            FROM users u
            LEFT JOIN profiles p ON p.user_id = u.id
-          WHERE u.is_platform_admin = false
+          WHERE u.is_platform_admin = false AND u.deleted_at IS NULL
             AND ($1::text IS NULL OR u.email ILIKE $1 OR p.full_name ILIKE $1)`,
         [search],
       ),
@@ -155,59 +185,113 @@ router.get('/users', async (req, res, next) => {
 
 /* ─── Users: update ──────────────────────────────────────────── */
 
-router.patch('/users/:id', async (req, res, next) => {
+router.patch('/users/:id', requireFullAdminRole, async (req, res, next) => {
   const { id } = req.params;
-  const { is_platform_admin } = req.body;
-  if (typeof is_platform_admin !== 'boolean') {
+  const { is_platform_admin, is_content_admin } = req.body;
+  if (is_platform_admin === undefined && is_content_admin === undefined) {
+    return res.status(400).json({ error: 'is_platform_admin and/or is_content_admin must be provided as booleans' });
+  }
+  if (is_platform_admin !== undefined && typeof is_platform_admin !== 'boolean') {
     return res.status(400).json({ error: 'is_platform_admin must be boolean' });
   }
+  if (is_content_admin !== undefined && typeof is_content_admin !== 'boolean') {
+    return res.status(400).json({ error: 'is_content_admin must be boolean' });
+  }
   try {
-    if (!is_platform_admin) {
+    if (is_platform_admin === false) {
       const { rows } = await query(
         'SELECT COUNT(*)::int AS cnt FROM users WHERE is_platform_admin = true AND id != $1',
         [id],
       );
       if (rows[0].cnt === 0) return res.status(400).json({ error: 'Cannot remove the last platform admin' });
     }
+    const sets = ['updated_at = NOW()']; const vals = [];
+    if (is_platform_admin !== undefined) { vals.push(is_platform_admin); sets.push(`is_platform_admin = $${vals.length}`); }
+    if (is_content_admin !== undefined) { vals.push(is_content_admin); sets.push(`is_content_admin = $${vals.length}`); }
+    vals.push(id);
     const { rows } = await query(
-      'UPDATE users SET is_platform_admin = $1, updated_at = NOW() WHERE id = $2 RETURNING id, email, is_platform_admin',
-      [is_platform_admin, id],
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${vals.length} RETURNING id, email, is_platform_admin, is_content_admin`,
+      vals,
     );
     if (!rows.length) return res.status(404).json({ error: 'User not found' });
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
 
+/* ─── Users: anonymize / delete ──────────────────────────────── */
+
+router.delete('/users/:id', requireFullAdminRole, async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const { rows: existing } = await query('SELECT is_platform_admin, deleted_at FROM users WHERE id = $1', [id]);
+    if (!existing.length) return res.status(404).json({ error: 'User not found' });
+    if (existing[0].is_platform_admin) return res.status(400).json({ error: 'Cannot delete a platform admin account' });
+    if (existing[0].deleted_at) return res.status(400).json({ error: 'User already deleted' });
+
+    // Anonymize rather than hard-delete: trips/events this user created
+    // (trips.created_by is ON DELETE CASCADE) must survive for other participants.
+    const anonymizedEmail = `deleted-${id}@removed.gatherrgo.local`;
+    await query(
+      `UPDATE users SET
+         email = $1, email_normalized = $1, phone = NULL, password_hash = NULL,
+         is_verified = false, fcm_token = NULL, deleted_at = NOW(), updated_at = NOW()
+       WHERE id = $2`,
+      [anonymizedEmail, id],
+    );
+    await query(
+      `UPDATE profiles SET full_name = NULL, avatar_url = NULL, dob = NULL,
+         gender = NULL, country = NULL, bio = NULL
+       WHERE user_id = $1`,
+      [id],
+    );
+    logger.info('Admin anonymized user account', { userId: id, actorId: req.user.id });
+    res.status(204).end();
+  } catch (err) { next(err); }
+});
+
 /* ─── Trips & Events detail ──────────────────────────────────── */
 
-router.get('/trips-events', async (req, res, next) => {
+router.get('/trips-events', requireFullAdminRole, async (req, res, next) => {
+  const { from, to, label } = parseDateRange(req.query);
+  const hasRange = Boolean(req.query.from || req.query.to);
   try {
     const { rows } = await query(`
       SELECT
-        -- Trips
-        (SELECT COUNT(*) FROM trips WHERE archived_at IS NULL AND start_date > NOW())    AS trips_upcoming,
+        -- Trips (scoped to trips created within the range, when given)
+        (SELECT COUNT(*) FROM trips WHERE archived_at IS NULL AND start_date > NOW()
+          AND created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))    AS trips_upcoming,
         (SELECT COUNT(*) FROM trips WHERE archived_at IS NULL
-          AND start_date <= NOW() AND end_date >= NOW())                                 AS trips_active,
-        (SELECT COUNT(*) FROM trips WHERE archived_at IS NULL AND end_date < NOW())      AS trips_completed,
-        (SELECT COUNT(*) FROM trips WHERE archived_at IS NOT NULL)                       AS trips_archived,
-        (SELECT COUNT(*) FROM trips)                                                     AS trips_total,
+          AND start_date <= NOW() AND end_date >= NOW()
+          AND created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))    AS trips_active,
+        (SELECT COUNT(*) FROM trips WHERE archived_at IS NULL AND end_date < NOW()
+          AND created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))    AS trips_completed,
+        (SELECT COUNT(*) FROM trips WHERE archived_at IS NOT NULL
+          AND created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))    AS trips_archived,
+        (SELECT COUNT(*) FROM trips
+          WHERE created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))  AS trips_total,
 
-        -- Events
-        (SELECT COUNT(*) FROM events WHERE archived_at IS NULL AND event_date > CURRENT_DATE)   AS events_upcoming,
+        -- Events (scoped to events created within the range, when given)
+        (SELECT COUNT(*) FROM events WHERE archived_at IS NULL AND event_date > CURRENT_DATE
+          AND created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))    AS events_upcoming,
         (SELECT COUNT(*) FROM events WHERE archived_at IS NULL
-          AND event_date = CURRENT_DATE)                                                         AS events_active,
-        (SELECT COUNT(*) FROM events WHERE archived_at IS NULL AND event_date < CURRENT_DATE)    AS events_completed,
-        (SELECT COUNT(*) FROM events WHERE archived_at IS NOT NULL)                              AS events_archived,
-        (SELECT COUNT(*) FROM events)                                                    AS events_total,
+          AND event_date = CURRENT_DATE
+          AND created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))    AS events_active,
+        (SELECT COUNT(*) FROM events WHERE archived_at IS NULL AND event_date < CURRENT_DATE
+          AND created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))    AS events_completed,
+        (SELECT COUNT(*) FROM events WHERE archived_at IS NOT NULL
+          AND created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))    AS events_archived,
+        (SELECT COUNT(*) FROM events
+          WHERE created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))  AS events_total,
 
-        -- Shared activity
-        (SELECT COUNT(*) FROM expenses)                                                  AS total_expenses,
-        (SELECT COUNT(*) FROM photos)                                                    AS total_photos,
-        (SELECT COUNT(*) FROM docs)                                                      AS total_docs,
-        (SELECT COUNT(*) FROM notes)                                                     AS total_notes
-    `);
+        -- Shared activity (scoped to its own created_at within the range)
+        (SELECT COUNT(*) FROM expenses WHERE created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))  AS total_expenses,
+        (SELECT COUNT(*) FROM photos   WHERE created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))  AS total_photos,
+        (SELECT COUNT(*) FROM docs     WHERE created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))  AS total_docs,
+        (SELECT COUNT(*) FROM notes    WHERE created_at >= COALESCE($1::timestamptz, '-infinity') AND created_at <= COALESCE($2::timestamptz, 'infinity'))  AS total_notes
+    `, [from, to]);
     const r = rows[0];
     res.json({
+      range: hasRange ? { from, to, label } : null,
       trips: {
         total:     Number(r.trips_total),
         upcoming:  Number(r.trips_upcoming),
@@ -234,7 +318,7 @@ router.get('/trips-events', async (req, res, next) => {
 
 /* ─── Services health ────────────────────────────────────────── */
 
-router.get('/health', async (_req, res) => {
+router.get('/health', requireFullAdminRole, async (_req, res) => {
   const cfg = config;
   const result = {
     timestamp:   new Date().toISOString(),
@@ -335,7 +419,7 @@ router.get('/health', async (_req, res) => {
 
 /* ─── Storage & Capacity ─────────────────────────────────────── */
 
-router.get('/storage', async (req, res, next) => {
+router.get('/storage', requireFullAdminRole, async (req, res, next) => {
   try {
     const [docsRes, photosRes, usersRes] = await Promise.all([
       query(`
@@ -416,7 +500,7 @@ router.get('/storage', async (req, res, next) => {
 
 /* ─── Contact submissions ────────────────────────────────────── */
 
-router.get('/contact-submissions', async (req, res, next) => {
+router.get('/contact-submissions', requireFullAdminRole, async (req, res, next) => {
   const page      = Math.max(parseInt(req.query.page,  10) || 1,   1);
   const limit     = Math.min(parseInt(req.query.limit, 10) || 20, 100);
   const offset    = (page - 1) * limit;
@@ -440,7 +524,7 @@ router.get('/contact-submissions', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.patch('/contact-submissions/:id/read', async (req, res, next) => {
+router.patch('/contact-submissions/:id/read', requireFullAdminRole, async (req, res, next) => {
   try {
     const { rows } = await query(
       'UPDATE contact_submissions SET read_at = NOW() WHERE id = $1 AND read_at IS NULL RETURNING id, read_at',
@@ -677,7 +761,7 @@ router.delete('/deals/:id', async (req, res, next) => {
 
 /* ─── Legal documents (privacy / terms) ─────────────────────── */
 
-router.get('/legal/versions', async (req, res, next) => {
+router.get('/legal/versions', requireFullAdminRole, async (req, res, next) => {
   const documentType = req.query.documentType;
   if (!['privacy', 'terms'].includes(documentType)) {
     return res.status(400).json({ error: 'documentType must be privacy or terms' });
@@ -690,7 +774,7 @@ router.get('/legal/versions', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/legal/publish', async (req, res, next) => {
+router.post('/legal/publish', requireFullAdminRole, async (req, res, next) => {
   try {
     const doc = await legalService.publishVersion(req.body);
     res.status(201).json(doc);
@@ -700,6 +784,29 @@ router.post('/legal/publish', async (req, res, next) => {
     }
     next(err);
   }
+});
+
+/* ─── AI (Swee) usage ─────────────────────────────────────────── */
+
+router.get('/ai-usage', requireFullAdminRole, async (_req, res) => {
+  let metrics = null;
+  try { metrics = require('../ai/swee.metrics').getSnapshot(); } catch { /* ai module unavailable */ }
+
+  let circuit = null;
+  try { circuit = require('../ai/swee.circuitBreaker').getStatus(); } catch { /* ai module unavailable */ }
+
+  let conversationsTotal = null;
+  try {
+    const { rows } = await query(`SELECT COUNT(*)::int AS total FROM feedback WHERE type = 'swee_report'`);
+    conversationsTotal = Number(rows[0].total);
+  } catch { /* feedback table not reachable */ }
+
+  res.json({
+    metrics,
+    circuit,
+    sweeReportsTotal: conversationsTotal,
+    note: 'Request volume/error-rate is a rolling window (resets on redeploy) — historical per-day/per-user tracking is not yet instrumented.',
+  });
 });
 
 module.exports = router;
