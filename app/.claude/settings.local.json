@@ -16,7 +16,12 @@
       "Bash(sed -i 's/<span class=\"persona-tag\">Location required<\\\\/span>/<span class=\"persona-tag\">Location optional<\\\\/span>/' swee-sample-conversations.html)",
       "Bash(sed -i 's/Explains the difference; event card; location required./Explains the difference; event card; location optional./' swee-sample-conversations.html)",
       "Bash(sed -i 's/Explain trip vs event; event card; location required/Explain trip vs event; event card; location optional/' swee-sample-conversations.md)",
-      "Bash(node -c src/modules/events/events.service.js)"
+      "Bash(node -c src/modules/events/events.service.js)",
+      "Bash(./gradlew assembleDebug --console=plain)",
+      "Bash(./gradlew assembleDebug --console=plain --stacktrace)",
+      "Bash(./gradlew --stop)",
+      "Bash(adb *)",
+      "Bash(ipconfig)"
     ]
   }
 }

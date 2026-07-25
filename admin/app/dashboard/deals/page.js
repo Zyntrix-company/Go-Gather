@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { apiJSON, apiFetch, getToken } from '../../../lib/api';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 
 const TITLE_SOFT_MAX = 20;
 const SUBTITLE_SOFT_MAX = 30;
@@ -19,6 +20,15 @@ export default function DealsPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'hidden'
+  const [pending, setPending] = useState(null); // { type: 'delete' | 'toggle', deal }
+  const [busy, setBusy] = useState(false);
+
+  const visibleDeals = deals.filter((d) => {
+    if (statusFilter === 'active') return d.active;
+    if (statusFilter === 'hidden') return !d.active;
+    return true;
+  });
 
   function load() {
     setLoading(true);
@@ -66,23 +76,51 @@ export default function DealsPage() {
     }
   }
 
-  async function handleDelete(id) {
-    if (!confirm('Delete this deal?')) return;
-    await apiFetch(`/admin/deals/${id}`, { method: 'DELETE' });
-    load();
+  async function runDelete(deal) {
+    setBusy(true);
+    try {
+      await apiFetch(`/admin/deals/${deal.id}`, { method: 'DELETE' });
+      load();
+    } finally {
+      setBusy(false); setPending(null);
+    }
+  }
+
+  async function runToggleActive(deal) {
+    setBusy(true);
+    try {
+      await apiJSON(`/admin/deals/${deal.id}`, { method: 'PATCH', body: JSON.stringify({ active: !deal.active }) });
+      load();
+    } finally {
+      setBusy(false); setPending(null);
+    }
   }
 
   return (
     <div className="space-y-5 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900" style={{ fontFamily: 'var(--font-nunito, sans-serif)' }}>Amazing Deals</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{deals.length} deal{deals.length !== 1 ? 's' : ''}</p>
+          <p className="text-sm text-slate-500 mt-0.5">{visibleDeals.length} of {deals.length} deal{deals.length !== 1 ? 's' : ''}</p>
         </div>
-        <button onClick={openNew}
-          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl transition-colors">
-          + New deal
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-xl border border-slate-200 overflow-hidden text-xs font-semibold">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'active', label: 'Active' },
+              { id: 'hidden', label: 'Discontinued / Paused' },
+            ].map((f) => (
+              <button key={f.id} type="button" onClick={() => setStatusFilter(f.id)}
+                className={`px-3 py-2 transition-colors ${statusFilter === f.id ? 'bg-teal-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={openNew}
+            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl transition-colors">
+            + New deal
+          </button>
+        </div>
       </div>
 
       {editing && (
@@ -98,6 +136,8 @@ export default function DealsPage() {
           <div className="p-8 text-center text-slate-400 text-sm animate-pulse">Loading…</div>
         ) : !deals.length ? (
           <div className="p-8 text-center text-slate-400 text-sm">No deals yet</div>
+        ) : !visibleDeals.length ? (
+          <div className="p-8 text-center text-slate-400 text-sm">No {statusFilter === 'hidden' ? 'discontinued/paused' : 'active'} deals</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -110,7 +150,7 @@ export default function DealsPage() {
                 </tr>
               </thead>
               <tbody>
-                {deals.map((d, i) => (
+                {visibleDeals.map((d, i) => (
                   <tr key={d.id} className={`border-b border-slate-50 hover:bg-slate-50/50 ${i % 2 === 1 ? 'bg-slate-50/30' : ''}`}>
                     <td className="px-4 py-3">
                       {d.imageUrl ? (
@@ -135,13 +175,16 @@ export default function DealsPage() {
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border
                         ${d.active ? 'bg-teal-50 text-teal-700 border-teal-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
-                        {d.active ? 'Active' : 'Hidden'}
+                        {d.active ? 'Active' : 'Paused'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2 justify-end">
+                      <div className="flex gap-2 justify-end whitespace-nowrap">
                         <button onClick={() => openEdit(d)} className="text-xs text-teal-600 hover:text-teal-800 font-semibold transition-colors">Edit</button>
-                        <button onClick={() => handleDelete(d.id)} className="text-xs text-red-500 hover:text-red-700 font-semibold transition-colors">Delete</button>
+                        <button onClick={() => setPending({ type: 'toggle', deal: d })} className="text-xs text-slate-500 hover:text-slate-700 font-semibold transition-colors">
+                          {d.active ? 'Pause' : 'Activate'}
+                        </button>
+                        <button onClick={() => setPending({ type: 'delete', deal: d })} className="text-xs text-red-500 hover:text-red-700 font-semibold transition-colors">Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -151,6 +194,32 @@ export default function DealsPage() {
           </div>
         )}
       </div>
+
+      {pending?.type === 'delete' && (
+        <ConfirmDialog
+          title="Delete this deal?"
+          body={<>Deletes <strong>{pending.deal.title}</strong> permanently, including its cover image. This cannot be undone.</>}
+          confirmLabel="Delete deal"
+          danger
+          busy={busy}
+          onCancel={() => setPending(null)}
+          onConfirm={() => runDelete(pending.deal)}
+        />
+      )}
+
+      {pending?.type === 'toggle' && (
+        <ConfirmDialog
+          title={pending.deal.active ? 'Pause this deal?' : 'Reactivate this deal?'}
+          body={pending.deal.active
+            ? <>Hides <strong>{pending.deal.title}</strong> from the app immediately. You can reactivate it any time — nothing is deleted.</>
+            : <><strong>{pending.deal.title}</strong> will become visible in the app again.</>}
+          confirmLabel={pending.deal.active ? 'Pause deal' : 'Activate deal'}
+          danger={pending.deal.active}
+          busy={busy}
+          onCancel={() => setPending(null)}
+          onConfirm={() => runToggleActive(pending.deal)}
+        />
+      )}
     </div>
   );
 }
@@ -197,7 +266,7 @@ function EditorModal({ editing, form, setForm, saving, error, onClose, onSave })
             optional
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field
               label="Sort order"
               value={form.sortOrder}

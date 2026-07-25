@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator,
-  Modal, Pressable, TextInput, Dimensions, KeyboardAvoidingView, Platform, FlatList,
+  Modal, Pressable, TextInput, Dimensions, FlatList,
   Image, SafeAreaView,
 } from 'react-native';
+import { KeyboardAvoider, KeyboardProvider } from '../../components/common/KeyboardAvoider';
 import { WebView } from 'react-native-webview';
 import { useFocusEffect } from '@react-navigation/native';
 import { MoreVertical, Pen, Trash2, RefreshCw, X } from 'lucide-react-native';
@@ -502,7 +503,11 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
 
       {/* Rename modal */}
       <Modal visible={!!renameTarget} transparent animationType="fade" onRequestClose={() => setRenameTarget(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.renameOverlay}>
+        {/* A RN Modal is a separate native window with its own keyboard insets,
+            invisible to the app-root KeyboardProvider (App.tsx). Nest one here so
+            KeyboardAvoider tracks the keyboard from this window. */}
+        <KeyboardProvider>
+        <KeyboardAvoider style={styles.renameOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setRenameTarget(null)} />
           <View style={styles.renameCard}>
             <Text style={styles.renameTitle}>Rename document</Text>
@@ -529,7 +534,8 @@ export default function PersonalDocumentsScreen({ navigation }: { navigation: an
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAvoider>
+        </KeyboardProvider>
       </Modal>
 
       {/* Document preview modal — in-app WebView */}

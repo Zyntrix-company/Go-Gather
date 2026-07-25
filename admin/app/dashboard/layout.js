@@ -3,28 +3,53 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { getToken, clearToken } from '../../lib/api';
+import { getToken, logoutAndClearSession, getAdminRole, setAdminRole, apiJSON } from '../../lib/api';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const NAV = [
-  { href: '/dashboard/overview',     label: 'Business Insights',  icon: ChartIcon },
-  { href: '/dashboard/users',        label: 'Users',              icon: UsersIcon },
-  { href: '/dashboard/trips-events', label: 'Trips & Events',     icon: MapIcon },
-  { href: '/dashboard/health',       label: 'Health',             icon: HeartIcon },
-  { href: '/dashboard/storage',      label: 'Storage & Capacity', icon: DatabaseIcon },
-  { href: '/dashboard/contact',      label: 'Feedback',           icon: MailIcon },
-  { href: '/dashboard/blogs',        label: 'Blogs',              icon: BookIcon },
-  { href: '/dashboard/deals',        label: 'Amazing Deals',      icon: TagIcon },
-  { href: '/dashboard/promo-video',  label: 'Promo Video',        icon: VideoIcon },
-  { href: '/dashboard/legal',        label: 'Legal',              icon: FileTextIcon },
-  { href: '/dashboard/security',     label: 'Security',           icon: ShieldIcon },
+  { href: '/dashboard/overview',     label: 'Business Insights',  icon: ChartIcon,    roles: ['full', 'content'] },
+  { href: '/dashboard/users',        label: 'Users',              icon: UsersIcon,    roles: ['full'] },
+  { href: '/dashboard/trips-events', label: 'Trips & Events',     icon: MapIcon,      roles: ['full'] },
+  { href: '/dashboard/storage',      label: 'Storage & Capacity', icon: DatabaseIcon, roles: ['full'] },
+  { href: '/dashboard/contact',      label: 'Feedback',           icon: MailIcon,     roles: ['full'] },
+  { href: '/dashboard/ai-usage',     label: 'AI Usage',           icon: SweeIcon,     roles: ['full'] },
+  { href: '/dashboard/blogs',        label: 'Blogs',              icon: BookIcon,     roles: ['full', 'content'] },
+  { href: '/dashboard/deals',        label: 'Amazing Deals',      icon: TagIcon,      roles: ['full', 'content'] },
+  { href: '/dashboard/promo-video',  label: 'Promo Video',        icon: VideoIcon,    roles: ['full', 'content'] },
+  { href: '/dashboard/legal',        label: 'Legal',              icon: FileTextIcon, roles: ['full'] },
+  { href: '/dashboard/security',     label: 'Security',           icon: ShieldIcon,   roles: ['full', 'content'] },
 ];
 
 export default function DashboardLayout({ children }) {
   const router  = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [role, setRole] = useState(() => getAdminRole());
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
-  useEffect(() => { if (!getToken()) router.replace('/login'); }, [router]);
+  useEffect(() => {
+    if (!getToken()) { router.replace('/login'); return; }
+    if (role) return;
+    // Refresh with no cached role (e.g. hard reload) — fetch it once.
+    apiJSON('/admin/me').then((me) => {
+      if (me?.role) { setAdminRole(me.role); setRole(me.role); }
+    });
+  }, [router, role]);
+
+  const allowedNav = NAV.filter((n) => !role || n.roles.includes(role));
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await logoutAndClearSession();
+    router.replace('/login');
+  }
+
+  useEffect(() => {
+    if (!role) return;
+    const current = NAV.find((n) => pathname === n.href || pathname.startsWith(n.href + '/'));
+    if (current && !current.roles.includes(role)) router.replace('/dashboard/overview');
+  }, [role, pathname, router]);
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -39,7 +64,7 @@ export default function DashboardLayout({ children }) {
         </div>
 
         <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-          {NAV.map(({ href, label, icon: Icon }) => {
+          {allowedNav.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + '/');
             return (
               <Link key={href} href={href} onClick={() => setOpen(false)}
@@ -53,7 +78,7 @@ export default function DashboardLayout({ children }) {
         </nav>
 
         <div className="px-2 py-3 border-t border-slate-100 shrink-0">
-          <button onClick={() => { clearToken(); router.replace('/login'); }}
+          <button onClick={() => setConfirmLogout(true)}
             className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-sm font-semibold
               text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all">
             <LogOutIcon className="w-4 h-4 shrink-0" /> Sign out
@@ -62,6 +87,18 @@ export default function DashboardLayout({ children }) {
       </aside>
 
       {open && <div className="fixed inset-0 z-30 bg-black/20 lg:hidden" onClick={() => setOpen(false)} />}
+
+      {confirmLogout && (
+        <ConfirmDialog
+          title="Sign out?"
+          body="You'll need to sign in again to access the admin panel."
+          confirmLabel="Sign out"
+          danger
+          busy={loggingOut}
+          onCancel={() => setConfirmLogout(false)}
+          onConfirm={handleLogout}
+        />
+      )}
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="shrink-0 h-12 bg-white border-b border-slate-100 flex items-center px-4 gap-3">
@@ -96,11 +133,6 @@ function MapIcon({ className }) {
     <line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" />
   </svg>;
 }
-function HeartIcon({ className }) {
-  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-  </svg>;
-}
 function DatabaseIcon({ className }) {
   return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
@@ -133,6 +165,13 @@ function VideoIcon({ className }) {
   return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round"
       d="M15 10l4.553-2.07A1 1 0 0121 8.845v6.31a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h9a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
+  </svg>;
+}
+function SweeIcon({ className }) {
+  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round"
+      d="M9.937 15.5A2 2 0 008.5 14.063l-6.135-1.582a.5.5 0 010-.962L8.5 9.937A2 2 0 009.937 8.5l1.582-6.135a.5.5 0 01.963 0L14.063 8.5A2 2 0 0015.5 9.937l6.135 1.582a.5.5 0 010 .963L15.5 14.063A2 2 0 0014.063 15.5l-1.582 6.135a.5.5 0 01-.963 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M20 3v4M22 5h-4M4 17v2M5 18H3" />
   </svg>;
 }
 function ShieldIcon({ className }) {

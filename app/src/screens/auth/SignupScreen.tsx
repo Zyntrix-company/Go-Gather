@@ -6,14 +6,13 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   Modal,
   FlatList,
   SafeAreaView,
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import { KeyboardAvoider } from '../../components/common/KeyboardAvoider';
 import LegalModal from '../../components/common/LegalModal';
 import Svg, { Path } from 'react-native-svg';
 import Logo from '../../components/common/Logo';
@@ -405,9 +404,7 @@ export default function SignupScreen({ navigation }: any) {
           onClose={() => setLegalModal(null)}
         />
 
-        <KeyboardAvoidingView
-          style={styles.kav}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoider style={styles.kav}>
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
@@ -652,7 +649,7 @@ export default function SignupScreen({ navigation }: any) {
             </View>
           </View>
           </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAvoider>
       </BlobBackground>
     </SafeAreaView>
   );

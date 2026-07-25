@@ -104,11 +104,11 @@ import {
   NoteCategoryIcon,
   resolveExpenseCategory,
 } from '../../components/common/CategoryIcons';
-import { buildGroupExpenseTotals, buildExpenseMemberRoster } from '../../utils/expenseTotals';
+import { buildGroupExpenseTotals, buildExpenseMemberRoster, buildPairwiseMemberBalances } from '../../utils/expenseTotals';
 import { formatCurrencyFull, formatCurrencyCompact, buildExpenseLabel } from '../../utils/currency';
 import { getExpenseRowBalanceLabel, hasRecordedGroupExpenses } from '../../utils/expenseDisplay';
 import CurrencyPickerDropdown from '../../components/common/CurrencyPickerDropdown';
-import OutstandingDebtsList from '../../components/common/OutstandingDebtsList';
+import SettlementsByMember from '../../components/common/SettlementsByMember';
 import { closeExpenseOverlays, settleDebtKey } from '../../utils/expenseModalHelpers';
 import typography from '../../theme/typography';
 import DrivePickerRow from '../../components/gallery/DrivePickerRow';
@@ -1211,13 +1211,17 @@ export default function TripDetailScreen({ route, navigation }: any) {
     const ad = new Date(a.date); ad.setHours(0, 0, 0, 0);
     return ad.getTime() < _today;
   });
+  const expenseRoster = useMemo(
+    () => buildExpenseMemberRoster(members, currentUserId, currentUserAvatar),
+    [members, currentUserId, currentUserAvatar],
+  );
   const expenseTotals = useMemo(
-    () => buildGroupExpenseTotals(
-      expenses,
-      buildExpenseMemberRoster(members, currentUserId),
-      currentUserId,
-    ),
-    [expenses, members, currentUserId],
+    () => buildGroupExpenseTotals(expenses, expenseRoster, currentUserId),
+    [expenses, expenseRoster, currentUserId],
+  );
+  const pairwiseBalances = useMemo(
+    () => buildPairwiseMemberBalances(expenses, expenseRoster, currentUserId),
+    [expenses, expenseRoster, currentUserId],
   );
   const expenseLabel = useMemo(() => {
     const fromBalances = buildExpenseLabel(totalExpensesByCurrency);
@@ -3333,17 +3337,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     {expenseTabBusy ? <TotalTabSkeleton /> : (
                       <ExpenseTotalsTab
                         totals={expenseTotals}
+                        roster={expenseRoster}
+                        currentUserId={currentUserId}
+                        pairwiseBalances={pairwiseBalances}
+                        myBalances={myBalances}
                         styles={{
                           emptyCenter: styles.emptyCenter,
                           emptyTitle: styles.emptyTitle,
                           emptySub: styles.emptySub,
-                          balCard: styles.balCard,
-                          balLabel: styles.balLabel,
-                          balValue: styles.balValue,
-                          expRow: styles.expRow,
-                          expName: styles.expName,
-                          expMeta: styles.expMeta,
-                          expAmt: styles.expAmt,
                         }}
                       />
                     )}
@@ -3354,10 +3355,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <View>
                     {expenseTabBusy ? <BalanceTabSkeleton /> : (
                       <>
-                        <ExpenseBalanceSummary
-                          totalExpensesByCurrency={totalExpensesByCurrency}
-                          myBalances={myBalances}
-                        />
+                        <ExpenseBalanceSummary myBalances={myBalances} />
                         {balances.length === 0 ? (
                           hasRecordedGroupExpenses(totalExpensesByCurrency) || expenses.length > 0 ? (
                             <View style={styles.emptyCenter}>
@@ -3367,20 +3365,22 @@ export default function TripDetailScreen({ route, navigation }: any) {
                               <Text style={styles.emptyTitle}>All settled up!</Text>
                               <Text style={styles.emptySub}>No one owes anyone right now</Text>
                             </View>
-                          ) : null
+                          ) : (
+                            <View style={styles.emptyCenter}>
+                              <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
+                                <Path d="M12 1v22M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6" stroke="#cbd5e1" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                              </Svg>
+                              <Text style={styles.emptyTitle}>No expenses yet</Text>
+                              <Text style={styles.emptySub}>Add expenses to see balances and settlements here</Text>
+                            </View>
+                          )
                         ) : (
-                          <OutstandingDebtsList
+                          <SettlementsByMember
                             debts={balances}
+                            roster={expenseRoster}
                             currentUserId={currentUserId}
                             onSettle={handleSettleDebt}
                             settlingDebtKey={settlingDebtKey}
-                            styles={{
-                              expRow: styles.expRow,
-                              expName: styles.expName,
-                              expMeta: styles.expMeta,
-                              tealBtnFull: styles.tealBtnFull,
-                              tealBtnTxt: styles.tealBtnTxt,
-                            }}
                           />
                         )}
                       </>

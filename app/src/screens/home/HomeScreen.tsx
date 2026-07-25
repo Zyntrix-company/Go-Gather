@@ -10,19 +10,18 @@ import {
   Dimensions,
   FlatList,
   Animated,
-  Easing,
   PanResponder,
   TextInput,
   Modal,
   Pressable,
   ActivityIndicator,
   InteractionManager,
-  Keyboard,
   Platform,
   AppState,
   Linking,
   RefreshControl,
 } from 'react-native';
+import { useKeyboardAnimation } from 'react-native-keyboard-controller';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import SweeIcon from '../../components/common/SweeIcon';
@@ -568,32 +567,11 @@ export default function HomeScreen({ navigation, route }: any) {
   const [tripBannerType, setTripBannerType] = useState<string>('image/jpeg');
   const [tripBannerCrop, setTripBannerCrop] = useState<TripBannerCropFraction | null>(null);
 
-  const tabBarSlide = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const onShow = Keyboard.addListener(showEvent, (e) => {
-      Animated.timing(tabBarSlide, {
-        toValue: 1,
-        duration: Platform.OS === 'ios' ? (e.duration ?? 250) : 120,
-        easing: Easing.bezier(0.2, 0, 0, 1),
-        useNativeDriver: true,
-      }).start();
-    });
-
-    const onHide = Keyboard.addListener(hideEvent, (e) => {
-      Animated.timing(tabBarSlide, {
-        toValue: 0,
-        duration: Platform.OS === 'ios' ? (e.duration ?? 250) : 180,
-        easing: Easing.bezier(0.2, 0, 0, 1),
-        useNativeDriver: true,
-      }).start();
-    });
-
-    return () => { onShow.remove(); onHide.remove(); };
-  }, [tabBarSlide]);
+  // 0 → 1 as the keyboard rises, driven natively off the real IME animation.
+  // Previously this was a hand-rolled Animated.timing off keyboard events with
+  // guessed 120/180 ms durations on Android, which drifted out of sync with the
+  // actual keyboard.
+  const { progress: tabBarSlide } = useKeyboardAnimation();
 
   // Blogs + Deals for home feed
   const [blogs, setBlogs] = useState<any[]>([]);

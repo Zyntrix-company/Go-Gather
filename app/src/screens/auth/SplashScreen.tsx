@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { View, Image, StyleSheet, Animated, Easing, useWindowDimensions, Platform, PermissionsAndroid } from 'react-native';
+import Video from 'react-native-video';
 import BlobBackground from '../../components/common/BlobBackground';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
@@ -53,6 +54,18 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
   const wordmarkOpacity = useRef(new Animated.Value(0)).current;
   const wordmarkX       = useRef(new Animated.Value(-ICON_SHIFT_X)).current;
 
+  // ── Splash chime ──────────────────────────────────────────────────────
+  // The asset is 3.6 s but only the first 3 s is wanted, so the cut happens at
+  // playback time (no transcoded copy to keep in sync with the original).
+  //
+  // The Video is mounted from the first render but held paused, so the decoder
+  // is warm by the time the drop begins. Mounting it at drop time instead would
+  // put source loading between the spring starting and the first audible
+  // sample, and the chime would trail the icon.
+  const [chimePaused, setChimePaused] = useState(true);
+  // Ramped to 0 over the last 300 ms — an abrupt stop mid-waveform clicks.
+  const [chimeVolume, setChimeVolume] = useState(1);
+
   // ── Styles (recalculate when screen size changes) ─────────────────────
   const dynStyles = useMemo(() => StyleSheet.create({
     icon: { width: ICON_SIZE, height: ICON_SIZE },
@@ -78,6 +91,8 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
     let authDone = false;
     let animDone = false;
     let animTimer: ReturnType<typeof setTimeout> | null = null;
+    const chimeTimers: ReturnType<typeof setTimeout>[] = [];
+    let fadeInterval: ReturnType<typeof setInterval> | null = null;
 
     function tryNavigate() {
       if (!authDone || !animDone || resolved) return;
@@ -118,6 +133,26 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
       // setValue is synchronous so this is imperceptible (< 1 frame).
       logoY.setValue(-DROP_OFFSET);
 
+      // Chime is unpaused on the same tick the spring is started, so the first
+      // audible sample lines up with the icon leaving the top of the screen.
+      // Cut at 3.0 s: fade from 2.7 s, then pause. Navigation at 3.5 s leaves
+      // 500 ms of headroom so the sound never clips against the transition.
+      setChimePaused(false);
+      chimeTimers.push(setTimeout(() => {
+        const FADE_MS = 300;
+        const STEP_MS = 50;
+        let elapsed = 0;
+        fadeInterval = setInterval(() => {
+          elapsed += STEP_MS;
+          setChimeVolume(Math.max(0, 1 - elapsed / FADE_MS));
+          if (elapsed >= FADE_MS && fadeInterval) {
+            clearInterval(fadeInterval);
+            fadeInterval = null;
+          }
+        }, STEP_MS);
+      }, 2700));
+      chimeTimers.push(setTimeout(() => setChimePaused(true), 3000));
+
       Animated.spring(logoY, {
         toValue: 0,
         tension: 60,
@@ -154,12 +189,33 @@ export default function SplashScreen({ navigation, onFinish }: Props) {
       animTimer = setTimeout(() => { animDone = true; tryNavigate(); }, 3500);
     })();
 
-    return () => { if (animTimer) clearTimeout(animTimer); };
+    return () => {
+      if (animTimer) clearTimeout(animTimer);
+      if (fadeInterval) clearInterval(fadeInterval);
+      chimeTimers.forEach(clearTimeout);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <BlobBackground>
       <View style={[styles.screen, { paddingBottom: LIFT_UP }]}>
+        {/*
+          Audio-only playback. v6 dropped the `audioOnly` prop, so the standard
+          approach is a zero-size Video — the sound plays with nothing rendered.
+          ignoreSilentSwitch="inherit" respects the iOS ringer switch; a splash
+          chime that overrides a silenced phone is not a good first impression.
+        */}
+        <Video
+          source={require('../../../assets/sounds/splash.mp3')}
+          style={styles.chime}
+          volume={chimeVolume}
+          paused={chimePaused}
+          repeat={false}
+          ignoreSilentSwitch="inherit"
+          disableFocus
+          playInBackground={false}
+          onError={() => { /* Chime is decorative — never block the splash */ }}
+        />
         {/*
           Flex-row container centred on screen.
           alignItems:'center' lets flexbox vertically align the icon and
@@ -213,4 +269,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
   },
+  // Zero-size + absolute so the audio-only Video never affects layout.
+  chime: { position: 'absolute', width: 0, height: 0, opacity: 0 },
 });

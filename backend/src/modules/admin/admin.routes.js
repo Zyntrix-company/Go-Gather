@@ -13,6 +13,7 @@ const config = require('../../config');
 const { EMAIL_PROVIDER } = require('../../config/emailProvider');
 const logger = require('../../utils/logger');
 const legalService = require('../legal/legal.service');
+const { getStorageAggregates } = require('./storage.service');
 
 const router = express.Router();
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
@@ -421,39 +422,10 @@ router.get('/health', requireFullAdminRole, async (_req, res) => {
 
 router.get('/storage', requireFullAdminRole, async (req, res, next) => {
   try {
-    const [docsRes, photosRes, usersRes] = await Promise.all([
-      query(`
-        SELECT
-          COUNT(*)::int                          AS total_count,
-          COALESCE(SUM(file_size_bytes), 0)::bigint AS total_bytes,
-          mime_type,
-          COUNT(*)::int                          AS type_count,
-          COALESCE(SUM(file_size_bytes), 0)::bigint AS type_bytes
-        FROM docs
-        GROUP BY ROLLUP (mime_type)
-        ORDER BY total_bytes DESC NULLS LAST`),
-      query(`
-        SELECT
-          COUNT(*)::int                          AS total_count,
-          COALESCE(SUM(file_size_bytes), 0)::bigint AS total_bytes,
-          mime_type,
-          COUNT(*)::int                          AS type_count,
-          COALESCE(SUM(file_size_bytes), 0)::bigint AS type_bytes
-        FROM photos
-        GROUP BY ROLLUP (mime_type)
-        ORDER BY type_bytes DESC NULLS LAST`),
-      query('SELECT COUNT(*)::int AS user_count FROM users WHERE is_platform_admin = false'),
-    ]);
-
-    // ROLLUP produces a NULL-mime_type row as the grand total
-    const docsTotal  = docsRes.rows.find((r) => r.mime_type === null) || { total_count: 0, total_bytes: 0 };
-    const photosTotal = photosRes.rows.find((r) => r.mime_type === null) || { total_count: 0, total_bytes: 0 };
-    const docsBreakdown   = docsRes.rows.filter((r) => r.mime_type !== null);
-    const photosBreakdown = photosRes.rows.filter((r) => r.mime_type !== null);
-
-    const totalBytes = Number(docsTotal.total_bytes) + Number(photosTotal.total_bytes);
-    const userCount  = usersRes.rows[0].user_count || 1;
-    const quota      = parseInt(process.env.STORAGE_QUOTA_BYTES, 10) || 0;
+    const agg = await getStorageAggregates();
+    const { totalBytes, userCount } = agg;
+    const effectiveUserCount = userCount || 1;
+    const quota = parseInt(process.env.STORAGE_QUOTA_BYTES, 10) || 0;
 
     res.json({
       summary: {
@@ -462,10 +434,10 @@ router.get('/storage', requireFullAdminRole, async (req, res, next) => {
         totalGB:  (totalBytes / 1024 / 1024 / 1024).toFixed(3),
       },
       docs: {
-        count:      Number(docsTotal.total_count),
-        totalBytes: Number(docsTotal.total_bytes),
-        totalMB:    (Number(docsTotal.total_bytes) / 1024 / 1024).toFixed(2),
-        breakdown:  docsBreakdown.map((r) => ({
+        count:      agg.docsCount,
+        totalBytes: agg.docsBytes,
+        totalMB:    (agg.docsBytes / 1024 / 1024).toFixed(2),
+        breakdown:  agg.docsBreakdown.map((r) => ({
           mimeType:  r.mime_type,
           count:     Number(r.type_count),
           bytes:     Number(r.type_bytes),
@@ -473,10 +445,10 @@ router.get('/storage', requireFullAdminRole, async (req, res, next) => {
         })),
       },
       images: {
-        count:      Number(photosTotal.total_count),
-        totalBytes: Number(photosTotal.total_bytes),
-        totalMB:    (Number(photosTotal.total_bytes) / 1024 / 1024).toFixed(2),
-        breakdown:  photosBreakdown.map((r) => ({
+        count:      agg.imagesCount,
+        totalBytes: agg.imagesBytes,
+        totalMB:    (agg.imagesBytes / 1024 / 1024).toFixed(2),
+        breakdown:  agg.imagesBreakdown.map((r) => ({
           mimeType:  r.mime_type,
           count:     Number(r.type_count),
           bytes:     Number(r.type_bytes),
@@ -485,8 +457,8 @@ router.get('/storage', requireFullAdminRole, async (req, res, next) => {
         note: 'Byte totals only cover uploads after migration 030; earlier rows have NULL size.',
       },
       users: userCount,
-      averageBytesPerUser:  userCount ? Math.round(totalBytes / userCount) : 0,
-      averageMBPerUser:     userCount ? (totalBytes / 1024 / 1024 / userCount).toFixed(2) : '0.00',
+      averageBytesPerUser:  Math.round(totalBytes / effectiveUserCount),
+      averageMBPerUser:     (totalBytes / 1024 / 1024 / effectiveUserCount).toFixed(2),
       quota: quota ? {
         totalBytes:    quota,
         totalGB:       (quota / 1024 / 1024 / 1024).toFixed(2),
@@ -494,6 +466,31 @@ router.get('/storage', requireFullAdminRole, async (req, res, next) => {
         availableBytes: quota - totalBytes,
         usedPercent:   ((totalBytes / quota) * 100).toFixed(1),
       } : null,
+    });
+  } catch (err) { next(err); }
+});
+
+/* ─── Storage & Capacity: history (for the over-time chart) ───── */
+
+router.get('/storage/history', requireFullAdminRole, async (req, res, next) => {
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+  try {
+    const { rows } = await query(
+      `SELECT snapshot_date AS date, total_bytes, docs_bytes, images_bytes, user_count
+         FROM storage_snapshots
+        WHERE snapshot_date >= CURRENT_DATE - ($1 || ' days')::INTERVAL
+        ORDER BY snapshot_date`,
+      [days],
+    );
+    res.json({
+      days,
+      snapshots: rows.map((r) => ({
+        date: r.date,
+        totalBytes: Number(r.total_bytes),
+        docsBytes: Number(r.docs_bytes),
+        imagesBytes: Number(r.images_bytes),
+        userCount: r.user_count,
+      })),
     });
   } catch (err) { next(err); }
 });

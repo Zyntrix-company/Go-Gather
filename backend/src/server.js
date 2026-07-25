@@ -7,6 +7,7 @@ const { startBatchingCron } = require('./utils/batching.cron');
 const { startDigestCron } = require('./utils/digest.cron');
 const { startLegalNotificationCron } = require('./utils/legalNotifications.cron');
 const { startAdminDigestCron } = require('./utils/adminDigest.cron');
+const { startStorageSnapshotCron } = require('./utils/storageSnapshot.cron');
 
 const PORT = config.port;
 
@@ -24,6 +25,7 @@ const startServer = async () => {
       startDigestCron();
       if (config.nodeEnv !== 'test') startLegalNotificationCron();
       startAdminDigestCron();
+      startStorageSnapshotCron();
       logger.info('Background cron jobs started');
     } else {
       logger.info('Background cron jobs disabled (set CRON_ENABLED=true to enable in dev)');

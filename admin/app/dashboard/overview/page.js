@@ -1,21 +1,59 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { apiJSON } from '../../../lib/api';
 
+/* ── Date-range presets ───────────────────────────────────────── */
+function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function endOfDay(d) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+/** Monday-start week boundary. */
+function startOfWeek(d) { const x = startOfDay(d); const day = (x.getDay() + 6) % 7; return addDays(x, -day); }
+function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+function endOfMonth(d) { return endOfDay(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }
+
+function buildPresets() {
+  const now = new Date();
+  const thisWeekStart = startOfWeek(now);
+  const lastWeekStart = addDays(thisWeekStart, -7);
+  const lastWeekEnd = endOfDay(addDays(thisWeekStart, -1));
+  const thisMonthStart = startOfMonth(now);
+  const lastMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+  const lastMonthEnd = endOfMonth(lastMonthStart);
+
+  return [
+    { key: '7d', label: 'Last 7 days', from: startOfDay(addDays(now, -7)), to: now, rangeLabel: 'within the last 7 days' },
+    { key: '30d', label: 'Last 30 days', from: startOfDay(addDays(now, -30)), to: now, rangeLabel: 'within the last 30 days' },
+    { key: '90d', label: 'Last 90 days', from: startOfDay(addDays(now, -90)), to: now, rangeLabel: 'within the last 90 days' },
+    { key: 'this_week', label: 'This week', from: thisWeekStart, to: now, rangeLabel: 'this week' },
+    { key: 'last_week', label: 'Last week', from: lastWeekStart, to: lastWeekEnd, rangeLabel: 'last week' },
+    { key: 'this_month', label: 'This month', from: thisMonthStart, to: now, rangeLabel: 'this month' },
+    { key: 'last_month', label: 'Last month', from: lastMonthStart, to: lastMonthEnd, rangeLabel: 'last month' },
+  ];
+}
+
 export default function OverviewPage() {
+  const presets = useMemo(buildPresets, []);
+  const [presetKey, setPresetKey] = useState('30d');
   const [summary, setSummary] = useState(null);
   const [growth,  setGrowth]  = useState(null);
-  const [days,    setDays]    = useState(30);
   const [loading, setLoading] = useState(true);
+
+  const preset = presets.find((p) => p.key === presetKey) ?? presets[1];
 
   useEffect(() => {
     setLoading(true);
+    const params = new URLSearchParams({
+      from: preset.from.toISOString(),
+      to: preset.to.toISOString(),
+      label: preset.rangeLabel,
+    });
     Promise.all([
-      apiJSON('/admin/dashboard/summary'),
-      apiJSON(`/admin/dashboard/growth?days=${days}`),
+      apiJSON(`/admin/dashboard/summary?${params}`),
+      apiJSON(`/admin/dashboard/growth?${params}`),
     ]).then(([s, g]) => { setSummary(s); setGrowth(g); }).finally(() => setLoading(false));
-  }, [days]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetKey]);
 
   if (loading) return <Skeleton />;
   if (!summary) return null;
@@ -33,11 +71,9 @@ export default function OverviewPage() {
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">Platform overview · admin accounts excluded</p>
         </div>
-        <select value={days} onChange={(e) => setDays(Number(e.target.value))}
+        <select value={presetKey} onChange={(e) => setPresetKey(e.target.value)}
           className="text-sm border border-slate-200 rounded-xl px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-teal-500">
-          <option value={7}>Last 7 days</option>
-          <option value={30}>Last 30 days</option>
-          <option value={90}>Last 90 days</option>
+          {presets.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
         </select>
       </div>
 
@@ -46,7 +82,7 @@ export default function OverviewPage() {
         <KpiCard label="Registered Users"  value={summary.users.registered}
           sub="all time, excl. admins" color="teal" />
         <KpiCard label="Active Users"      value={summary.users.active}
-          sub={`signed in last ${days}d`} color="teal" />
+          sub={`signed in ${preset.rangeLabel}`} color="teal" />
         <KpiCard label="Trips"             value={totalTrips}
           sub={`${summary.trips.active} active`} color="slate" />
         <KpiCard label="Events"            value={totalEvents}
@@ -56,7 +92,23 @@ export default function OverviewPage() {
       {/* Buckets + growth */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <BucketTable summary={summary} />
-        {growth && <GrowthChart growth={growth} days={days} />}
+        {growth && <GrowthChart growth={growth} rangeLabel={preset.label} />}
+      </div>
+
+      {/* Dedicated Trips & Events cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <BreakdownCard title="Trips" total={totalTrips} buckets={[
+          { label: 'Active',    value: summary.trips.active,    color: 'teal' },
+          { label: 'Upcoming',  value: summary.trips.upcoming,  color: 'blue' },
+          { label: 'Completed', value: summary.trips.completed, color: 'slate' },
+          { label: 'Archived',  value: summary.trips.archived,  color: 'muted' },
+        ]} />
+        <BreakdownCard title="Events" total={totalEvents} buckets={[
+          { label: 'Active',    value: summary.events.active,    color: 'teal' },
+          { label: 'Upcoming',  value: summary.events.upcoming,  color: 'blue' },
+          { label: 'Completed', value: summary.events.completed, color: 'slate' },
+          { label: 'Archived',  value: summary.events.archived,  color: 'muted' },
+        ]} />
       </div>
     </div>
   );
@@ -122,7 +174,7 @@ function formatGrowthAxisLabel(ymd) {
 }
 
 /* ── SVG growth chart ─────────────────────────────────────────── */
-function GrowthChart({ growth, days }) {
+function GrowthChart({ growth, rangeLabel }) {
   const series = [
     { key: 'users',  label: 'Users',  color: '#0d9488' },
     { key: 'trips',  label: 'Trips',  color: '#475569' },
@@ -159,7 +211,7 @@ function GrowthChart({ growth, days }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 lg:col-span-2">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-bold text-slate-800">Growth — last {days} days</h2>
+        <h2 className="text-sm font-bold text-slate-800">Growth — {rangeLabel}</h2>
         <div className="flex gap-3">
           {series.map((s) => (
             <span key={s.key} className="flex items-center gap-1 text-xs text-slate-500">
@@ -211,6 +263,43 @@ function GrowthChart({ growth, days }) {
           })}
         </svg>
       )}
+    </div>
+  );
+}
+
+/* ── Trips / Events breakdown card ───────────────────────────── */
+function BreakdownCard({ title, total, buckets }) {
+  const max = Math.max(...buckets.map((b) => b.value), 1);
+  const colorMap = {
+    teal:  { bar: 'bg-teal-500',  text: 'text-teal-700' },
+    blue:  { bar: 'bg-blue-400',  text: 'text-blue-700' },
+    slate: { bar: 'bg-slate-400', text: 'text-slate-600' },
+    muted: { bar: 'bg-slate-200', text: 'text-slate-400' },
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-sm font-bold text-slate-800">{title}</h2>
+        <span className="text-2xl font-extrabold text-slate-800 tabular-nums">{total.toLocaleString()}</span>
+      </div>
+      <div className="space-y-3">
+        {buckets.map((b) => {
+          const c = colorMap[b.color];
+          const pct = Math.round((b.value / max) * 100);
+          return (
+            <div key={b.label}>
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="text-slate-600 font-medium">{b.label}</span>
+                <span className={`font-bold tabular-nums ${c.text}`}>{b.value.toLocaleString()}</span>
+              </div>
+              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${c.bar}`} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -8,6 +8,7 @@
 import React, { useEffect, useRef } from 'react';
 import { StatusBar, Linking } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import RootNavigator from './src/navigation/RootNavigator';
@@ -120,14 +121,20 @@ function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <NavigationContainer ref={navigationRef} theme={{ dark: false, colors: { primary: '#0d9488', background: 'transparent', card: 'transparent', text: '#0f172a', border: 'transparent', notification: '#0d9488' }, fonts: { regular: { fontFamily: 'System', fontWeight: '400' }, medium: { fontFamily: 'System', fontWeight: '500' }, bold: { fontFamily: 'System', fontWeight: '700' }, heavy: { fontFamily: 'System', fontWeight: '900' } } }}>
-          <StatusBar barStyle="dark-content" />
-          <RootNavigator />
-          <ThemedAlert />
-          <Toast />
-        </NavigationContainer>
-      </SafeAreaProvider>
+      {/* Owns the native IME insets so the window never auto-resizes for the
+          keyboard on any Android version. Every composer/form in the app then
+          positions itself from a single continuously-reported keyboard height
+          instead of guessing whether the OS already resized the window. */}
+      <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
+        <SafeAreaProvider>
+          <NavigationContainer ref={navigationRef} theme={{ dark: false, colors: { primary: '#0d9488', background: 'transparent', card: 'transparent', text: '#0f172a', border: 'transparent', notification: '#0d9488' }, fonts: { regular: { fontFamily: 'System', fontWeight: '400' }, medium: { fontFamily: 'System', fontWeight: '500' }, bold: { fontFamily: 'System', fontWeight: '700' }, heavy: { fontFamily: 'System', fontWeight: '900' } } }}>
+            <StatusBar barStyle="dark-content" />
+            <RootNavigator />
+            <ThemedAlert />
+            <Toast />
+          </NavigationContainer>
+        </SafeAreaProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

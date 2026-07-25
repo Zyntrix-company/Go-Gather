@@ -11,10 +11,10 @@ const steps = [
       <>
         Email us at{' '}
         <a
-          href="mailto:Hello@GatherrGo.com?subject=Data Deletion Request"
+          href="mailto:Support@GatherrGo.com?subject=Data Deletion Request"
           className="text-teal-600 hover:text-teal-700 underline underline-offset-4 decoration-teal-600/30 transition-colors"
         >
-          Hello@GatherrGo.com
+          Support@GatherrGo.com
         </a>{' '}
         with the subject line <span className="font-semibold text-slate-700">"Data Deletion Request"</span>.
       </>
@@ -73,7 +73,7 @@ const faqs = [
   {
     question: 'Can I delete only some of my data?',
     answer:
-      'Yes. If you would like to delete specific content (such as a particular trip or uploaded photo) rather than your full account, mention the details in your email and we will handle it accordingly.',
+      'No. The entire account with all associated content and data will be deleted — we cannot selectively delete content. Use the options in the app to delete trips, events, photos, etc.',
   },
 ];
 
@@ -109,7 +109,7 @@ export default function DataDeletion() {
           <Trash2 className="w-7 h-7 text-red-500" />
         </div>
         <h1 className="text-4xl md:text-5xl font-bold text-slate-900">
-          Data <span className="text-teal-600">Deletion</span> Instructions
+          Data <span className="text-teal-600">Deletion</span>
         </h1>
         <p className="text-base md:text-lg text-slate-600 font-normal max-w-2xl mx-auto">
           You have the right to request that your personal data be permanently deleted from GatherrGo at any time. Follow the steps below to submit your request.
@@ -203,7 +203,7 @@ export default function DataDeletion() {
       >
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Submit a Deletion Request</h2>
-          <p className="text-sm text-slate-500 mt-1">Fill out the form below or email us directly at <a href="mailto:Hello@GatherrGo.com?subject=Data Deletion Request" className="text-teal-600 hover:underline">Hello@GatherrGo.com</a></p>
+          <p className="text-sm text-slate-500 mt-1">Fill out the form below or email us directly at <a href="mailto:Support@GatherrGo.com?subject=Data Deletion Request" className="text-teal-600 hover:underline">Support@GatherrGo.com</a></p>
         </div>
 
         {submitted ? (
@@ -290,9 +290,7 @@ export default function DataDeletion() {
         className="text-center text-slate-500 text-sm"
       >
         Still have questions?{' '}
-        <a href="mailto:Hello@GatherrGo.com" className="text-teal-600 hover:text-teal-700 underline underline-offset-4 transition-colors">
-          Email us at Hello@GatherrGo.com
-        </a>
+        <span className="text-teal-600">Email us at Support@GatherrGo.com</span>
       </motion.div>
     </div>
   );

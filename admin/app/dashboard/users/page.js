@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { apiJSON } from '../../../lib/api';
+import { apiJSON, apiFetch } from '../../../lib/api';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 
 export default function UsersPage() {
   const [data,    setData]    = useState(null);
@@ -9,6 +10,10 @@ export default function UsersPage() {
   const [search,  setSearch]  = useState('');
   const [query,   setQuery]   = useState('');
   const [loading, setLoading] = useState(true);
+  const [busyId,  setBusyId]  = useState(null);
+  const [actionError, setActionError] = useState('');
+  const [menuOpenId, setMenuOpenId] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null); // { type: 'grant'|'revoke'|'delete', user }
 
   const load = useCallback(() => {
     setLoading(true);
@@ -21,6 +26,49 @@ export default function UsersPage() {
 
   const totalPages = data ? Math.ceil(data.total / 20) : 1;
 
+  async function runToggleContentAdmin(u) {
+    setBusyId(u.id); setActionError('');
+    try {
+      await apiJSON(`/admin/users/${u.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_content_admin: !u.is_content_admin }),
+      });
+      load();
+    } catch (err) {
+      setActionError(err.message || 'Failed to update role');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function runDelete(u) {
+    setBusyId(u.id); setActionError('');
+    try {
+      const res = await apiFetch(`/admin/users/${u.id}`, { method: 'DELETE' });
+      if (res && !res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Delete failed');
+      }
+      load();
+    } catch (err) {
+      setActionError(err.message || 'Delete failed');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function requestAction(type, u) {
+    setMenuOpenId(null);
+    setConfirmAction({ type, user: u });
+  }
+
+  function handleConfirm() {
+    const { type, user: u } = confirmAction;
+    setConfirmAction(null);
+    if (type === 'delete') runDelete(u);
+    else runToggleContentAdmin(u);
+  }
+
   return (
     <div className="space-y-5 max-w-6xl mx-auto">
       <div className="flex items-start justify-between flex-wrap gap-3">
@@ -31,6 +79,12 @@ export default function UsersPage() {
           {data && <p className="text-sm text-slate-500 mt-0.5">{data.total.toLocaleString()} registered (admins excluded)</p>}
         </div>
       </div>
+
+      <p className="text-xs text-slate-400 -mt-2">
+        <span className="font-semibold text-teal-600">Verified</span> = email/OTP confirmed.{' '}
+        <span className="font-semibold text-slate-500">Complete</span> = profile setup (name, photo, etc.) finished.
+        A user can be verified without a complete profile, or vice versa.
+      </p>
 
       {/* Search */}
       <form onSubmit={(e) => { e.preventDefault(); setPage(1); setQuery(search); }} className="flex gap-2">
@@ -48,6 +102,10 @@ export default function UsersPage() {
         )}
       </form>
 
+      {actionError && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">{actionError}</p>
+      )}
+
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         {loading ? (
@@ -59,18 +117,26 @@ export default function UsersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/80">
-                  {['Name', 'Email', 'Status', 'Joined'].map((h) => (
+                  {['User', 'Country', 'Status', 'Activity', 'Joined', 'Last sign-in', ''].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {data.users.map((u, i) => (
-                  <tr key={u.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${i % 2 ? 'bg-slate-50/30' : ''}`}>
-                    <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">
-                      {u.full_name || <span className="text-slate-400">—</span>}
+                  <tr key={u.id} className={`border-b border-slate-50 transition-colors ${
+                    u.is_content_admin ? 'bg-teal-50/60 hover:bg-teal-50' : `hover:bg-slate-50/60 ${i % 2 ? 'bg-slate-50/30' : ''}`}`}>
+                    <td className="px-4 py-3 min-w-50">
+                      <p className="font-semibold text-slate-800">
+                        {u.full_name || <span className="font-normal text-slate-400">Unnamed</span>}
+                        {u.is_content_admin && <Badge color="teal" text="Content admin" className="ml-2" />}
+                      </p>
+                      <p className="text-slate-500 text-xs mt-0.5">{u.email}</p>
+                      <p className="text-slate-300 text-[11px] font-mono mt-0.5" title={u.id}>{u.id.slice(0, 8)}…</p>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{u.email}</td>
+                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
+                      {u.country || <span className="text-slate-300">—</span>}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1 flex-wrap">
                         {u.is_verified        && <Badge color="teal"  text="Verified" />}
@@ -78,8 +144,43 @@ export default function UsersPage() {
                         {!u.is_verified        && <Badge color="amber" text="Unverified" />}
                       </div>
                     </td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap text-xs">
+                      <span className="tabular-nums font-semibold text-slate-700">{u.trip_count}</span> trips ·{' '}
+                      <span className="tabular-nums font-semibold text-slate-700">{u.event_count}</span> events
+                    </td>
                     <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">
                       {new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </td>
+                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">
+                      {u.last_login_at
+                        ? new Date(u.last_login_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : <span className="text-slate-300">Never</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right relative">
+                      <button
+                        type="button"
+                        disabled={busyId === u.id}
+                        onClick={() => setMenuOpenId(menuOpenId === u.id ? null : u.id)}
+                        className="w-8 h-8 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40">
+                        <DotsIcon className="w-4 h-4" />
+                      </button>
+                      {menuOpenId === u.id && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setMenuOpenId(null)} />
+                          <div className="absolute right-4 top-11 z-20 w-56 bg-white rounded-xl border border-slate-100 shadow-lg py-1 text-left">
+                            <button type="button"
+                              onClick={() => requestAction(u.is_content_admin ? 'revoke' : 'grant', u)}
+                              className="w-full text-left px-3.5 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
+                              {u.is_content_admin ? 'Revoke content admin' : 'Grant content admin'}
+                            </button>
+                            <button type="button"
+                              onClick={() => requestAction('delete', u)}
+                              className="w-full text-left px-3.5 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors">
+                              Delete user
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -99,33 +200,56 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+
+      {confirmAction && (
+        <ConfirmDialog
+          {...getConfirmCopy(confirmAction)}
+          busy={busyId === confirmAction.user.id}
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={handleConfirm}
+        />
+      )}
     </div>
   );
 }
 
+/* ── Confirmation copy ────────────────────────────────────────── */
+function getConfirmCopy({ type, user: u }) {
+  const name = u.full_name || u.email;
+  return {
+    grant: {
+      title: 'Grant content admin access?',
+      body: <>
+        <strong>{name}</strong> will be able to sign in to the admin panel and edit Blogs, Promo Video and Amazing Deals,
+        plus view Business Insights. They will not see Users, Storage, Feedback, Legal or other business-sensitive sections.
+      </>,
+      confirmLabel: 'Grant access',
+      danger: false,
+    },
+    revoke: {
+      title: 'Revoke content admin access?',
+      body: <><strong>{name}</strong> will immediately lose admin panel access.</>,
+      confirmLabel: 'Revoke access',
+      danger: true,
+    },
+    delete: {
+      title: 'Delete this user?',
+      body: <>
+        This anonymizes <strong>{name}</strong>&rsquo;s account — email, name and profile details are scrubbed and login is disabled.
+        Trips/events they created stay intact for other participants. <strong>This cannot be undone.</strong>
+      </>,
+      confirmLabel: 'Delete user',
+      danger: true,
+    },
+  }[type];
+}
+
 /* ── Helpers ───────────────────────────────────────────────────── */
-function isRecent(ts, days) {
-  return ts && new Date(ts) >= new Date(Date.now() - days * 86400 * 1000);
-}
-
-function relativeTime(ts) {
-  const diff = Date.now() - new Date(ts).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 2)    return 'Just now';
-  if (m < 60)   return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24)   return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30)   return `${d}d ago`;
-  const mo = Math.floor(d / 30);
-  return `${mo}mo ago`;
-}
-
-function Badge({ color, text }) {
+function Badge({ color, text, className = '' }) {
   const cls = { teal: 'bg-teal-50 text-teal-700 border-teal-100',
     slate: 'bg-slate-100 text-slate-600 border-slate-200',
     amber: 'bg-amber-50 text-amber-700 border-amber-100' }[color];
-  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${cls}`}>{text}</span>;
+  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${cls} ${className}`}>{text}</span>;
 }
 
 function PagBtn({ label, disabled, onClick }) {
@@ -135,5 +259,15 @@ function PagBtn({ label, disabled, onClick }) {
         disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm">
       {label}
     </button>
+  );
+}
+
+function DotsIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="12" cy="5" r="1.75" />
+      <circle cx="12" cy="12" r="1.75" />
+      <circle cx="12" cy="19" r="1.75" />
+    </svg>
   );
 }

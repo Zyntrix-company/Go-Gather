@@ -119,8 +119,6 @@ const Footer = () => {
           <div className="col-span-1 md:col-span-2 md:col-start-2">
             <ul className="space-y-3 text-sm">
               <li><Link to="/contact" className="text-slate-500 hover:text-teal-600 transition-colors flex items-center h-5">Contact</Link></li>
-              <li><Link to="/careers" className="text-slate-500 hover:text-teal-600 transition-colors flex items-center h-5">Careers</Link></li>
-              <li><Link to="/blogs" className="text-slate-500 hover:text-teal-600 transition-colors flex items-center h-5">Blog</Link></li>
               <li><Link to="/privacy" className="text-slate-500 hover:text-teal-600 transition-colors flex items-center h-5">Privacy</Link></li>
               <li><Link to="/terms" className="text-slate-500 hover:text-teal-600 transition-colors flex items-center h-5">Terms</Link></li>
               <li><Link to="/data-deletion" className="text-slate-500 hover:text-teal-600 transition-colors flex items-center h-5">Data Deletion</Link></li>

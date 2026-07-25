@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { apiJSON, apiFetch, getToken } from '../../../lib/api';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 
 const EMPTY = {
   slug: '', image: '', title: '', excerpt: '', content: '',
@@ -19,6 +20,8 @@ export default function BlogsPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState('');
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   function load() {
     setLoading(true);
@@ -64,10 +67,14 @@ export default function BlogsPage() {
     }
   }
 
-  async function handleDelete(id) {
-    if (!confirm('Delete this blog post?')) return;
-    await apiFetch(`/admin/blogs/${id}`, { method: 'DELETE' });
-    load();
+  async function runDelete(blog) {
+    setDeleting(true);
+    try {
+      await apiFetch(`/admin/blogs/${blog.id}`, { method: 'DELETE' });
+      load();
+    } finally {
+      setDeleting(false); setPendingDelete(null);
+    }
   }
 
   return (
@@ -128,7 +135,7 @@ export default function BlogsPage() {
                     <td className="px-4 py-3">
                       <div className="flex gap-2 justify-end">
                         <button onClick={() => openEdit(b)} className="text-xs text-teal-600 hover:text-teal-800 font-semibold transition-colors">Edit</button>
-                        <button onClick={() => handleDelete(b.id)} className="text-xs text-red-500 hover:text-red-700 font-semibold transition-colors">Delete</button>
+                        <button onClick={() => setPendingDelete(b)} className="text-xs text-red-500 hover:text-red-700 font-semibold transition-colors">Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -138,6 +145,18 @@ export default function BlogsPage() {
           </div>
         )}
       </div>
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Delete this blog post?"
+          body={<>Deletes <strong>{pendingDelete.title}</strong> permanently, including its image. It will disappear from the app and site immediately. This cannot be undone.</>}
+          confirmLabel="Delete post"
+          danger
+          busy={deleting}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => runDelete(pendingDelete)}
+        />
+      )}
     </div>
   );
 }
@@ -152,7 +171,7 @@ function EditorModal({ editing, form, setForm, saving, error, onClose, onSave })
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
         </div>
         <form onSubmit={onSave} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Slug *" value={form.slug} onChange={(v) => setForm((f) => ({ ...f, slug: v }))} placeholder="my-blog-post" />
             <Field label="Published at *" type="date" value={form.publishedAt} onChange={(v) => setForm((f) => ({ ...f, publishedAt: v }))} />
           </div>
@@ -162,7 +181,7 @@ function EditorModal({ editing, form, setForm, saving, error, onClose, onSave })
           <ImageField value={form.image} onChange={(url) => setForm((f) => ({ ...f, image: url }))} />
 
           <Field label="Excerpt *" value={form.excerpt} onChange={(v) => setForm((f) => ({ ...f, excerpt: v }))} placeholder="Short description shown on cards" />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Category *" value={form.category} onChange={(v) => setForm((f) => ({ ...f, category: v }))} placeholder="TRAVEL TIPS" />
             <Field label="Author" value={form.author} onChange={(v) => setForm((f) => ({ ...f, author: v }))} />
           </div>
@@ -171,7 +190,7 @@ function EditorModal({ editing, form, setForm, saving, error, onClose, onSave })
             onChange={(html) => setForm((f) => ({ ...f, content: html }))}
             editingKey={editing === 'new' ? 'new' : editing?.id}
           />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Sort order (web)" type="number" value={form.sortOrderWeb} onChange={(v) => setForm((f) => ({ ...f, sortOrderWeb: v }))} placeholder="1" />
             <Field label="Sort order (app)" type="number" value={form.sortOrderApp} onChange={(v) => setForm((f) => ({ ...f, sortOrderApp: v }))} placeholder="1" />
           </div>

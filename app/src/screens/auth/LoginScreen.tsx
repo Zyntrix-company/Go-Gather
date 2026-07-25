@@ -6,12 +6,11 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   SafeAreaView,
   Dimensions,
 } from 'react-native';
+import { KeyboardAvoider } from '../../components/common/KeyboardAvoider';
 import Svg, { Path } from 'react-native-svg';
 import Logo from '../../components/common/Logo';
 import BlobBackground from '../../components/common/BlobBackground';
@@ -172,9 +171,7 @@ export default function LoginScreen({ navigation }: any) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <BlobBackground>
-        <KeyboardAvoidingView
-          style={styles.kav}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoider style={styles.kav}>
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
@@ -324,7 +321,7 @@ export default function LoginScreen({ navigation }: any) {
 
           </View>
           </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAvoider>
       </BlobBackground>
     </SafeAreaView>
   );

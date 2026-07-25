@@ -5,11 +5,10 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
+import { KeyboardAvoider } from '../../components/common/KeyboardAvoider';
 import Toast from 'react-native-toast-message';
 import Logo from '../../components/common/Logo';
 import BlobBackground from '../../components/common/BlobBackground';
@@ -89,9 +88,7 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
 
   return (
     <BlobBackground>
-      <KeyboardAvoidingView
-        style={styles.kav}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoider style={styles.kav}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
@@ -156,7 +153,7 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
             </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAvoider>
     </BlobBackground>
   );
 }

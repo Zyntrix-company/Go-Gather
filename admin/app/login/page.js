@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { setToken, getToken } from '../../lib/api';
+import Link from 'next/link';
+import { setTokens, getToken, setAdminRole, apiJSON } from '../../lib/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -32,7 +33,9 @@ export default function LoginPage() {
         setError(data.message || 'Invalid credentials');
         return;
       }
-      setToken(data.accessToken);
+      setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+      const me = await apiJSON('/admin/me').catch(() => null);
+      if (me?.role) setAdminRole(me.role);
       router.replace('/dashboard/overview');
     } catch {
       setError('Network error — please try again.');
@@ -73,7 +76,12 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Password</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-semibold text-slate-700">Password</label>
+                <Link href="/forgot-password" className="text-xs font-semibold text-teal-600 hover:text-teal-700 hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 type="password"
                 value={password}
@@ -100,10 +108,6 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
-
-        <p className="text-center text-xs text-slate-400 mt-6">
-          Forgot your password? Use the Security section after signing in.
-        </p>
       </div>
     </div>
   );

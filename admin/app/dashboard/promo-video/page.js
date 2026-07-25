@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { apiJSON, apiFetch, getToken } from '../../../lib/api';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -13,6 +14,7 @@ export default function PromoVideoPage() {
   const [uploadError, setUploadError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [progress, setProgress] = useState(0);     // 0-100 upload progress
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const inputRef = useRef(null);
 
   function load() {
@@ -70,12 +72,11 @@ export default function PromoVideoPage() {
   }
 
   async function handleDelete() {
-    if (!confirm('Remove the current promotional video? This will delete it from storage.')) return;
     setDeleting(true);
     try {
       await apiFetch('/admin/promo-video', { method: 'DELETE' });
       setCurrent(null);
-    } catch { /* ignore */ } finally { setDeleting(false); }
+    } catch { /* ignore */ } finally { setDeleting(false); setConfirmRemove(false); }
   }
 
   function handleDrop(e) {
@@ -90,7 +91,7 @@ export default function PromoVideoPage() {
           Promotional Video
         </h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          Shown in the "How it works" screen on the app. One video at a time — uploading a new one replaces the current.
+          Shown in the &quot;How it works&quot; screen on the app. One video at a time — uploading a new one replaces the current.
         </p>
       </div>
 
@@ -126,7 +127,7 @@ export default function PromoVideoPage() {
               </p>
             </div>
             <button
-              onClick={handleDelete}
+              onClick={() => setConfirmRemove(true)}
               disabled={deleting}
               className="px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold transition-colors disabled:opacity-50">
               {deleting ? 'Removing…' : 'Remove video'}
@@ -188,7 +189,7 @@ export default function PromoVideoPage() {
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="text-xs text-slate-400">Please don't close this page</p>
+              <p className="text-xs text-slate-400">Please don&apos;t close this page</p>
             </div>
           ) : (
             <>
@@ -212,6 +213,18 @@ export default function PromoVideoPage() {
           </p>
         )}
       </div>
+
+      {confirmRemove && (
+        <ConfirmDialog
+          title="Remove the promotional video?"
+          body="It will disappear from the app's How it works screen immediately, and the file is deleted from storage. This cannot be undone."
+          confirmLabel="Remove video"
+          danger
+          busy={deleting}
+          onCancel={() => setConfirmRemove(false)}
+          onConfirm={handleDelete}
+        />
+      )}
     </div>
   );
 }

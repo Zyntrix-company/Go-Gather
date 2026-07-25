@@ -54,6 +54,9 @@ const TRAVEL_FOCUS = [
   { key: 'Shopping', label: '🛍️  Shopping' },
 ];
 const MAX_FOCUS = 3;
+// Travel Focus renders as two even rows of 3 so it always matches the width
+// (and row count) of the Group Type / Budget rows, regardless of screen size.
+const TRAVEL_FOCUS_ROWS = [TRAVEL_FOCUS.slice(0, 3), TRAVEL_FOCUS.slice(3, 6)];
 
 // ─── Small building blocks ───────────────────────────────────────────────────
 function SectionLabel({ icon, children, hint }: { icon: React.ReactNode; children: string; hint?: string }) {
@@ -72,18 +75,23 @@ function Chip({
   onPress,
   disabled,
   compact,
+  fill,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
   disabled?: boolean;
   compact?: boolean;
+  // Equal-width mode: chip takes 1/n of its row instead of sizing to its text,
+  // so every chip in the row matches — text shrinks to fit instead of wrapping.
+  fill?: boolean;
 }) {
   return (
     <TouchableOpacity
       style={[
         styles.chip,
         compact && styles.chipCompact,
+        fill && styles.chipFill,
         selected && styles.chipSelected,
         disabled && !selected && styles.chipDisabled,
       ]}
@@ -91,7 +99,14 @@ function Chip({
       activeOpacity={0.8}
       disabled={disabled && !selected}
     >
-      <Text style={[styles.chipText, compact && styles.chipTextCompact, selected && styles.chipTextSelected]}>{label}</Text>
+      <Text
+        style={[styles.chipText, compact && styles.chipTextCompact, selected && styles.chipTextSelected]}
+        numberOfLines={1}
+        adjustsFontSizeToFit={fill}
+        minimumFontScale={0.7}
+      >
+        {label}
+      </Text>
       {/* Compact chips (single-line rows) drop the check to save width — fill colour signals selection. */}
       {selected && !compact && <Check size={13} color="#fff" strokeWidth={3} style={{ marginLeft: 5 }} />}
     </TouchableOpacity>
@@ -298,35 +313,41 @@ export function TripPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
         <Stepper label="Seniors" value={seniors} onChange={setSeniors} />
       </View>
 
-      {/* Group Type — single line where it fits, wraps only on very small screens */}
+      {/* Group Type — always one line, chips share the row evenly */}
       <SectionLabel icon={<UsersRound size={17} color="#0f172a" />}>Group Type</SectionLabel>
-      <View style={styles.chipWrapCompact}>
+      <View style={styles.chipRowEven}>
         {TRIP_GROUP_TYPES.map((g) => (
-          <Chip key={g} label={g} compact selected={groupType === g} onPress={() => setGroupType(groupType === g ? '' : g)} />
+          <Chip key={g} label={g} compact fill selected={groupType === g} onPress={() => setGroupType(groupType === g ? '' : g)} />
         ))}
       </View>
 
-      {/* Budget — single line where it fits */}
+      {/* Budget — always one line, same treatment as Group Type */}
       <SectionLabel icon={<Wallet size={17} color="#0f172a" />}>Budget</SectionLabel>
-      <View style={styles.chipWrapCompact}>
+      <View style={styles.chipRowEven}>
         {BUDGET_TIERS.map((b) => (
-          <Chip key={b} label={b} compact selected={budget === b} onPress={() => setBudget(budget === b ? '' : b)} />
+          <Chip key={b} label={b} compact fill selected={budget === b} onPress={() => setBudget(budget === b ? '' : b)} />
         ))}
       </View>
 
-      {/* Travel Focus */}
+      {/* Travel Focus — two even rows of 3, same chip size as Group Type / Budget */}
       <SectionLabel icon={<Sparkles size={17} color="#0f172a" />} hint="(select up to 3)">
         Travel Focus
       </SectionLabel>
-      <View style={styles.chipWrap}>
-        {TRAVEL_FOCUS.map((f) => (
-          <Chip
-            key={f.key}
-            label={f.label}
-            selected={focus.includes(f.key)}
-            onPress={() => toggleFocus(f.key)}
-            disabled={focus.length >= MAX_FOCUS}
-          />
+      <View style={styles.chipGrid}>
+        {TRAVEL_FOCUS_ROWS.map((row, i) => (
+          <View key={i} style={styles.chipRowEven}>
+            {row.map((f) => (
+              <Chip
+                key={f.key}
+                label={f.label}
+                compact
+                fill
+                selected={focus.includes(f.key)}
+                onPress={() => toggleFocus(f.key)}
+                disabled={focus.length >= MAX_FOCUS}
+              />
+            ))}
+          </View>
         ))}
       </View>
 
@@ -419,11 +440,11 @@ export function EventPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
         </View>
       </View>
 
-      {/* Group Type — single line where it fits, wraps only on very small screens */}
+      {/* Group Type — always one line, chips share the row evenly */}
       <SectionLabel icon={<UsersRound size={17} color="#0f172a" />}>Group Type</SectionLabel>
-      <View style={styles.chipWrapCompact}>
+      <View style={styles.chipRowEven}>
         {EVENT_GROUP_TYPES.map((g) => (
-          <Chip key={g} label={g} compact selected={groupType === g} onPress={() => setGroupType(groupType === g ? '' : g)} />
+          <Chip key={g} label={g} compact fill selected={groupType === g} onPress={() => setGroupType(groupType === g ? '' : g)} />
         ))}
       </View>
 
@@ -481,7 +502,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    padding: 16,
+    padding: 14,
     marginTop: 8,
     marginBottom: 2,
     shadowColor: '#0f172a',
@@ -491,7 +512,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, marginBottom: 10 },
+  sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 7 },
   sectionLabel: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
   sectionHint: { fontSize: 12, color: '#94a3b8', fontWeight: '400' },
 
@@ -506,15 +527,15 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#e2e8f0',
     borderRadius: 10,
-    paddingVertical: 8,
+    paddingVertical: 7,
     paddingHorizontal: 8,
     backgroundColor: '#f8fafc',
   },
-  stepperLabel: { fontSize: 12, color: '#64748b', fontWeight: '500', marginBottom: 6 },
+  stepperLabel: { fontSize: 12, color: '#64748b', fontWeight: '500', marginBottom: 5 },
   stepperControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   stepperBtn: {
-    width: 28,
-    height: 28,
+    width: 26,
+    height: 26,
     borderRadius: 8,
     backgroundColor: '#f0fdfa',
     alignItems: 'center',
@@ -522,12 +543,15 @@ const styles = StyleSheet.create({
   },
   stepperValue: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
 
-  // Chips
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chipWrapCompact: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  // Chips — rows are always a single line; chips split the row width evenly
+  // (`fill`) so Group Type, Budget, and Travel Focus all render at the same
+  // size regardless of label length or screen width.
+  chipRowEven: { flexDirection: 'row', gap: 6 },
+  chipGrid: { gap: 6 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 20,
@@ -535,7 +559,8 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
     backgroundColor: '#f8fafc',
   },
-  chipCompact: { paddingHorizontal: 10, paddingVertical: 7 },
+  chipCompact: { paddingHorizontal: 8, paddingVertical: 7 },
+  chipFill: { flex: 1, paddingHorizontal: 4 },
   chipSelected: { backgroundColor: PRIMARY, borderColor: PRIMARY },
   chipDisabled: { opacity: 0.45 },
   chipText: { fontSize: 13, color: '#475569', fontWeight: '500' },
@@ -581,8 +606,8 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: PRIMARY,
     borderRadius: 12,
-    paddingVertical: 15,
-    marginTop: 20,
+    paddingVertical: 13,
+    marginTop: 14,
   },
   submitBtnDisabled: { backgroundColor: '#cbd5e1' },
   submitText: { color: '#fff', fontSize: 15, fontWeight: '700' },

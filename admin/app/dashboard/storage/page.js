@@ -1,15 +1,32 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Info } from 'lucide-react';
 import { apiJSON } from '../../../lib/api';
+
+const HISTORY_PRESETS = [
+  { key: '30', label: 'Last 30 days', days: 30 },
+  { key: '90', label: 'Last 90 days', days: 90 },
+  { key: '180', label: 'Last 180 days', days: 180 },
+  { key: '365', label: 'Last year', days: 365 },
+];
 
 export default function StoragePage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [historyDays, setHistoryDays] = useState('30');
+  const [history, setHistory] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   useEffect(() => {
     apiJSON('/admin/storage').then(setData).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const days = HISTORY_PRESETS.find((p) => p.key === historyDays)?.days ?? 30;
+    setHistoryLoading(true);
+    apiJSON(`/admin/storage/history?days=${days}`).then(setHistory).finally(() => setHistoryLoading(false));
+  }, [historyDays]);
 
   if (loading) return <div className="p-10 text-center text-sm text-slate-400 animate-pulse">Loading…</div>;
   if (!data)   return null;
@@ -36,11 +53,30 @@ export default function StoragePage() {
         <KpiCard label="Avg / user"         value={fmtBytes(data.averageBytesPerUser)} sub={`${data.averageMBPerUser} MB`} />
       </div>
 
+      {/* Consumption over time */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <h2 className="text-sm font-bold text-slate-800">Consumption over time</h2>
+          <select value={historyDays} onChange={(e) => setHistoryDays(e.target.value)}
+            className="text-sm border border-slate-200 rounded-xl px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-teal-500">
+            {HISTORY_PRESETS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+          </select>
+        </div>
+        {historyLoading ? (
+          <div className="h-48 flex items-center justify-center text-sm text-slate-400 animate-pulse">Loading…</div>
+        ) : (
+          <StorageHistoryChart snapshots={history?.snapshots ?? []} />
+        )}
+      </div>
+
       {/* Quota bar */}
       {data.quota ? (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800">Quota</h2>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-sm font-bold text-slate-800">Quota</h2>
+              <QuotaInfo />
+            </div>
             <span className="text-sm text-slate-500">{fmtBytes(data.quota.usedBytes)} / {data.quota.totalGB} GB</span>
           </div>
           <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
@@ -54,7 +90,10 @@ export default function StoragePage() {
         </div>
       ) : (
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
-          <p className="text-xs font-semibold text-amber-700 mb-1">Quota not configured</p>
+          <div className="flex items-center gap-1.5 mb-1">
+            <p className="text-xs font-semibold text-amber-700">Quota not configured</p>
+            <QuotaInfo tone="amber" />
+          </div>
           <p className="text-xs text-amber-600">Set <code className="bg-amber-100 px-1 rounded">STORAGE_QUOTA_BYTES</code> on the backend to enable quota tracking.</p>
         </div>
       )}
@@ -73,6 +112,102 @@ export default function StoragePage() {
           total={totalDoc}
         />
       </div>
+    </div>
+  );
+}
+
+/* ── Quota info popover ───────────────────────────────────────── */
+function QuotaInfo({ tone = 'slate' }) {
+  const [open, setOpen] = useState(false);
+  const color = tone === 'amber' ? 'text-amber-500 hover:text-amber-700' : 'text-slate-400 hover:text-slate-600';
+
+  return (
+    <span className="relative inline-flex">
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className={`inline-flex ${color} transition-colors`} aria-label="What is quota?">
+        <Info className="w-3.5 h-3.5" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-6 z-20 w-72 bg-white rounded-xl border border-slate-100 shadow-lg p-3.5 text-left">
+            <p className="text-xs text-slate-600 leading-relaxed">
+              An optional storage budget you set yourself — it&apos;s not tied to any real AWS/S3 limit, just a soft ceiling
+              for planning purposes. When configured (<code className="bg-slate-100 px-1 rounded text-[11px]">STORAGE_QUOTA_BYTES</code> on
+              the backend), this bar shows usage against it: teal under 70%, amber 70–90%, red above 90%. Nothing is
+              enforced — the app keeps accepting uploads past 100%.
+            </p>
+          </div>
+        </>
+      )}
+    </span>
+  );
+}
+
+/* ── History chart ─────────────────────────────────────────────── */
+function StorageHistoryChart({ snapshots }) {
+  if (snapshots.length < 2) {
+    return (
+      <div className="h-48 flex flex-col items-center justify-center text-center gap-1">
+        <p className="text-sm text-slate-400">Not enough history yet</p>
+        <p className="text-xs text-slate-300 max-w-xs">
+          A daily snapshot job records totals each night — check back in a few days for a trend line.
+        </p>
+      </div>
+    );
+  }
+
+  const series = [
+    { key: 'totalBytes',  label: 'Total',  color: '#0d9488' },
+    { key: 'docsBytes',   label: 'Docs',   color: '#475569' },
+    { key: 'imagesBytes', label: 'Images', color: '#94a3b8' },
+  ];
+
+  const maxVal = Math.max(...snapshots.map((s) => s.totalBytes), 1);
+  const W = 640; const H = 200;
+  const PAD = { t: 10, r: 12, b: 30, l: 56 };
+  const iW = W - PAD.l - PAD.r; const iH = H - PAD.t - PAD.b;
+  const xp = (i) => PAD.l + (i / Math.max(snapshots.length - 1, 1)) * iW;
+  const yp = (v) => PAD.t + iH - (v / maxVal) * iH;
+
+  const gridVals = [0, maxVal * 0.25, maxVal * 0.5, maxVal * 0.75, maxVal];
+
+  return (
+    <div>
+      <div className="flex gap-3 mb-2">
+        {series.map((s) => (
+          <span key={s.key} className="flex items-center gap-1 text-xs text-slate-500">
+            <span className="w-3 h-0.5 rounded-full inline-block" style={{ background: s.color }} />
+            {s.label}
+          </span>
+        ))}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 220 }}>
+        {gridVals.map((v) => {
+          const y = yp(v);
+          return (
+            <g key={v}>
+              <line x1={PAD.l} y1={y} x2={W - PAD.r} y2={y} stroke="#f1f5f9" strokeWidth="1" />
+              <text x={PAD.l - 6} y={y + 4} textAnchor="end" fontSize="9" fill="#94a3b8">{fmtBytes(v)}</text>
+            </g>
+          );
+        })}
+        {snapshots.filter((_, i) => snapshots.length <= 7 || i % Math.ceil(snapshots.length / 6) === 0 || i === snapshots.length - 1).map((s) => {
+          const i = snapshots.indexOf(s);
+          const d = new Date(`${String(s.date).slice(0, 10)}T12:00:00.000Z`);
+          const label = Number.isNaN(d.getTime()) ? s.date : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+          return <text key={s.date} x={xp(i)} y={H - 6} textAnchor="middle" fontSize="9" fill="#94a3b8">{label}</text>;
+        })}
+        {series.map(({ key, color }) => {
+          const pts = snapshots.map((s, i) => ({ x: xp(i), y: yp(s[key]), v: s[key] }));
+          const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+          return (
+            <g key={key}>
+              <path d={pathD} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }

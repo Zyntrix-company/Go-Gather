@@ -1,24 +1,72 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { Wallet, Camera, FileText, StickyNote } from 'lucide-react';
 import { apiJSON } from '../../../lib/api';
 
+/* ── Date-range presets (created-date filter) ─────────────────── */
+function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function endOfDay(d) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function startOfWeek(d) { const x = startOfDay(d); const day = (x.getDay() + 6) % 7; return addDays(x, -day); }
+function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+function endOfMonth(d) { return endOfDay(new Date(d.getFullYear(), d.getMonth() + 1, 0)); }
+
+function buildPresets() {
+  const now = new Date();
+  const thisWeekStart = startOfWeek(now);
+  const lastWeekStart = addDays(thisWeekStart, -7);
+  const lastWeekEnd = endOfDay(addDays(thisWeekStart, -1));
+  const thisMonthStart = startOfMonth(now);
+  const lastMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+  const lastMonthEnd = endOfMonth(lastMonthStart);
+
+  return [
+    { key: 'all', label: 'All time', from: null, to: null, rangeLabel: 'all time' },
+    { key: '7d', label: 'Last 7 days', from: startOfDay(addDays(now, -7)), to: now, rangeLabel: 'within the last 7 days' },
+    { key: '30d', label: 'Last 30 days', from: startOfDay(addDays(now, -30)), to: now, rangeLabel: 'within the last 30 days' },
+    { key: 'this_week', label: 'This week', from: thisWeekStart, to: now, rangeLabel: 'this week' },
+    { key: 'last_week', label: 'Last week', from: lastWeekStart, to: lastWeekEnd, rangeLabel: 'last week' },
+    { key: 'this_month', label: 'This month', from: thisMonthStart, to: now, rangeLabel: 'this month' },
+    { key: 'last_month', label: 'Last month', from: lastMonthStart, to: lastMonthEnd, rangeLabel: 'last month' },
+  ];
+}
+
 export default function TripsEventsPage() {
+  const presets = useMemo(buildPresets, []);
+  const [presetKey, setPresetKey] = useState('all');
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const preset = presets.find((p) => p.key === presetKey) ?? presets[0];
+
   useEffect(() => {
-    apiJSON('/admin/trips-events').then(setData).finally(() => setLoading(false));
-  }, []);
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (preset.from) params.set('from', preset.from.toISOString());
+    if (preset.to)   params.set('to', preset.to.toISOString());
+    if (preset.from || preset.to) params.set('label', preset.rangeLabel);
+    apiJSON(`/admin/trips-events?${params}`).then(setData).finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetKey]);
 
   if (loading) return <Skeleton />;
   if (!data)   return null;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-extrabold text-slate-900" style={{ fontFamily: 'var(--font-nunito,sans-serif)' }}>
-        Trips &amp; Events
-      </h1>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold text-slate-900" style={{ fontFamily: 'var(--font-nunito,sans-serif)' }}>
+            Trips &amp; Events
+          </h1>
+          <p className="text-sm text-slate-500 mt-0.5">Created {preset.rangeLabel}</p>
+        </div>
+        <select value={presetKey} onChange={(e) => setPresetKey(e.target.value)}
+          className="text-sm border border-slate-200 rounded-xl px-3 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-teal-500">
+          {presets.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+        </select>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <BucketCard title="Trips" total={data.trips.total} buckets={[
@@ -39,10 +87,10 @@ export default function TripsEventsPage() {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
         <h2 className="text-sm font-bold text-slate-800 mb-4">Shared Activity</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <ActivityStat label="Expenses logged" value={data.activity.expenses} icon="💰" />
-          <ActivityStat label="Photos uploaded"  value={data.activity.photos}   icon="📷" />
-          <ActivityStat label="Documents shared" value={data.activity.docs}     icon="📄" />
-          <ActivityStat label="Notes created"    value={data.activity.notes}    icon="📝" />
+          <ActivityStat label="Expenses logged" value={data.activity.expenses} icon={Wallet} />
+          <ActivityStat label="Photos uploaded"  value={data.activity.photos}   icon={Camera} />
+          <ActivityStat label="Documents shared" value={data.activity.docs}     icon={FileText} />
+          <ActivityStat label="Notes created"    value={data.activity.notes}    icon={StickyNote} />
         </div>
       </div>
     </div>
@@ -86,10 +134,10 @@ function BucketCard({ title, total, buckets }) {
   );
 }
 
-function ActivityStat({ label, value, icon }) {
+function ActivityStat({ label, value, icon: Icon }) {
   return (
     <div className="text-center p-4 rounded-xl bg-slate-50 border border-slate-100">
-      <div className="text-2xl mb-1">{icon}</div>
+      <Icon className="w-6 h-6 mx-auto mb-1.5 text-teal-600" strokeWidth={1.75} />
       <p className="text-2xl font-bold text-slate-800 tabular-nums">{value.toLocaleString()}</p>
       <p className="text-xs text-slate-500 mt-0.5 font-medium">{label}</p>
     </div>

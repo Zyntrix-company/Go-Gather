@@ -6,8 +6,6 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   Image,
   Modal,
   FlatList,
@@ -15,6 +13,7 @@ import {
   SafeAreaView,
   Dimensions,
 } from 'react-native';
+import { KeyboardAvoider } from '../../components/common/KeyboardAvoider';
 import Svg, { Path } from 'react-native-svg';
 import Logo from '../../components/common/Logo';
 import LegalModal from '../../components/common/LegalModal';
@@ -463,9 +462,7 @@ export default function CreateProfileScreen({ navigation }: any) {
           onClose={() => setShowCountryPicker(false)}
         />
 
-        <KeyboardAvoidingView
-          style={styles.kav}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoider style={styles.kav}>
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
@@ -621,7 +618,7 @@ export default function CreateProfileScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
           </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAvoider>
       </BlobBackground>
     </SafeAreaView>
   );

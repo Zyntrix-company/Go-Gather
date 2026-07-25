@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, KeyboardAvoidingView, Platform } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppScreenLayout, { TAB_BAR_BASE_HEIGHT } from '../common/AppScreenLayout';
+import { KeyboardAvoider } from '../common/KeyboardAvoider';
 import type { TabType } from '../common/FloatingTabBar';
 import { AlbumPhotosOverlayContext, AlbumPhotosScrollContext } from './AlbumPhotosContext';
 import { useKeyboardVisible } from '../../hooks/useKeyboardVisible';
@@ -55,25 +56,11 @@ export default function AlbumPhotosScreenLayout({
   // Use a plain View (not ScrollView) so that flex layout works correctly inside:
   // a ScrollView gives children unbounded height, which breaks flex: 1 on the
   // nested comment list and causes the whole screen to shift on compose open.
-  //
-  // On iOS: KeyboardAvoidingView with behavior='padding' shrinks the body so the
-  // compose input inside the comment ScrollView stays above the keyboard.
-  // On Android: the window already resizes (adjustResize) — adding KAV on top
-  // causes a double-shrink that crushes the engagement section to nothing.
+  // Keyboard avoidance is handled once, below, for both platforms — the window
+  // no longer resizes itself on Android (see KeyboardProvider in App.tsx), so
+  // there is no double-shrink to guard against.
   const body = scrollable ? (
-    Platform.OS === 'ios' ? (
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior="padding"
-        keyboardVerticalOffset={insets.top + 56}
-      >
-        <View style={{ flex: 1 }}>
-          {children}
-        </View>
-      </KeyboardAvoidingView>
-    ) : (
-      <View style={{ flex: 1 }}>{children}</View>
-    )
+    <View style={{ flex: 1 }}>{children}</View>
   ) : (
     <View style={{ flex: 1, overflow: 'hidden' }}>{children}</View>
   );
@@ -89,15 +76,18 @@ export default function AlbumPhotosScreenLayout({
       <AlbumPhotosOverlayContext.Provider value={heroOverlay ?? null}>
         <AlbumPhotosScrollContext.Provider value={null}>
           {/*
-           * While the keyboard is up we reclaim the tab-bar padding so the
-           * engagement section (flex:1 at the bottom) has maximum height to
-           * show comments and the compose input above the keyboard.
+           * Bottom space is max(tabBarPad, keyboardHeight): the tab-bar padding
+           * is reclaimed as the keyboard rises rather than dropped in one step,
+           * so the engagement section (flex:1 at the bottom) keeps maximum
+           * height for comments and the compose input without a layout jump.
            */}
-          <View style={{ flex: 1, paddingBottom: keyboardVisible ? 0 : tabBarPad }}>
-            {subHeader}
-            {body}
-            {footer}
-          </View>
+          <KeyboardAvoider existingBottomSpace={tabBarPad}>
+            <View style={{ flex: 1, paddingBottom: tabBarPad }}>
+              {subHeader}
+              {body}
+              {footer}
+            </View>
+          </KeyboardAvoider>
         </AlbumPhotosScrollContext.Provider>
       </AlbumPhotosOverlayContext.Provider>
     </AppScreenLayout>

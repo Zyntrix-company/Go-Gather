@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiJSON } from '../../../lib/api';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 
 /** Sandboxed iframe preview — scripts do not run (sandbox). Final output still sanitised on the server. */
 function buildPreviewSrcDoc(html) {
@@ -37,6 +38,7 @@ export default function LegalPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [form, setForm] = useState({ version: '', contentHtml: '', effectiveAt: '' });
   const [saving, setSaving] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
   /** @type {'edit' | 'split' | 'preview'} */
   const [editorView, setEditorView] = useState('split');
 
@@ -76,8 +78,7 @@ export default function LegalPage() {
     setError('');
   }
 
-  async function handlePublish(e) {
-    e.preventDefault();
+  async function runPublish() {
     setSaving(true);
     setError('');
     try {
@@ -91,9 +92,11 @@ export default function LegalPage() {
         }),
       });
       setEditorOpen(false);
+      setConfirmPublish(false);
       load();
     } catch (err) {
       setError(err.message || 'Publish failed');
+      setConfirmPublish(false);
     } finally {
       setSaving(false);
     }
@@ -200,7 +203,7 @@ export default function LegalPage() {
                 Close
               </button>
             </div>
-            <form onSubmit={handlePublish} className="flex flex-col flex-1 min-h-0">
+            <form onSubmit={(e) => { e.preventDefault(); setConfirmPublish(true); }} className="flex flex-col flex-1 min-h-0">
               <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
                 {error && <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</div>}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -296,6 +299,21 @@ export default function LegalPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {confirmPublish && (
+        <ConfirmDialog
+          title={`Publish v${form.version.trim() || suggestedNext}?`}
+          body={<>
+            This becomes the live {TYPES.find((t) => t.id === tab)?.label.toLowerCase()}. Every verified user is emailed
+            in batches and must acknowledge it in the app before continuing. <strong>This cannot be unpublished.</strong>
+          </>}
+          confirmLabel="Publish"
+          danger
+          busy={saving}
+          onCancel={() => setConfirmPublish(false)}
+          onConfirm={runPublish}
+        />
       )}
     </div>
   );

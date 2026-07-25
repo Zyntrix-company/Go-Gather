@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform,
+  Modal, TextInput, ActivityIndicator,
 } from 'react-native';
+import { KeyboardAvoider, KeyboardProvider } from '../../components/common/KeyboardAvoider';
 import { X } from 'lucide-react-native';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import colors from '../../theme/colors';
@@ -94,7 +95,11 @@ export default function SupportScreen({ navigation }: { navigation: any }) {
 
       {/* ── Report a Problem modal — same design as Swee's "Report an issue" ── */}
       <Modal visible={showReportModal} transparent animationType="slide" onRequestClose={() => setShowReportModal(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+        {/* A RN Modal is a separate native window with its own keyboard insets,
+            invisible to the app-root KeyboardProvider (App.tsx). Nest one here so
+            KeyboardAvoider tracks the keyboard from this window. */}
+        <KeyboardProvider>
+        <KeyboardAvoider style={styles.modalOverlay}>
           <View style={styles.reportModal}>
             <View style={styles.reportHeader}>
               <Text style={styles.reportTitle}>Report a Problem</Text>
@@ -156,7 +161,8 @@ export default function SupportScreen({ navigation }: { navigation: any }) {
               </>
             )}
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardAvoider>
+        </KeyboardProvider>
       </Modal>
     </AppScreenLayout>
   );

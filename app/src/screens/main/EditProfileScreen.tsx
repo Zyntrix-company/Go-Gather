@@ -5,13 +5,12 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
   Modal,
   FlatList,
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import { KeyboardAvoider } from '../../components/common/KeyboardAvoider';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
@@ -255,10 +254,7 @@ export default function EditProfileScreen({ navigation }: any) {
       />
 
       <AppScreenLayout navigation={navigation} title="Edit Profile" onBack={() => navigation.goBack()}>
-        <KeyboardAvoidingView
-          style={styles.kav}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}>
+        <KeyboardAvoider style={styles.kav}>
 
           <ScrollView
             style={styles.scroll}
@@ -429,7 +425,7 @@ export default function EditProfileScreen({ navigation }: any) {
             </View>
 
           </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardAvoider>
       </AppScreenLayout>
     </>
   );

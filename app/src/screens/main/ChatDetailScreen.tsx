@@ -23,11 +23,12 @@ import {
   isErrorWithCode,
   errorCodes,
 } from '@react-native-documents/picker';
-import AppScreenLayout, { TAB_BAR_SCROLL_PADDING, TAB_BAR_BASE_HEIGHT } from '../../components/common/AppScreenLayout';
+import AppScreenLayout, { TAB_BAR_BASE_HEIGHT } from '../../components/common/AppScreenLayout';
 import MarkdownText from '../../components/common/MarkdownText';
 import SweeIcon from '../../components/common/SweeIcon';
 import { TripPlanForm, EventPlanForm } from '../../components/chat/SweePlanForm';
-import { useKeyboardHeight } from '../../hooks/useKeyboardVisible';
+import { useKeyboardVisible } from '../../hooks/useKeyboardVisible';
+import { KeyboardAvoider } from '../../components/common/KeyboardAvoider';
 import useChatStore from '../../store/chatStore';
 import useAuthStore from '../../store/authStore';
 import { showConfirm } from '../../store/alertStore';
@@ -270,22 +271,15 @@ function TypingIndicator() {
 
 export default function ChatDetailScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
-  const keyboardHeight = useKeyboardHeight();
-  const keyboardVisible = keyboardHeight > 0;
+  const keyboardVisible = useKeyboardVisible();
   const initialMessageParam = route?.params?.initialMessage;
 
-  // Bottom space below the composer (SafeAreaView's bottom edge is off, so this
-  // is the single source of truth — no double counting).
-  //  • Keyboard open: lift the composer by the keyboard height on BOTH platforms.
-  //      – iOS never resizes the window.
-  //      – Android declares adjustResize (AndroidManifest) but the theme sets
-  //        android:windowIsTranslucent=true (res/values/styles.xml), and a
-  //        translucent window is NOT resized for the keyboard. Without the manual
-  //        lift the composer stays behind the keyboard and typed text is unreadable.
-  //  • Keyboard closed: clear the floating tab bar + safe-area inset.
-  const composerBottomSpace = keyboardVisible
-    ? keyboardHeight
-    : TAB_BAR_BASE_HEIGHT + insets.bottom;
+  // Space the container always reserves below the composer: the floating tab
+  // bar plus the safe-area inset. KeyboardAvoider tops this up to the keyboard
+  // height when the keyboard opens (max, not sum), so the composer lands flush
+  // on the keyboard and the message list shrinks with it. No keyboard-height
+  // math lives in this screen.
+  const composerClosedOffset = TAB_BAR_BASE_HEIGHT + insets.bottom;
   const paramConversationId = route?.params?.conversationId as string | undefined;
 
   const updateConversationInStore = useChatStore((s) => s.updateConversation);
@@ -451,10 +445,8 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     };
   }, [paramConversationId, route?.params?.tripContext, startWelcomeAnimation]);
 
-  // Scroll to bottom whenever messages change or the keyboard opens
-  useEffect(() => {
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
-  }, [messages, keyboardVisible]);
+  // Scrolling to the newest message is driven by the FlatList's
+  // onContentSizeChange, which fires after layout settles — see below.
 
   // Cleanup streaming on unmount
   useEffect(() => {
@@ -926,7 +918,8 @@ export default function ChatDetailScreen({ route, navigation }: any) {
       showFooter={!keyboardVisible}
       edges={CHAT_SAFE_AREA_EDGES}
     >
-      <View style={[styles.container, { paddingBottom: composerBottomSpace }]}>
+      <KeyboardAvoider existingBottomSpace={composerClosedOffset}>
+      <View style={[styles.container, { paddingBottom: composerClosedOffset }]}>
 
         {/* ── Chat sub-header ── */}
         <View style={styles.header}>
@@ -964,12 +957,20 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             data={messages}
             keyExtractor={(item) => item.id}
             renderItem={renderMessage}
-            contentContainerStyle={[styles.messageList, { paddingBottom: keyboardVisible ? 12 : TAB_BAR_SCROLL_PADDING }]}
+            contentContainerStyle={styles.messageList}
             showsVerticalScrollIndicator={false}
             onScroll={(e) => {
               if (e.nativeEvent.contentOffset.y < 48) loadOlderMessages();
             }}
             scrollEventThrottle={200}
+            // Follow layout instead of racing it: the composer/keyboard resize
+            // changes content size, so this fires after the relayout settles.
+            // Deferred one frame: nested content (forms/cards) can report this
+            // event before its own layout pass commits, so scrolling immediately
+            // would land short of the true bottom.
+            onContentSizeChange={() => {
+              requestAnimationFrame(() => flatListRef.current?.scrollToEnd({ animated: true }));
+            }}
             ListHeaderComponent={
               loadingOlder ? (
                 <ActivityIndicator style={styles.olderLoader} color="#0d9488" />
@@ -978,10 +979,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
           />
         )}
 
-        {/* ── Input bar ──
-            The app window is translucent (styles.xml), so Android's adjustResize
-            never shrinks the window for the keyboard. We lift the bar manually by
-            the measured keyboard height (see container paddingBottom above). */}
+        {/* ── Input bar ── */}
         {attachments.length > 0 && (
           <View style={styles.composerAttachments}>
             {attachments.map((a) => (
@@ -1026,6 +1024,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         </View>
 
       </View>
+      </KeyboardAvoider>
 
       {/* ── Overflow Menu Modal ── */}
       <Modal visible={showOverflow} transparent animationType="fade" onRequestClose={() => setShowOverflow(false)}>

@@ -33,13 +33,12 @@ function SearchIcon() {
 }
 
 type HeaderProps = {
-  hasConversations: boolean;
   searchQuery: string;
   onSearchChange: (q: string) => void;
   onNewChat: () => void;
 };
 
-function ListHeader({ hasConversations, searchQuery, onSearchChange, onNewChat }: HeaderProps) {
+function ListHeader({ searchQuery, onSearchChange, onNewChat }: HeaderProps) {
   return (
     <View>
       {/* Hero — mirrors the Trips/Events hero (icon circle → title → sub → pill CTA) */}
@@ -76,13 +75,6 @@ function ListHeader({ hasConversations, searchQuery, onSearchChange, onNewChat }
         />
       </View>
 
-      {/* List header — mirrors "Your Trips" / "Your Events" */}
-      {hasConversations && (
-        <View style={styles.listHeader}>
-          <Text style={styles.listTitle}>Your Chats</Text>
-          <Text style={styles.listSub}>Pick up where you left off</Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -133,13 +125,12 @@ function ChatTab({ onOpenConversation, onOpenNewChat }: Props) {
   const renderHeader = useCallback(
     () => (
       <ListHeader
-        hasConversations={conversations.length > 0}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onNewChat={onOpenNewChat}
       />
     ),
-    [conversations.length, searchQuery, onOpenNewChat],
+    [searchQuery, onOpenNewChat],
   );
 
   const renderEmpty = useCallback(
@@ -214,7 +205,7 @@ const styles = StyleSheet.create({
   },
 
   // Hero — same metrics as TripsScreen.tripsCTA / EventsScreen.heroSection
-  hero: { alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 16 },
+  hero: { alignItems: 'center', marginTop: 18, marginBottom: 20, gap: 16 },
   heroIconWrap: {
     width: 64, height: 64, borderRadius: 32,
     backgroundColor: '#ccfbf1',
@@ -261,17 +252,6 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     paddingVertical: 0,
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
-  },
-
-  // List header — same metrics as "Your Trips" / "Your Events"
-  listHeader: { marginBottom: 16, paddingTop: 16 },
-  listTitle: {
-    fontFamily: 'Inter', fontSize: 15, fontWeight: '400', color: '#0F172B',
-    lineHeight: 24, letterSpacing: 0,
-  },
-  listSub: {
-    fontSize: 15, fontWeight: '400', color: '#45556C',
-    lineHeight: 19, letterSpacing: 0, marginTop: 2, marginBottom: 8,
   },
 
   // Skeleton inside list

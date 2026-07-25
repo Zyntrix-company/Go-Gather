@@ -7,9 +7,8 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
+import { KeyboardAvoider } from '../../components/common/KeyboardAvoider';
 import Svg, { Path, Circle } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import authApi from '../../api/auth.api';
@@ -172,9 +171,7 @@ export default function ChangePasswordScreen({ navigation }: { navigation: any }
 
   return (
     <AppScreenLayout navigation={navigation} title="Change Password" onBack={() => navigation.goBack()}>
-      <KeyboardAvoidingView
-        style={styles.kav}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoider style={styles.kav}>
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
           keyboardShouldPersistTaps="handled"
@@ -307,7 +304,7 @@ export default function ChangePasswordScreen({ navigation }: { navigation: any }
             </TouchableOpacity>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAvoider>
     </AppScreenLayout>
   );
 }

@@ -11,7 +11,7 @@ import { getRelativeTime } from '../../utils/relativeTime';
 import type { GalleryComment } from '../../api/gallery.api';
 import useAuthStore from '../../store/authStore';
 import { showConfirm } from '../../store/alertStore';
-import { useKeyboardHeight } from '../../hooks/useKeyboardVisible';
+import { KeyboardAvoider, KeyboardProvider } from '../common/KeyboardAvoider';
 import { GALLERY_COMMENT_MAX } from '../../constants/albumPhotosLayout';
 
 function HeartIcon({ filled }: { filled: boolean }) {
@@ -123,23 +123,7 @@ export default function GalleryEngagementSection({
   onDeleteComment,
 }: GalleryEngagementSectionProps) {
   const currentUser = useAuthStore((s) => s.user);
-  // Pin the composer sheet directly above the keyboard. The Modal is its own
-  // transparent window that does not honour the activity's adjustResize (which
-  // also breaks on large edge-to-edge screens), so the measured keyboard height
-  // is exactly how far to lift the sheet — consistent on every screen size.
-  const keyboardHeight = useKeyboardHeight();
   const insets = useSafeAreaInsets();
-  // On Android edge-to-edge (RN's default), Keyboard.endCoordinates.height
-  // under-reports by the navigation-bar inset, but the translucent Modal draws
-  // its content all the way down behind the nav bar. Without compensating, the
-  // sheet is lifted too little and the input row hides behind the keyboard.
-  // iOS reports the height from the screen bottom already, so no extra offset.
-  const composerLift =
-    keyboardHeight > 0
-      ? keyboardHeight + (Platform.OS === 'android' ? insets.bottom : 0)
-      // Keyboard not up yet (or focus hasn't landed): still clear the nav bar /
-      // home indicator so the sheet never sits underneath it.
-      : insets.bottom;
   const commentScrollRef = useRef<ScrollView>(null);
   const composerRef = useRef<TextInput>(null);
   const [posting, setPosting] = useState(false);
@@ -287,9 +271,10 @@ export default function GalleryEngagementSection({
         comments.length > 0 ? <View style={styles.commentList}>{commentRows}</View> : null
       )}
 
-      {/* Keyboard-anchored composer — new comment + edit. The sheet is lifted to
-          sit flush on top of the keyboard by the measured keyboard height, so it
-          stays visible on every screen size. The album screen behind never scrolls. */}
+      {/* Keyboard-anchored composer — new comment + edit. KeyboardAvoider pins
+          the sheet flush on top of the keyboard; with the keyboard down it keeps
+          clear of the nav bar / home indicator. The album screen behind never
+          scrolls. */}
       <Modal
         visible={composerMode !== null}
         transparent
@@ -299,11 +284,18 @@ export default function GalleryEngagementSection({
         onShow={handleComposerShow}
         onRequestClose={closeComposer}
       >
+        {/* A RN Modal is a separate native window with its own keyboard insets,
+            so the app-root KeyboardProvider (App.tsx) can't see it. Nest one
+            here — scoped to this window with the same translucency flags — so
+            the KeyboardAvoider below measures the keyboard from the modal's own
+            window and lands flush on every screen/inset size. */}
+        <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
         <View style={styles.composerRoot}>
           {/* Full-screen scrim — tap anywhere outside the sheet to dismiss. */}
           <Pressable style={StyleSheet.absoluteFill} onPress={closeComposer} />
+          <KeyboardAvoider existingBottomSpace={insets.bottom} pointerEvents="box-none">
           <View
-            style={[styles.composerAvoider, { paddingBottom: composerLift }]}
+            style={[styles.composerAvoider, { paddingBottom: insets.bottom }]}
             pointerEvents="box-none"
           >
             <View style={styles.composerSheet}>
@@ -353,7 +345,9 @@ export default function GalleryEngagementSection({
               </View>
             </View>
           </View>
+          </KeyboardAvoider>
         </View>
+        </KeyboardProvider>
       </Modal>
 
       {/* Comment action modal — rendered outside the scroll view to avoid Android clipping */}
