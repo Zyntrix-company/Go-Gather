@@ -20,6 +20,7 @@ function formatConversation(row) {
     category: row.category || 'general',
     tripContext: row.trip_context || null,
     metadata: row.metadata || {},
+    starred: row.starred || false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -174,6 +175,19 @@ async function deleteConversation(userId, conversationId) {
     [conversationId, userId],
   );
   return { success: true };
+}
+
+// Deliberately leaves updated_at untouched — starring is a UI marker only and
+// must not reshuffle the conversation list (still ordered by updated_at DESC).
+async function setConversationStarred(userId, conversationId, starred) {
+  await getConversationForUser(userId, conversationId);
+  const result = await db(
+    `UPDATE ai_conversations SET starred = $1
+     WHERE id = $2 AND user_id = $3
+     RETURNING *`,
+    [!!starred, conversationId, userId],
+  );
+  return formatConversation(result.rows[0]);
 }
 
 // ─── Messages ─────────────────────────────────────────────────────────────────
@@ -405,6 +419,7 @@ module.exports = {
   createConversation,
   getConversation,
   deleteConversation,
+  setConversationStarred,
   loadMessageHistory,
   listMessages,
   appendMessages,

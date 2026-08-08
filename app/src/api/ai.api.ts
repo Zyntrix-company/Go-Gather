@@ -51,6 +51,7 @@ export type AiConversation = {
   updatedAt: string;
   createdAt?: string;
   tripContext?: TripContext | null;
+  starred?: boolean;
 };
 
 export type AiMessage = {
@@ -141,6 +142,11 @@ export async function getConversationMessages(
 
 export async function deleteConversation(conversationId: string): Promise<void> {
   await client.delete(`/ai/conversations/${conversationId}`);
+}
+
+export async function setConversationStarred(conversationId: string, starred: boolean): Promise<AiConversation> {
+  const response = await client.patch(`/ai/conversations/${conversationId}/star`, { starred });
+  return response.data as AiConversation;
 }
 
 export function sendMessageStream(

@@ -1,6 +1,7 @@
 const aiService = require('./ai.service');
 const conversationsService = require('./conversations.service');
 const sweeMetrics = require('./swee.metrics');
+const aiUsageService = require('./aiUsage.service');
 const { geminiRateLimitMessage, serviceBusyMessage } = require('./swee.messages');
 const logger = require('../../utils/logger');
 
@@ -61,9 +62,11 @@ const chat = async (req, res, next) => {
     });
 
     sweeMetrics.recordChatResult(true);
+    aiUsageService.logUsageEvent(true);
     return res.status(200).json(result);
   } catch (error) {
     sweeMetrics.recordChatResult(false, error.sweeErrorCode || error.name || 'error');
+    aiUsageService.logUsageEvent(false, error.sweeErrorCode || error.name || 'error');
 
     if (error.sweeErrorCode === 'GEMINI_RATE_LIMIT') {
       logger.warn('Swee chat Gemini rate limit', { userId: req.user?.id, statusCode: 429 });
@@ -253,6 +256,23 @@ const deleteConversation = async (req, res, next) => {
   }
 };
 
+const setConversationStarred = async (req, res, next) => {
+  try {
+    if (!isUuid(req.params.id)) {
+      return res.status(400).json({ error: 'BadRequest', message: 'Invalid conversation id' });
+    }
+    const conversation = await conversationsService.setConversationStarred(
+      req.user.id, req.params.id, !!req.body?.starred,
+    );
+    return res.status(200).json(conversation);
+  } catch (error) {
+    if (error.statusCode === 404) {
+      return res.status(404).json({ error: 'NotFound', message: error.message });
+    }
+    next(error);
+  }
+};
+
 module.exports = {
   chat,
   chatStream,
@@ -264,4 +284,5 @@ module.exports = {
   getConversation,
   getConversationMessages,
   deleteConversation,
+  setConversationStarred,
 };

@@ -12,11 +12,18 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path, Circle } from 'react-native-svg';
+import Toast from 'react-native-toast-message';
 import ChatConversationRow from '../../components/chat/ChatConversationRow';
 import ChatListSkeleton from '../../components/chat/ChatListSkeleton';
 import SweeIcon from '../../components/common/SweeIcon';
 import useChatStore from '../../store/chatStore';
-import { type AiConversation } from '../../api/ai.api';
+import { showConfirm } from '../../store/alertStore';
+import { handleApiError } from '../../api/trips.api';
+import {
+  deleteConversation,
+  setConversationStarred,
+  type AiConversation,
+} from '../../api/ai.api';
 
 type Props = {
   onOpenConversation: (conversationId: string) => void;
@@ -84,9 +91,12 @@ function ChatTab({ onOpenConversation, onOpenNewChat }: Props) {
   const loading = useChatStore((s) => s.loading);
   const hasMore = useChatStore((s) => s.hasMore);
   const fetchConversations = useChatStore((s) => s.fetchConversations);
+  const updateConversation = useChatStore((s) => s.updateConversation);
+  const removeConversation = useChatStore((s) => s.removeConversation);
 
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -112,14 +122,48 @@ function ChatTab({ onOpenConversation, onOpenNewChat }: Props) {
       )
     : conversations;
 
+  const handleToggleStar = useCallback(async (conversation: AiConversation) => {
+    setOpenMenuId(null);
+    const nextStarred = !conversation.starred;
+    updateConversation(conversation.id, { starred: nextStarred });
+    try {
+      await setConversationStarred(conversation.id, nextStarred);
+    } catch (err) {
+      updateConversation(conversation.id, { starred: conversation.starred });
+      handleApiError(err);
+    }
+  }, [updateConversation]);
+
+  const handleDeleteConversation = useCallback((conversation: AiConversation) => {
+    setOpenMenuId(null);
+    showConfirm({
+      title: 'Delete chat',
+      message: `Delete "${conversation.title}"? This cannot be undone.`,
+      destructive: true,
+      onConfirm: async () => {
+        try {
+          await deleteConversation(conversation.id);
+          removeConversation(conversation.id);
+          Toast.show({ type: 'success', text1: 'Deleted', text2: 'Chat has been deleted.' });
+        } catch (err) {
+          handleApiError(err);
+        }
+      },
+    });
+  }, [removeConversation]);
+
   const renderItem = useCallback(
     ({ item }: { item: AiConversation }) => (
       <ChatConversationRow
         conversation={item}
         onPress={() => onOpenConversation(item.id)}
+        onToggleMenu={() => setOpenMenuId((p) => (p === item.id ? null : item.id))}
+        showMenu={openMenuId === item.id}
+        onToggleStar={() => handleToggleStar(item)}
+        onDelete={() => handleDeleteConversation(item)}
       />
     ),
-    [onOpenConversation],
+    [onOpenConversation, openMenuId, handleToggleStar, handleDeleteConversation],
   );
 
   const renderHeader = useCallback(
@@ -189,6 +233,7 @@ function ChatTab({ onOpenConversation, onOpenNewChat }: Props) {
       }
       onEndReached={handleEndReached}
       onEndReachedThreshold={0.4}
+      onScrollBeginDrag={() => setOpenMenuId(null)}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
     />

@@ -14,6 +14,7 @@ router.post('/conversations', ctrl.createConversation);
 router.get('/conversations/:id', ctrl.getConversation);
 router.get('/conversations/:id/messages', ctrl.getConversationMessages);
 router.delete('/conversations/:id', ctrl.deleteConversation);
+router.patch('/conversations/:id/star', ctrl.setConversationStarred);
 
 // POST /ai/chat — Non-streaming chat with Swee; per-user rate limits apply
 router.post('/chat', sweeChatHourlyLimit, sweeChatDailyLimit, ctrl.chat);
