@@ -27,6 +27,7 @@ type GalleryAlbumSubHeaderProps = {
   onBack: () => void;
   onEdit?: () => void;
   onArchive?: () => void;
+  archiveLabel?: string;
   onDelete?: () => void;
   onUpload?: () => void;
   onDoneEdit?: () => void;
@@ -43,6 +44,7 @@ export default function GalleryAlbumSubHeader({
   onBack,
   onEdit,
   onArchive,
+  archiveLabel = 'Archive',
   onDelete,
   onUpload,
   onDoneEdit,
@@ -131,7 +133,7 @@ export default function GalleryAlbumSubHeader({
             {onArchive ? (
               <TouchableOpacity style={[styles.menuItem, styles.menuItemBorder]} activeOpacity={0.8} onPress={() => runAction(onArchive)}>
                 <Archive size={15} color="#64748b" strokeWidth={2} />
-                <Text style={styles.menuText}>Archive</Text>
+                <Text style={styles.menuText}>{archiveLabel}</Text>
               </TouchableOpacity>
             ) : null}
             {onDelete ? (

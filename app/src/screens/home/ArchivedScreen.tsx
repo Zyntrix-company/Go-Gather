@@ -24,6 +24,8 @@ import {
 import { getArchivedEvents, unarchiveEvent, deleteEvent } from '../../api/events.api';
 import { getArchivedUserGallery } from '../../api/ai.api';
 import { unarchiveGalleryAlbum, deleteGalleryAlbum } from '../../api/gallery.api';
+import CustomCardPhotosModal, { type CustomCard } from '../../components/gallery/CustomCardPhotosModal';
+import type { GalleryAlbumCard } from '../../api/gallery.api';
 import { showConfirm } from '../../store/alertStore';
 import { formatLocationsLabel } from '../../utils/locations';
 import useAuthStore from '../../store/authStore';
@@ -111,6 +113,7 @@ export default function ArchivedScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [openGalleryCard, setOpenGalleryCard] = useState<CustomCard | null>(null);
 
   async function loadArchived(silent = false) {
     if (!silent) setLoading(true);
@@ -263,40 +266,29 @@ export default function ArchivedScreen() {
     Toast.show({ type: 'success', text1: title, text2: msg });
   }
 
-  function handleRestoreGalleryItem(item: ArchivedGalleryItem) {
-    setOpenMenuId(null);
-    showConfirm({
-      title: 'Restore album',
-      message: `Restore "${item.name}" to your gallery?`,
-      confirmText: 'Restore',
-      onConfirm: async () => {
-        try {
-          await unarchiveGalleryAlbum(item.id);
-          toast('Restored', `"${item.name}" is back in your gallery.`);
-          setGalleryItems((p) => p.filter((g) => g.id !== item.id));
-        } catch (err) {
-          handleApiError(err);
-        }
-      },
-    });
+  async function restoreGalleryAlbumById(id: string) {
+    try {
+      await unarchiveGalleryAlbum(id);
+      toast('Restored', 'Album is back in your gallery.');
+      setGalleryItems((p) => p.filter((g) => g.id !== id));
+    } catch (err) {
+      handleApiError(err);
+    }
   }
 
-  function handleDeleteGalleryItem(item: ArchivedGalleryItem) {
-    setOpenMenuId(null);
-    showConfirm({
-      title: 'Delete album',
-      message: `Permanently delete "${item.name}"? This cannot be undone.`,
-      destructive: true,
-      onConfirm: async () => {
-        try {
-          await deleteGalleryAlbum(item.id);
-          toast('Deleted', `"${item.name}" has been deleted.`);
-          setGalleryItems((p) => p.filter((g) => g.id !== item.id));
-        } catch (err) {
-          handleApiError(err);
-        }
-      },
-    });
+  async function deleteGalleryAlbumById(id: string) {
+    try {
+      await deleteGalleryAlbum(id);
+      toast('Deleted', 'Album has been deleted.');
+      setGalleryItems((p) => p.filter((g) => g.id !== id));
+    } catch (err) {
+      handleApiError(err);
+    }
+  }
+
+  function handleGalleryCardUpdated(album: GalleryAlbumCard) {
+    setGalleryItems((p) => p.map((g) => (g.id === album.id ? { ...g, ...album } : g)));
+    setOpenGalleryCard((prev) => (prev?.id === album.id ? { ...prev, ...album } : prev));
   }
 
   if (loading) {
@@ -312,6 +304,7 @@ export default function ArchivedScreen() {
   const isEmpty = trips.length === 0 && events.length === 0 && galleryItems.length === 0;
 
   return (
+    <>
     <AppScreenLayout navigation={navigation} title="Archived" onBack={() => navigation.goBack()}>
         {isEmpty ? (
           <View style={styles.emptyCenter}>
@@ -347,7 +340,7 @@ export default function ArchivedScreen() {
                     dateLabel={`${trip.startDate} – ${trip.endDate}`}
                     members={trip.members}
                     extraMembers={trip.extraMembers}
-                    onPress={() => {}}
+                    onPress={() => navigation.navigate('TripDetail', { trip: { id: trip.id } })}
                     onToggleMenu={() => setOpenMenuId(openMenuId === trip.id ? null : trip.id)}
                     showMenu={openMenuId === trip.id}
                     archiveLabel="Restore"
@@ -372,7 +365,7 @@ export default function ArchivedScreen() {
                     dateLabel={event.fullDate}
                     members={event.members}
                     extraMembers={event.extraMembers}
-                    onPress={() => {}}
+                    onPress={() => navigation.navigate('EventDetail', { event: { id: event.id } })}
                     onToggleMenu={() => setOpenMenuId(openMenuId === event.id ? null : event.id)}
                     showMenu={openMenuId === event.id}
                     archiveLabel="Restore"
@@ -388,47 +381,49 @@ export default function ArchivedScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Archived Gallery</Text>
                 <View style={styles.galleryGrid}>
-                  {galleryItems.map((item) => {
-                    const menuKey = `gallery-${item.isCustom ? 'custom' : item.type}-${item.id}`;
-                    return (
-                      <View key={menuKey} style={{ width: GALLERY_CARD_W, marginBottom: 12, zIndex: openMenuId === menuKey ? 100 : 1 }}>
-                        <TouchableOpacity
-                          style={styles.galleryCard}
-                          activeOpacity={0.85}
-                          onPress={() => setOpenMenuId(openMenuId === menuKey ? null : menuKey)}
-                        >
-                          {item.bannerImageUrl ? (
-                            <CachedImage uri={item.bannerImageUrl} style={styles.galleryCardImage} resizeMode="cover" />
-                          ) : (
-                            <View style={[styles.galleryCardImage, styles.galleryCardPlaceholder]}>
-                              <Text style={styles.galleryCardPlaceholderText}>No cover</Text>
-                            </View>
-                          )}
-                          <View style={styles.galleryCardOverlay}>
-                            <Text style={styles.galleryCardTitle} numberOfLines={1}>{item.name}</Text>
-                            <Text style={styles.galleryCardMeta}>Custom album</Text>
-                          </View>
-                        </TouchableOpacity>
-                        {openMenuId === menuKey && (
-                          <View style={styles.galleryMenu}>
-                            <TouchableOpacity style={styles.galleryMenuItem} onPress={() => handleRestoreGalleryItem(item)} activeOpacity={0.7}>
-                              <Text style={styles.galleryMenuItemText}>Restore</Text>
-                            </TouchableOpacity>
-                            <View style={styles.galleryMenuDivider} />
-                            <TouchableOpacity style={styles.galleryMenuItem} onPress={() => handleDeleteGalleryItem(item)} activeOpacity={0.7}>
-                              <Text style={[styles.galleryMenuItemText, { color: '#ef4444' }]}>Delete</Text>
-                            </TouchableOpacity>
+                  {galleryItems.map((item) => (
+                    <View key={`gallery-${item.type}-${item.id}`} style={{ width: GALLERY_CARD_W, marginBottom: 12 }}>
+                      <TouchableOpacity
+                        style={styles.galleryCard}
+                        activeOpacity={0.85}
+                        onPress={() => setOpenGalleryCard({
+                          id: item.id,
+                          name: item.name,
+                          bannerImageUrl: item.bannerImageUrl,
+                          type: item.type,
+                        })}
+                      >
+                        {item.bannerImageUrl ? (
+                          <CachedImage uri={item.bannerImageUrl} style={styles.galleryCardImage} resizeMode="cover" />
+                        ) : (
+                          <View style={[styles.galleryCardImage, styles.galleryCardPlaceholder]}>
+                            <Text style={styles.galleryCardPlaceholderText}>No cover</Text>
                           </View>
                         )}
-                      </View>
-                    );
-                  })}
+                        <View style={styles.galleryCardOverlay}>
+                          <Text style={styles.galleryCardTitle} numberOfLines={1}>{item.name}</Text>
+                          <Text style={styles.galleryCardMeta}>Custom album</Text>
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
                 </View>
               </View>
             )}
           </ScrollView>
         )}
     </AppScreenLayout>
+
+    <CustomCardPhotosModal
+      visible={!!openGalleryCard}
+      card={openGalleryCard}
+      isArchived
+      onClose={() => setOpenGalleryCard(null)}
+      onCardUpdated={handleGalleryCardUpdated}
+      onArchiveCard={restoreGalleryAlbumById}
+      onDeleteCard={deleteGalleryAlbumById}
+    />
+    </>
   );
 }
 
@@ -456,14 +451,4 @@ const styles = StyleSheet.create({
   },
   galleryCardTitle: { fontSize: 13, fontWeight: '500', color: '#fff' },
   galleryCardMeta: { fontSize: 10, color: '#e2e8f0', marginTop: 2 },
-  galleryMenu: {
-    position: 'absolute', top: 8, right: 8,
-    backgroundColor: '#fff', borderRadius: 10,
-    borderWidth: 1, borderColor: '#e2e8f0',
-    overflow: 'hidden', minWidth: 120,
-    elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 8,
-  },
-  galleryMenuItem: { paddingHorizontal: 14, paddingVertical: 11 },
-  galleryMenuItemText: { fontSize: 13, color: '#0f172a', fontWeight: '500' },
-  galleryMenuDivider: { height: 1, backgroundColor: '#f1f5f9' },
 });
