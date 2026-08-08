@@ -14,6 +14,7 @@ export default function UsersPage() {
   const [actionError, setActionError] = useState('');
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null); // { type: 'grant'|'revoke'|'delete', user }
+  const [showCreate, setShowCreate] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -78,6 +79,10 @@ export default function UsersPage() {
           </h1>
           {data && <p className="text-sm text-slate-500 mt-0.5">{data.total.toLocaleString()} registered (admins excluded)</p>}
         </div>
+        <button type="button" onClick={() => setShowCreate(true)}
+          className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-xl transition-colors">
+          + Create content admin
+        </button>
       </div>
 
       <p className="text-xs text-slate-400 -mt-2">
@@ -209,6 +214,114 @@ export default function UsersPage() {
           onConfirm={handleConfirm}
         />
       )}
+
+      {showCreate && (
+        <CreateContentAdminModal
+          onClose={(created) => { setShowCreate(false); if (created) load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── Create content admin ─────────────────────────────────────── */
+function CreateContentAdminModal({ onClose }) {
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState(null); // { id, email, tempPassword }
+  const [copied, setCopied] = useState(false);
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setSaving(true); setError('');
+    try {
+      const res = await apiJSON('/admin/users/content-admin', {
+        method: 'POST',
+        body: JSON.stringify({ fullName: fullName.trim(), email: email.trim() }),
+      });
+      setResult(res);
+    } catch (err) {
+      setError(err.message || 'Failed to create account');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleCopy() {
+    const text = `Email: ${result.email}\nTemporary password: ${result.tempPassword}`;
+    navigator.clipboard?.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="w-full max-w-md bg-white rounded-2xl border border-slate-100 shadow-2xl my-8">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <h2 className="font-bold text-slate-900">
+            {result ? 'Content admin created' : 'Create content admin'}
+          </h2>
+          {!result && (
+            <button onClick={() => onClose(false)} className="text-slate-400 hover:text-slate-700 text-xl leading-none">&times;</button>
+          )}
+        </div>
+
+        {result ? (
+          <div className="p-6 space-y-4">
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-4 py-2.5">
+              Save this password now — it will not be shown again. Share it with them securely and ask them to change it after signing in.
+            </p>
+            <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 space-y-2 font-mono text-sm">
+              <div><span className="text-slate-400">Email:</span> <span className="text-slate-800">{result.email}</span></div>
+              <div><span className="text-slate-400">Password:</span> <span className="text-slate-800">{result.tempPassword}</span></div>
+            </div>
+            <div className="flex gap-3 justify-end pt-1">
+              <button type="button" onClick={handleCopy}
+                className="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                {copied ? 'Copied!' : 'Copy credentials'}
+              </button>
+              <button type="button" onClick={() => onClose(true)}
+                className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold transition-colors">
+                Done
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSave} className="p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Full name *</label>
+              <input value={fullName} onChange={(e) => setFullName(e.target.value)} required
+                placeholder="e.g. Priya Nair"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none text-sm text-slate-800" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Email *</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+                placeholder="name@example.com"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 outline-none text-sm text-slate-800" />
+            </div>
+            <p className="text-xs text-slate-400">
+              A temporary password is generated automatically and shown once after creation. The account can sign in to
+              the admin panel immediately with content-admin access.
+            </p>
+            {error && (
+              <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">{error}</p>
+            )}
+            <div className="flex gap-3 justify-end pt-2">
+              <button type="button" onClick={() => onClose(false)}
+                className="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                Cancel
+              </button>
+              <button type="submit" disabled={saving}
+                className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white text-sm font-semibold transition-colors">
+                {saving ? 'Creating…' : 'Create account'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

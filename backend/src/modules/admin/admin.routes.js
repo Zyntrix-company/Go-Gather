@@ -1,4 +1,6 @@
 const express = require('express');
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const { GetSendQuotaCommand } = require('@aws-sdk/client-ses');
 const { HeadBucketCommand } = require('@aws-sdk/client-s3');
@@ -9,11 +11,14 @@ const { blogImageUpload, dealImageUpload, promoVideoUpload, handleMulterError } 
 const { query } = require('../../config/database');
 const { sesClient, s3Client } = require('../../config/aws');
 const { uploadToS3, deleteFromS3, sanitiseFilename } = require('../../utils/s3.util');
+const { resolveAuthEmail } = require('../../utils/email.util');
 const config = require('../../config');
 const { EMAIL_PROVIDER } = require('../../config/emailProvider');
 const logger = require('../../utils/logger');
 const legalService = require('../legal/legal.service');
 const { getStorageAggregates } = require('./storage.service');
+
+const PASSWORD_SALT_ROUNDS = 12;
 
 const router = express.Router();
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
@@ -181,6 +186,47 @@ router.get('/users', requireFullAdminRole, async (req, res, next) => {
       ),
     ]);
     res.json({ users: listRes.rows, total: countRes.rows[0].total, page, limit });
+  } catch (err) { next(err); }
+});
+
+/* ─── Users: create content admin ───────────────────────────── */
+// Open to any admin (full or content) — a content admin can only ever mint
+// another content admin here, never a platform admin, so this isn't a
+// privilege-escalation path.
+
+router.post('/users/content-admin', async (req, res, next) => {
+  const { fullName, email } = req.body || {};
+  const trimmedName = typeof fullName === 'string' ? fullName.trim() : '';
+  if (!trimmedName) return res.status(400).json({ error: 'fullName is required' });
+
+  const resolved = resolveAuthEmail(email);
+  if (!resolved) return res.status(400).json({ error: 'A valid email is required' });
+  const { display: displayEmail, normalized } = resolved;
+
+  try {
+    const { rows: existing } = await query(
+      'SELECT id FROM users WHERE email_normalized = $1',
+      [normalized],
+    );
+    if (existing.length) return res.status(409).json({ error: 'A user with this email already exists' });
+
+    const tempPassword = crypto.randomBytes(16).toString('hex');
+    const passwordHash = await bcrypt.hash(tempPassword, PASSWORD_SALT_ROUNDS);
+
+    const { rows } = await query(
+      `INSERT INTO users
+         (email, email_normalized, password_hash, is_verified, is_profile_complete,
+          is_content_admin, password_reset_recommended)
+       VALUES ($1, $2, $3, true, true, true, true)
+       RETURNING id, email`,
+      [displayEmail, normalized, passwordHash],
+    );
+    const user = rows[0];
+
+    await query('INSERT INTO profiles (user_id, full_name) VALUES ($1, $2)', [user.id, trimmedName]);
+
+    logger.info('Admin created content admin account', { userId: user.id, actorId: req.user.id });
+    res.status(201).json({ id: user.id, email: user.email, tempPassword });
   } catch (err) { next(err); }
 });
 
@@ -798,12 +844,30 @@ router.get('/ai-usage', requireFullAdminRole, async (_req, res) => {
     conversationsTotal = Number(rows[0].total);
   } catch { /* feedback table not reachable */ }
 
+  let summary = null;
+  try { summary = await require('../ai/aiUsage.service').getSummary(); } catch { /* ai_usage_events table not reachable */ }
+
   res.json({
     metrics,
     circuit,
+    summary,
+    rateLimits: {
+      perUserPerHour: config.rateLimits.sweeChatPerHour,
+      perUserPerDay: config.rateLimits.sweeChatPerDay,
+    },
     sweeReportsTotal: conversationsTotal,
-    note: 'Request volume/error-rate is a rolling window (resets on redeploy) — historical per-day/per-user tracking is not yet instrumented.',
+    note: 'Requests (window) is a rolling 15-min counter that resets on redeploy — use the summary/history above for real historical trends.',
   });
+});
+
+/* ─── AI (Swee) usage: day-bucketed history for the trend chart ── */
+
+router.get('/ai-usage/history', requireFullAdminRole, async (req, res, next) => {
+  try {
+    const days = parseInt(req.query.days, 10) || 400;
+    const history = await require('../ai/aiUsage.service').getDailyHistory(days);
+    res.json({ history });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;
