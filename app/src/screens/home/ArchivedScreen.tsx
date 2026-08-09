@@ -293,7 +293,7 @@ export default function ArchivedScreen() {
 
   if (loading) {
     return (
-      <AppScreenLayout navigation={navigation} title="Archived" onBack={() => navigation.goBack()}>
+      <AppScreenLayout navigation={navigation} title="Archive" onBack={() => navigation.goBack()}>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <ActivityIndicator size="large" color="#0d9488" />
           </View>
@@ -305,7 +305,7 @@ export default function ArchivedScreen() {
 
   return (
     <>
-    <AppScreenLayout navigation={navigation} title="Archived" onBack={() => navigation.goBack()}>
+    <AppScreenLayout navigation={navigation} title="Archive" onBack={() => navigation.goBack()}>
         {isEmpty ? (
           <View style={styles.emptyCenter}>
             <Svg width={52} height={52} viewBox="0 0 24 24" fill="none">
