@@ -699,7 +699,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
   const [isRefreshingExpenses, setIsRefreshingExpenses] = useState(false);
   const [settlingDebtKey, setSettlingDebtKey] = useState<string | null>(null);
   const [showSettleModal, setShowSettleModal] = useState(false);
-  const [settleTarget, setSettleTarget] = useState<{ toUserId: string; toName: string; maxAmount: number; currency: string } | null>(null);
+  const [settleTarget, setSettleTarget] = useState<{ fromUserId: string; fromName: string; toUserId: string; toName: string; maxAmount: number; currency: string } | null>(null);
   const [settleInputAmount, setSettleInputAmount] = useState('');
   const [, setIsLoadingNotes] = useState(false);
   const [isLoadingPolls, setIsLoadingPolls] = useState(false);
@@ -1803,13 +1803,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
     });
   }
 
-  function handleSettleDebt(withUserId: string, maxAmount: number, currency: string = 'INR', toName: string = 'Member') {
+  function handleSettleDebt(fromUserId: string, withUserId: string, maxAmount: number, currency: string = 'INR', fromName: string = 'Member', toName: string = 'Member') {
     const maxAmt = typeof maxAmount === 'number' && !Number.isNaN(maxAmount) ? maxAmount : parseFloat(String(maxAmount));
     if (!maxAmt || maxAmt <= 0) {
       showAlert({ title: 'Invalid amount', message: 'Enter a valid settlement amount.' });
       return;
     }
-    setSettleTarget({ toUserId: withUserId, toName, maxAmount: maxAmt, currency });
+    setSettleTarget({ fromUserId, fromName, toUserId: withUserId, toName, maxAmount: maxAmt, currency });
     setSettleInputAmount(String(maxAmt));
     setShowSettleModal(true);
   }
@@ -1826,12 +1826,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
       return;
     }
     setShowSettleModal(false);
-    const key = settleDebtKey(currentUserId, settleTarget.toUserId, settleTarget.currency);
+    const key = settleDebtKey(settleTarget.fromUserId, settleTarget.toUserId, settleTarget.currency);
     setSettlingDebtKey(key);
-    const { toUserId, currency, maxAmount } = settleTarget;
+    const { fromUserId, toUserId, currency, maxAmount } = settleTarget;
     setSettleTarget(null);
     try {
-      await settleDebt(tripId, { withUserId: toUserId, amount: amt, currency });
+      await settleDebt(tripId, { withUserId: toUserId, amount: amt, currency, fromUserId });
       await refreshExpenseData();
       const isPartial = amt < maxAmount - 0.001;
       Toast.show({ type: 'success', text1: isPartial ? 'Partial settlement recorded' : 'Settlement recorded' });
@@ -3062,7 +3062,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
             <View style={[styles.dialog, { paddingBottom: 4 }]}>
               <DHeader
                 title="Settle Up"
-                subtitle={settleTarget ? `You owe ${settleTarget.toName}` : undefined}
+                subtitle={settleTarget ? (settleTarget.fromUserId === currentUserId ? `You owe ${settleTarget.toName}` : `${settleTarget.fromName} owes ${settleTarget.toName}`) : undefined}
                 onClose={() => setShowSettleModal(false)}
               />
               <View style={styles.dBody}>

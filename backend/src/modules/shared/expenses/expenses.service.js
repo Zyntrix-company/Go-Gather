@@ -454,14 +454,22 @@ const getBalances = async ({ parentType, parentId }, userId) => {
 
 // ─── Settle ───────────────────────────────────────────────────────────────────
 
-const settle = async ({ parentType, parentId }, payerId, { withUserId, amount, currency = 'INR' }) => {
+const settle = async ({ parentType, parentId }, recordedBy, { withUserId, amount, currency = 'INR', fromUserId }) => {
+  const payerId = fromUserId || recordedBy;
+  if (payerId === withUserId) {
+    const e = new Error('Cannot settle a debt with yourself'); e.statusCode = 400; e.error = 'VALIDATION_ERROR'; throw e;
+  }
+  if (payerId !== recordedBy) {
+    await assertParentMember(parentType, parentId, payerId, 'Payer');
+  }
+  await assertParentMember(parentType, parentId, withUserId, 'Recipient');
   const resolvedCurrency = (typeof currency === 'string' ? currency.toUpperCase() : 'INR') || 'INR';
   await db(
-    'INSERT INTO settlements (parent_type, parent_id, paid_by, paid_to, amount, currency) VALUES ($1, $2, $3, $4, $5, $6)',
-    [parentType, parentId, payerId, withUserId, amount, resolvedCurrency],
+    'INSERT INTO settlements (parent_type, parent_id, paid_by, paid_to, amount, currency, recorded_by) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+    [parentType, parentId, payerId, withUserId, amount, resolvedCurrency, recordedBy],
   );
   const simplified = await computeSimplifiedDebts(parentType, parentId);
-  return enrichSimplifiedDebts(simplified, payerId);
+  return enrichSimplifiedDebts(simplified, recordedBy);
 };
 
 // ─── Profile batch fetch helper ───────────────────────────────────────────────

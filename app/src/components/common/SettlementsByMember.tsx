@@ -11,7 +11,7 @@ type Props = {
   debts: Debt[];
   roster: MemberRosterEntry[];
   currentUserId: string;
-  onSettle: (toUserId: string, amount: number, currency: string, toName: string) => void;
+  onSettle: (fromUserId: string, toUserId: string, amount: number, currency: string, fromName: string, toName: string) => void;
   settlingDebtKey?: string | null;
 };
 
@@ -20,9 +20,8 @@ type Direction = 'receive' | 'pay';
 /**
  * Group-wide settlements ledger, one accordion card per member. Expanding a
  * member shows every settlement that touches them (To Receive / To Pay) —
- * not just the ones involving the current user. Settle is only actionable
- * from the current user's own "To Pay" rows, since the settle API can only
- * record a payment the logged-in user is making.
+ * not just the ones involving the current user. Settle is actionable on any
+ * row, so any member can record a payment on behalf of the two parties involved.
  */
 export default function SettlementsByMember({ debts, roster, currentUserId, onSettle, settlingDebtKey }: Props) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -53,7 +52,6 @@ export default function SettlementsByMember({ debts, roster, currentUserId, onSe
     const otherName = direction === 'receive' ? debt.fromName : debt.toName;
     const avatarUrl = avatarByUserId.get(otherId);
     const initial = otherName ? otherName[0].toUpperCase() : '?';
-    const showSettle = debt.from === currentUserId;
     const debtKey = `${debt.from}|${debt.to}|${debt.currency}`;
     const isSettling = settlingDebtKey === debtKey;
     const isReceive = direction === 'receive';
@@ -78,15 +76,13 @@ export default function SettlementsByMember({ debts, roster, currentUserId, onSe
             {debt.currency}
           </Text>
         </View>
-        {showSettle && (
-          <TouchableOpacity
-            style={[local.settleBtn, settlingDebtKey != null && { opacity: isSettling ? 0.6 : 0.4 }]}
-            onPress={() => onSettle(debt.to, debt.amount, debt.currency, debt.toName)}
-            disabled={settlingDebtKey != null}
-            activeOpacity={0.85}>
-            <Text style={local.settleBtnText}>{isSettling ? 'Settling…' : 'Settle'}</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[local.settleBtn, settlingDebtKey != null && { opacity: isSettling ? 0.6 : 0.4 }]}
+          onPress={() => onSettle(debt.from, debt.to, debt.amount, debt.currency, debt.fromName, debt.toName)}
+          disabled={settlingDebtKey != null}
+          activeOpacity={0.85}>
+          <Text style={local.settleBtnText}>{isSettling ? 'Settling…' : 'Settle'}</Text>
+        </TouchableOpacity>
       </View>
     );
   };

@@ -443,7 +443,7 @@ export async function getBalances(tripId: string) {
   };
 }
 
-export async function settleDebt(tripId: string, body: { withUserId: string; amount: number; currency?: string }) {
+export async function settleDebt(tripId: string, body: { withUserId: string; amount: number; currency?: string; fromUserId?: string }) {
   const res = await client.post(`/trips/${tripId}/settlements`, body);
   return res.data as { outstanding: Debt[] };
 }

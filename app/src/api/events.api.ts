@@ -283,7 +283,7 @@ export async function getEventBalances(eventId: string) {
   };
 }
 
-export async function settleEventDebt(eventId: string, body: { withUserId: string; amount: number; currency?: string }) {
+export async function settleEventDebt(eventId: string, body: { withUserId: string; amount: number; currency?: string; fromUserId?: string }) {
   const res = await client.post(`/events/${eventId}/settlements`, body);
   return res.data as { outstanding: Debt[] };
 }
