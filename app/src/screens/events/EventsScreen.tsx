@@ -1084,7 +1084,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
               />
             )}
             {!emailPickerLoading && emailAttachments.length > 0 && (
-              <View style={[modal.footer, { gap: 10 }]}>
+              <View style={[modal.footer, { flexDirection: 'row', gap: 10 }]}>
                 <TouchableOpacity style={[modal.createBtn, { flex: 1, backgroundColor: '#f1f5f9' }]} onPress={() => setShowEmailPicker(false)} activeOpacity={0.85}>
                   <Text style={[modal.createBtnTxt, { color: '#0f172a' }]}>Cancel</Text>
                 </TouchableOpacity>

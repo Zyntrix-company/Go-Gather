@@ -1158,7 +1158,7 @@ export function CreateTripModal({
                 />
               )}
               {!emailPickerLoading && emailAttachments.length > 0 && (
-                <View style={[styles.ctFooter, { gap: 10 }]}>
+                <View style={[styles.ctFooter, { flexDirection: 'row', gap: 10 }]}>
                   <TouchableOpacity style={[styles.ctCreateBtn, { flex: 1, backgroundColor: '#f1f5f9' }]} onPress={() => setShowEmailPicker(false)} activeOpacity={0.85}>
                     <Text style={[styles.ctCreateBtnText, { color: '#0f172a' }]}>Cancel</Text>
                   </TouchableOpacity>
