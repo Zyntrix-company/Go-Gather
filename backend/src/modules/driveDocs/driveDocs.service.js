@@ -163,13 +163,13 @@ async function importFiles(userId, parentType, parentId, files) {
       }
 
       const s3Key = `${parentType}s/${parentId}/docs/${uuidv4()}-${sanitiseFilename(fileName)}`;
-      await uploadToS3(buffer, s3Key, resolvedMime);
+      const { finalBytes } = await uploadToS3(buffer, s3Key, resolvedMime);
 
       const docRes = await db(
         `INSERT INTO docs (parent_type, parent_id, uploaded_by, file_name, file_url, s3_key, file_size_bytes, mime_type)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id`,
-        [parentType, parentId, userId, fileName, s3Key, s3Key, buffer.length, resolvedMime],
+        [parentType, parentId, userId, fileName, s3Key, s3Key, finalBytes, resolvedMime],
       );
 
       imported.push({ docId: docRes.rows[0].id, fileName, fileUrl: s3Key });
@@ -211,17 +211,17 @@ async function importPhotos(userId, parentType, parentId, files, { target } = {}
       }
 
       const s3Key = `${parentType}s/${parentId}/photos/${uuidv4()}-${sanitiseFilename(fileName)}`;
-      await uploadToS3(buffer, s3Key, resolvedMime);
+      const { finalBytes } = await uploadToS3(buffer, s3Key, resolvedMime);
 
       const fileUrl = config.s3.cloudfrontDomain
         ? `https://${config.s3.cloudfrontDomain}/${s3Key}`
         : `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${s3Key}`;
 
       const photoRes = await db(
-        `INSERT INTO photos (parent_type, parent_id, uploaded_by, file_url, s3_key, mime_type, activity_id)
-         VALUES ($1, $2, $3, $4, $5, $6, NULL)
+        `INSERT INTO photos (parent_type, parent_id, uploaded_by, file_url, s3_key, mime_type, activity_id, file_size_bytes)
+         VALUES ($1, $2, $3, $4, $5, $6, NULL, $7)
          RETURNING id, file_url, s3_key, mime_type, created_at`,
-        [parentType, parentId, userId, fileUrl, s3Key, resolvedMime],
+        [parentType, parentId, userId, fileUrl, s3Key, resolvedMime, finalBytes],
       );
 
       const row = photoRes.rows[0];

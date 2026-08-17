@@ -11,7 +11,8 @@ RUN npm ci --omit=dev
 FROM node:18-alpine AS production
 
 # dumb-init: proper PID 1 — forwards OS signals (SIGTERM) to Node for graceful shutdown
-RUN apk add --no-cache dumb-init wget
+# ffmpeg: used by videoCompression.util.js to transcode uploaded videos before storage
+RUN apk add --no-cache dumb-init wget ffmpeg
 
 # Run as non-root user (security best practice)
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup

@@ -38,13 +38,13 @@ const uploadDoc = async ({ parentType, parentId, maxCount }, userId, file) => {
   const safeName = sanitiseFilename(file.originalname);
   const s3Key = `${parentType}s/${parentId}/docs/${uuidv4()}-${safeName}`;
 
-  await uploadToS3(file.buffer, s3Key, file.mimetype);
+  const { finalBytes } = await uploadToS3(file.buffer, s3Key, file.mimetype);
 
   const result = await db(
     `INSERT INTO docs (parent_type, parent_id, uploaded_by, file_name, file_url, s3_key, file_size_bytes, mime_type)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [parentType, parentId, userId, file.originalname, s3Key, s3Key, file.size, file.mimetype],
+    [parentType, parentId, userId, file.originalname, s3Key, s3Key, finalBytes, file.mimetype],
   );
 
   const doc = result.rows[0];
@@ -208,7 +208,7 @@ const replaceDoc = async ({ docId, parentType, parentId, requesterId, requesterR
 
   const safeName = sanitiseFilename(file.originalname);
   const s3Key = `${parentType}s/${parentId}/docs/${uuidv4()}-${safeName}`;
-  await uploadToS3(file.buffer, s3Key, file.mimetype);
+  const { finalBytes } = await uploadToS3(file.buffer, s3Key, file.mimetype);
 
   // best-effort cleanup of the previous object
   try { await deleteFromS3(doc.s3_key); } catch (_) { /* ignore */ }
@@ -218,7 +218,7 @@ const replaceDoc = async ({ docId, parentType, parentId, requesterId, requesterR
        SET file_url = $1, s3_key = $2, mime_type = $3, file_size_bytes = $4, updated_at = NOW()
      WHERE id = $5
      RETURNING *`,
-    [s3Key, s3Key, file.mimetype, file.size, docId],
+    [s3Key, s3Key, file.mimetype, finalBytes, docId],
   );
 
   const updatedDoc = updated.rows[0];

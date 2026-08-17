@@ -11,6 +11,7 @@ const { blogImageUpload, dealImageUpload, promoVideoUpload, handleMulterError } 
 const { query } = require('../../config/database');
 const { sesClient, s3Client } = require('../../config/aws');
 const { uploadToS3, deleteFromS3, sanitiseFilename } = require('../../utils/s3.util');
+const { compressAndReplaceVideoAsync } = require('../../utils/videoCompression.util');
 const { resolveAuthEmail } = require('../../utils/email.util');
 const config = require('../../config');
 const { EMAIL_PROVIDER } = require('../../config/emailProvider');
@@ -512,6 +513,8 @@ router.get('/storage', requireFullAdminRole, async (req, res, next) => {
         availableBytes: quota - totalBytes,
         usedPercent:   ((totalBytes / quota) * 100).toFixed(1),
       } : null,
+      compressionStats: agg.compressionStats,
+      videoCompressionStats: agg.videoCompressionStats,
     });
   } catch (err) { next(err); }
 });
@@ -708,6 +711,11 @@ router.post('/promo-video/upload',
       if (oldKey && oldKey !== key) {
         deleteFromS3(oldKey).catch((e) => logger.warn('Failed to delete old promo video from S3', { key: oldKey, error: e.message }));
       }
+
+      // Fire-and-forget: promo_video has no size column to update, so this
+      // just swaps in a smaller S3 object in place once transcoding finishes.
+      compressAndReplaceVideoAsync({ buffer: req.file.buffer, s3Key: key, mimeType: req.file.mimetype })
+        .catch((e) => logger.warn('Promo video compression kickoff failed', { key, error: e.message }));
 
       res.json({ videoUrl: url });
     } catch (err) { next(err); }

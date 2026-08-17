@@ -45,6 +45,9 @@ export default function StoragePage() {
         <p className="text-sm text-slate-500 mt-0.5">{data.users.toLocaleString()} users · {fmtBytes(grand)} total</p>
       </div>
 
+      {/* Storage optimization */}
+      <OptimizationCard imageStats={data.compressionStats} videoStats={data.videoCompressionStats} />
+
       {/* Top-level stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard label="Total consumed"     value={fmtBytes(grand)}              sub={`${data.summary.totalGB} GB`} />
@@ -112,6 +115,76 @@ export default function StoragePage() {
           total={totalDoc}
         />
       </div>
+    </div>
+  );
+}
+
+/* ── Storage optimization ─────────────────────────────────────── */
+function OptimizationCard({ imageStats, videoStats }) {
+  const hasImg = imageStats?.imagesCompressed > 0;
+  const hasVid = videoStats?.videosCompressed > 0;
+
+  const originalTotal = (hasImg ? imageStats.originalBytes : 0) + (hasVid ? videoStats.originalBytes : 0);
+  const finalTotal = (hasImg ? imageStats.finalBytes : 0) + (hasVid ? videoStats.finalBytes : 0);
+  const combinedSavedPercent = originalTotal > 0 ? Math.round((1 - finalTotal / originalTotal) * 100) : null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-teal-100 shadow-sm p-5">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="max-w-lg">
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+            <h2 className="text-sm font-bold text-slate-800">Storage optimization</h2>
+          </div>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            Every photo and video is automatically compressed before it lands in cloud storage — resized and
+            re-encoded for photos, transcoded for videos — with no visible drop in quality.
+          </p>
+        </div>
+        {combinedSavedPercent !== null && (
+          <div className="text-right shrink-0">
+            <p className="text-2xl font-bold text-teal-600">~{combinedSavedPercent}%</p>
+            <p className="text-xs text-slate-400">less cloud storage used</p>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+        <OptimizationStat
+          label="Photos"
+          active={hasImg}
+          savedPercent={imageStats?.savedPercent}
+          count={imageStats?.imagesCompressed}
+          bytesSaved={hasImg ? imageStats.originalBytes - imageStats.finalBytes : 0}
+          emptyNote="Savings will show here once new photos come in"
+        />
+        <OptimizationStat
+          label="Videos"
+          active={hasVid}
+          savedPercent={videoStats?.savedPercent}
+          count={videoStats?.videosCompressed}
+          bytesSaved={hasVid ? videoStats.originalBytes - videoStats.finalBytes : 0}
+          emptyNote="Savings will show here once new videos come in"
+        />
+      </div>
+    </div>
+  );
+}
+
+function OptimizationStat({ label, active, savedPercent, count, bytesSaved, emptyNote }) {
+  return (
+    <div className="rounded-xl bg-slate-50 p-3.5">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</p>
+      {active ? (
+        <>
+          <p className="text-lg font-bold text-slate-800 mt-1">
+            {savedPercent}% smaller <span className="text-xs font-normal text-slate-400">on average</span>
+          </p>
+          <p className="text-xs text-slate-500 mt-0.5">{fmtBytes(bytesSaved)} saved across {count.toLocaleString()} files</p>
+        </>
+      ) : (
+        <p className="text-xs text-slate-400 mt-1.5">{emptyNote}</p>
+      )}
     </div>
   );
 }

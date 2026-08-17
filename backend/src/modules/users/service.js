@@ -172,7 +172,7 @@ const uploadPhoto = async (userId, file) => {
     // Memory-storage path: upload buffer to S3 directly (same as gallery photos)
     const ext = path.extname(file.originalname || 'photo.jpg').toLowerCase() || '.jpg';
     s3Key = `avatars/${uuidv4()}${ext}`;
-    cdnUrl = await uploadToS3(file.buffer, s3Key, file.mimetype);
+    ({ url: cdnUrl } = await uploadToS3(file.buffer, s3Key, file.mimetype));
   } else {
     // multer-s3 path: file was streamed to S3; key is already available
     s3Key = file.key;

@@ -231,14 +231,14 @@ async function importAttachments(userId, parentType, parentId, attachments) {
 
       // Upload to S3
       const s3Key = `${parentType}s/${parentId}/docs/${uuidv4()}-${sanitiseFilename(fileName)}`;
-      await uploadToS3(buffer, s3Key, mimeType);
+      const { finalBytes } = await uploadToS3(buffer, s3Key, mimeType);
 
       // Insert into docs table
       const docRes = await db(
         `INSERT INTO docs (parent_type, parent_id, uploaded_by, file_name, file_url, s3_key, file_size_bytes, mime_type)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id`,
-        [parentType, parentId, userId, fileName, s3Key, s3Key, buffer.length, mimeType],
+        [parentType, parentId, userId, fileName, s3Key, s3Key, finalBytes, mimeType],
       );
 
       imported.push({ docId: docRes.rows[0].id, fileName, fileUrl: s3Key });

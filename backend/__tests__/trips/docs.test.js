@@ -16,13 +16,14 @@ jest.mock('../../src/config/aws', () => ({
 }));
 
 jest.mock('../../src/utils/s3.util', () => ({
-  uploadToS3: jest.fn().mockResolvedValue('trips/uuid/docs/uuid-test.pdf'),
-  deleteFromS3: jest.fn().mockResolvedValue(true),
-  sanitiseFilename: jest.fn((n) => n),
-  getPresignedDownloadUrl: jest.fn().mockResolvedValue('https://presigned.url/doc.pdf'),
+  uploadToS3: jest.fn(),
+  deleteFromS3: jest.fn(),
+  sanitiseFilename: jest.fn(),
+  getPresignedDownloadUrl: jest.fn(),
 }));
 
 const db = require('../../src/config/database');
+const s3Util = require('../../src/utils/s3.util');
 
 const USER_ID  = '123e4567-e89b-12d3-a456-426614174000';
 const USER2_ID = '223e4567-e89b-12d3-a456-426614174001';
@@ -56,7 +57,16 @@ const docRow = {
 };
 
 describe('Docs Routes', () => {
-  beforeEach(() => jest.resetAllMocks());
+  beforeEach(() => {
+    jest.resetAllMocks();
+    // resetAllMocks() wipes the mockResolvedValue set in the jest.mock() factory
+    // above, so re-apply it here — uploadToS3's real return shape is
+    // { url, finalBytes, compressed }, not a bare string.
+    s3Util.uploadToS3.mockResolvedValue({ url: 'https://cdn.test.com/doc.pdf', finalBytes: 12345, compressed: false });
+    s3Util.deleteFromS3.mockResolvedValue(true);
+    s3Util.sanitiseFilename.mockImplementation((n) => n);
+    s3Util.getPresignedDownloadUrl.mockResolvedValue('https://presigned.url/doc.pdf');
+  });
 
   // ── GET /trips/:id/docs ────────────────────────────────────────────────────
 

@@ -8,6 +8,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { s3Client } = require('../config/aws');
 const config = require('../config');
 const logger = require('./logger');
+const { compressImageIfPossible, recordCompressionStats } = require('./imageCompression.util');
 
 /**
  * Sanitise a filename: strip special chars, replace spaces with hyphens.
@@ -23,17 +24,26 @@ const sanitiseFilename = (filename) => {
 };
 
 /**
- * Upload a buffer directly to S3.
+ * Upload a buffer directly to S3. Images (JPEG/PNG/WebP) are transparently
+ * resized/re-encoded first to cut storage size — see imageCompression.util.
  * @param {Buffer} buffer
  * @param {string} key   - Full S3 object key
  * @param {string} mimeType
- * @returns {Promise<string>} - Public or CDN URL
+ * @returns {Promise<{ url: string, finalBytes: number, compressed: boolean }>}
  */
 const uploadToS3 = async (buffer, key, mimeType, extras = {}) => {
+  const { buffer: uploadBuffer, compressed, originalBytes, finalBytes } = await compressImageIfPossible(buffer, mimeType);
+  if (compressed) {
+    logger.info('Image compressed before upload', {
+      key, originalBytes, finalBytes,
+      savedPercent: Math.round((1 - finalBytes / originalBytes) * 100),
+    });
+  }
+
   const command = new PutObjectCommand({
     Bucket: config.s3.bucket,
     Key: key,
-    Body: buffer,
+    Body: uploadBuffer,
     ContentType: mimeType,
     // SSE-S3 keeps CloudFront OAC working regardless of bucket-level KMS defaults.
     // Without this, a bucket default of SSE-KMS causes CloudFront to return 403 for
@@ -50,11 +60,18 @@ const uploadToS3 = async (buffer, key, mimeType, extras = {}) => {
   await s3Client.send(command);
   logger.info('S3 upload successful', { key });
 
-  // If CloudFront configured, return CDN URL; else S3 URL
-  if (config.s3.cloudfrontDomain) {
-    return `https://${config.s3.cloudfrontDomain}/${key}`;
+  // Only counted once the compressed bytes are actually persisted — a stats
+  // bump for a compression that never made it to S3 would be a phantom saving.
+  if (compressed) {
+    recordCompressionStats(originalBytes, finalBytes);
   }
-  return `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${key}`;
+
+  // If CloudFront configured, return CDN URL; else S3 URL
+  const url = config.s3.cloudfrontDomain
+    ? `https://${config.s3.cloudfrontDomain}/${key}`
+    : `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${key}`;
+
+  return { url, finalBytes, compressed };
 };
 
 /**

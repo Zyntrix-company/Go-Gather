@@ -1,5 +1,8 @@
 const { query: db, getClient } = require('../../../config/database');
 const { uploadToS3, deleteFromS3, sanitiseFilename, getPresignedDownloadUrl } = require('../../../utils/s3.util');
+const { compressAndReplaceVideoAsync } = require('../../../utils/videoCompression.util');
+const { isVideoMime } = require('../../../config/uploadLimits');
+const logger = require('../../../utils/logger');
 const config = require('../../../config');
 const { v4: uuidv4 } = require('uuid');
 const { assertPhotoVideoUploadAllowed } = require('./photoLimits.util');
@@ -27,19 +30,33 @@ const uploadPhotos = async ({ parentType, parentId }, userId, files, { activityI
       ? `${parentType}s/${parentId}/activities/${activityId}/${uuidv4()}-${safeName}`
       : `${parentType}s/${parentId}/photos/${uuidv4()}-${safeName}`;
 
-    await uploadToS3(file.buffer, s3Key, file.mimetype);
+    const { finalBytes } = await uploadToS3(file.buffer, s3Key, file.mimetype);
 
     const fileUrl = config.s3.cloudfrontDomain
       ? `https://${config.s3.cloudfrontDomain}/${s3Key}`
       : `https://${config.s3.bucket}.s3.${config.aws.region}.amazonaws.com/${s3Key}`;
 
     const result = await db(
-      `INSERT INTO photos (parent_type, parent_id, uploaded_by, file_url, s3_key, mime_type, activity_id, display_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO photos (parent_type, parent_id, uploaded_by, file_url, s3_key, mime_type, activity_id, display_order, file_size_bytes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [parentType, parentId, userId, fileUrl, s3Key, file.mimetype, activityId, nextOrder],
+      [parentType, parentId, userId, fileUrl, s3Key, file.mimetype, activityId, nextOrder, finalBytes],
     );
     nextOrder += 1;
+
+    // Fire-and-forget: the response below already reflects the original,
+    // already-persisted upload. Compression (if any) swaps in a smaller
+    // S3 object and updated file_size_bytes afterward, invisibly.
+    if (isVideoMime(file.mimetype)) {
+      const photoId = result.rows[0].id;
+      compressAndReplaceVideoAsync({
+        buffer: file.buffer,
+        s3Key,
+        mimeType: file.mimetype,
+        onReplaced: (finalBytes) => db('UPDATE photos SET file_size_bytes = $1 WHERE id = $2', [finalBytes, photoId]),
+      }).catch((err) => logger.warn('Video compression kickoff failed', { s3Key, error: err.message }));
+    }
+
     const presignedUrl = config.s3.cloudfrontDomain ? null : await getPresignedDownloadUrl(s3Key);
     uploaded.push(formatPhoto({ ...result.rows[0], activity_title: null }, presignedUrl));
   }

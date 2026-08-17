@@ -1,11 +1,13 @@
 const { query } = require('../../config/database');
+const { getCompressionStats } = require('../../utils/imageCompression.util');
+const { getVideoCompressionStats } = require('../../utils/videoCompression.util');
 
 /**
  * Aggregate storage totals across docs/photos + registered user count.
  * Shared by GET /admin/storage (live view) and the daily snapshot cron.
  */
 async function getStorageAggregates() {
-  const [docsRes, photosRes, usersRes] = await Promise.all([
+  const [docsRes, photosRes, usersRes, compressionStats, videoCompressionStats] = await Promise.all([
     query(`
       SELECT
         COUNT(*)::int                          AS total_count,
@@ -27,6 +29,8 @@ async function getStorageAggregates() {
       GROUP BY ROLLUP (mime_type)
       ORDER BY type_bytes DESC NULLS LAST`),
     query('SELECT COUNT(*)::int AS user_count FROM users WHERE is_platform_admin = false'),
+    getCompressionStats(),
+    getVideoCompressionStats(),
   ]);
 
   // ROLLUP produces a NULL-mime_type row as the grand total
@@ -47,6 +51,8 @@ async function getStorageAggregates() {
     imagesCount: Number(photosTotal.total_count),
     imagesBreakdown: photosBreakdown,
     userCount: usersRes.rows[0].user_count || 0,
+    compressionStats,
+    videoCompressionStats,
   };
 }
 

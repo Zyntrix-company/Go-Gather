@@ -1,7 +1,8 @@
 # ─── Development image (hot reload via nodemon) ───────────────────────────────
 FROM node:18-alpine
 
-RUN apk add --no-cache dumb-init
+# ffmpeg: used by videoCompression.util.js to transcode uploaded videos before storage
+RUN apk add --no-cache dumb-init ffmpeg
 
 WORKDIR /app
 
