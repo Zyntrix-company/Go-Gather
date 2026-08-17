@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const config = require('./config');
 const logger = require('./utils/logger');
 const errorHandler = require('./middleware/errorHandler');
+const { maintenanceGate } = require('./middleware/maintenanceMode.middleware');
 
 // Module routers
 const authRoutes    = require('./modules/auth/routes');
@@ -103,6 +104,10 @@ app.use('/legal', legalRoutes);
 
 // Public upload limits (mobile clients — single source of truth for caps)
 app.use('/config', uploadLimitsRoutes);
+
+// Emergency stop: admin-toggled kill switch. Blocks everything below except
+// /admin, /auth, /health and /.well-known — see maintenanceMode.middleware.js.
+app.use(maintenanceGate);
 
 /* ───────────────────────────────────────────
  * API Routes

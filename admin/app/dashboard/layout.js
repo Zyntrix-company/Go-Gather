@@ -8,6 +8,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 
 const NAV = [
   { href: '/dashboard/overview',     label: 'Business Insights',  icon: ChartIcon,    roles: ['full', 'content'] },
+  { href: '/dashboard/health',       label: 'Health',             icon: ActivityIcon, roles: ['full'] },
   { href: '/dashboard/users',        label: 'Users',              icon: UsersIcon,    roles: ['full'] },
   { href: '/dashboard/trips-events', label: 'Trips & Events',     icon: MapIcon,      roles: ['full'] },
   { href: '/dashboard/storage',      label: 'Storage & Capacity', icon: DatabaseIcon, roles: ['full'] },
@@ -119,6 +120,12 @@ export default function DashboardLayout({ children }) {
 function ChartIcon({ className }) {
   return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  </svg>;
+}
+function ActivityIcon({ className }) {
+  return <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <circle cx="12" cy="12" r="10" />
+    <polyline strokeLinecap="round" strokeLinejoin="round" points="8 12 10.5 12 11.5 9 13 15 14.5 12 16 12" />
   </svg>;
 }
 function UsersIcon({ className }) {

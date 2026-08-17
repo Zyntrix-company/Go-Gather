@@ -18,6 +18,7 @@ const { EMAIL_PROVIDER } = require('../../config/emailProvider');
 const logger = require('../../utils/logger');
 const legalService = require('../legal/legal.service');
 const { getStorageAggregates } = require('./storage.service');
+const { setMaintenanceMode } = require('./maintenance.service');
 
 const PASSWORD_SALT_ROUNDS = 12;
 
@@ -463,6 +464,48 @@ router.get('/health', requireFullAdminRole, async (_req, res) => {
   }
 
   res.json(result);
+});
+
+/* ─── Emergency stop (maintenance mode) ──────────────────────── */
+// Platform admins only — this takes the whole product down for every user.
+
+router.get('/system/status', requireFullAdminRole, async (_req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT s.maintenance_mode, s.reason, s.enabled_at, u.email AS enabled_by_email
+         FROM system_settings s
+         LEFT JOIN users u ON u.id = s.enabled_by
+        WHERE s.id = 1`,
+    );
+    const r = rows[0] || { maintenance_mode: false };
+    res.json({
+      active: r.maintenance_mode,
+      reason: r.reason,
+      enabledAt: r.enabled_at,
+      enabledByEmail: r.enabled_by_email,
+    });
+  } catch (err) { next(err); }
+});
+
+router.post('/system/stop', requireFullAdminRole, async (req, res, next) => {
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim().slice(0, 500) || null : null;
+  try {
+    const info = await setMaintenanceMode(true, { userId: req.user.id, reason });
+    logger.warn('EMERGENCY STOP: maintenance mode enabled — all non-admin traffic is now blocked', {
+      actorId: req.user.id, actorEmail: req.user.email, reason,
+    });
+    res.json(info);
+  } catch (err) { next(err); }
+});
+
+router.post('/system/resume', requireFullAdminRole, async (req, res, next) => {
+  try {
+    const info = await setMaintenanceMode(false, { userId: req.user.id });
+    logger.warn('Maintenance mode disabled — services resumed', {
+      actorId: req.user.id, actorEmail: req.user.email,
+    });
+    res.json(info);
+  } catch (err) { next(err); }
 });
 
 /* ─── Storage & Capacity ─────────────────────────────────────── */
