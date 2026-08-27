@@ -1,5 +1,5 @@
 # ─── Stage 1: Install production dependencies ─────────────────────────────────
-FROM node:18-alpine AS deps
+FROM node:22-alpine AS deps
 
 WORKDIR /app
 
@@ -8,7 +8,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 # ─── Stage 2: Production image ────────────────────────────────────────────────
-FROM node:18-alpine AS production
+FROM node:22-alpine AS production
 
 # dumb-init: proper PID 1 — forwards OS signals (SIGTERM) to Node for graceful shutdown
 # ffmpeg: used by videoCompression.util.js to transcode uploaded videos before storage
