@@ -72,6 +72,8 @@ module.exports = {
     clientSecret:     process.env.GOOGLE_CLIENT_SECRET,
     redirectUri:      process.env.GOOGLE_REDIRECT_URI,
     driveRedirectUri: process.env.GOOGLE_DRIVE_REDIRECT_URI,
+    // Places API (Legacy) key from the gatherrgo GCP project — server-side only
+    placesApiKey:     process.env.GOOGLE_PLACES_API_KEY,
   },
 
   // ─── Microsoft / Outlook OAuth ───────────────
@@ -130,6 +132,7 @@ module.exports = {
     friendRequestPerDay: parseInt(process.env.FRIEND_REQUEST_RATE_LIMIT_PER_DAY, 10) || 20,
     sweeChatPerHour: parseInt(process.env.SWEE_CHAT_RATE_LIMIT_PER_HOUR, 10) || 30,
     sweeChatPerDay: parseInt(process.env.SWEE_CHAT_RATE_LIMIT_PER_DAY, 10) || 200,
+    placesAutocompletePerMinute: parseInt(process.env.PLACES_AUTOCOMPLETE_RATE_LIMIT_PER_MINUTE, 10) || 60,
   },
 
   // ─── Universal Links ─────────────────────────

@@ -58,6 +58,9 @@ services:
       GOOGLE_CLIENT_ID:     ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       GOOGLE_REDIRECT_URI:  ${GOOGLE_REDIRECT_URI}
+      # ── Google Places (Legacy) — /places/autocomplete proxy ────────────────
+      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
+      PLACES_AUTOCOMPLETE_RATE_LIMIT_PER_MINUTE: ${PLACES_AUTOCOMPLETE_RATE_LIMIT_PER_MINUTE:-60}
       FACEBOOK_APP_ID:      ${FACEBOOK_APP_ID}
       FACEBOOK_APP_SECRET:  ${FACEBOOK_APP_SECRET}
       # ── Microsoft / Outlook OAuth ──────────────────────────────────────────

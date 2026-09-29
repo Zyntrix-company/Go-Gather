@@ -8,16 +8,11 @@ import {
   ActivityIndicator,
   type TextStyle,
 } from 'react-native';
+import { autocompletePlaces, type PlacePrediction } from '../../api/places.api';
 
-const GOOGLE_PLACES_KEY = 'AIzaSyAsbr3dMzYaenHLCmrHD-gTYo5cZ_aZ6YA';
 const DEBOUNCE_MS = 300;
 const MIN_QUERY_LEN = 2;
 const MAX_SUGGESTIONS = 6;
-
-type Prediction = {
-  place_id: string;
-  description: string;
-};
 
 interface Props {
   initialValue?: string;
@@ -27,18 +22,12 @@ interface Props {
   variant?: 'create' | 'edit';
 }
 
-async function fetchPredictions(input: string): Promise<Prediction[]> {
-  const url =
-    `https://maps.googleapis.com/maps/api/place/autocomplete/json` +
-    `?input=${encodeURIComponent(input)}` +
-    `&key=${GOOGLE_PLACES_KEY}` +
-    `&language=en`;
-  const res = await fetch(url);
-  const json = await res.json();
-  if (json.status !== 'OK' && json.status !== 'ZERO_RESULTS') {
+async function fetchPredictions(input: string): Promise<PlacePrediction[]> {
+  try {
+    return (await autocompletePlaces(input)).slice(0, MAX_SUGGESTIONS);
+  } catch {
     return [];
   }
-  return (json.predictions ?? []).slice(0, MAX_SUGGESTIONS);
 }
 
 export default function LocationAutocomplete({
@@ -49,7 +38,7 @@ export default function LocationAutocomplete({
   variant = 'create',
 }: Props) {
   const [text, setText] = useState(initialValue);
-  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -30,6 +30,7 @@ const { recordRequest }  = require('./modules/admin/admin.middleware');
 const legalRoutes        = require('./modules/legal/legal.routes');
 const uploadLimitsRoutes = require('./modules/config/uploadLimits.routes');
 const feedbackRoutes     = require('./modules/feedback/feedback.routes');
+const placesRoutes       = require('./modules/places/places.routes');
 
 const app = express();
 
@@ -126,6 +127,7 @@ app.use('/deals',         dealsRoutes);
 app.use('/promo-video',   promoVideoRoutes);
 app.use('/notifications', notificationsRoutes);
 app.use('/feedback',      feedbackRoutes);
+app.use('/places',        placesRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/admin',       adminRoutes);
 app.use('/auth',        emailAuthRoutes);
