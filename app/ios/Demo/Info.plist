@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Demo</string>
+	<string>GatherGo</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -31,7 +31,7 @@
 			<array>
 				<string>gathergo</string>
 				<string>fb1761986381428717</string>
-				<string>com.googleusercontent.apps.444293164368-62ticnka5jbe7phea60phv6otd69nkbe</string>
+				<string>com.googleusercontent.apps.444293164368-v314tg3b5il3bs9as4pnf3k7a1evjat5</string>
 			</array>
 		</dict>
 	</array>
@@ -49,6 +49,14 @@
 	</array>
 	<key>NSContactsUsageDescription</key>
 	<string>GatherGo uses your contacts so you can invite friends via SMS, WhatsApp, or email.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>GatherGo uses your camera so you can take photos and videos to add to your trips and events.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>GatherGo needs access to your photo library so you can add photos and videos to your trips, events, and profile.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>GatherGo saves photos you download from a trip or event back to your photo library.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>GatherGo uses your microphone to record audio when you capture a video for a trip or event.</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
@@ -62,7 +70,11 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>GatherGo uses your location to suggest nearby places and set trip and event destinations.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
