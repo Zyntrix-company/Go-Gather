@@ -66,11 +66,10 @@ services:
       # ─── Google OAuth ─────────────────────────────────
       GOOGLE_CLIENT_ID:    ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      # ─── FCM / Branch ─────────────────────────────────
+      # ─── FCM / Deep links ─────────────────────────────
       FCM_SERVER_KEY:      ${FCM_SERVER_KEY:-}
-      BRANCH_KEY:          ${BRANCH_KEY:-}
-      BRANCH_SECRET:       ${BRANCH_SECRET:-}
-      APP_INVITE_BASE_URL: ${APP_INVITE_BASE_URL:-https://gathergo.app/invite}
+      APP_DEEP_LINK_BASE_URL: ${APP_DEEP_LINK_BASE_URL:-https://gatherrgo.com}
+      APP_INVITE_BASE_URL: ${APP_INVITE_BASE_URL:-https://gatherrgo.com/invite}
       APP_IS_LIVE:         'false'
       CLIENT_URL:          http://localhost:3001
     volumes:

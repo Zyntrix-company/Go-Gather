@@ -19,6 +19,8 @@ import messaging from '@react-native-firebase/messaging';
 import ThemedAlert from './src/components/common/ThemedAlert';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { loadUploadLimits } from './src/utils/uploadLimits';
+import useAuthStore from './src/store/authStore';
+import usePendingInviteStore, { PendingInvite } from './src/store/pendingInviteStore';
 
 // Configure geolocation to use native Android location provider
 Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLevel: 'whenInUse' });
@@ -26,6 +28,15 @@ Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLeve
 // Invites are approval-based: these open the Requests tab, never the trip/event
 // itself — you are not a member until you approve.
 const REQUEST_PUSH_TYPES = ['FRIEND_REQUEST', 'TRIP_REQUEST', 'EVENT_REQUEST'];
+
+// Matches https://gatherrgo.com/invite/{type}/{token} (Universal/App Link) and
+// gathergo://invite/{type}/{token} (custom-scheme fallback from the web landing page).
+function parseInviteUrl(url: string): PendingInvite | null {
+  const match = url.match(/^(?:https?:\/\/(?:www\.)?gatherrgo\.com|gathergo:\/\/)\/?invite\/(trip|event|friend)\/([^/?#]+)/i);
+  if (!match) return null;
+  const [, type, token] = match;
+  return { type: type.toLowerCase() as PendingInvite['type'], token };
+}
 
 function navigateFromPushData(
   nav: NavigationContainerRef<any> | null,
@@ -91,22 +102,47 @@ function App() {
       } as never);
     }
     const handleDeepLink = ({ url }: { url: string }) => {
-      if (url.startsWith('gathergo://email-connected')) navigateEmailConnected(url);
+      if (url.startsWith('gathergo://email-connected')) return navigateEmailConnected(url);
+      const invite = parseInviteUrl(url);
+      if (invite) usePendingInviteStore.getState().setPendingInvite(invite);
     };
     const subscription = Linking.addEventListener('url', handleDeepLink);
     // Handle cold-start case (app was not running when deep link fired)
     Linking.getInitialURL().then((url) => {
-      if (url && url.startsWith('gathergo://email-connected')) navigateEmailConnected(url);
+      if (!url) return;
+      if (url.startsWith('gathergo://email-connected')) return navigateEmailConnected(url);
+      const invite = parseInviteUrl(url);
+      if (invite) usePendingInviteStore.getState().setPendingInvite(invite);
     });
     return () => subscription.remove();
   }, []);
+
+  // Consume a pending invite link once the user is authenticated, past splash,
+  // and has a complete profile — i.e. once MainStack (and its AcceptInvite
+  // screen) is actually mounted. Covers both "tapped link while logged out,
+  // then logged in" and "tapped link while already logged in".
+  const pendingInvite = usePendingInviteStore((s) => s.pendingInvite);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isSplashComplete = useAuthStore((s) => s.isSplashComplete);
+  const pendingProfileSetup = useAuthStore((s) => s.pendingProfileSetup);
+  const profileComplete = useAuthStore((s) => s.user?.isProfileComplete !== false);
+
+  useEffect(() => {
+    if (!pendingInvite) return;
+    if (!isSplashComplete || !isAuthenticated || pendingProfileSetup || !profileComplete) return;
+    const timer = setTimeout(() => {
+      navigationRef.current?.navigate('AcceptInvite' as never, pendingInvite as never);
+      usePendingInviteStore.getState().setPendingInvite(null);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [pendingInvite, isAuthenticated, isSplashComplete, pendingProfileSetup, profileComplete]);
 
   useEffect(() => {
     // TODO: replace with actual webClientId from Google Cloud console
     try {
       GoogleSignin.configure({
         webClientId: '444293164368-8rjq9b60t2kcbers0d77j4lic7oma5nl.apps.googleusercontent.com',
-        iosClientId: '444293164368-62ticnka5jbe7phea60phv6otd69nkbe.apps.googleusercontent.com',
+        iosClientId: '444293164368-v314tg3b5il3bs9as4pnf3k7a1evjat5.apps.googleusercontent.com',
         offlineAccess: false,
         scopes: ['https://www.googleapis.com/auth/user.birthday.read'],
       });

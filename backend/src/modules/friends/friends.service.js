@@ -2,7 +2,6 @@ const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
 const config = require('../../config');
 const { createAndSendNotification, notifySafely } = require('../../utils/fcm.util');
-const { createInviteSmartLink } = require('../../utils/branch.util');
 const { generateInviteShareText } = require('../../utils/shareText.util');
 const { sendEmail, wrapEmail, sendConnectionRequestEmail, sendRequestAcceptedEmail } = require('../../utils/mailer');
 const { getPresignedDownloadUrl } = require('../../utils/s3.util');
@@ -405,17 +404,7 @@ const createFriendInvite = async (inviterId, { channels, emails = [], phones = [
   const token = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 7 * 24 * 3600000); // 7 days
 
-  // Create Branch smart link — non-blocking fallback to plain URL if Branch fails
-  let branchUrl;
-  try {
-    branchUrl = await createInviteSmartLink({ token, inviterName, type: 'friend' });
-  } catch (err) {
-    logger.error('Branch smart link creation failed — using plain URL fallback', {
-      err: err.message,
-      token,
-    });
-    branchUrl = `${process.env.APP_INVITE_BASE_URL}/${token}`;
-  }
+  const branchUrl = `${config.appDeepLinkBaseUrl}/invite/friend/${token}`;
 
   const shareText = generateInviteShareText({ inviterName, branchUrl, type: 'friend' });
 

@@ -3,7 +3,6 @@ const { query: db, getClient } = require('../../config/database');
 const { sendEmail, wrapEmail, sendTripCancelledEmail } = require('../../utils/mailer');
 const { createAndSendNotifications, createAndSendNotification, notifySafely } = require('../../utils/fcm.util');
 const { batchDeleteFromS3, getPresignedDownloadUrl } = require('../../utils/s3.util');
-const { createInviteSmartLink } = require('../../utils/branch.util');
 const { generateInviteShareText } = require('../../utils/shareText.util');
 const config = require('../../config');
 const logger = require('../../utils/logger');
@@ -202,13 +201,7 @@ const createTrip = async (userId, body) => {
         try {
           const token = crypto.randomUUID();
           const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
-          let branchUrl = null;
-          try {
-            branchUrl = await createInviteSmartLink({ token, inviterName, context: name, type: 'trip' });
-          } catch (e) {
-            branchUrl = `${config.appDeepLinkBaseUrl || 'https://gatherrgo.com'}/invite/trip/${token}`;
-            logger.warn('Branch link failed, using plain URL', { error: e.message });
-          }
+          const branchUrl = `${config.appDeepLinkBaseUrl}/invite/trip/${token}`;
           await db(
             `INSERT INTO trip_invites (trip_id, invited_by, email, token, expires_at, branch_url)
              VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (token) DO NOTHING`,
@@ -665,13 +658,7 @@ const inviteToTrip = async (tripId, invitedBy, { friendIds = [], emails = [], ph
   if (shareOnly) {
     const token = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
-    let branchUrl = null;
-    try {
-      branchUrl = await createInviteSmartLink({ token, inviterName, context: tripName, type: 'trip' });
-    } catch (e) {
-      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gatherrgo.com'}/invite/trip/${token}`;
-      logger.warn('Branch link failed, using plain URL', { error: e.message });
-    }
+    const branchUrl = `${config.appDeepLinkBaseUrl}/invite/trip/${token}`;
     await db(
       `INSERT INTO trip_invites (trip_id, invited_by, email, phone, token, expires_at, branch_url)
        VALUES ($1, $2, NULL, NULL, $3, $4, $5) ON CONFLICT (token) DO NOTHING`,
@@ -800,14 +787,7 @@ const processEmailOrPhoneInvite = async ({
     // email/phone and signup matching turns this row into a request.
     const token = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
-    let branchUrl = null;
-
-    try {
-      branchUrl = await createInviteSmartLink({ token, inviterName, context: tripName, type: 'trip' });
-    } catch (e) {
-      branchUrl = `${config.appDeepLinkBaseUrl || 'https://gatherrgo.com'}/invite/trip/${token}`;
-      logger.warn('Branch link failed, using plain URL', { error: e.message });
-    }
+    const branchUrl = `${config.appDeepLinkBaseUrl}/invite/trip/${token}`;
 
     await db(
       `INSERT INTO trip_invites (trip_id, invited_by, email, phone, token, expires_at, branch_url)

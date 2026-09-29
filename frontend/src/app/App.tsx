@@ -13,6 +13,7 @@ import DesignIntern from './pages/DesignIntern';
 import DataDeletion from './pages/DataDeletion';
 import Blogs from './pages/Blogs';
 import BlogDetail from './pages/BlogDetail';
+import Invite from './pages/Invite';
 
 // ScrollToTop component to handle scroll position on route change
 function ScrollToTop() {
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="blogs/:id" element={<BlogDetail />} />
           <Route path="contact" element={<Contact />} />
           <Route path="data-deletion" element={<DataDeletion />} />
+          <Route path="invite/:type/:token" element={<Invite />} />
           <Route path="*" element={<Home />} />
         </Route>
       </Routes>

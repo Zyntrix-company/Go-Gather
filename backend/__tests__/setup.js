@@ -25,13 +25,13 @@ process.env.AWS_S3_BUCKET = 'test-bucket';
 process.env.AWS_CLOUDFRONT_DOMAIN = 'test.cloudfront.net';
 
 // ── SES ───────────────────────────────────────────────────────────────────────
-process.env.AWS_SES_FROM_EMAIL = 'noreply@gathergo.app';
+process.env.AWS_SES_FROM_EMAIL = 'noreply@gatherrgo.com';
 process.env.AWS_SES_ACCESS_KEY_ID = 'test-ses-key';
 process.env.AWS_SES_SECRET_ACCESS_KEY = 'test-ses-secret';
 
 // ── Brevo ─────────────────────────────────────────────────────────────────────
 process.env.BREVO_API_KEY = 'test-brevo-api-key';
-process.env.BREVO_FROM_EMAIL = 'noreply@gathergo.app';
+process.env.BREVO_FROM_EMAIL = 'noreply@gatherrgo.com';
 
 // ── SNS ───────────────────────────────────────────────────────────────────────
 process.env.AWS_SNS_PLATFORM_APP_ARN_IOS = 'arn:aws:sns:us-east-1:123456789:app/APNS/test';
@@ -49,20 +49,16 @@ process.env.FACEBOOK_APP_SECRET = 'test-facebook-app-secret';
 // ── App URLs ──────────────────────────────────────────────────────────────────
 process.env.CLIENT_URL = 'http://localhost:3001';
 process.env.PASSWORD_RESET_URL = 'http://localhost:3001/reset-password';
-process.env.APP_DEEP_LINK_BASE_URL = 'https://gathergo.app';
-process.env.APP_INVITE_BASE_URL = 'https://gathergo.app/invite';
-
-// ── Branch.io ─────────────────────────────────────────────────────────────────
-process.env.BRANCH_KEY = 'test-branch-key';
-process.env.BRANCH_SECRET = 'test-branch-secret';
+process.env.APP_DEEP_LINK_BASE_URL = 'https://gatherrgo.com';
+process.env.APP_INVITE_BASE_URL = 'https://gatherrgo.com/invite';
 
 // ── App install links ─────────────────────────────────────────────────────────
 process.env.APP_IS_LIVE = 'false';
 process.env.ANDROID_APK_URL = 'https://test.example.com/test.apk';
 process.env.IOS_TESTFLIGHT_URL = 'https://testflight.apple.com/join/TEST';
-process.env.ANDROID_STORE_URL = 'https://play.google.com/store/apps/details?id=com.gathergo';
+process.env.ANDROID_STORE_URL = 'https://play.google.com/store/apps/details?id=com.gathergo.app';
 process.env.IOS_STORE_URL = 'https://apps.apple.com/app/gathergo/id123456';
-process.env.OG_INVITE_IMAGE_URL = 'https://cdn.gathergo.app/og.png';
+process.env.OG_INVITE_IMAGE_URL = 'https://cdn.gatherrgo.com/og.png';
 
 // ── Universal Links ───────────────────────────────────────────────────────────
 process.env.APP_BUNDLE_ID = 'com.gathergo';

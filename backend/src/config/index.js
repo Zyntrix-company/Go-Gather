@@ -110,12 +110,6 @@ module.exports = {
     apiKey: process.env.GEMINI_API_KEY,
   },
 
-  // ─── Branch.io ───────────────────────────────
-  branch: {
-    key:    process.env.BRANCH_KEY,
-    secret: process.env.BRANCH_SECRET,
-  },
-
   // ─── Invite & App Store Links ─────────────────
   invite: {
     baseUrl:          process.env.APP_INVITE_BASE_URL || 'https://gatherrgo.com/invite',

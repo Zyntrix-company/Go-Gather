@@ -71,10 +71,8 @@ services:
       CONTACT_EMAIL:        ${CONTACT_EMAIL}
       ALLOWED_ORIGINS:      ${ALLOWED_ORIGINS}
       PASSWORD_RESET_URL:   ${PASSWORD_RESET_URL}
-      # ── Push / Branch ──────────────────────────────────────────────────────
+      # ── Push ───────────────────────────────────────────────────────────────
       FCM_SERVER_KEY:       ${FCM_SERVER_KEY}
-      BRANCH_KEY:           ${BRANCH_KEY}
-      BRANCH_SECRET:        ${BRANCH_SECRET}
       # ── App URLs ───────────────────────────────────────────────────────────
       CLIENT_URL:           ${CLIENT_URL}
       APP_DEEP_LINK_BASE_URL: ${APP_DEEP_LINK_BASE_URL}

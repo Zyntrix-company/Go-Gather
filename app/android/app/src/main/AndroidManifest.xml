@@ -56,6 +56,17 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="gathergo" />
         </intent-filter>
+        <!-- App Links: https://gatherrgo.com/invite/... opens the app directly once
+             assetlinks.json (served from gatherrgo.com) verifies this app's signing cert. -->
+        <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data
+                android:scheme="https"
+                android:host="gatherrgo.com"
+                android:pathPrefix="/invite" />
+        </intent-filter>
       </activity>
       <activity
           android:name="com.facebook.FacebookActivity"

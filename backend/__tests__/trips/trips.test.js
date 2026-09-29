@@ -28,10 +28,6 @@ jest.mock('../../src/utils/fcm.util', () => ({
   notifyUsers: jest.fn().mockResolvedValue(true),
 }));
 
-jest.mock('../../src/utils/branch.util', () => ({
-  createInviteSmartLink: jest.fn().mockResolvedValue('https://gathergo.app.link/test'),
-}));
-
 jest.mock('../../src/utils/mailer', () => ({
   sendEmail: jest.fn().mockResolvedValue(true),
   sendVerificationOTPEmail: jest.fn().mockResolvedValue(true),

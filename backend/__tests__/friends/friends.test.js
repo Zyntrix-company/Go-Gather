@@ -24,10 +24,6 @@ jest.mock('../../src/utils/fcm.util', () => ({
   notifySafely: jest.fn((factory) => { try { const r = factory(); if (r?.catch) r.catch(() => {}); } catch { /* swallowed */ } }),
 }));
 
-jest.mock('../../src/utils/branch.util', () => ({
-  createInviteSmartLink: jest.fn().mockResolvedValue('https://gatherrgo.com/invite/test'),
-}));
-
 jest.mock('../../src/utils/mailer', () => ({
   sendEmail: jest.fn().mockResolvedValue(true),
   sendVerificationOTPEmail: jest.fn().mockResolvedValue(true),

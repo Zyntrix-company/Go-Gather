@@ -19,6 +19,7 @@ import ProfileScreen from '../screens/main/ProfileScreen';
 import SupportScreen from '../screens/main/SupportScreen';
 import LegalScreen from '../screens/main/LegalScreen';
 import PersonalDocumentsScreen from '../screens/main/PersonalDocumentsScreen';
+import AcceptInviteScreen from '../screens/main/AcceptInviteScreen';
 
 export type MainStackParamList = {
   Home: { initialTab?: string } | undefined;
@@ -51,6 +52,7 @@ export type MainStackParamList = {
   Support: undefined;
   Legal: undefined;
   PersonalDocuments: undefined;
+  AcceptInvite: { type: 'trip' | 'event' | 'friend'; token: string };
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -83,6 +85,7 @@ export default function MainStack() {
       <Stack.Screen name="Support" component={SupportScreen} />
       <Stack.Screen name="Legal" component={LegalScreen} />
       <Stack.Screen name="PersonalDocuments" component={PersonalDocumentsScreen} />
+      <Stack.Screen name="AcceptInvite" component={AcceptInviteScreen} />
     </Stack.Navigator>
   );
 }

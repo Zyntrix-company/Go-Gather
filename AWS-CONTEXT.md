@@ -236,7 +236,7 @@ aws ec2 describe-instances --region ap-south-1 --filters "Name=instance-state-na
 | API | `https://api.gatherrgo.com` |
 | Marketing | `https://www.gatherrgo.com` / `https://gatherrgo.com` |
 | Admin | `https://admin.gatherrgo.com` |
-| App deep links | `https://gathergo.app`, `gathergo://` |
+| App deep links | `https://gatherrgo.com/invite/*` (served by the marketing site, Universal/App Links), `gathergo://` (custom-scheme fallback) |
 | Uploads CDN | `AWS_CLOUDFRONT_DOMAIN` (set in server `.env`) |
 
 ---

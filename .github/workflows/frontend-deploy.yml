@@ -80,6 +80,18 @@ jobs:
           --cache-control "public, max-age=86400" \
           --metadata-directive REPLACE
 
+        # Universal Links / App Links verification — extensionless, must be application/json
+        # or iOS/Android verification fails. Required for https://gatherrgo.com/invite/... to
+        # open the app instead of a browser.
+        aws s3 cp frontend/dist/.well-known/apple-app-site-association s3://gatherrgo-frontend/.well-known/apple-app-site-association \
+          --content-type "application/json" \
+          --cache-control "public, max-age=3600" \
+          --metadata-directive REPLACE
+        aws s3 cp frontend/dist/.well-known/assetlinks.json s3://gatherrgo-frontend/.well-known/assetlinks.json \
+          --content-type "application/json" \
+          --cache-control "public, max-age=3600" \
+          --metadata-directive REPLACE
+
         # Everything else (fonts, manifests, etc.)
         aws s3 sync frontend/dist s3://gatherrgo-frontend \
           --exclude "index.html" \
@@ -91,6 +103,7 @@ jobs:
           --exclude "favicon.ico" \
           --exclude "favicon.svg" \
           --exclude "logo.png" \
+          --exclude ".well-known/*" \
           --cache-control "public, max-age=86400" \
           --delete
 
@@ -102,4 +115,4 @@ jobs:
       run: |
         aws cloudfront create-invalidation \
           --distribution-id ${{ secrets.CLOUDFRONT_FRONTEND_DISTRIBUTION_ID }} \
-          --paths "/index.html" "/robots.txt" "/sitemap.xml" "/*.png" "/*.ico" "/*.svg"
+          --paths "/index.html" "/robots.txt" "/sitemap.xml" "/*.png" "/*.ico" "/*.svg" "/.well-known/*"

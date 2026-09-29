@@ -37,7 +37,6 @@ src/
 │   └── emailDocs/     Email-driven doc import (Gmail/Outlook connectors)
 ├── utils/
 │   ├── fcm.util.js             Firebase push notifications
-│   ├── branch.util.js          Branch.io smart link generation
 │   ├── s3.util.js              S3 upload / CDN URL / presigned URLs
 │   ├── mailer.js               AWS SES emails
 │   ├── debtSimplifier.util.js  Greedy minimum-transaction settlement
@@ -52,8 +51,8 @@ src/
 │   ├── errorHandler.js             Centralised error responses
 │   └── validate.js                 express-validator formatter
 └── static/
-    ├── apple-app-site-association  iOS Universal Links
-    └── assetlinks.json             Android App Links
+    ├── apple-app-site-association  iOS Universal Links (legacy copy — real one is served
+    └── assetlinks.json             Android App Links   from frontend/public/.well-known on gatherrgo.com)
 ```
 
 ### Shared Table Pattern (Migration 005)
@@ -92,7 +91,7 @@ Body:
   bannerImageUrl: "https://...",   ← optional banner image URL
   reminders: true,                 ← schedules 3 FCM reminders
   friendIds: ["uuid"],            ← directly added, must be accepted friends
-  emails: ["x@y.com"]            ← sent Branch smart link via SES
+  emails: ["x@y.com"]            ← sent invite link via SES
 }
 Response: { trip: { id, name, bannerImageUrl, archivedAt: null, ... } }
 ```
@@ -101,7 +100,7 @@ What happens server-side:
 - Trip row is inserted, creator added as `admin` in `trip_members`
 - If `reminders: true` → 3 rows inserted in `trip_reminders` (trip_start, 1_day_before, 1_week_before) all at 09:00 IST
 - `friendIds` → each friend is added directly to `trip_members` (role: member) + FCM push `TRIP_MEMBER_ADDED`
-- `emails` → Branch smart link generated per email, stored in `trip_invites` with `branch_url`, SES email fired (non-blocking)
+- `emails` → invite link generated per email, stored in `trip_invites` with `branch_url`, SES email fired (non-blocking)
 
 **Step 2 — Upload docs immediately after (optional)**
 ```
@@ -118,8 +117,8 @@ POST /trips/:id/docs   (multipart, field: "file")
 Body:
 {
   "friendIds": ["uuid1", "uuid2"],       ← Path A: direct add
-  "emails": ["new@email.com"],           ← Path B: Branch invite
-  "phones": ["+919876543210"]            ← Path B: Branch invite
+  "emails": ["new@email.com"],           ← Path B: link invite
+  "phones": ["+919876543210"]            ← Path B: link invite
 }
 ```
 
@@ -136,10 +135,9 @@ Body:
 
 1. Backend checks if a GatherGo user exists with that email/phone
    - **Exists + is a friend** → treated as Path A (direct add, no link needed)
-   - **Exists + NOT a friend** → generate Branch link, store invite token, send SES email if email provided
-   - **Does not exist** → generate Branch link, store invite token, send SES email if email provided
-2. Branch smart link is generated via `createInviteSmartLink({ token, type: 'trip' })`
-   - Falls back to plain deep link if Branch is unreachable
+   - **Exists + NOT a friend** → generate invite link, store invite token, send SES email if email provided
+   - **Does not exist** → generate invite link, store invite token, send SES email if email provided
+2. Invite link is built as `{APP_DEEP_LINK_BASE_URL}/invite/trip/{token}` — a plain `https://gatherrgo.com` Universal Link, no third-party smart-link service involved
 3. Token stored in `trip_invites` with `branch_url`, `expires_at` (7 days)
 4. SES email fired non-blocking
 5. Invite appears in `invited[]` in the response
@@ -155,12 +153,12 @@ Body:
 
 ---
 
-#### 3. Recipient Accepts the Invite (Deep Link Flow)
+#### 3. Recipient Accepts the Invite (Universal Link Flow)
 
-When the recipient taps the Branch link:
+When the recipient taps `https://gatherrgo.com/invite/trip/{token}`:
 
-- **App already installed** → Branch SDK fires, app reads `invite_token` from deep link data → calls `POST /invites/claim/:token`
-- **App not installed** → Branch redirects to APK (dev) or Play Store/App Store (prod). After install, Branch SDK re-fires the deferred deep link → app calls `POST /invites/claim/:token`
+- **App already installed, link verified** → iOS Universal Links / Android App Links hand the URL straight to the app (no browser hop). The app parses `type`/`token` from the URL, shows a preview, and on confirm calls `POST /invites/claim/:token`
+- **App not installed, or link not yet verified on that device** → the OS falls back to opening the URL in a browser, which lands on `gatherrgo.com/invite/trip/{token}` (served by `frontend/`). That page shows the same preview via `GET /invites/validate/:token`, with an "Open in App" button (`gathergo://invite/trip/{token}`) and a "Get GatherGo" store link. After install, the recipient re-opens the link (deferred deep linking is not implemented — there's no third-party service tracking install attribution)
 
 Server-side on claim:
 1. Token locked with `SELECT FOR UPDATE` (race-condition safe)
@@ -228,12 +226,13 @@ An every-5-minutes cron (`reminders.cron.js`, IST) queries `trip_reminders` for 
 **Path B — Invite link (target not on GatherGo, or user wants to share a link)**
 
 ```
-1. Generate smart link:       POST /friends/invite { channels: ["share"], emails: [] }
+1. Generate invite link:      POST /friends/invite { channels: ["share"], emails: [] }
    → Returns { token, branchUrl, shareText, expiresAt }
+   → branchUrl = {APP_DEEP_LINK_BASE_URL}/invite/friend/{token}
 2. Share branchUrl via WhatsApp / SMS / email (React Native Share.share())
 3. Recipient taps link:
-   → App installed  → Branch SDK fires → app calls POST /invites/claim/:token
-   → App not installed → Branch redirects to store → deferred deep link fires after install
+   → App installed, link verified  → OS hands URL to app → app calls POST /invites/claim/:token
+   → App not installed / not verified → opens gatherrgo.com/invite/friend/:token landing page instead
 4. On claim:
    → friend_connections row created (status: pending)
    → FCM push to inviter: FRIEND_REQUEST
@@ -283,7 +282,6 @@ When calling `POST /trips/:id/invite` with `friendIds`:
 - PostgreSQL (local or AWS RDS)
 - AWS account (S3, SES, CloudFront)
 - Firebase project (FCM)
-- Branch.io account (free tier is sufficient)
 
 ### 1. Install dependencies
 ```bash
@@ -295,7 +293,7 @@ npm install
 ```bash
 cp .env.example .env
 ```
-Edit `.env` — fill in your database, AWS, **FCM v1** (service account / `GOOGLE_APPLICATION_CREDENTIALS`), **Branch.io**, and **`GEMINI_API_KEY`** for Swee (`src/modules/ai/`).
+Edit `.env` — fill in your database, AWS, **FCM v1** (service account / `GOOGLE_APPLICATION_CREDENTIALS`), and **`GEMINI_API_KEY`** for Swee (`src/modules/ai/`).
 
 ### 3. Run database migrations
 ```bash
@@ -448,16 +446,15 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 | `GOOGLE_APPLICATION_CREDENTIALS` | Yes* | Path to Firebase service account JSON (local FCM v1). *Or use `FIREBASE_SERVICE_ACCOUNT_B64` on the server (see deploy workflow). |
 | `FIREBASE_PROJECT_ID` | Yes* | Firebase / GCP project id (e.g. `gatherrgo`). |
 | `GEMINI_API_KEY` | Yes (for Swee) | Google AI Studio / Gemini API key for `src/modules/ai/` |
-| `BRANCH_KEY` | Yes | Branch.io live key (`key_live_xxxx`) |
 | `APP_IS_LIVE` | Yes | `false` = APK/TestFlight links, `true` = store links |
 | `ANDROID_APK_URL` | Dev | Direct APK URL (dev) |
 | `IOS_TESTFLIGHT_URL` | Dev | TestFlight URL (dev) |
 | `ANDROID_STORE_URL` | Prod | Play Store URL (production) |
 | `IOS_STORE_URL` | Prod | App Store URL (production) |
-| `APP_INVITE_BASE_URL` | Yes | `https://gathergo.app/invite` |
-| `APP_DEEPLINK_BASE_URL` | Yes | `https://gathergo.app` |
-| `APP_TEAM_ID` | Yes | Apple Team ID (10-char) |
-| `ANDROID_SHA256_CERT` | Yes | Android signing cert fingerprint |
+| `APP_INVITE_BASE_URL` | Yes | `https://gatherrgo.com/invite` |
+| `APP_DEEP_LINK_BASE_URL` | Yes | `https://gatherrgo.com` — invite links are built as `{this}/invite/{type}/{token}` |
+| `APP_TEAM_ID` | Yes | Apple Team ID (10-char), goes into `apple-app-site-association` |
+| `ANDROID_SHA256_CERT` | Yes | Android release-signing cert fingerprint, goes into `assetlinks.json` |
 
 ---
 
@@ -506,9 +503,9 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 ### Trips — Invites
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/trips/:id/invite` | Member | Invite via `friendIds` (direct) or `emails`/`phones` (Branch link). Rate: 20/15 min. |
+| POST | `/trips/:id/invite` | Member | Invite via `friendIds` (direct) or `emails`/`phones` (link invite). Rate: 20/15 min. |
 | GET | `/trips/invite/:token` | No | Validate token (landing page use) |
-| POST | `/trips/invite/:token/accept` | Yes | Legacy accept (non-Branch flow) |
+| POST | `/trips/invite/:token/accept` | Yes | Legacy accept (superseded by `/invites/claim/:token`) |
 
 ### Trips — Members
 | Method | Route | Auth | Description |
@@ -582,7 +579,7 @@ Events mirror trips in structure but have **no activities submodule**. All share
 ### Events — Invites & Members
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/events/:id/invite` | Member | Invite via `friendIds` (direct) or `emails`/`phones` (Branch link). Rate: 20/15 min. |
+| POST | `/events/:id/invite` | Member | Invite via `friendIds` (direct) or `emails`/`phones` (link invite). Rate: 20/15 min. |
 | GET | `/events/:id/members` | Member | Returns members list with email. |
 | DELETE | `/events/:id/members/:userId` | Admin | Remove member (cannot remove last admin). |
 
@@ -599,14 +596,14 @@ All routes follow the same patterns as `/trips/:id/{docs,photos,expenses,balance
 | GET | `/friends/requests` | Yes | `{ incoming[], outgoing[] }` — all pending requests |
 | POST | `/friends/request` | Yes | Send friend request. Rate: 20/day. FCM push to recipient. |
 | PUT | `/friends/request/:connectionId` | Yes | Accept or decline. Only the addressee can call this. |
-| POST | `/friends/invite` | Yes | Generate Branch smart link. Rate: 10/hour. |
+| POST | `/friends/invite` | Yes | Generate invite link. Rate: 10/hour. |
 | DELETE | `/friends/:userId` | Yes | Remove accepted friendship |
 
 ### Invites (`/invites`)
 | Method | Route | Auth | Description |
 |---|---|---|---|
 | GET | `/invites/validate/:token` | No | Validate token (landing page). Returns `{ valid, type, invitedBy, installLinks }` |
-| POST | `/invites/claim/:token` | Yes | Claim token after Branch SDK fires. Atomic. Idempotent. Returns `{ type: "trip"\|"friend", tripId?, tripName? }` |
+| POST | `/invites/claim/:token` | Yes | Claim token after the app receives an invite Universal Link. Atomic. Idempotent. Returns `{ type: "trip"\|"friend", tripId?, tripName? }` |
 
 ### AI — Swee (`/ai`)
 | Method | Route | Auth | Description |
@@ -725,7 +722,7 @@ After running `node seed.js`, the following data is available for immediate test
 | Storage | AWS S3 + CloudFront CDN |
 | Email | AWS SES |
 | Push | Firebase Cloud Messaging **v1** (HTTP API; service account / `FIREBASE_SERVICE_ACCOUNT_B64` in deploy) |
-| Smart Links | Branch.io |
+| Invite Links | Native iOS Universal Links / Android App Links on `gatherrgo.com` (no third-party smart-link service) |
 | Auth | JWT + Google/Facebook OAuth |
 | AI (Swee) | **Google Gemini 2.5 Flash** via `@google/generative-ai` (`GEMINI_API_KEY` — not OpenAI) |
 | Cron | node-cron (reminders every 5 min; batch flush every 30 min; digest daily 08:00 IST) |
