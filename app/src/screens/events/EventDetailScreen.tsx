@@ -1418,7 +1418,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                       </View>
                     )}
                   </View>
-                  <Text style={styles.actionLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{btn.label}</Text>
+                  <Text style={styles.actionLabel} numberOfLines={1}>{btn.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -2767,9 +2767,12 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 150 },
 
   actionsWrap: { paddingHorizontal: 20, paddingVertical: 16, gap: 16, marginBottom: 6 },
-  actionsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  actionBtn: { alignItems: 'center', width: isSmall ? 52 : 62, gap: 4 },
-  actionCircle: { width: isSmall ? 38 : 44, height: isSmall ? 38 : 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
+  // Columns flex to fill the row, so labels like 'Expenses' fit at full size on
+  // every screen width instead of being shrunk by adjustsFontSizeToFit (iOS-only,
+  // and badly behaved next to an explicit lineHeight).
+  actionsRow: { flexDirection: 'row', gap: 8 },
+  actionBtn: { alignItems: 'center', flex: 1, gap: 4 },
+  actionCircle: { width: isSmall ? 38 : 44, height: isSmall ? 38 : 44, borderRadius: isSmall ? 19 : 22, alignItems: 'center', justifyContent: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3 },
   actionLabel: { fontSize: 13, fontWeight: '400', color: '#0f172a', textAlign: 'center', lineHeight: 16 },
   cardBadge: { position: 'absolute', top: -5, right: -5, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#ffffff', paddingHorizontal: 3, zIndex: 10 },
   cardBadgeText: { color: '#ffffff', fontSize: 10, fontWeight: '600', lineHeight: 13 },
