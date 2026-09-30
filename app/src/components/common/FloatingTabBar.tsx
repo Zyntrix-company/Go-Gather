@@ -68,7 +68,7 @@ export default function FloatingTabBar({ activeTab, navigation }: FloatingTabBar
   };
 
   return (
-    <View style={[styles.tabBar, { paddingBottom: insets.bottom + 6, height: 58 + insets.bottom }]}>
+    <View style={[styles.tabBar, { paddingBottom: insets.bottom + 6, minHeight: TAB_BAR_BASE_HEIGHT + insets.bottom }]}>
       {tabs.map(tab => (
         <NavIcon
           key={tab}

@@ -41,11 +41,11 @@ export type NoteCategoryDef = {
 };
 
 export const EXPENSE_CATS: ExpenseCategoryDef[] = [
-  { label: 'General', slug: 'general', Icon: Package, color: '#0d9488' },
-  { label: 'Food & Dining', slug: 'food', Icon: UtensilsCrossed, color: '#ea580c' },
-  { label: 'Transport', slug: 'transportation', Icon: Car, color: '#2563eb' },
-  { label: 'Stay', slug: 'accommodation', Icon: Hotel, color: '#7c3aed' },
-  { label: 'Entertainment', slug: 'entertainment', Icon: Clapperboard, color: '#db2777' },
+  { label: 'General', slug: 'general', Icon: Package, color: '#19A69C' },
+  { label: 'Food & Dining', slug: 'food', Icon: UtensilsCrossed, color: '#E8B84A' },
+  { label: 'Transport', slug: 'transportation', Icon: Car, color: '#4A90C2' },
+  { label: 'Stay', slug: 'accommodation', Icon: Hotel, color: '#D96C68' },
+  { label: 'Entertainment', slug: 'entertainment', Icon: Clapperboard, color: '#8B72C1' },
   { label: 'Shopping', slug: 'shopping', Icon: ShoppingBag, color: '#ca8a04' },
   { label: 'Other', slug: 'other', Icon: Globe, color: '#64748b' },
 ];

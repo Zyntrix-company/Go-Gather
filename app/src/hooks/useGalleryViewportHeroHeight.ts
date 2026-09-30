@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Dimensions } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TAB_BAR_BASE_HEIGHT } from '../components/common/AppScreenLayout';
 import {
@@ -11,8 +11,6 @@ import {
   GALLERY_HERO_SLIDE_V_PAD,
   GALLERY_MAX_VISIBLE_COMMENTS,
 } from '../constants/albumPhotosLayout';
-
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 export type UseGalleryViewportHeroHeightParams = {
   hasTravelers?: boolean;
@@ -46,6 +44,7 @@ export function useGalleryViewportHeroHeight({
   keyboardVisible = false,
 }: UseGalleryViewportHeroHeightParams = {}): number {
   const insets = useSafeAreaInsets();
+  const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
 
   return useMemo(() => {
     // Typing: collapse the hero to free vertical space for comments + input.
@@ -84,5 +83,5 @@ export function useGalleryViewportHeroHeight({
     );
 
     return heroContent + GALLERY_HERO_SLIDE_V_PAD;
-  }, [hasTravelers, hasDescription, hasFooter, hasMetaCard, hasPhotos, emptyHero, editMode, viewOnly, keyboardVisible, insets.top, insets.bottom]);
+  }, [hasTravelers, hasDescription, hasFooter, hasMetaCard, hasPhotos, emptyHero, editMode, viewOnly, keyboardVisible, insets.top, insets.bottom, SCREEN_W, SCREEN_H]);
 }
