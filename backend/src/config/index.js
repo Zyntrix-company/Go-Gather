@@ -107,9 +107,12 @@ module.exports = {
     credentialsPath: process.env.GOOGLE_APPLICATION_CREDENTIALS,
   },
 
-  // ─── Google Gemini 2.5 Flash ──────────────────
+  // ─── Google Gemini ────────────────────────────
   gemini: {
     apiKey: process.env.GEMINI_API_KEY,
+    // Google retires model ids without warning; keep this overridable from .env
+    // so a rename is a config change, not a redeploy.
+    model: process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite',
   },
 
   // ─── Invite & App Store Links ─────────────────

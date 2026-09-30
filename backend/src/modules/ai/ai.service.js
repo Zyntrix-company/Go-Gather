@@ -1,5 +1,5 @@
 /**
- * Swee AI Service — powered by Google Gemini 2.5 Flash
+ * Swee AI Service — powered by Google Gemini (model id from config.gemini.model)
  * April 2026 Configuration Guide — full implementation.
  */
 
@@ -48,7 +48,7 @@ function getGeminiModel(systemPrompt) {
     _geminiGenAI = new GoogleGenerativeAI(config.gemini.apiKey);
   }
   return _geminiGenAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: config.gemini.model,
     systemInstruction: systemPrompt,
   });
 }
