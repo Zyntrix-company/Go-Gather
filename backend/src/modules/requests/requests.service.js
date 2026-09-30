@@ -36,7 +36,7 @@ const getIncomingRequests = async (userId) => {
     ),
     db(
       `SELECT ei.id, ei.created_at, ei.expires_at, ei.event_id, ei.invited_by,
-              e.name AS context_name, e.location_name, e.start_date, e.end_date,
+              e.name AS context_name, e.location_name, e.event_date,
               p.full_name AS inviter_name, p.avatar_url AS inviter_avatar
        FROM event_invites ei
        JOIN events e ON e.id = ei.event_id
@@ -89,8 +89,10 @@ const getIncomingRequests = async (userId) => {
         eventId: r.event_id,
         name: r.context_name,
         locationName: r.location_name,
-        startDate: r.start_date,
-        endDate: r.end_date,
+        // Events are single-day (migration 014 collapsed start/end into event_date),
+        // but the requests payload keeps the trip-shaped range so one card renders both.
+        startDate: r.event_date,
+        endDate: r.event_date,
       },
       createdAt: r.created_at,
       expiresAt: r.expires_at,
