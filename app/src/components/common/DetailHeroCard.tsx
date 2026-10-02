@@ -101,12 +101,9 @@ export default function DetailHeroCard({
   })();
 
   const content = (
-    <LinearGradient
-      colors={backgroundImage ? ['rgba(255,255,255,0.25)', 'rgba(209,254,249,0.25)'] : gradientColors}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={backgroundImage ? styles.overlay : styles.card}
-    >
+    // A plain View owns the card's height: LinearGradient and Image do not reliably
+    // size to their children, so they are absolute fills behind this instead.
+    <View style={styles.cardContent}>
       {/* Optional type badge */}
       {!!typeBadge && (
         <View style={[styles.typeBadge, { backgroundColor: typeBadgeColor }]}>
@@ -189,7 +186,16 @@ export default function DetailHeroCard({
           </View>
         )}
       </View>
-    </LinearGradient>
+    </View>
+  );
+
+  const tint = (
+    <LinearGradient
+      colors={backgroundImage ? ['rgba(255,255,255,0.25)', 'rgba(209,254,249,0.25)'] : gradientColors}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={StyleSheet.absoluteFill}
+    />
   );
 
   if (backgroundImage) {
@@ -200,12 +206,18 @@ export default function DetailHeroCard({
         imageStyle={styles.cardImage}
         resizeMode="cover"
       >
+        {tint}
         {content}
       </ImageBackground>
     );
   }
 
-  return content;
+  return (
+    <View style={styles.card}>
+      {tint}
+      {content}
+    </View>
+  );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -216,16 +228,13 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     borderRadius: 20,
     borderWidth: 1.5,
-    padding: 16,
     borderColor: '#9FE7E0',
     overflow: 'hidden',
   },
   cardImage: {
     borderRadius: 20,
   },
-  overlay: {
-    flex: 1,
-    margin: -16,
+  cardContent: {
     padding: 16,
   },
   typeBadge: {
@@ -300,7 +309,9 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: 6,
-    flexWrap: 'nowrap',
+    // Wraps rather than overflowing on narrow screens; safe because the card
+    // height now follows its content instead of being clipped.
+    flexWrap: 'wrap',
     justifyContent: 'flex-start',
     alignItems: 'center',
   },
