@@ -388,7 +388,6 @@ router.get('/health', requireFullAdminRole, async (_req, res) => {
 
     // Auth & OAuth (config checks)
     googleOAuth:    cfg.google.clientId    && cfg.google.clientSecret    ? 'configured' : 'not_configured',
-    facebookOAuth:  cfg.facebook.appId     && cfg.facebook.appSecret     ? 'configured' : 'not_configured',
     microsoftOAuth: cfg.microsoft.clientId && cfg.microsoft.clientSecret ? 'configured' : 'not_configured',
 
     // Integrations (config checks)

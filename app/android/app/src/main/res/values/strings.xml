@@ -1,6 +1,3 @@
 <resources>
     <string name="app_name">GatherrGo</string>
-    <string name="facebook_app_id">1761986381428717</string>
-    <string name="facebook_client_token">f778bd8f5404cecb363f113f6495b9ce</string>
-    <string name="fb_login_protocol_scheme">fb1761986381428717</string>
 </resources>

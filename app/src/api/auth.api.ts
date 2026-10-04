@@ -150,14 +150,17 @@ const authApi = {
   },
 
   /**
-   * POST /auth/facebook
+   * POST /auth/apple — Sign in with Apple (iOS only).
+   * `nonce` is the raw nonce; the identity token carries its SHA-256.
    */
-  facebookLogin: async (accessToken: string, deviceToken?: string): Promise<AuthResponse> => {
-    const { data } = await client.post('/auth/facebook', {
-      accessToken,
-      deviceToken,
-      platform: Platform.OS === 'ios' ? 'ios' : 'android',
-    });
+  appleLogin: async (payload: {
+    identityToken: string;
+    nonce: string;
+    authorizationCode: string | null;
+    fullName: { givenName: string | null; familyName: string | null } | null;
+    deviceToken?: string;
+  }): Promise<AuthResponse> => {
+    const { data } = await client.post('/auth/apple', { ...payload, platform: 'ios' });
     return normalizeAuthResponse(data);
   },
 

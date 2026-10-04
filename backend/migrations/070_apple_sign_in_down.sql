@@ -1,0 +1,2 @@
+ALTER TABLE users DROP COLUMN IF EXISTS apple_refresh_token;
+ALTER TABLE users DROP COLUMN IF EXISTS apple_id;

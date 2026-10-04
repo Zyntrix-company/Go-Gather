@@ -54,7 +54,6 @@ export const colors = {
   // Social
   googleBg: '#ffffff',
   googleBorder: '#e2e8f0',
-  facebookBlue: '#1877f2',
 
   // Status
   error: '#ef4444',

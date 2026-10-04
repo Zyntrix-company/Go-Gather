@@ -21,6 +21,7 @@ const { linkPendingInvitesToUser } = require('../invites/invites.service');
 const { resolveAuthEmail, normalizeAuthEmail, sanitizeAuthEmail } = require('../../utils/email.util');
 
 const { getPresignedDownloadUrl } = require('../../utils/s3.util');
+const apple = require('./apple');
 
 const SALT_ROUNDS = 12;
 const googleClient = new OAuth2Client(config.google.clientId);
@@ -210,7 +211,7 @@ const login = async ({ email, password, deviceToken, platform }) => {
   }
 
   if (!user.password_hash) {
-    const err = new Error('This account uses Google sign-in. Please login with Google.');
+    const err = new Error('This account has no password yet. Sign in with Google or Apple, or tap "Forgot password?" to set one.');
     err.statusCode = 401;
     err.error = 'GoogleOnlyAccount';
     throw err;
@@ -324,64 +325,74 @@ const googleAuth = async ({ idToken, deviceToken, platform }) => {
 };
 
 /**
- * POST /auth/facebook — Facebook OAuth token exchange.
+ * POST /auth/apple — Sign in with Apple (iOS).
+ * Apple sends the email only on the very first authorization and the name only
+ * via the app (never in the token), so both are captured when the account is made.
  */
-const facebookAuth = async ({ accessToken, deviceToken, platform }) => {
-  const axios = require('axios'); // Optional, or use https. Going to assume I'll add axios or use a helper.
-  // Using a manual https request or adding axios to package.json.
-  // Let's assume axios is added.
+const appleAuth = async ({ identityToken, nonce, authorizationCode, fullName, deviceToken, platform }) => {
+  const payload = await apple.verifyIdentityToken(identityToken, nonce);
+  const appleId = payload.sub;
+  const emailVerified = payload.email_verified === true || payload.email_verified === 'true';
 
-  const response = await axios.get(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`);
-  const { id: facebookId, email: rawEmail, name, picture } = response.data;
-  const resolved = resolveAuthEmail(rawEmail);
-
-  if (!resolved) {
-    const err = new Error('Facebook account must have an email associated.');
-    err.statusCode = 400;
-    err.error = 'NoEmail';
-    throw err;
-  }
-
-  const { display: displayEmail, normalized } = resolved;
-
-  let result = await db.query('SELECT * FROM users WHERE email_normalized = $1', [normalized]);
+  let result = await db.query(
+    'SELECT * FROM users WHERE apple_id = $1 AND deleted_at IS NULL',
+    [appleId],
+  );
   let isNewUser = false;
 
-  if (result.rows.length > 0) {
-    // Link Facebook ID if not already linked
-    const user = result.rows[0];
-    if (!user.facebook_id) {
-      await db.query(
-        'UPDATE users SET facebook_id = $1, updated_at = NOW() WHERE id = $2',
-        [facebookId, user.id],
+  if (result.rows.length === 0) {
+    const resolved = payload.email && emailVerified ? resolveAuthEmail(payload.email) : null;
+    if (!resolved) {
+      const err = new Error(
+        'Apple did not share an email. In Settings > Apple ID > Sign in with Apple, remove GatherGo and try again.',
       );
+      err.statusCode = 400;
+      err.error = 'NoEmail';
+      throw err;
     }
-  } else {
-    // Create new user (Auto-verifying email since Facebook verified it)
-    result = await db.query(
-      `INSERT INTO users (email, email_normalized, facebook_id, is_profile_complete, is_verified)
-       VALUES ($1, $2, $3, false, true)
-       RETURNING *`,
-      [displayEmail, normalized, facebookId],
-    );
-    isNewUser = true;
+    const { display: displayEmail, normalized } = resolved;
 
-    // Auto-create a basic profile from Facebook data
-    const user = result.rows[0];
-    const avatarUrl = picture?.data?.url || null;
-    await db.query(
-      `INSERT INTO profiles (user_id, full_name, avatar_url)
-       VALUES ($1, $2, $3)`,
-      [user.id, name || null, avatarUrl],
-    );
+    result = await db.query('SELECT * FROM users WHERE email_normalized = $1', [normalized]);
+    if (result.rows.length > 0) {
+      // Same verified email as an existing account — link Apple to it
+      await db.query(
+        'UPDATE users SET apple_id = $1, updated_at = NOW() WHERE id = $2',
+        [appleId, result.rows[0].id],
+      );
+    } else {
+      result = await db.query(
+        `INSERT INTO users (email, email_normalized, apple_id, is_profile_complete, is_verified)
+         VALUES ($1, $2, $3, false, true)
+         RETURNING *`,
+        [displayEmail, normalized, appleId],
+      );
+      isNewUser = true;
 
-    await syncUserLegalAckFromCurrent(user.id);
-    await attachPendingInvites(user.id, { email: user.email, phone: user.phone });
+      const user = result.rows[0];
+      const name = [fullName?.givenName, fullName?.familyName].filter(Boolean).join(' ').trim();
+      await db.query(
+        'INSERT INTO profiles (user_id, full_name) VALUES ($1, $2)',
+        [user.id, name || null],
+      );
+
+      await syncUserLegalAckFromCurrent(user.id);
+      await attachPendingInvites(user.id, { email: user.email, phone: user.phone });
+    }
   }
 
   const user = result.rows[0];
-  const tokens = await issueTokenPair(user);
 
+  // Kept only so account deletion can revoke the Apple grant (App Store requirement)
+  const appleRefreshToken = await apple.exchangeAuthorizationCode(authorizationCode);
+  if (appleRefreshToken) {
+    const { encrypt } = require('../../utils/encrypt.util');
+    await db.query(
+      'UPDATE users SET apple_refresh_token = $1 WHERE id = $2',
+      [encrypt(appleRefreshToken), user.id],
+    );
+  }
+
+  const tokens = await issueTokenPair(user);
   await registerDeviceToken(user.id, deviceToken, platform);
 
   return {
@@ -665,77 +676,11 @@ const getMe = async (userId) => {
   };
 };
 
-/**
- * POST /auth/facebook/data-deletion
- * Facebook Data Deletion Callback — verifies the signed_request, deletes user
- * data associated with the Facebook UID, and returns a confirmation response.
- */
-const facebookDataDeletion = async (signedRequest) => {
-  const crypto = require('crypto');
-
-  if (!signedRequest) {
-    const err = new Error('signed_request is required');
-    err.statusCode = 400; err.error = 'MISSING_SIGNED_REQUEST'; throw err;
-  }
-
-  const [encodedSig, encodedPayload] = signedRequest.split('.');
-  if (!encodedSig || !encodedPayload) {
-    const err = new Error('Invalid signed_request format');
-    err.statusCode = 400; err.error = 'INVALID_SIGNED_REQUEST'; throw err;
-  }
-
-  // Verify HMAC-SHA256 signature
-  const appSecret = config.facebook.appSecret;
-  const expectedSig = crypto
-    .createHmac('sha256', appSecret)
-    .update(encodedPayload)
-    .digest('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-
-  if (expectedSig !== encodedSig) {
-    const err = new Error('Invalid signed_request signature');
-    err.statusCode = 400; err.error = 'INVALID_SIGNATURE'; throw err;
-  }
-
-  // Decode payload
-  const payload = JSON.parse(
-    Buffer.from(encodedPayload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'),
-  );
-
-  const facebookUserId = payload.user_id;
-  if (!facebookUserId) {
-    const err = new Error('user_id missing from signed_request payload');
-    err.statusCode = 400; err.error = 'INVALID_PAYLOAD'; throw err;
-  }
-
-  // Find user and delete their data
-  const userResult = await db.query(
-    'SELECT id FROM users WHERE facebook_id = $1',
-    [facebookUserId],
-  );
-
-  if (userResult.rows.length > 0) {
-    const userId = userResult.rows[0].id;
-    // Delete the user entirely — cascades to all related data via FK constraints
-    await db.query('DELETE FROM users WHERE id = $1', [userId]);
-    logger.info('Facebook data deletion: user deleted', { userId, facebookUserId });
-  } else {
-    logger.info('Facebook data deletion: no user found for facebook_id', { facebookUserId });
-  }
-
-  const confirmationCode = `fb-del-${facebookUserId}-${Date.now()}`;
-  const statusUrl = `${config.appDeepLinkBaseUrl}/data-deletion?code=${confirmationCode}`;
-
-  return { url: statusUrl, confirmation_code: confirmationCode };
-};
-
 module.exports = {
   signup,
   login,
   googleAuth,
-  facebookAuth,
+  appleAuth,
   refresh,
   logout,
   forgotPassword,
@@ -744,5 +689,4 @@ module.exports = {
   changePassword,
   resendOTP,
   getMe,
-  facebookDataDeletion,
 };

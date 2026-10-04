@@ -30,12 +30,12 @@ router.post(
   controller.googleAuth,
 );
 
-// POST /auth/facebook — Facebook OAuth token exchange
+// POST /auth/apple — Sign in with Apple (iOS)
 router.post(
-  '/facebook',
-  validators.facebookAuthValidation,
+  '/apple',
+  validators.appleAuthValidation,
   validate,
-  controller.facebookAuth,
+  controller.appleAuth,
 );
 
 // POST /auth/refresh — Silent JWT refresh
@@ -101,17 +101,6 @@ router.get(
   '/me',
   authenticateJWT,
   controller.getMe,
-);
-
-// GET /auth/facebook/data-deletion — Facebook validates the URL with a GET first
-router.get('/facebook/data-deletion', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Facebook data deletion endpoint is active' });
-});
-
-// POST /auth/facebook/data-deletion — Facebook data deletion callback (no auth, called by Facebook)
-router.post(
-  '/facebook/data-deletion',
-  controller.facebookDataDeletion,
 );
 
 module.exports = router;

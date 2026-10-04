@@ -66,20 +66,22 @@ const googleAuth = async (req, res, next) => {
 };
 
 /**
- * POST /auth/facebook
+ * POST /auth/apple
  */
-const facebookAuth = async (req, res, next) => {
+const appleAuth = async (req, res, next) => {
   try {
-    const { accessToken, deviceToken, platform } = req.body;
-    const result = await authService.facebookAuth({ accessToken, deviceToken, platform });
+    const { identityToken, nonce, authorizationCode, fullName, deviceToken, platform } = req.body;
+    const result = await authService.appleAuth({
+      identityToken, nonce, authorizationCode, fullName, deviceToken, platform,
+    });
 
-    logger.info('Facebook auth completed', {
+    logger.info('Apple auth completed', {
       userId: result.user.id,
       isNewUser: result.user.isNewUser,
     });
 
     return res.status(200).json({
-      message: result.user.isNewUser ? 'Account created via Facebook' : 'Login successful',
+      message: result.user.isNewUser ? 'Account created via Apple' : 'Login successful',
       ...result,
     });
   } catch (error) {
@@ -219,25 +221,11 @@ const resendOTP = async (req, res, next) => {
   }
 };
 
-/**
- * POST /auth/facebook/data-deletion
- */
-const facebookDataDeletion = async (req, res, next) => {
-  try {
-    const signedRequest = req.body?.signed_request;
-    const result = await authService.facebookDataDeletion(signedRequest);
-
-    return res.status(200).json(result);
-  } catch (error) {
-    next(error);
-  }
-};
-
 module.exports = {
   signup,
   login,
   googleAuth,
-  facebookAuth,
+  appleAuth,
   refresh,
   logout,
   forgotPassword,
@@ -246,5 +234,4 @@ module.exports = {
   changePassword,
   resendOTP,
   getMe,
-  facebookDataDeletion,
 };

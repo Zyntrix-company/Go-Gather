@@ -48,11 +48,21 @@ const googleAuthValidation = [
     .withMessage('Platform must be ios or android'),
 ];
 
-const facebookAuthValidation = [
-  body('accessToken')
+const appleAuthValidation = [
+  body('identityToken')
     .notEmpty()
-    .withMessage('Facebook access token is required')
+    .withMessage('Apple identity token is required')
     .isString(),
+  body('nonce')
+    .notEmpty()
+    .withMessage('Nonce is required')
+    .isString(),
+  body('authorizationCode')
+    .optional({ nullable: true })
+    .isString(),
+  body('fullName')
+    .optional({ nullable: true })
+    .isObject(),
   body('deviceToken')
     .optional()
     .isString(),
@@ -136,7 +146,7 @@ module.exports = {
   signupValidation,
   loginValidation,
   googleAuthValidation,
-  facebookAuthValidation,
+  appleAuthValidation,
   refreshValidation,
   logoutValidation,
   forgotPasswordValidation,

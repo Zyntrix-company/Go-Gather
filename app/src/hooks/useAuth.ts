@@ -1,6 +1,5 @@
 import messaging from '@react-native-firebase/messaging';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { LoginManager } from 'react-native-fbsdk-next';
 import { Platform, PermissionsAndroid } from 'react-native';
 import useAuthStore from '../store/authStore';
 import useNotificationStore from '../store/notificationStore';
@@ -112,13 +111,18 @@ export default function useAuth() {
   }
 
   /**
-   * Facebook Login
+   * Sign in with Apple (iOS only)
    */
-  async function facebookLogin(accessToken: string) {
+  async function appleLogin(credential: {
+    identityToken: string;
+    nonce: string;
+    authorizationCode: string | null;
+    fullName: { givenName: string | null; familyName: string | null } | null;
+  }) {
     setLoading(true);
     try {
       const deviceToken = await getFcmToken();
-      const res = await authApi.facebookLogin(accessToken, deviceToken);
+      const res = await authApi.appleLogin({ ...credential, deviceToken });
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
       useNotificationStore.getState().clearNotifications();
@@ -142,11 +146,6 @@ export default function useAuth() {
         await GoogleSignin.signOut();
       } catch (e) {
         // Silently ignore if not logged in via Google
-      }
-      try {
-        LoginManager.logOut();
-      } catch (e) {
-        // Silently ignore
       }
 
       // 2. Clear backend session
@@ -258,8 +257,7 @@ export default function useAuth() {
       const token = (await storage.getToken()) || useAuthStore.getState().accessToken;
       if (!token) return null;
       const user = await authApi.getMe();
-      // Preserve a locally-extracted DOB (e.g. from Google People API or Facebook
-      // Graph API) if the server hasn't stored one yet. Without this, the server
+      // Preserve a locally-extracted DOB (e.g. from Google People API) if the server hasn't stored one yet. Without this, the server
       // response would overwrite the dob set via updateUser() in the login flow.
       const storedDob = useAuthStore.getState().user?.dob;
       if (!user.dob && storedDob) {
@@ -319,7 +317,7 @@ export default function useAuth() {
     verifyOtp,
     login,
     googleLogin,
-    facebookLogin,
+    appleLogin,
     logout,
     loadFromToken,
     refreshProfile,

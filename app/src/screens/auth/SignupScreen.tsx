@@ -23,7 +23,7 @@ import { signupSchema } from '../../utils/validators';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { LoginManager, AccessToken } from 'react-native-fbsdk-next';
+import AppleSignInButton from '../../components/common/AppleSignInButton';
 import colors from '../../theme/colors';
 
 type FormData = {
@@ -166,14 +166,6 @@ function GoogleIcon() {
   );
 }
 
-function FacebookIcon() {
-  return (
-    <Svg width={20} height={20} viewBox="0 0 24 24">
-      <Path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-    </Svg>
-  );
-}
-
 function EyeIcon() {
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -284,7 +276,7 @@ export default function SignupScreen({ navigation }: any) {
   const [legalModal, setLegalModal] = useState<'terms' | 'privacy' | null>(null);
 
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(signupSchema) });
-  const { signup, googleLogin, facebookLogin } = useAuth();
+  const { signup, googleLogin } = useAuth();
   const [apiError, setApiError] = useState<string | null>(null);
   const isLoading = useAuthStore((s) => s.isLoading);
 
@@ -348,39 +340,6 @@ export default function SignupScreen({ navigation }: any) {
     }
   }
 
-  async function onFacebookButtonPress() {
-    try {
-      setApiError(null);
-      const result = await LoginManager.logInWithPermissions(['public_profile', 'email', 'user_birthday']);
-      if (result.isCancelled) return;
-
-      const data = await AccessToken.getCurrentAccessToken();
-      if (data) {
-        const res = await facebookLogin(data.accessToken);
-        // Try extracting DOB from Facebook Graph API (best-effort, silent fail)
-        try {
-          const fbRes = await fetch(
-            `https://graph.facebook.com/me?fields=birthday&access_token=${data.accessToken}`,
-          );
-          const fbData = await fbRes.json();
-          if (fbData?.birthday) {
-            // Facebook returns MM/DD/YYYY → convert to YYYY-MM-DD
-            const parts = fbData.birthday.split('/');
-            if (parts.length === 3) {
-              const dob = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
-              useAuthStore.getState().updateUser({ dob });
-            }
-          }
-        } catch { /* DOB is optional */ }
-        console.log('[Facebook Login Success]:', res.user?.email);
-        handleLoginNavigation(res.user);
-      }
-    } catch (error: any) {
-      console.error('[Facebook Login Error]:', error);
-      setApiError('Facebook sign in failed.');
-    }
-  }
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <BlobBackground>
@@ -431,15 +390,12 @@ export default function SignupScreen({ navigation }: any) {
               <Text style={styles.socialBtnText}>Continue with Google</Text>
             </TouchableOpacity>
 
-            {/* Facebook */}
-            <TouchableOpacity 
-              style={[styles.socialBtn, styles.socialBtnGap]} 
-              activeOpacity={0.75} 
-              onPress={onFacebookButtonPress}
-              disabled={isLoading}>
-              <FacebookIcon />
-              <Text style={styles.socialBtnText}>Continue with Facebook</Text>
-            </TouchableOpacity>
+            {/* Apple — iOS only (renders nothing on Android) */}
+            <AppleSignInButton
+              disabled={isLoading}
+              onSuccess={(user) => { setApiError(null); handleLoginNavigation(user); }}
+              onError={setApiError}
+            />
 
             {/* Divider */}
             <View style={styles.divider}>
@@ -688,7 +644,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
-  socialBtnGap: { marginTop: 8 },
   socialBtnText: { fontSize: 16, color: '#334155', fontWeight: '400' },
 
   divider: { flexDirection: 'row', alignItems: 'center', gap: 13, marginVertical: 8 },

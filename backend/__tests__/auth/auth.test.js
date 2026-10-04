@@ -473,15 +473,27 @@ describe('Auth Routes', () => {
     });
   });
 
-  // ── POST /auth/facebook ────────────────────────────────────────────────────
+  // ── POST /auth/apple ───────────────────────────────────────────────────────
 
-  describe('POST /auth/facebook', () => {
-    it('returns 422 when accessToken is missing', async () => {
+  describe('POST /auth/apple', () => {
+    it('returns 422 when identityToken or nonce is missing', async () => {
       const res = await request(app)
-        .post('/auth/facebook')
-        .send({});
+        .post('/auth/apple')
+        .send({ authorizationCode: 'code' });
 
       expect(res.statusCode).toBe(422);
+    });
+  });
+
+  // ── POST /auth/facebook (removed) ──────────────────────────────────────────
+
+  describe('POST /auth/facebook', () => {
+    it('is no longer routed', async () => {
+      const res = await request(app)
+        .post('/auth/facebook')
+        .send({ accessToken: 'x' });
+
+      expect(res.statusCode).toBe(404);
     });
   });
 });

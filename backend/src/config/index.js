@@ -76,6 +76,16 @@ module.exports = {
     placesApiKey:     process.env.GOOGLE_PLACES_API_KEY,
   },
 
+  // ─── Sign in with Apple (iOS) ────────────────
+  // keyId/privateKey: a .p8 key with "Sign in with Apple" enabled. Only needed to
+  // revoke the Apple grant on account deletion; sign-in itself works without it.
+  apple: {
+    bundleId:   process.env.APPLE_BUNDLE_ID || 'com.gathergo.app',
+    teamId:     process.env.APPLE_TEAM_ID,
+    keyId:      process.env.APPLE_KEY_ID,
+    privateKey: process.env.APPLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  },
+
   // ─── Microsoft / Outlook OAuth ───────────────
   microsoft: {
     clientId:     process.env.MICROSOFT_CLIENT_ID,
@@ -86,12 +96,6 @@ module.exports = {
 
   // ─── Token Encryption (AES-256-GCM) ──────────
   tokenEncryptionKey: process.env.TOKEN_ENCRYPTION_KEY,
-
-  // ─── Facebook OAuth ───────────────────────────
-  facebook: {
-    appId: process.env.FACEBOOK_APP_ID,
-    appSecret: process.env.FACEBOOK_APP_SECRET,
-  },
 
   // ─── App URLs ────────────────────────────────
   clientUrl: process.env.CLIENT_URL || 'http://localhost:3001',

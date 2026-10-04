@@ -22,7 +22,7 @@ const PUBLIC_ROUTES = [
   '/auth/verify-email',
   '/auth/resend-otp',
   '/auth/google',
-  '/auth/facebook',
+  '/auth/apple',
   '/auth/forgot-password',
   '/auth/reset-password',
   '/auth/refresh',

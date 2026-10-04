@@ -30,21 +30,12 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>gathergo</string>
-				<string>fb1761986381428717</string>
 				<string>com.googleusercontent.apps.444293164368-v314tg3b5il3bs9as4pnf3k7a1evjat5</string>
 			</array>
 		</dict>
 	</array>
-	<key>FacebookAppID</key>
-	<string>1761986381428717</string>
-	<key>FacebookClientToken</key>
-	<string>f778bd8f5404cecb363f113f6495b9ce</string>
-	<key>FacebookDisplayName</key>
-	<string>GatherGo</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
-		<string>fbapi</string>
-		<string>fb-messenger-share-api</string>
 		<string>whatsapp</string>
 	</array>
 	<key>NSContactsUsageDescription</key>

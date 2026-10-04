@@ -40,11 +40,9 @@ process.env.AWS_SNS_PLATFORM_APP_ARN_ANDROID = 'arn:aws:sns:us-east-1:123456789:
 // ── FCM ───────────────────────────────────────────────────────────────────────
 process.env.FCM_SERVER_KEY = 'test-fcm-server-key';
 
-// ── Google / Facebook OAuth ───────────────────────────────────────────────────
+// ── Google OAuth ──────────────────────────────────────────────────────────
 process.env.GOOGLE_CLIENT_ID = 'test-google-client-id.apps.googleusercontent.com';
 process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
-process.env.FACEBOOK_APP_ID = 'test-facebook-app-id';
-process.env.FACEBOOK_APP_SECRET = 'test-facebook-app-secret';
 
 // ── App URLs ──────────────────────────────────────────────────────────────────
 process.env.CLIENT_URL = 'http://localhost:3001';

@@ -18,6 +18,7 @@
   "dependencies": {
     "@d11/react-native-fast-image": "^8.13.0",
     "@hookform/resolvers": "^5.2.2",
+    "@invertase/react-native-apple-authentication": "^2.5.1",
     "@react-native-async-storage/async-storage": "^1.24.0",
     "@react-native-community/datetimepicker": "^8.6.0",
     "@react-native-community/geolocation": "^3.4.0",
@@ -38,7 +39,6 @@
     "react-native": "0.84.1",
     "react-native-contacts": "^8.0.10",
     "react-native-device-info": "^15.0.2",
-    "react-native-fbsdk-next": "^13.4.3",
     "react-native-geolocation-service": "^5.3.1",
     "react-native-gesture-handler": "^2.30.0",
     "react-native-google-places-autocomplete": "^2.6.4",

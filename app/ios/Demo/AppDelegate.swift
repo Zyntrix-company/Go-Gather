@@ -3,7 +3,6 @@ import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
 import FirebaseCore
-import FBSDKCoreKit
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -19,11 +18,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // Must run before React Native starts, or @react-native-firebase/messaging
     // has no default app to attach to and push silently never works.
     FirebaseApp.configure()
-
-    _ = ApplicationDelegate.shared.application(
-      application,
-      didFinishLaunchingWithOptions: launchOptions
-    )
 
     let delegate = ReactNativeDelegate()
     let factory = RCTReactNativeFactory(delegate: delegate)
@@ -43,16 +37,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     return true
   }
 
-  // Facebook login callbacks get first refusal, then custom-scheme deep links
-  // (gathergo://invite/..., gathergo://email-connected) fall through to RN.
+  // Custom-scheme deep links (gathergo://invite/..., gathergo://email-connected) go to RN.
   func application(
     _ app: UIApplication,
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
-    if ApplicationDelegate.shared.application(app, open: url, options: options) {
-      return true
-    }
     return RCTLinkingManager.application(app, open: url, options: options)
   }
 
