@@ -9,48 +9,37 @@ React Native mobile app for GatherGo. Single codebase for iOS and Android.
 ```
 app/
 ├── src/
-│   ├── api/              # Axios API clients
-│   │   ├── client.ts         # Base Axios instance (auth headers, token refresh)
-│   │   ├── auth.api.ts        # Auth endpoints
-│   │   ├── trips.api.ts       # Trips endpoints
-│   │   ├── events.api.ts      # Events endpoints
-│   │   └── ai.api.ts          # Swee AI streaming chat
+│   ├── api/              # Axios API clients (client, auth, trips, events, ai, gallery,
+│   │                     #   invites, requests, notifications, notificationSettings,
+│   │                     #   personalDocs, feedback, legal, places, uploadLimits)
 │   ├── screens/
-│   │   ├── auth/             # Pre-login screens
-│   │   │   ├── SplashScreen.tsx
-│   │   │   ├── LoginScreen.tsx
-│   │   │   ├── SignupScreen.tsx
-│   │   │   ├── OtpVerificationScreen.tsx
-│   │   │   ├── ForgotPasswordScreen.tsx
-│   │   │   ├── ResetPasswordScreen.tsx
-│   │   │   └── CreateProfileScreen.tsx
-│   │   ├── home/             # Home dashboard
-│   │   │   └── HomeScreen.tsx
-│   │   └── main/             # Core app screens
-│   │       ├── TripDetailScreen.tsx
-│   │       ├── EventDetailScreen.tsx
-│   │       ├── ChatDetailScreen.tsx     # Swee AI chatbot
-│   │       ├── NotificationsScreen.tsx
-│   │       └── ArchivedTripsScreen.tsx
-│   ├── navigation/
-│   │   ├── RootNavigator.tsx    # Auth vs Main stack switch
-│   │   ├── AuthStack.tsx        # Unauthenticated flow
-│   │   └── MainStack.tsx        # Authenticated flow + bottom tabs
-│   ├── store/
-│   │   ├── authStore.ts         # Zustand — user session, tokens
-│   │   └── notificationStore.ts # Zustand persist — in-app notification list (FCM foreground)
-│   ├── hooks/
-│   │   ├── useAuth.ts           # Auth actions + token refresh; sends FCM device token on login
-│   │   └── usePushNotifications.ts  # FCM foreground handler + Toast (wired from App.tsx)
-│   ├── components/
-│   │   └── common/              # Shared UI components
-│   └── theme/
-│       └── colors.ts            # Teal brand palette + design tokens
-├── android/                 # Android native project
-├── ios/                     # iOS native project
-├── App.tsx                  # Root component
-└── index.js                 # Entry point
+│   │   ├── auth/         # Splash, Welcome, Login, Signup, OtpVerification,
+│   │   │                 #   ForgotPassword, ResetPassword, CreateProfile
+│   │   ├── home/         # HomeScreen (+ tab content: ChatTab, GalleryTab), FriendsScreen,
+│   │   │                 #   MenuScreen, ProfileDropdown, HowItWorks, Archived
+│   │   ├── trips/        # TripsScreen, TripDetailScreen, ArchivedTripsScreen
+│   │   ├── events/       # EventsScreen, EventDetailScreen, ArchivedEventsScreen
+│   │   └── main/         # ChatDetail (Swee), Notifications, NotificationSettings, Profile,
+│   │                     #   EditProfile, FriendProfile, Settings, ChangePassword,
+│   │                     #   DeleteAccount, ConnectedEmail, PersonalDocuments, Support,
+│   │                     #   Faq, Legal, AcceptInvite
+│   ├── navigation/       # RootNavigator, AuthStack, MainStack
+│   ├── store/            # Zustand: auth, notifications, notificationSettings, chat,
+│   │                     #   alert, pendingInvite, uploadLimits
+│   ├── hooks/            # useAuth, usePushNotifications, useUploadLimits, gallery hooks, …
+│   ├── components/       # Shared UI (common/ — incl. AppleSignInButton, LegalModal, InviteViaChannels)
+│   ├── constants/  content/  types/  utils/  assets/
+│   └── theme/            # colors.ts — teal brand palette + design tokens
+├── android/              # Android native project
+├── ios/                  # iOS native project (Xcode target/scheme: `Demo`)
+├── __tests__/            # Jest tests
+├── scripts/              # Dev helpers (android-reset/reload, typography audit)
+├── docs/  TYPOGRAPHY_AUDIT.md
+├── App.tsx               # Root component (deep-link handling, push setup)
+└── index.js              # Entry point
 ```
+
+> `app/app/` is a nested stub folder; see `app/app/readme.md`.
 
 ---
 
@@ -65,8 +54,9 @@ app/
 | Forms & validation | React Hook Form + Zod |
 | Styling | NativeWind v4 (Tailwind CSS for RN) |
 | Secure storage | react-native-keychain (JWT tokens) |
+| Local storage | @react-native-async-storage/async-storage |
 | Google Sign-In | @react-native-google-signin/google-signin |
-| Facebook Sign-In | react-native-fbsdk-next |
+| Apple Sign-In | @invertase/react-native-apple-authentication |
 | Push (FCM) | @react-native-firebase/messaging |
 | Swee AI | **Google Gemini 2.5 Flash** on the backend only (`ai.api.ts` — not OpenAI in the app) |
 | Image picker | react-native-image-picker |
@@ -77,6 +67,8 @@ app/
 | Video playback | react-native-video |
 | Fast image loading | @d11/react-native-fast-image |
 | Maps / Places | Google Places API (react-native-google-places-autocomplete) |
+| Contacts / documents | react-native-contacts, @react-native-documents/picker |
+| Testing | Jest |
 
 ---
 
@@ -85,26 +77,32 @@ app/
 ### Auth Flow
 | Screen | Description |
 |--------|-------------|
-| `SplashScreen` | App logo on teal background. Validates stored JWT — auto-navigates to Home if valid, Login if not. |
-| `LoginScreen` | Email/password + Google + Facebook login. Forgot password link. |
-| `SignupScreen` | Email, phone (country code picker), password. |
+| `SplashScreen` | Logo on brand background. Validates the stored session and routes to Home or Welcome. |
+| `WelcomeScreen` | Intro / entry point to Login and Signup. |
+| `LoginScreen` | Email/password, Google and Sign in with Apple. Forgot password link. |
+| `SignupScreen` | Email, phone (country code picker), password; Google / Apple sign-up. |
 | `OtpVerificationScreen` | OTP entry after signup or password reset. |
-| `ForgotPasswordScreen` | Send OTP to email/phone for password reset. |
-| `ResetPasswordScreen` | Set new password after OTP verified. |
+| `ForgotPasswordScreen` / `ResetPasswordScreen` | Request an OTP, then set a new password. |
 | `CreateProfileScreen` | Name, DOB, gender, country, bio, profile photo. Runs once after first signup. |
 
 ### Main App
 | Screen | Description |
 |--------|-------------|
-| `HomeScreen` | Personalised dashboard — upcoming trips, upcoming events, ongoing trip card, Swee AI shortcut. |
-| `TripDetailScreen` | Full trip view with tabbed sections: Activities, Docs, Members, Photos, Expenses, Polls, Notes. |
-| `EventDetailScreen` | Full event view — same tabs as Trip except no Activities tab. |
-| `ChatDetailScreen` | Swee AI travel assistant — Google Gemini 2.5 Flash, streaming responses, trip/event context injection. |
-| `NotificationsScreen` | In-app notification feed — friend requests, trip invites, expense updates. |
-| `ArchivedTripsScreen` | List of archived trips (admin-only action). |
-| `FriendsScreen` | Friends list, incoming/outgoing requests, user search with friendship status. Bottom tab. |
-| `GalleryScreen` | Personal photo gallery aggregated across all past trips and events. Bottom tab. |
-| `UserProfileScreen` | View another user's public profile, stats, and past trip gallery. |
+| `HomeScreen` | Hosts the bottom tabs — Home, Trips, Events, Friends, Swee (chat), Gallery — and the dashboard (upcoming/ongoing trips and events). |
+| `TripsScreen` / `EventsScreen` | Lists with upcoming/ongoing/past filters; archived lists in `ArchivedTripsScreen` / `ArchivedEventsScreen`. |
+| `TripDetailScreen` | Tabbed trip view: Activities, Docs, Members, Photos, Expenses, Polls, Notes. |
+| `EventDetailScreen` | Same as Trip, without Activities. |
+| `ChatDetailScreen` | Swee AI assistant (Gemini 2.5 Flash on the backend): conversations, trip/event context, form-driven create/edit cards, document/photo attachments. |
+| `NotificationsScreen` / `NotificationSettingsScreen` | In-app feed and per-category preferences. |
+| `FriendsScreen` / `FriendProfileScreen` | Friends, requests, user search, public profile. |
+| `AcceptInviteScreen` | Handles trip / event / friend invite links. |
+| `MenuScreen` | Full-screen menu opened from the hamburger: Profile, Settings, Support, Legal. |
+| `ProfileScreen` / `EditProfileScreen` | View and edit own profile. |
+| `SettingsScreen` | Notifications, connected email, change password, delete account. |
+| `ChangePasswordScreen` / `DeleteAccountScreen` | Account management (delete includes Apple token revocation server-side). |
+| `ConnectedEmailScreen` | Connect Gmail / Outlook / Drive to import documents. |
+| `PersonalDocumentsScreen` | User-level document vault. |
+| `SupportScreen` / `FaqScreen` / `LegalScreen` / `HowItWorksScreen` | Help and legal content. |
 
 ---
 
@@ -113,33 +111,23 @@ app/
 ```
 RootNavigator
 ├── AuthStack  (shown when not logged in)
-│   ├── Splash
-│   ├── Login
-│   ├── Signup
-│   ├── OtpVerification
-│   ├── ForgotPassword
-│   ├── ResetPassword
-│   └── CreateProfile
+│   ├── Splash, Welcome, Login, Signup
+│   └── OtpVerification, ForgotPassword, ResetPassword
 └── MainStack  (shown when logged in)
-    ├── Bottom Tabs
-    │   ├── Home
-    │   ├── Trips
-    │   ├── Events
-    │   ├── Friends
-    │   └── Gallery
-    ├── TripDetail
-    ├── EventDetail
-    ├── ChatDetail  (Swee AI)
-    ├── Notifications
-    ├── ArchivedTrips
-    └── UserProfile
+    ├── Home            (bottom tabs: Home | Trips | Events | Friends | Swee | Gallery)
+    ├── TripDetail, EventDetail, ChatDetail, Archived
+    ├── Notifications, NotificationSettings
+    ├── Menu, Profile, EditProfile, FriendProfile
+    ├── Settings, ChangePassword, DeleteAccount, ConnectedEmail, PersonalDocuments
+    ├── Support, Faq, Legal, HowItWorks
+    └── AcceptInvite
 ```
 
 ---
 
 ## State Management
 
-**Zustand** (`authStore.ts`) holds the global auth session:
+**Zustand** stores live in `src/store/` (auth, notifications, notification settings, chat, alerts, pending invite, upload limits). `authStore.ts` holds the global auth session:
 
 ```ts
 {
@@ -166,11 +154,13 @@ Tokens are also persisted securely via **react-native-keychain** (iOS Keychain /
 
 ```
 src/api/
-├── client.ts       # Base instance + interceptors
-├── auth.api.ts     # signup, login, googleLogin, facebookLogin, refresh, logout, forgotPassword, resetPassword
-├── trips.api.ts    # trips CRUD, expenses, members, …
-├── events.api.ts   # events CRUD + shared tabs
-└── ai.api.ts       # Swee — streaming chat to backend (Gemini 2.5 Flash server-side)
+├── client.ts       # Base instance + interceptors (API_BASE = https://api.gatherrgo.com)
+├── auth.api.ts     # signup, login, google, apple, refresh, logout, forgot/reset/change password
+├── trips.api.ts / events.api.ts   # CRUD + shared tabs (docs, photos, expenses, polls, notes)
+├── ai.api.ts       # Swee — chat, conversations, actions
+├── gallery.api.ts, personalDocs.api.ts, invites.api.ts, requests.api.ts
+├── notifications.api.ts, notificationSettings.api.ts
+└── feedback.api.ts, legal.api.ts, places.api.ts, uploadLimits.api.ts
 ```
 
 ---
@@ -179,7 +169,7 @@ src/api/
 
 ### Prerequisites
 
-- Node.js 22.11.0+
+- Node.js 22.11.0+ (see `engines` in `package.json`)
 - React Native environment set up ([official guide](https://reactnative.dev/docs/set-up-your-environment))
 - Android Studio (for Android) or Xcode 14+ (for iOS)
 - CocoaPods (iOS only)
@@ -198,13 +188,9 @@ bundle install           # install CocoaPods itself (first time only)
 bundle exec pod install  # install iOS native pods
 ```
 
-### 3. Configure environment
+### 3. Point at a backend
 
-Create a `.env` file (or update `src/api/client.ts`) with your backend base URL:
-
-```
-API_BASE_URL=http://localhost:3000
-```
+The API base URL is a constant in `src/api/client.ts` (`REAL_BASE_URL`, default `https://api.gatherrgo.com`). Edit it to target a local backend (e.g. `http://10.0.2.2:3000` from the Android emulator, or run `npm run adb:reverse` for devices).
 
 ### 4. Run the app
 
@@ -225,6 +211,8 @@ npm run ios
 
 - **Styling:** uses NativeWind — write `className="..."` Tailwind classes directly on RN components. Theme colours are in `src/theme/colors.ts`.
 - **Forms:** all forms use React Hook Form with Zod schemas for validation.
-- **Deep links:** Branch.io smart links are handled via the native SDK. The `invites/claim/:token` API call is made after the Branch SDK fires on app open.
-- **Google Sign-In:** requires `GOOGLE_WEB_CLIENT_ID` set in the native config files (`google-services.json` for Android, `GoogleService-Info.plist` for iOS).
+- **Deep links:** invites use native **Universal Links (iOS) / App Links (Android)** on `https://gatherrgo.com/invite/{trip|event|friend}/{token}` (also `gathergo://invite/...`). `App.tsx` parses the URL, stores a pending invite if logged out, and `AcceptInviteScreen` calls `POST /invites/claim/:token`. No third-party SDK.
+- **Google Sign-In:** needs the Google web client ID and `google-services.json` (Android) / `GoogleService-Info.plist` (iOS).
+- **Sign in with Apple:** iOS only; requires the Sign in with Apple capability (`ios/Demo/Demo.entitlements`) and the backend `APPLE_*` config.
+- **Tests:** `npm test` (Jest). Lint: `npm run lint`.
 - **Push notifications:** FCM device token is read in `useAuth` login flows and sent to the backend. `App.tsx` mounts `usePushNotifications()` for foreground messages + local notification list + Toast.

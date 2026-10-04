@@ -13,8 +13,8 @@ Go Gather/
 ├── app/          # React Native mobile app (iOS & Android)
 ├── backend/      # Node.js + Express REST API
 ├── frontend/     # Marketing / landing website (Vite + React + TypeScript)
-├── admin/        # Next.js admin panel (scaffolded; features planned for M7)
-├── docs/         # Internal docs (e.g. notification context, push catalog)
+├── admin/        # Next.js admin panel (static export; RBAC dashboard)
+├── docs/         # Internal docs (notifications, Swee, upload limits, plans, trackers)
 └── .github/
     └── workflows/
         ├── backend-deploy.yml   # Docker → ECR → EC2 (path: backend/**)
@@ -25,9 +25,9 @@ Go Gather/
 ### `app/` — Mobile App (React Native)
 The primary user-facing product. A single codebase targets iOS 14+ and Android 8+.
 
-- **Navigation:** bottom tab navigation — Home | Trips | Events | Friends | Gallery
-- **Auth:** Splash, Login (email + Google + Facebook OAuth), Signup, Create Profile
-- **Core modules:** Home dashboard, Trip detail, Event detail, Notifications, Swee AI chat
+- **Navigation:** Home screen with bottom tabs — Home | Trips | Events | Friends | Swee | Gallery; hamburger opens a full-screen Menu (Profile, Settings, Support, Legal)
+- **Auth:** Welcome, Login / Signup (email + Google + Sign in with Apple), OTP verification, Create Profile; account deletion in Settings
+- **Core modules:** Home dashboard, Trip detail, Event detail, Notifications, personal documents, connected email/Drive import, Swee AI chat
 - **State management:** Zustand store
 - **Styling:** NativeWind (Tailwind for RN)
 
@@ -36,26 +36,31 @@ Modular Express API. Each feature is an isolated module under `src/modules/`.
 
 | Module | Responsibility |
 |--------|---------------|
-| `auth` | Signup, login, Google / Facebook OAuth, JWT access + refresh tokens, password reset, FCM device token on login |
-| `users` | Profiles, photo upload, user search, gallery |
-| `trips` | Trip CRUD, activities, expenses, polls, notes, docs, gallery, members |
-| `friends` | Friend requests, connections, friend invites |
-| `invites` | Deep-link token management for trip/event invitations |
-| `home` | Aggregated home dashboard data |
+| `auth` | Signup, login, Google + Apple sign-in, JWT access + refresh tokens, OTP verification, password reset |
+| `users` | Profiles, photo upload, search, personal gallery/albums & docs, notification settings, account deletion |
+| `trips` / `events` | CRUD, members, archive; trips also have activities |
 | `shared` | Shared tables for docs, photos, expenses, polls, notes (used by both trips & events) |
-| `contact` | User feedback and Swee AI issue reports |
+| `friends` / `invites` / `requests` | Friend graph, universal-link invite tokens, pending invite requests |
+| `home` | Aggregated home dashboard data |
+| `ai` | Swee chat, conversations, confirmed actions, usage tracking |
+| `notifications` | In-app feed + FCM push, batching, digests, reminders (cron) |
+| `emailDocs` / `driveDocs` | Gmail / Outlook / Google Drive doc import |
+| `places` / `config` / `legal` | Places autocomplete proxy, upload limits, Privacy/Terms |
+| `blogs` / `deals` / `promo-video` | Content for the marketing site, managed from admin |
+| `contact` / `feedback` | Website contact form and in-app feedback |
+| `admin` | Admin platform API (RBAC, dashboards, storage, maintenance mode, content, legal publishing) |
 
 **Database:** AWS RDS (PostgreSQL) — migrations in `backend/migrations/`
 **File storage:** AWS S3 + CloudFront CDN
-**Email:** AWS SES
+**Email:** AWS SES (Brevo for transactional email where configured)
 **Push notifications:** Firebase Cloud Messaging
 **AI:** Swee AI agent — **Google Gemini 2.5 Flash** only (no OpenAI); `@google/generative-ai` on the backend
 
 ### `frontend/` — Marketing Website (Vite + React + TypeScript)
-Public-facing website for GatherGo. Includes sitemap.xml for SEO. Deployed separately from the backend.
+Public-facing website for GatherGo: landing, about, careers, blog, contact, privacy/terms, data-deletion, and the **invite landing page** (`/invite/:type/:token`). Serves the iOS/Android association files under `public/.well-known/`. Deployed separately from the backend.
 
 ### `admin/` — Admin Web Panel (Next.js)
-Next.js 16 app scaffold lives in `admin/` (`npm run dev` / `npm run build`). Deploys as a **static export** to S3 bucket `gatherrgo-admin` + CloudFront via `.github/workflows/admin-deploy.yml`. **Operational features** (users, trips/events, analytics, etc.) are planned for Milestone 7: business insights, user management, trip/event oversight, health monitoring, storage analytics, and feedback management.
+Next.js 16 app in `admin/`, deployed as a **static export** to S3 bucket `gatherrgo-admin` + CloudFront (`.github/workflows/admin-deploy.yml`). Role-based: **full** admins see everything; **content** admins see only Business Insights, Blogs and Amazing Deals. Pages: Business Insights, Health (incl. maintenance mode), Users, Trips & Events, Storage & Capacity, Feedback, AI Usage, Blogs, Amazing Deals, Promo Video, Legal, Security. See `admin/README.md`.
 
 ---
 
@@ -73,9 +78,9 @@ Deployments are automated with **GitHub Actions** on pushes to **`main`** (no se
 | AWS auth | `configure-aws-credentials` (secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, region `ap-south-1`) |
 | ECR | Build Docker image from `backend/`, tag with commit SHA, push to Amazon ECR |
 | EC2 | SSH (`appleboy/ssh-action`) using `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY`; pull image, replace `gathergo-container`, run with `--env-file` on port **3000** |
-| Extras | Injects `FIREBASE_SERVICE_ACCOUNT_B64` into server `.env` for FCM; optional nginx `client_max_body_size` for large uploads |
+| Extras | Injects `FIREBASE_SERVICE_ACCOUNT_B64` into server `.env` for FCM; writes the Sign in with Apple config (`APPLE_*`, key from `APPLE_PRIVATE_KEY_B64`); optional nginx `client_max_body_size` for large uploads |
 
-**Secrets (typical):** `AWS_*`, `EC2_*`, `FIREBASE_SERVICE_ACCOUNT_B64`, ECR registry is pinned in the workflow file.
+**Secrets (typical):** `AWS_*`, `EC2_*`, `FIREBASE_SERVICE_ACCOUNT_B64`, `APPLE_PRIVATE_KEY_B64`; the ECR registry is pinned in the workflow file.
 
 ### Frontend — `.github/workflows/frontend-deploy.yml`
 
@@ -111,18 +116,18 @@ There is **no** GitHub Actions workflow for the React Native app in this repo; r
 
 | Layer | Technology |
 |-------|-----------|
-| Mobile | React Native (iOS 14+, Android 8+) |
-| Admin Panel | Next.js (SSR) |
-| Backend | Node.js + Express.js |
+| Mobile | React Native 0.84 (iOS + Android) |
+| Admin Panel | Next.js 16 (static export, role-based) |
+| Backend | Node.js 22 + Express.js |
 | Database | AWS RDS — PostgreSQL |
 | File Storage | AWS S3 + CloudFront CDN |
-| Authentication | Email/password, Google & Facebook OAuth + JWT (15 min access / 30 day refresh) |
-| Email | AWS SES |
+| Authentication | Email/password, Google and Sign in with Apple + JWT access/refresh tokens |
+| Email | AWS SES / Brevo |
 | AI Assistant (Swee) | **Google Gemini 2.5 Flash** — agent-style travel help; streaming from the API |
 | Push Alerts | Firebase Cloud Messaging |
 | Maps / Places | Google Places API |
-| CI/CD | GitHub Actions — backend Docker → **ECR + EC2**; frontend **S3 + CloudFront** |
-| Hosting | API on **EC2** (Docker); marketing site on **S3** behind **CloudFront**; HTTPS via ACM (typical setup) |
+| CI/CD | GitHub Actions — backend Docker → **ECR + EC2**; frontend and admin → **S3 + CloudFront** |
+| Hosting | API on **EC2** (Docker); marketing site and admin panel on **S3** behind **CloudFront**; HTTPS via ACM (typical setup) |
 
 ---
 
@@ -130,15 +135,15 @@ There is **no** GitHub Actions workflow for the React Native app in this repo; r
 
 | # | Milestone | Status | What's working |
 |---|-----------|--------|----------------|
-| M1 | Auth & Profiles | ✅ Complete | Splash, Login (email + Google + Facebook), Signup, Create Profile, JWT sessions, password reset |
+| M1 | Auth & Profiles | ✅ Complete | Welcome, Login/Signup (email + Google + Apple), OTP verification, Create Profile, JWT sessions, password reset, account deletion |
 | M2 | Home Screen & Trips | ✅ Complete | Home dashboard, Trip creation, Trip detail with all tabs — Activities, Docs, Members, Photos, Expenses, Polls, Notes, expense splits & debt simplification |
-| M3 | Events | ✅ Working | Event creation, Event detail — Docs, Members, Photos, Expenses, Polls, Notes |
-| M4 | Friends & Invite System | ✅ Working | Friend requests, accept/decline, connected friends list, deep-link invites, user profile gallery |
-| M5 | Gallery & AI Chatbot | 🟡 In progress | Per-trip/event gallery, personal gallery, Swee AI agent powered by **Google Gemini 2.5 Flash** only (not OpenAI) |
-| M6 | Revisions & Deployment | 🟡 In progress | Backend + marketing site deploy via GitHub Actions; QA & polish; mobile store submission |
-| M7 | Admin Web Panel | 🟡 Scaffolded | Next.js app present; dashboard features — Business Insights, Users, Trips/Events, Error/Health, Storage, Feedback |
+| M3 | Events | ✅ Complete | Event creation, Event detail — Docs, Members, Photos, Expenses, Polls, Notes |
+| M4 | Friends & Invite System | ✅ Working | Friend requests, accept/decline, friends list, universal-link / app-link invites (trip, event, friend), invite requests, user profile gallery |
+| M5 | Gallery & AI Chatbot | 🟡 In progress | Per-trip/event gallery, personal gallery + albums + engagement, Swee AI agent (conversations, form-driven create/edit, attachments) on **Google Gemini 2.5 Flash** only (not OpenAI) |
+| M6 | Revisions & Deployment | 🟡 In progress | Backend, marketing site and admin deploy via GitHub Actions; QA & polish; iOS/Android store submission (Apple team + universal links configured) |
+| M7 | Admin Web Panel | ✅ Working | RBAC login, Business Insights, Users, Trips & Events, Health + maintenance mode, Storage, Feedback, AI Usage, content (blogs/deals/promo video), legal publishing |
 
-Each major package also has its own README with deeper detail: **`app/README.md`**, **`backend/README.md`**, **`frontend/README.md`**.
+Each major package also has its own README with deeper detail: **`app/README.md`**, **`backend/README.md`**, **`frontend/README.md`**, **`admin/README.md`**. Open work is tracked in `docs/pending-development-changes.md`.
 
 ---
 
@@ -148,10 +153,10 @@ Each major package also has its own README with deeper detail: **`app/README.md`
 
 ```bash
 cd backend
-cp .env.example .env      # fill in AWS, DB, JWT, Google credentials
+cp .env.example .env      # fill in AWS, DB, JWT, Google, Apple, Gemini, Firebase credentials
 npm install
 npm run migrate           # run all SQL migrations
-npm run seed              # optional: seed test data
+npm run db:seed           # optional: seed test data
 npm run lint              # ESLint (run before PRs; not in GitHub Actions today)
 npm test                  # Jest (requires DB; see test setup / docker-compose)
 npm run dev               # starts with nodemon
@@ -171,11 +176,11 @@ cd app
 npm install
 
 # iOS
-npx pod-install ios
-npx react-native run-ios
+bundle install && bundle exec pod install --project-directory=ios
+npm run ios
 
 # Android
-npx react-native run-android
+npm run android
 ```
 
 ### Frontend (Marketing Website)
@@ -195,7 +200,7 @@ npm run dev        # local dev
 npm run build      # production build
 ```
 
-Scaffold only until M7 features land — see `admin/README.md`.
+Sign in with an account that has `is_platform_admin` / `is_content_admin` set (see `backend/scripts/create-platform-admin.js`). Details: `admin/README.md`.
 
 ---
 
@@ -203,7 +208,6 @@ Scaffold only until M7 features land — see `admin/README.md`.
 
 - Community / Social Feed
 - Group Chat between members (Swee AI is the only chat in v1)
-- Multi-currency support (v1 defaults to INR)
 - In-app payments or wallet integration
 
 ---

@@ -1,19 +1,27 @@
 # GatherrGo — Admin Panel (`admin/`)
 
-Next.js 16 admin web panel for **GatherrGo**. Deployed as a static export to S3 + CloudFront. Operational dashboard features are planned for **Milestone 7**.
+Next.js 16 admin web panel for **GatherrGo**. Deployed as a static export to S3 + CloudFront. Talks to the backend `/admin/*` API (see `../backend/README.md` → *Admin*).
 
 ---
 
 ## Status
 
-**Milestone 7 — Scaffolded.** The Next.js project is initialised and wired into the CI/CD pipeline. Admin features planned:
+**Milestone 7 — Working.** Role-based dashboard (app routes under `app/dashboard/`):
 
-- **Business Insights** — usage metrics, active trips/events, growth trends
-- **User Management** — search, view, and moderate accounts
-- **Trips & Events** — oversight, archiving, member management
-- **Error & Health** — API health status, error monitoring
-- **Storage Analytics** — S3 usage by bucket/prefix
-- **Feedback Management** — user-submitted feedback and Swee AI issue reports
+| Page | Route | Roles |
+|---|---|---|
+| Business Insights | `/dashboard/overview` | full, content |
+| Health & maintenance mode | `/dashboard/health` | full |
+| Users (incl. creating content admins) | `/dashboard/users` | full |
+| Trips & Events | `/dashboard/trips-events` | full |
+| Storage & Capacity | `/dashboard/storage` | full |
+| Feedback (contact submissions) | `/dashboard/contact` | full |
+| AI Usage (Swee) | `/dashboard/ai-usage` | full |
+| Blogs | `/dashboard/blogs` | full, content |
+| Amazing Deals | `/dashboard/deals` | full, content |
+| Promo Video, Legal publishing, Security | `/dashboard/promo-video`, `/legal`, `/security` | full |
+
+**Auth & roles:** sign in at `/login` with a normal GatherrGo account that has `is_platform_admin` (**full**) or `is_content_admin` (**content**). Tokens are kept in `localStorage` (`admin_token`, `admin_refresh_token`, `admin_role`); `lib/api.js` handles refresh and logout. Create the first admin with `backend/scripts/create-platform-admin.js`.
 
 ---
 
@@ -25,6 +33,7 @@ Next.js 16 admin web panel for **GatherrGo**. Deployed as a static export to S3 
 | React | 19.2.3 |
 | Styling | Tailwind CSS 4 (`@tailwindcss/postcss`) |
 | Output | Static export (`output: 'export'`) |
+| Icons | lucide-react |
 | Linting | ESLint 9 |
 
 ---

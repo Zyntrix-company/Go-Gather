@@ -26,15 +26,18 @@ Vite + React + TypeScript public site for **GatherGo / GatherrGo** (landing, leg
 
 ## Pages
 
-- **Landing** — hero section, feature highlights, app download CTA
-- **About** — team and product story
-- **Contact** — inquiry form (posts to API at `VITE_API_URL/contact`)
-- **Blog** — editorial content
-- **Deals** — curated travel deals (hotel / cab cards from backend `deals/`)
-- **Privacy Policy** — legal (references Google Maps, Gemini AI, AWS)
-- **Terms of Service** — legal
+Routes (see `src/app/App.tsx`; unknown paths fall back to Home):
 
-SEO: `sitemap.xml` and `robots.txt` included in `public/`.
+- `/` **Home** — hero, features, app download CTA
+- `/about` — team and product story
+- `/careers`, `/careers/social-media-manager`, `/careers/design-intern`
+- `/blogs`, `/blogs/:id` — posts served by the backend `blogs` module
+- `/contact` — inquiry form (posts to `VITE_API_URL/api/contact`)
+- `/privacy`, `/terms` — legal
+- `/data-deletion` — account/data deletion instructions
+- `/invite/:type/:token` — invite landing page (trip / event / friend); validates the token and shows install links
+
+SEO: `sitemap.xml` and `robots.txt` in `public/`. **Universal/App Links:** `public/.well-known/apple-app-site-association` and `assetlinks.json` are served from `gatherrgo.com`.
 
 ---
 
@@ -51,7 +54,7 @@ npm run preview  # preview the production build locally
 Build-time env (see also GitHub Actions `frontend-deploy.yml`):
 
 - `VITE_API_URL` — public API base URL (e.g. `https://api.gatherrgo.com`)
-- `VITE_CONTACT_RECEIVER_EMAIL` — contact form destination
+- `VITE_CONTACT_RECEIVER_EMAIL` — set by the deploy workflow (not currently read in `src/`)
 
 ---
 

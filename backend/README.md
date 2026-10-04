@@ -1,6 +1,6 @@
- GatherGo — Backend API
+# GatherGo — Backend API
 
-Group travel planning API built on Node.js, Express, and PostgreSQL. Covers authentication, trips, events, expenses, friends, smart invite links, shared docs/photos/polls, and **Swee** (travel AI agent on **Google Gemini 2.5 Flash**.......
+Group travel planning API built on Node.js, Express, and PostgreSQL. Covers authentication (email, Google, Apple), trips, events, expenses, friends, universal-link invites, shared docs/photos/polls/notes, notifications, the admin platform API, and **Swee** (travel AI agent on **Google Gemini 2.5 Flash**).
 
 ---
 
@@ -9,7 +9,7 @@ Group travel planning API built on Node.js, Express, and PostgreSQL. Covers auth
 ```
 src/
 ├── modules/
-│   ├── auth/          M1 — JWT auth, Google/Facebook OAuth
+│   ├── auth/          M1 — JWT auth, Google + Apple sign-in, OTP email verification, password reset
 │   ├── users/         M1+M4 — Profiles, search, gallery
 │   ├── home/          M2+M4 — Dashboard with pending friend requests
 │   ├── trips/         M2 — CRUD, expenses, activities, polls, photos, docs, notes
@@ -31,23 +31,39 @@ src/
 │   ├── friends/       M4 — Friend requests, invite links
 │   ├── invites/       M4 — Token validation & atomic claiming
 │   ├── ai/            M5 — Swee chat: Gemini 2.5 Flash (`@google/generative-ai`, `GEMINI_API_KEY`)
-│   ├── contact/       User feedback / Swee issue reports
-│   ├── deals/         Curated hotel/cab style cards for the app (static sample data)
-│   ├── blogs/         Marketing/educational content routes
-│   └── emailDocs/     Email-driven doc import (Gmail/Outlook connectors)
+│   ├── contact/       Website contact form (`/api/contact`)
+│   ├── feedback/      In-app feedback (`/feedback`)
+│   ├── notifications/ In-app notification feed, unread count, read state
+│   ├── requests/      Pending invite requests
+│   ├── places/        Google Places autocomplete proxy (rate limited)
+│   ├── legal/         Public Privacy Policy / Terms (`/legal`)
+│   ├── config/        Public runtime config (`/config/upload-limits`)
+│   ├── deals/         Deals shown in app + website (DB-backed, managed from admin)
+│   ├── blogs/         Blog posts (DB-backed, managed from admin)
+│   ├── promo-video/   Landing-page promo video
+│   ├── emailDocs/     Email-driven doc import (Gmail / Outlook connectors)
+│   ├── driveDocs/     Google Drive doc import
+│   └── admin/         Admin platform API (`/admin/*`) — RBAC, dashboards, storage, moderation, content, legal publishing
 ├── utils/
 │   ├── fcm.util.js             Firebase push notifications
 │   ├── s3.util.js              S3 upload / CDN URL / presigned URLs
-│   ├── mailer.js               AWS SES emails
+│   ├── mailer.js               AWS SES emails (Brevo transactional email also supported)
+│   ├── imageCompression.util.js / videoCompression.util.js  Server-side media compression (sharp / ffmpeg)
 │   ├── debtSimplifier.util.js  Greedy minimum-transaction settlement
-│   └── reminders.cron.js       Every-5-min cron — FCM trip + event reminders (`TRIP_REMINDER` / `EVENT_REMINDER`)
+│   ├── reminders.cron.js       Every-5-min cron — FCM trip + event reminders (`TRIP_REMINDER` / `EVENT_REMINDER`)
+│   ├── batching.cron.js        Every 30 min — flushes batched notifications
+│   ├── digest.cron.js          Daily 08:00 — user digest notifications
+│   ├── adminDigest.cron.js     Weekly (Mon 08:00) — admin digest
+│   ├── storageSnapshot.cron.js Daily 02:00 — S3 storage snapshot for admin analytics
+│   └── legalNotifications.cron.js  Every minute — legal-document update notifications
 ├── middleware/
 │   ├── authenticate.js             JWT verification
 │   ├── parentAccess.middleware.js  Membership gate for trips AND events (sets req.parent + req.tripMember)
 │   ├── parentAdmin.middleware.js   Admin-only gate (runs after parentAccess)
 │   ├── tripMember.middleware.js    Trip membership gate (legacy — delegates to parentAccess)
 │   ├── tripAdmin.middleware.js     Trip admin gate (legacy — delegates to parentAdmin)
-│   ├── upload.middleware.js        Multer + magic-bytes MIME validation
+│   ├── upload.middleware.js        Multer + magic-bytes MIME validation (limits from `UPLOAD_*` env vars)
+│   ├── maintenanceMode.middleware.js  Blocks non-admin traffic while the platform is stopped from admin
 │   ├── errorHandler.js             Centralised error responses
 │   └── validate.js                 express-validator formatter
 └── static/
@@ -278,10 +294,12 @@ When calling `POST /trips/:id/invite` with `friendIds`:
 ## Getting Started
 
 ### Prerequisites
-- Node.js v18+
+- Node.js v22+ (matches the `node:22-alpine` Docker image)
 - PostgreSQL (local or AWS RDS)
 - AWS account (S3, SES, CloudFront)
 - Firebase project (FCM)
+- Apple Developer key (Sign in with Apple + token revocation on account deletion)
+- Google Gemini API key (Swee)
 
 ### 1. Install dependencies
 ```bash
@@ -299,22 +317,27 @@ Edit `.env` — fill in your database, AWS, **FCM v1** (service account / `GOOGL
 ```bash
 npm run migrate
 ```
-Runs all pending migrations in order:
-- `001` — users, auth, OTPs, profiles
-- `002` — trips, members, invites, activities, expenses, polls, notes (original trip-scoped tables)
-- `003` — friends, friend invites, FCM token column
-- `004` — activity descriptions & photos, expense categories, notes redesign (multi-note schema), trip invite phone/branch columns
-- `005` — **consolidate shared tables**: creates `docs`, `photos`, `expenses`, `expense_splits`, `settlements`, `polls`, `poll_options`, `poll_votes`, `notes`; migrates existing data; renames old `trip_*` tables to `_bak_*`
-- `006` — adds `banner_image_url TEXT` to `trips` — optional banner image set on create or update
-- `007` — adds `archived_at TIMESTAMPTZ` to `trips` — null = active, timestamp = archived; indexed for fast filtering
-- `008` — creates `note_favorites (note_id, user_id)` — per-user note favorites; toggle via dedicated endpoint; favorited notes sorted to top of GET /notes
-- `009` — adds `activity_id UUID` (nullable FK) to `photos` table; activity photos now stored in shared `photos` table so they appear in the trip gallery; `trip_activity_photos` renamed to `_bak_`
+Runs all pending migrations in order (`migrations/001` … `070`; `*_down.sql` files are manual rollbacks and are not run by the runner). Highlights:
+- `001`–`004` — users/auth/profiles, trips, friends, trip refinements
+- `005` — **consolidate shared tables**: `docs`, `photos`, `expenses`, `expense_splits`, `settlements`, `polls`, `poll_options`, `poll_votes`, `notes` keyed by `parent_type` + `parent_id`; old `trip_*` tables renamed to `_bak_*`
+- `006`–`011` — trip banner + archive, note favorites, activity photos, categories, email OAuth tokens
+- `012`–`020` — events, event banners, banner crop fractions, feedback, platform column, reminder constraints
+- `021`–`026`, `036`, `037` — notifications, activity reminders, batching queue, notification settings, trip mutes, user digest
+- `027`, `062`, `063` — admin platform: platform/content admin roles (RBAC), user deletion, storage snapshots
+- `028`–`034` — contact submissions, DB-backed blogs, last-login/photo size, section views, legal documents, deals, promo video
+- `035`, `038`, `039`, `048`–`054` — gallery metadata, albums, engagement (likes/comments), ordering
+- `040`, `060`, `061` — event invite phone, invite requests, phone/email matching
+- `041`, `049`, `064`, `065` — Swee planning fields, AI conversations, starred conversations, AI usage events
+- `042`–`047`, `055`–`059`, `066`, `067` — expense currency, Drive tokens, email normalisation, locations, parent-type widening, poll status, doc rename, settlements, image compression stats
+- `068`, `069` — system settings (maintenance mode)
+- `070` — Sign in with Apple
 
 The runner tracks applied migrations in `_migrations` table — safe to re-run, skips already-applied files.
 
 ### 4. Seed test data
 ```bash
-node seed.js
+npm run db:seed        # = node seed.js
+npm run db:seed:full   # truncate + seed + blogs + deals (destructive — dev only)
 ```
 Creates 5 users, 3 trips (upcoming/ongoing/past), friend connections, expenses, activities, polls, notes, and invite tokens. All users share password `TestPass123!`.
 
@@ -454,6 +477,21 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 | `APP_INVITE_BASE_URL` | Yes | `https://gatherrgo.com/invite` |
 | `APP_DEEP_LINK_BASE_URL` | Yes | `https://gatherrgo.com` — invite links are built as `{this}/invite/{type}/{token}` |
 | `APP_TEAM_ID` | Yes | Apple Team ID (10-char), goes into `apple-app-site-association` |
+| `APPLE_BUNDLE_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID` | Apple sign-in | Sign in with Apple identifiers |
+| `APPLE_PRIVATE_KEY` or `APPLE_PRIVATE_KEY_B64` | Apple sign-in | `.p8` key (raw or base64) used to revoke tokens on account deletion. Injected by the deploy workflow. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Yes | Google sign-in + Gmail/Drive connectors |
+| `GOOGLE_REDIRECT_URI`, `GOOGLE_DRIVE_REDIRECT_URI` | Connectors | OAuth redirect URIs |
+| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_REDIRECT_URI`, `MICROSOFT_TENANT_ID` | Connectors | Outlook connector |
+| `TOKEN_ENCRYPTION_KEY` | Connectors | Encrypts stored OAuth tokens |
+| `GOOGLE_PLACES_API_KEY` | Yes | Places autocomplete proxy |
+| `GEMINI_MODEL` | No | Override the Gemini model |
+| `SWEE_*` | No | Swee rate limits, circuit breaker, alert thresholds |
+| `UPLOAD_*` | No | Media size / count limits (see `docs/upload-limits.md`) |
+| `STORAGE_QUOTA_BYTES` | No | Capacity used by admin storage analytics |
+| `BREVO_API_KEY`, `BREVO_FROM_EMAIL`, `BREVO_FROM_NAME` | No | Brevo transactional email |
+| `CLIENT_URL`, `WEBSITE_URL`, `PASSWORD_RESET_URL`, `ALLOWED_ORIGINS`, `CONTACT_ALLOWED_ORIGINS` | Yes | URLs / CORS |
+
+See `.env.example` for the complete list.
 | `ANDROID_SHA256_CERT` | Yes | Android release-signing cert fingerprint, goes into `assetlinks.json` |
 
 ---
@@ -466,12 +504,14 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 | POST | `/auth/signup` | No | Register with email + password. Sends OTP. |
 | POST | `/auth/verify-email` | No | Submit OTP → returns JWT tokens |
 | POST | `/auth/login` | No | Email/password login |
-| POST | `/auth/google` | No | Google OAuth |
-| POST | `/auth/facebook` | No | Facebook OAuth |
+| POST | `/auth/google` | No | Google sign-in (ID token) |
+| POST | `/auth/apple` | No | Sign in with Apple (identity token verified server-side) |
 | POST | `/auth/refresh` | No | Rotate tokens |
 | POST | `/auth/logout` | Yes | Invalidate refresh token |
 | POST | `/auth/forgot-password` | No | Send reset OTP |
 | POST | `/auth/reset-password` | No | Reset with OTP |
+| POST | `/auth/resend-otp` | No | Resend verification / reset OTP |
+| POST | `/auth/change-password` | Yes | Change password |
 | GET | `/auth/me` | Yes | Get current user |
 
 ### Users (`/users`)
@@ -483,6 +523,13 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 | GET | `/users/search?q=` | Yes | Search users with friendship status |
 | GET | `/users/:id/profile` | Yes | Enhanced profile + stats. 403 if blocked. |
 | GET | `/users/:id/gallery` | Yes | Past trips only (privacy guarded) |
+| PATCH | `/users/device` | Yes | Register / update FCM device token |
+| GET / PATCH | `/users/notification-settings` | Yes | Read / update notification preferences |
+| DELETE | `/users/me` | Yes | Delete account (revokes the Apple token when applicable) |
+| GET | `/users/legal-status` · POST `/users/legal-ack` | Yes | Legal-document acceptance state |
+| various | `/users/me/gallery/*`, `/users/me/docs/*` | Yes | Personal gallery (albums, archive, engagement) and personal documents |
+
+> Not exhaustive — see `src/modules/users/routes.js` for the full list.
 
 ### Home (`/home`)
 | Method | Route | Auth | Description |
@@ -606,15 +653,59 @@ All routes follow the same patterns as `/trips/:id/{docs,photos,expenses,balance
 | POST | `/invites/claim/:token` | Yes | Claim token after the app receives an invite Universal Link. Atomic. Idempotent. Returns `{ type: "trip"\|"friend", tripId?, tripName? }` |
 
 ### AI — Swee (`/ai`)
-| Method | Route | Auth | Description |
-|---|---|---|---|
-| POST | `/ai/chat` | Yes | Stream a Swee AI response. Body: `{ message, context?: { tripId?, eventId? } }`. Powered by **Google Gemini 2.5 Flash** (`GEMINI_API_KEY`). Response is streamed as newline-delimited text. |
+All routes require auth. Powered by **Google Gemini 2.5 Flash** (`GEMINI_API_KEY`, optional `GEMINI_MODEL`). `/ai/chat` is rate limited per hour/day (`SWEE_CHAT_RATE_LIMIT_*`) and guarded by a circuit breaker (`SWEE_CIRCUIT_*`).
+| Method | Route | Description |
+|---|---|---|
+| POST | `/ai/chat` | Swee reply. Body: `{ message, context?: { tripId?, eventId? }, … }` |
+| POST | `/ai/chat/stream` | Streaming variant |
+| POST | `/ai/execute` | Execute a user-confirmed Swee action (create/edit trip, event, …) |
+| GET / POST | `/ai/conversations` | List / create conversations |
+| GET | `/ai/conversations/:id`, `/ai/conversations/:id/messages` | Conversation + messages |
+| PATCH | `/ai/conversations/:id/star` | Star / unstar |
+| DELETE | `/ai/conversations/:id`, `/ai/chat/:userId` | Delete conversation / clear history |
+| POST | `/ai/report` | Report a Swee issue |
 
-### Contact (`/contact`)
+### Notifications (`/notifications`)
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/contact` | No | Submit a general inquiry or feedback. Body: `{ name, email, message }`. Delivered via SES. |
-| POST | `/contact/ai-issue` | Yes | Report a Swee AI issue. Body: `{ description, chatContext? }`. |
+| GET | `/notifications` | Yes | Notification feed |
+| GET | `/notifications/unread-count` | Yes | Unread badge count |
+| PATCH | `/notifications/read-all`, `/notifications/:id/read` | Yes | Mark read |
+
+### Requests (`/requests`)
+Pending invite requests for the current user (`GET /requests`, plus accept/decline actions — see `src/modules/requests/requests.routes.js`).
+
+### Feedback, Places, Config, Legal, Content
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| POST | `/feedback` | Yes | In-app feedback |
+| GET | `/places/autocomplete` | Yes | Google Places autocomplete proxy |
+| GET | `/config/upload-limits` | No | Server-side media limits used by the app |
+| GET | `/legal/privacy`, `/legal/terms` | No | Current legal documents |
+| GET | `/blogs`, `/blogs/:idOrSlug` | No | Blog posts |
+| GET | `/deals` | No | Deals |
+| GET | `/promo-video` | No | Landing-page promo video |
+| — | `/email-docs/*`, `/drive-docs/*` (+ connector OAuth under `/auth`) | Yes | Gmail / Outlook / Drive connectors for importing docs |
+
+### Admin (`/admin`)
+Requires an admin account: `is_platform_admin` ⇒ **full** role; `is_content_admin` ⇒ **content** role (blogs, deals, business insights only). Admins sign in through the normal `/auth/login`.
+| Area | Routes |
+|---|---|
+| Identity | `GET /admin/me` |
+| Dashboard | `GET /admin/dashboard/summary`, `/admin/dashboard/growth` |
+| Users | `GET /admin/users`, `POST /admin/users/content-admin`, `PATCH` / `DELETE /admin/users/:id` |
+| Trips & events | `GET /admin/trips-events` |
+| Health / system | `GET /admin/health`, `/admin/system/status`; `POST /admin/system/stop`, `/admin/system/resume` (maintenance mode) |
+| Storage | `GET /admin/storage`, `/admin/storage/history` |
+| Feedback | `GET /admin/contact-submissions`; `PATCH /admin/contact-submissions/:id/read` |
+| Content | `/admin/blogs`, `/admin/deals`, `/admin/promo-video` (CRUD + image/video upload) |
+| Legal | `GET /admin/legal/versions`; `POST /admin/legal/publish` |
+| AI usage | `GET /admin/ai-usage`, `/admin/ai-usage/history` |
+
+### Contact (`/api/contact`)
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| POST | `/api/contact` | No | Website contact form. Body: `{ name, email, message }`. Stored for the admin Feedback page and emailed. CORS restricted via `CONTACT_ALLOWED_ORIGINS`. |
 
 ### Universal Links (`/.well-known`)
 | Method | Route | Auth | Description |
@@ -723,7 +814,7 @@ After running `node seed.js`, the following data is available for immediate test
 | Email | AWS SES |
 | Push | Firebase Cloud Messaging **v1** (HTTP API; service account / `FIREBASE_SERVICE_ACCOUNT_B64` in deploy) |
 | Invite Links | Native iOS Universal Links / Android App Links on `gatherrgo.com` (no third-party smart-link service) |
-| Auth | JWT + Google/Facebook OAuth |
+| Auth | JWT + email/password, Google and Apple sign-in |
 | AI (Swee) | **Google Gemini 2.5 Flash** via `@google/generative-ai` (`GEMINI_API_KEY` — not OpenAI) |
-| Cron | node-cron (reminders every 5 min; batch flush every 30 min; digest daily 08:00 IST) |
+| Cron | node-cron — reminders every 5 min, batch flush every 30 min, user digest daily 08:00, storage snapshot daily 02:00, admin digest weekly, legal notifications every minute |
 | Logging | Winston + Morgan |
