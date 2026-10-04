@@ -160,6 +160,8 @@ export default function LoginScreen({ navigation }: any) {
 
             {/* Apple — iOS only (renders nothing on Android) */}
             <AppleSignInButton
+              style={[styles.socialBtn, styles.socialBtnGap]}
+              textStyle={styles.socialBtnText}
               disabled={isLoading}
               onSuccess={(user) => { setApiError(null); handleLoginNavigation(user); }}
               onError={setApiError}
@@ -334,6 +336,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
   },
+  socialBtnGap: { marginTop: 8 },
   socialBtnText: { fontSize: 16, color: '#334155', fontWeight: '400' },
 
   // Divider — flex items-center gap-3

@@ -31,7 +31,8 @@ function SettingsRow({ label, sub, destructive, onPress }: RowProps) {
         <Text style={[styles.rowLabel, destructive && styles.rowLabelDestructive]}>{label}</Text>
         {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
       </View>
-      <Chevron />
+      {/* Matches MenuScreen's danger rows (e.g. Logout): no chevron */}
+      {!destructive && <Chevron />}
     </TouchableOpacity>
   );
 }
@@ -114,7 +115,7 @@ const styles = StyleSheet.create({
   },
   rowTextWrap: { flex: 1, minWidth: 0 },
   rowLabel: { fontSize: 15, fontWeight: '400', color: colors.textPrimary },
-  rowLabelDestructive: { color: '#dc2626' },
+  rowLabelDestructive: { color: colors.error },
   rowSub: { fontSize: 12, color: colors.textSecondary, marginTop: 3, lineHeight: 16 },
   chevron: { fontSize: 20, color: colors.textMuted, lineHeight: 22 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(148,163,184,0.12)', marginLeft: 14 },

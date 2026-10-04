@@ -13,6 +13,11 @@ import Svg, { Path } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
+import colors from '../../theme/colors';
+
+// Same tokens as ThemedAlert's destructive button, used app-wide for delete actions
+const DESTRUCTIVE_BG = 'rgba(239, 68, 68, 0.07)';
+const DESTRUCTIVE_BORDER = 'rgba(239, 68, 68, 0.18)';
 
 const CONFIRM_WORD = 'DELETE';
 
@@ -21,9 +26,9 @@ function TrashIcon() {
     <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
       <Path
         d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"
-        stroke="#dc2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+        stroke={colors.error} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
       />
-      <Path d="M10 11v6M14 11v6" stroke="#dc2626" strokeWidth={2} strokeLinecap="round" />
+      <Path d="M10 11v6M14 11v6" stroke={colors.error} strokeWidth={2} strokeLinecap="round" />
     </Svg>
   );
 }
@@ -104,7 +109,7 @@ export default function DeleteAccountScreen({ navigation }: { navigation: any })
               autoCorrect={false}
               editable={!isDeleting}
               underlineColorAndroid="transparent"
-              selectionColor="#dc2626"
+              selectionColor="#0d9488"
             />
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -115,7 +120,7 @@ export default function DeleteAccountScreen({ navigation }: { navigation: any })
               activeOpacity={0.85}
               disabled={!canDelete}>
               {isDeleting
-                ? <ActivityIndicator color="#fff" />
+                ? <ActivityIndicator color={colors.error} />
                 : <Text style={styles.deleteBtnText}>Delete my account</Text>}
             </TouchableOpacity>
 
@@ -147,9 +152,9 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#fef2f2',
+    backgroundColor: DESTRUCTIVE_BG,
     borderWidth: 1.5,
-    borderColor: '#fecaca',
+    borderColor: DESTRUCTIVE_BORDER,
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
@@ -190,7 +195,7 @@ const styles = StyleSheet.create({
     marginBottom: 7,
     letterSpacing: 0.1,
   },
-  confirmWord: { color: '#dc2626', fontWeight: '700' },
+  confirmWord: { color: colors.error, fontWeight: '700' },
   input: {
     borderWidth: 2,
     borderColor: '#e2e8f0',
@@ -200,7 +205,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#0f172a',
   },
-  inputFocused: { borderColor: '#dc2626' },
+  inputFocused: { borderColor: '#0d9488' },
   errorText: {
     fontSize: 12,
     color: '#ef4444',
@@ -209,9 +214,11 @@ const styles = StyleSheet.create({
   },
 
   deleteBtn: {
-    backgroundColor: '#dc2626',
+    backgroundColor: DESTRUCTIVE_BG,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: DESTRUCTIVE_BORDER,
     borderRadius: 12,
-    paddingVertical: 15,
+    paddingVertical: 13,
     paddingHorizontal: 24,
     alignItems: 'center',
     alignSelf: 'stretch',
@@ -219,10 +226,10 @@ const styles = StyleSheet.create({
   },
   deleteBtnDisabled: { opacity: 0.45 },
   deleteBtnText: {
-    color: '#ffffff',
+    color: colors.error,
     fontSize: 15,
     fontWeight: '600',
-    letterSpacing: 0.2,
+    letterSpacing: -0.1,
   },
   cancelBtn: { alignItems: 'center', paddingVertical: 14, marginTop: 4 },
   cancelBtnText: { fontSize: 15, color: '#64748b', fontWeight: '500' },
