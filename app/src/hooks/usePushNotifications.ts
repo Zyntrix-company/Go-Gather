@@ -18,16 +18,23 @@ export const usePushNotifications = () => {
 
   useEffect(() => {
     const setup = async () => {
-      if (Platform.OS === 'android') {
-        await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-        );
-      }
-      // iOS: permission is handled by the native module — no JS call needed until
-      // APNs cert is added in Firebase console (see plan Phase 2 iOS checklist).
+      try {
+        if (Platform.OS === 'android') {
+          await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+          );
+        } else {
+          // iOS never shows alerts without explicit consent. If the user declines,
+          // the token still registers but iOS silently drops the push until they
+          // re-enable it in Settings.
+          await messaging().requestPermission();
+        }
 
-      const token = await messaging().getToken();
-      await registerDeviceWithBackend(token);
+        const token = await messaging().getToken();
+        await registerDeviceWithBackend(token);
+      } catch {
+        // getToken throws on iOS when APNs isn't available (simulator, no APNs key)
+      }
     };
     setup();
 

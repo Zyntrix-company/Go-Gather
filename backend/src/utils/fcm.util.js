@@ -194,13 +194,14 @@ const sendFCMNotification = async (token, notification, data = {}, priority = 'd
           notification_priority: isCritical ? 'PRIORITY_HIGH' : 'PRIORITY_DEFAULT',
         },
       },
-      // iOS — ready when APNs cert is added in Firebase console
+      // iOS — delivered via the APNs auth key uploaded in Firebase console.
+      // No `badge`: the app has no native code to clear it, so a fixed value
+      // would leave a permanent "1" on the icon.
       apns: {
         headers: { 'apns-priority': isCritical ? '10' : '5' },
         payload: {
           aps: {
             sound: 'default',
-            badge: 1,
             'interruption-level': isCritical ? 'time-sensitive' : 'active',
           },
         },
