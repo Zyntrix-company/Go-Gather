@@ -4,6 +4,7 @@ const { sesClient } = require('../config/aws');
 const config = require('../config');
 const { EMAIL_PROVIDER } = require('../config/emailProvider');
 const logger = require('./logger');
+const { DELETED_EMAIL_DOMAIN } = require('./email.util');
 
 // ─── Logo URL ─────────────────────────────────────────────────────────────────
 //
@@ -245,6 +246,9 @@ const sendEmailViaBrevo = async ({ to, subject, html, text }) => {
  * Send a transactional email using the active provider (see config/emailProvider.js).
  */
 const sendEmail = async (options) => {
+  // Deleted accounts stay in shared trips, so trip-wide emails still reach them.
+  // Their placeholder address would only bounce and hurt sender reputation.
+  if (String(options.to || '').endsWith(`@${DELETED_EMAIL_DOMAIN}`)) return null;
   if (EMAIL_PROVIDER === 'brevo') {
     return sendEmailViaBrevo(options);
   }

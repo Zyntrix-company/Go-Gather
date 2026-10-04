@@ -20,14 +20,15 @@ function Chevron() {
 type RowProps = {
   label: string;
   sub?: string;
+  destructive?: boolean;
   onPress: () => void;
 };
 
-function SettingsRow({ label, sub, onPress }: RowProps) {
+function SettingsRow({ label, sub, destructive, onPress }: RowProps) {
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.75}>
       <View style={styles.rowTextWrap}>
-        <Text style={styles.rowLabel}>{label}</Text>
+        <Text style={[styles.rowLabel, destructive && styles.rowLabelDestructive]}>{label}</Text>
         {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
       </View>
       <Chevron />
@@ -62,6 +63,13 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
               label="Connect to your mail"
               sub="Gmail or Outlook for importing travel docs"
               onPress={() => navigation.navigate('ConnectedEmail')}
+            />
+            <View style={styles.divider} />
+            <SettingsRow
+              label="Delete account"
+              sub="Permanently remove your account and personal data"
+              destructive
+              onPress={() => navigation.navigate('DeleteAccount')}
             />
           </View>
 
@@ -106,6 +114,7 @@ const styles = StyleSheet.create({
   },
   rowTextWrap: { flex: 1, minWidth: 0 },
   rowLabel: { fontSize: 15, fontWeight: '400', color: colors.textPrimary },
+  rowLabelDestructive: { color: '#dc2626' },
   rowSub: { fontSize: 12, color: colors.textSecondary, marginTop: 3, lineHeight: 16 },
   chevron: { fontSize: 20, color: colors.textMuted, lineHeight: 22 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(148,163,184,0.12)', marginLeft: 14 },

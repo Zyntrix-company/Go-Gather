@@ -219,6 +219,13 @@ const authApi = {
   },
 
   /**
+   * DELETE /users/me — permanently delete the signed-in user's account
+   */
+  deleteAccount: async (): Promise<void> => {
+    await client.delete('/users/me');
+  },
+
+  /**
    * PUT /users/photo  (multipart/form-data)
    * Returns the photo URL (CloudFront CDN URL).
    */

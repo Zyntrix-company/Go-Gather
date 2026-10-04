@@ -59,6 +59,9 @@ router.patch('/notification-settings', authenticateJWT, controller.updateNotific
 // Must be before /:id to avoid Express treating "device" as a UUID param
 router.patch('/device', authenticateJWT, controller.updateDeviceToken);
 
+// DELETE /users/me — permanently delete own account (App Store 5.1.1(v))
+router.delete('/me', authenticateJWT, controller.deleteAccount);
+
 // GET /users/legal-status — published vs acknowledged legal doc versions (requires auth)
 router.get('/legal-status', authenticateJWT, controller.getLegalStatus);
 

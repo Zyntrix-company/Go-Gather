@@ -5,6 +5,7 @@ const galleryEngagementService = require('./galleryEngagement.service');
 const sharedPhotosService = require('../shared/photos/photos.service');
 const tripMembersService = require('../trips/submodules/members/members.service');
 const eventsService = require('../events/events.service');
+const accountDeletionService = require('./accountDeletion.service');
 const logger = require('../../utils/logger');
 
 /**
@@ -506,7 +507,20 @@ const updateDeviceToken = async (req, res, next) => {
   }
 };
 
+/**
+ * DELETE /users/me — permanently delete the caller's account
+ */
+const deleteAccount = async (req, res, next) => {
+  try {
+    await accountDeletionService.deleteUserAccount(req.user.id);
+    return res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
+  deleteAccount,
   saveProfile,
   uploadPhoto,
   getPublicProfile,

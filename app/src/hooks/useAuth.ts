@@ -165,6 +165,22 @@ export default function useAuth() {
   }
 
   /**
+   * Permanently delete the account, then clear local state like logout().
+   * The server already revoked every session, so there is no logout call.
+   */
+  async function deleteAccount() {
+    await authApi.deleteAccount();
+    try {
+      await GoogleSignin.signOut();
+    } catch {
+      // not signed in via Google
+    }
+    await storage.clearAll();
+    useNotificationStore.getState().clearNotifications();
+    storeLogout();
+  }
+
+  /**
    * Called from Splash screen / app init.
    * Tries to restore the session from secure storage.
    * Returns user if session is valid, null otherwise.
@@ -319,6 +335,7 @@ export default function useAuth() {
     googleLogin,
     appleLogin,
     logout,
+    deleteAccount,
     loadFromToken,
     refreshProfile,
     resendOtp,

@@ -7,6 +7,7 @@ const { HeadBucketCommand } = require('@aws-sdk/client-s3');
 const { GoogleAuth } = require('google-auth-library');
 const authenticateJWT = require('../../middleware/authenticate');
 const { requireAnyAdmin, requireFullAdminRole, getCount30m } = require('./admin.middleware');
+const { deleteUserAccount } = require('../users/accountDeletion.service');
 const { blogImageUpload, dealImageUpload, promoVideoUpload, handleMulterError } = require('../../middleware/upload.middleware');
 const { query } = require('../../config/database');
 const { sesClient, s3Client } = require('../../config/aws');
@@ -277,23 +278,10 @@ router.delete('/users/:id', requireFullAdminRole, async (req, res, next) => {
     if (existing[0].is_platform_admin) return res.status(400).json({ error: 'Cannot delete a platform admin account' });
     if (existing[0].deleted_at) return res.status(400).json({ error: 'User already deleted' });
 
-    // Anonymize rather than hard-delete: trips/events this user created
-    // (trips.created_by is ON DELETE CASCADE) must survive for other participants.
-    const anonymizedEmail = `deleted-${id}@removed.gatherrgo.local`;
-    await query(
-      `UPDATE users SET
-         email = $1, email_normalized = $1, phone = NULL, password_hash = NULL,
-         is_verified = false, fcm_token = NULL, deleted_at = NOW(), updated_at = NOW()
-       WHERE id = $2`,
-      [anonymizedEmail, id],
-    );
-    await query(
-      `UPDATE profiles SET full_name = NULL, avatar_url = NULL, dob = NULL,
-         gender = NULL, country = NULL, bio = NULL
-       WHERE user_id = $1`,
-      [id],
-    );
-    logger.info('Admin anonymized user account', { userId: id, actorId: req.user.id });
+    // Same path as in-app self-deletion: personal data removed, row anonymized
+    // so shared trip/event content survives for other participants.
+    await deleteUserAccount(id);
+    logger.info('Admin deleted user account', { userId: id, actorId: req.user.id });
     res.status(204).end();
   } catch (err) { next(err); }
 });

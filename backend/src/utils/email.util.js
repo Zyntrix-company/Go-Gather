@@ -53,7 +53,11 @@ const resolveAuthEmail = (email) => {
   return { display, normalized };
 };
 
+// Deleted accounts keep a placeholder address on this unroutable domain.
+const DELETED_EMAIL_DOMAIN = 'removed.gatherrgo.local';
+
 module.exports = {
+  DELETED_EMAIL_DOMAIN,
   AUTH_EMAIL_OPTIONS,
   sanitizeAuthEmail,
   normalizeAuthEmail,
