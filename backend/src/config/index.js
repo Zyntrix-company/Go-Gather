@@ -83,7 +83,10 @@ module.exports = {
     bundleId:   process.env.APPLE_BUNDLE_ID || 'com.gathergo.app',
     teamId:     process.env.APPLE_TEAM_ID,
     keyId:      process.env.APPLE_KEY_ID,
-    privateKey: process.env.APPLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    // APPLE_PRIVATE_KEY_B64 (set by the CI deploy) or APPLE_PRIVATE_KEY with \n escapes (local)
+    privateKey: process.env.APPLE_PRIVATE_KEY_B64
+      ? Buffer.from(process.env.APPLE_PRIVATE_KEY_B64, 'base64').toString('utf8')
+      : process.env.APPLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
   },
 
   // ─── Microsoft / Outlook OAuth ───────────────

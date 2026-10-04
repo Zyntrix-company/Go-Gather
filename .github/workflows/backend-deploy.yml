@@ -40,12 +40,13 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       env:
         FIREBASE_SERVICE_ACCOUNT_B64: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_B64 }}
+        APPLE_PRIVATE_KEY_B64: ${{ secrets.APPLE_PRIVATE_KEY_B64 }}
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         request_pty: true
-        envs: FIREBASE_SERVICE_ACCOUNT_B64
+        envs: FIREBASE_SERVICE_ACCOUNT_B64,APPLE_PRIVATE_KEY_B64
         script: |
           set -e
 
@@ -87,6 +88,19 @@ jobs:
           else
             echo "GOOGLE_DRIVE_REDIRECT_URI=${DRIVE_REDIRECT}" >> "$ENV_FILE"
             echo "GOOGLE_DRIVE_REDIRECT_URI added"
+          fi
+
+          # ── 2d. Sign in with Apple (revocation on account deletion) ─────────
+          # Team/Key IDs are not secret; the .p8 comes base64-encoded from a repo secret.
+          sed -i '/^APPLE_\(BUNDLE_ID\|TEAM_ID\|KEY_ID\|PRIVATE_KEY\|PRIVATE_KEY_B64\)=/d' "$ENV_FILE" || true
+          echo "APPLE_BUNDLE_ID=com.gathergo.app" >> "$ENV_FILE"
+          echo "APPLE_TEAM_ID=9C2JF285GR" >> "$ENV_FILE"
+          echo "APPLE_KEY_ID=KS2Y7M2S72" >> "$ENV_FILE"
+          if [ -n "$APPLE_PRIVATE_KEY_B64" ]; then
+            echo "APPLE_PRIVATE_KEY_B64=$APPLE_PRIVATE_KEY_B64" >> "$ENV_FILE"
+            echo "Apple sign-in key injected into .env"
+          else
+            echo "WARNING: APPLE_PRIVATE_KEY_B64 secret not set — Apple token revocation disabled"
           fi
 
           # Brevo (BREVO_*) is managed only in $ENV_FILE on the server — deploy never touches it.
