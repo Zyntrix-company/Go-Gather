@@ -18,10 +18,20 @@ let cachedAt = 0;
 
 const fetchKeys = async (force = false) => {
   if (!force && cachedKeys && Date.now() - cachedAt < KEYS_TTL_MS) return cachedKeys;
-  const { data } = await axios.get(KEYS_URL, { timeout: 5000 });
-  cachedKeys = data.keys;
-  cachedAt = Date.now();
-  return cachedKeys;
+  try {
+    const { data } = await axios.get(KEYS_URL, { timeout: 5000 });
+    cachedKeys = data.keys;
+    cachedAt = Date.now();
+    return cachedKeys;
+  } catch (err) {
+    // Serve stale keys over failing every Apple sign-in during an Apple outage
+    if (cachedKeys) return cachedKeys;
+    logger.error('Could not fetch Apple sign-in keys', { error: err.message });
+    const e = new Error('Apple sign in is temporarily unavailable. Please try again in a moment.');
+    e.statusCode = 503;
+    e.error = 'AppleUnavailable';
+    throw e;
+  }
 };
 
 const invalidToken = (message) => {

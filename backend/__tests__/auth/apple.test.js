@@ -56,3 +56,15 @@ describe('apple refresh-token handling without a configured .p8 key', () => {
     expect(axios.post).not.toHaveBeenCalled();
   });
 });
+
+describe('apple keys outage', () => {
+  it('returns 503 when Apple keys cannot be fetched and none are cached', async () => {
+    jest.resetModules();
+    const freshAxios = require('axios');
+    freshAxios.get.mockRejectedValue(new Error('ETIMEDOUT'));
+    const freshApple = require('../../src/modules/auth/apple');
+    const token = sign();
+    await expect(freshApple.verifyIdentityToken(token, RAW_NONCE))
+      .rejects.toMatchObject({ statusCode: 503, error: 'AppleUnavailable' });
+  });
+});

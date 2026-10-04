@@ -222,7 +222,8 @@ const authApi = {
    * DELETE /users/me — permanently delete the signed-in user's account
    */
   deleteAccount: async (): Promise<void> => {
-    await client.delete('/users/me');
+    // Handing over or deleting many trips can take a while — don't give up at 15s
+    await client.delete('/users/me', { timeout: 60000 });
   },
 
   /**

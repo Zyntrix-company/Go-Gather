@@ -253,6 +253,27 @@ const login = async ({ email, password, deviceToken, platform }) => {
 };
 
 /**
+ * A social provider has just proven the user owns this email. If an existing
+ * account with that email was never verified, someone else may have registered
+ * it first to pre-hijack it — so verify it now and drop that unproven password.
+ */
+const linkProviderToExistingUser = async (user, column, providerId) => {
+  if (!user.is_verified) {
+    await db.query(
+      'UPDATE users SET is_verified = true, password_hash = NULL, updated_at = NOW() WHERE id = $1',
+      [user.id],
+    );
+    await db.query('DELETE FROM refresh_tokens WHERE user_id = $1', [user.id]);
+    user.is_verified = true;
+    logger.warn('Social sign-in claimed an unverified account; password cleared', { userId: user.id, column });
+  }
+  if (!user[column]) {
+    await db.query(`UPDATE users SET ${column} = $1, updated_at = NOW() WHERE id = $2`, [providerId, user.id]);
+    user[column] = providerId;
+  }
+};
+
+/**
  * POST /auth/google — Google OAuth token exchange.
  */
 const googleAuth = async ({ idToken, deviceToken, platform }) => {
@@ -278,14 +299,7 @@ const googleAuth = async ({ idToken, deviceToken, platform }) => {
   let isNewUser = false;
 
   if (result.rows.length > 0) {
-    // Link Google ID if not already linked
-    const user = result.rows[0];
-    if (!user.google_id) {
-      await db.query(
-        'UPDATE users SET google_id = $1, updated_at = NOW() WHERE id = $2',
-        [googleId, user.id],
-      );
-    }
+    await linkProviderToExistingUser(result.rows[0], 'google_id', googleId);
   } else {
     // Create new user (Auto-verifying email since Google verified it)
     result = await db.query(
@@ -354,18 +368,24 @@ const appleAuth = async ({ identityToken, nonce, authorizationCode, fullName, de
 
     result = await db.query('SELECT * FROM users WHERE email_normalized = $1', [normalized]);
     if (result.rows.length > 0) {
-      // Same verified email as an existing account — link Apple to it
-      await db.query(
-        'UPDATE users SET apple_id = $1, updated_at = NOW() WHERE id = $2',
-        [appleId, result.rows[0].id],
-      );
+      // Same verified email as an existing account (e.g. made with Google) — link Apple to it
+      await linkProviderToExistingUser(result.rows[0], 'apple_id', appleId);
     } else {
-      result = await db.query(
-        `INSERT INTO users (email, email_normalized, apple_id, is_profile_complete, is_verified)
-         VALUES ($1, $2, $3, false, true)
-         RETURNING *`,
-        [displayEmail, normalized, appleId],
-      );
+      try {
+        result = await db.query(
+          `INSERT INTO users (email, email_normalized, apple_id, is_profile_complete, is_verified)
+           VALUES ($1, $2, $3, false, true)
+           RETURNING *`,
+          [displayEmail, normalized, appleId],
+        );
+      } catch (err) {
+        // Double-tap: a parallel request created this account a moment ago
+        if (err.code !== '23505') throw err;
+        result = await db.query('SELECT * FROM users WHERE email_normalized = $1', [normalized]);
+        if (result.rows.length === 0) throw err;
+        await linkProviderToExistingUser(result.rows[0], 'apple_id', appleId);
+        return finishAppleAuth(result.rows[0], { authorizationCode, deviceToken, platform, isNewUser: false });
+      }
       isNewUser = true;
 
       const user = result.rows[0];
@@ -380,8 +400,10 @@ const appleAuth = async ({ identityToken, nonce, authorizationCode, fullName, de
     }
   }
 
-  const user = result.rows[0];
+  return finishAppleAuth(result.rows[0], { authorizationCode, deviceToken, platform, isNewUser });
+};
 
+const finishAppleAuth = async (user, { authorizationCode, deviceToken, platform, isNewUser }) => {
   // Kept only so account deletion can revoke the Apple grant (App Store requirement)
   const appleRefreshToken = await apple.exchangeAuthorizationCode(authorizationCode);
   if (appleRefreshToken) {

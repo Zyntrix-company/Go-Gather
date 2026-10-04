@@ -187,7 +187,15 @@ const deleteUserAccount = async (userId) => {
     client.release();
   }
 
-  // Files go after the commit: a failed S3 call must not resurrect the account.
+  logger.info('User account deleted', { userId });
+
+  // External cleanup runs after the commit (a failure must not resurrect the
+  // account) and is not awaited, so the app gets its answer without waiting on S3.
+  const cleanup = cleanUpExternal(userId, s3Keys, user.apple_refresh_token);
+  return { cleanup };
+};
+
+const cleanUpExternal = async (userId, s3Keys, appleRefreshToken) => {
   try {
     await batchDeleteFromS3(s3Keys);
   } catch (err) {
@@ -195,16 +203,14 @@ const deleteUserAccount = async (userId) => {
   }
 
   // Apple requires revoking the Sign in with Apple grant when the account goes.
-  if (user.apple_refresh_token) {
+  if (appleRefreshToken) {
     try {
       const { decrypt } = require('../../utils/encrypt.util');
-      await apple.revokeRefreshToken(decrypt(user.apple_refresh_token));
+      await apple.revokeRefreshToken(decrypt(appleRefreshToken));
     } catch (err) {
       logger.error('Account deletion: Apple token revocation failed', { userId, error: err.message });
     }
   }
-
-  logger.info('User account deleted', { userId });
 };
 
 module.exports = { deleteUserAccount, DELETED_USER_NAME };

@@ -63,7 +63,8 @@ describe('deleteUserAccount', () => {
       ["parent_type = 'user'", { rows: [{ s3_key: 'docs/passport.pdf' }] }],
     ]);
 
-    await deleteUserAccount(USER);
+    const { cleanup } = await deleteUserAccount(USER);
+    await cleanup;
 
     expect(tripsService.deleteTrip).toHaveBeenCalledWith('solo', USER);
     expect(tripsService.deleteTrip).not.toHaveBeenCalledWith('shared', expect.anything());

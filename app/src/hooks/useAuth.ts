@@ -169,7 +169,12 @@ export default function useAuth() {
    * The server already revoked every session, so there is no logout call.
    */
   async function deleteAccount() {
-    await authApi.deleteAccount();
+    try {
+      await authApi.deleteAccount();
+    } catch (e: any) {
+      // A retry after a timed-out first attempt that actually succeeded
+      if (e?.response?.status !== 404) throw e;
+    }
     try {
       await GoogleSignin.signOut();
     } catch {
