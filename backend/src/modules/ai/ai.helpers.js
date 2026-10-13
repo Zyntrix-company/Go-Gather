@@ -131,11 +131,19 @@ function validatePendingAction(action) {
   return { valid: true };
 }
 
+/** Swee's self-reported scope from the ACTION line. Anything but an explicit "out" counts as "in". */
+function readScope(action, jsonStr = '') {
+  if (action && typeof action === 'object' && !Array.isArray(action)) {
+    return action.scope === 'out' ? 'out' : 'in';
+  }
+  return /"scope"\s*:\s*"out"/.test(jsonStr) ? 'out' : 'in';
+}
+
 function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
   const normalized = normalizeSweeReply(rawText);
   const marker = '###ACTION';
   const idx = normalized.lastIndexOf(marker);
-  if (idx === -1) return { reply: normalized.trim(), pendingAction: null };
+  if (idx === -1) return { reply: normalized.trim(), pendingAction: null, scope: 'in' };
 
   let visibleReply = normalized.slice(0, idx).trim();
   const jsonStr = normalized.slice(idx + marker.length).trim();
@@ -158,6 +166,7 @@ function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
         pendingAction: null,
         actionParseError: validation.reason,
         hadActionMarker: hadMarker,
+        scope: readScope(action),
       };
     }
 
@@ -169,6 +178,7 @@ function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
       reply: visibleReply || (meaningful ? ACTION_FALLBACK_REPLY : ''),
       pendingAction: meaningful ? action : null,
       hadActionMarker: hadMarker,
+      scope: readScope(action),
     };
   } catch (parseErr) {
     if (logInvalid && logger) {
@@ -183,6 +193,7 @@ function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
       pendingAction: null,
       actionParseError: 'json_parse_failed',
       hadActionMarker: hadMarker,
+      scope: readScope(null, jsonStr),
     };
   }
 }

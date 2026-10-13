@@ -485,7 +485,7 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 | `TOKEN_ENCRYPTION_KEY` | Connectors | Encrypts stored OAuth tokens |
 | `GOOGLE_PLACES_API_KEY` | Yes | Places autocomplete proxy |
 | `GEMINI_MODEL` | No | Override the Gemini model |
-| `SWEE_*` | No | Swee rate limits, circuit breaker, alert thresholds |
+| `SWEE_*` | No | Swee rate limits, circuit breaker, alert thresholds, scope guard (`SWEE_SCOPE_GUARD`) |
 | `UPLOAD_*` | No | Media size / count limits (see `docs/upload-limits.md`) |
 | `STORAGE_QUOTA_BYTES` | No | Capacity used by admin storage analytics |
 | `BREVO_API_KEY`, `BREVO_FROM_EMAIL`, `BREVO_FROM_NAME` | No | Brevo transactional email |
@@ -653,11 +653,10 @@ All routes follow the same patterns as `/trips/:id/{docs,photos,expenses,balance
 | POST | `/invites/claim/:token` | Yes | Claim token after the app receives an invite Universal Link. Atomic. Idempotent. Returns `{ type: "trip"\|"friend", tripId?, tripName? }` |
 
 ### AI — Swee (`/ai`)
-All routes require auth. Powered by **Google Gemini 2.5 Flash** (`GEMINI_API_KEY`, optional `GEMINI_MODEL`). `/ai/chat` is rate limited per hour/day (`SWEE_CHAT_RATE_LIMIT_*`) and guarded by a circuit breaker (`SWEE_CIRCUIT_*`).
+All routes require auth. Powered by **Google Gemini 2.5 Flash** (`GEMINI_API_KEY`, optional `GEMINI_MODEL`). `/ai/chat` is rate limited per hour/day (`SWEE_CHAT_RATE_LIMIT_*`) and guarded by a circuit breaker (`SWEE_CIRCUIT_*`). Swee only answers trip/event/GatherrGo topics: an independent scope classifier runs alongside each reply (`SWEE_SCOPE_GUARD` = `off` / `shadow` (log only, default) / `enforce`, `SWEE_SCOPE_GUARD_TIMEOUT_MS` hard cap, `SWEE_SCOPE_GUARD_GRACE_MS` extra wait after the main reply); refused turns are saved but excluded from Swee's history.
 | Method | Route | Description |
 |---|---|---|
 | POST | `/ai/chat` | Swee reply. Body: `{ message, context?: { tripId?, eventId? }, … }` |
-| POST | `/ai/chat/stream` | Streaming variant |
 | POST | `/ai/execute` | Execute a user-confirmed Swee action (create/edit trip, event, …) |
 | GET / POST | `/ai/conversations` | List / create conversations |
 | GET | `/ai/conversations/:id`, `/ai/conversations/:id/messages` | Conversation + messages |

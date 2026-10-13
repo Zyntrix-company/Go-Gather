@@ -41,7 +41,8 @@ function sanitizeAttachments(raw) {
 
 const chat = async (req, res, next) => {
   try {
-    const { message, conversationHistory, tripContext, conversationId, attachments } = req.body;
+    // conversationHistory sent by the app is ignored — history is loaded server-side.
+    const { message, tripContext, conversationId, attachments } = req.body;
 
     const attachmentList = sanitizeAttachments(attachments);
     const hasText = typeof message === 'string' && message.trim();
@@ -56,7 +57,6 @@ const chat = async (req, res, next) => {
 
     const result = await aiService.chat(req.user.id, hasText ? message.trim() : '', {
       conversationId: conversationId || null,
-      conversationHistory,
       tripContext,
       attachments: attachmentList,
     });
@@ -93,34 +93,6 @@ const chat = async (req, res, next) => {
       return res.status(error.statusCode).json({ error: 'ChatError', message: error.message });
     }
     next(error);
-  }
-};
-
-const chatStream = async (req, res, next) => {
-  try {
-    const { message, conversationHistory, tripContext } = req.body;
-
-    if (!message || typeof message !== 'string' || !message.trim()) {
-      return res.status(400).json({ error: 'BadRequest', message: 'message is required' });
-    }
-
-    await aiService.chatStream(
-      req.user.id,
-      message.trim(),
-      conversationHistory,
-      tripContext,
-      res,
-    );
-  } catch (error) {
-    logger.error('Swee stream error', { error: error.message, userId: req.user?.id });
-    if (!res.headersSent) {
-      next(error);
-    } else {
-      try {
-        res.write(`data: ${JSON.stringify({ error: 'Stream error occurred' })}\n\n`);
-        res.end();
-      } catch (_) { /* already closed */ }
-    }
   }
 };
 
@@ -275,7 +247,6 @@ const setConversationStarred = async (req, res, next) => {
 
 module.exports = {
   chat,
-  chatStream,
   clearConversation,
   executeAction,
   reportIssue,

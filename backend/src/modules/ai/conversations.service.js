@@ -196,6 +196,10 @@ async function setConversationStarred(userId, conversationId, starred) {
 // Tie-break so reversed DESC results always read user → assistant chronologically.
 const MESSAGE_ORDER_DESC = `created_at DESC, CASE role WHEN 'assistant' THEN 0 ELSE 1 END`;
 
+// Turns Swee refused as out of scope stay visible in the app but are never sent back to Gemini,
+// so one off-topic exchange can't seed the next.
+const GEMINI_HISTORY_FILTER = `NOT (metadata @> '{"scope":"out"}'::jsonb)`;
+
 function buildMemoryBlock(olderRows) {
   if (!olderRows?.length) return '';
   const lines = [];
@@ -222,11 +226,20 @@ async function countMessages(conversationId) {
   return result.rows[0]?.total ?? 0;
 }
 
+async function countGeminiMessages(conversationId) {
+  const result = await db(
+    `SELECT COUNT(*)::int AS total FROM ai_messages
+     WHERE conversation_id = $1 AND ${GEMINI_HISTORY_FILTER}`,
+    [conversationId],
+  );
+  return result.rows[0]?.total ?? 0;
+}
+
 async function loadOlderMessagesForMemory(conversationId, skipLastN) {
   if (!skipLastN) return [];
   const result = await db(
     `SELECT role, content, metadata FROM ai_messages
-     WHERE conversation_id = $1
+     WHERE conversation_id = $1 AND ${GEMINI_HISTORY_FILTER}
      ORDER BY ${MESSAGE_ORDER_DESC}
      OFFSET $2`,
     [conversationId, skipLastN],
@@ -236,7 +249,7 @@ async function loadOlderMessagesForMemory(conversationId, skipLastN) {
 
 /** Recent turns for Gemini plus a compact summary of older messages in the thread. */
 async function loadHistoryForGemini(conversationId, maxRecent = 10) {
-  const total = await countMessages(conversationId);
+  const total = await countGeminiMessages(conversationId);
   const history = await loadMessageHistory(conversationId, maxRecent);
   let memoryBlock = '';
   if (total > maxRecent) {
@@ -249,7 +262,7 @@ async function loadHistoryForGemini(conversationId, maxRecent = 10) {
 async function loadMessageHistory(conversationId, limit = 10) {
   const result = await db(
     `SELECT role, content FROM ai_messages
-     WHERE conversation_id = $1
+     WHERE conversation_id = $1 AND ${GEMINI_HISTORY_FILTER}
      ORDER BY ${MESSAGE_ORDER_DESC}
      LIMIT $2`,
     [conversationId, limit],
@@ -291,14 +304,18 @@ async function appendMessages(userId, conversationId, {
   assistantContent,
   pendingAction,
   tripContext,
+  scope = 'in',
 }) {
   const conv = await getConversationForUser(userId, conversationId);
   const client = await getClient();
 
-  const assistantMeta = {};
+  const outOfScope = scope === 'out';
+  const userMeta = outOfScope ? { scope: 'out' } : {};
+  const assistantMeta = outOfScope ? { scope: 'out' } : {};
   if (pendingAction) assistantMeta.pendingAction = pendingAction;
 
-  const newTitle = refineTitle(userContent, pendingAction, conv.title);
+  // A refused off-topic message shouldn't name the conversation.
+  const newTitle = outOfScope ? conv.title : refineTitle(userContent, pendingAction, conv.title);
   const preview = buildPreview(assistantContent);
   const category = inferCategory(
     tripContext || conv.trip_context,
@@ -310,8 +327,8 @@ async function appendMessages(userId, conversationId, {
 
     await client.query(
       `INSERT INTO ai_messages (conversation_id, role, content, metadata, created_at)
-       VALUES ($1, 'user', $2, '{}', clock_timestamp())`,
-      [conversationId, userContent],
+       VALUES ($1, 'user', $2, $3, clock_timestamp())`,
+      [conversationId, userContent, JSON.stringify(userMeta)],
     );
 
     const msgResult = await client.query(
@@ -414,6 +431,7 @@ module.exports = {
   categoryFromTripContext,
   buildMemoryBlock,
   countMessages,
+  countGeminiMessages,
   loadHistoryForGemini,
   listConversations,
   createConversation,

@@ -206,6 +206,91 @@ describe('GET /ai/conversations/:id/messages', () => {
   });
 });
 
+describe('conversations.service scope handling', () => {
+  beforeEach(() => jest.resetAllMocks());
+
+  function mockClient() {
+    const client = { query: jest.fn().mockResolvedValue({ rows: [{ id: 'msg-1', role: 'assistant', content: 'x', metadata: {} }] }), release: jest.fn() };
+    db.getClient.mockResolvedValue(client);
+    return client;
+  }
+
+  it('loadHistoryForGemini excludes out-of-scope turns from count, recent and older queries', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [{ total: 12 }] })
+      .mockResolvedValueOnce({ rows: [{ role: 'assistant', content: 'Recent reply' }, { role: 'user', content: 'Recent q' }] })
+      .mockResolvedValueOnce({ rows: [{ role: 'user', content: 'Plan Goa', metadata: {} }] });
+
+    const result = await conversationsService.loadHistoryForGemini(CONV_ID, 10);
+
+    expect(db.query).toHaveBeenCalledTimes(3);
+    for (const [sql] of db.query.mock.calls) {
+      expect(sql).toMatch(/NOT \(metadata @> '\{"scope":"out"\}'::jsonb\)/);
+    }
+    expect(result.history).toEqual([
+      { role: 'user', content: 'Recent q' },
+      { role: 'assistant', content: 'Recent reply' },
+    ]);
+    expect(result.memoryBlock).toContain('Plan Goa');
+  });
+
+  it('listMessages (what the app shows) does not filter out-of-scope turns', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [convRow] })
+      .mockResolvedValueOnce({ rows: [] });
+    await conversationsService.listMessages(USER_ID, CONV_ID);
+    expect(db.query.mock.calls[1][0]).not.toMatch(/scope/);
+  });
+
+  it('appendMessages flags both rows and keeps the title when scope is out', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ ...convRow, title: 'New chat' }] });
+    const client = mockClient();
+
+    await conversationsService.appendMessages(USER_ID, CONV_ID, {
+      userContent: 'write python code for me',
+      assistantContent: 'That\'s outside what I can help with.',
+      pendingAction: null,
+      scope: 'out',
+    });
+
+    const userInsert = client.query.mock.calls.find(([sql]) => /'user'/.test(sql));
+    const assistantInsert = client.query.mock.calls.find(([sql]) => /'assistant'/.test(sql));
+    const convUpdate = client.query.mock.calls.find(([sql]) => /UPDATE ai_conversations/.test(sql));
+    expect(JSON.parse(userInsert[1][2])).toEqual({ scope: 'out' });
+    expect(JSON.parse(assistantInsert[1][2])).toEqual({ scope: 'out' });
+    expect(convUpdate[1][0]).toBe('New chat');
+  });
+
+  it('appendMessages keeps today\'s metadata shape for in-scope turns', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ ...convRow, title: 'New chat' }] });
+    const client = mockClient();
+    const pendingAction = { intent: 'create_trip', readyToCreate: false, showForm: 'trip', draft: { destination: 'Goa' } };
+
+    await conversationsService.appendMessages(USER_ID, CONV_ID, {
+      userContent: 'plan goa',
+      assistantContent: 'Tell me about your trip.',
+      pendingAction,
+    });
+
+    const userInsert = client.query.mock.calls.find(([sql]) => /'user'/.test(sql));
+    const assistantInsert = client.query.mock.calls.find(([sql]) => /'assistant'/.test(sql));
+    const convUpdate = client.query.mock.calls.find(([sql]) => /UPDATE ai_conversations/.test(sql));
+    expect(JSON.parse(userInsert[1][2])).toEqual({});
+    expect(JSON.parse(assistantInsert[1][2])).toEqual({ pendingAction });
+    expect(convUpdate[1][0]).toBe('Trip to Goa');
+  });
+});
+
+describe('POST /ai/chat/stream (removed)', () => {
+  it('returns 404', async () => {
+    const res = await request(app)
+      .post('/ai/chat/stream')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'write python code' });
+    expect(res.statusCode).toBe(404);
+  });
+});
+
 describe('POST /ai/chat with conversationId', () => {
   beforeEach(() => jest.resetAllMocks());
 
