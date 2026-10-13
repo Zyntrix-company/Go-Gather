@@ -1436,9 +1436,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  emptyPrompt: { width: '100%', gap: 2, paddingVertical: 4 },
-  emptyPromptTitle: { fontSize: 14, fontWeight: '500', color: '#0F172B' },
-  emptyPromptSub: { fontSize: 12, color: '#64748b', lineHeight: 16 },
+  // Same height as the old empty tile (and a grid card), so the Events header
+  // stays where it was when the Trips section is empty.
+  emptyPrompt: { width: '100%', height: 140, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  emptyPromptTitle: { fontSize: 11, fontWeight: '500', color: '#64748b' },
+  emptyPromptSub: { fontSize: 10, color: '#94a3b8', lineHeight: 14, textAlign: 'center' },
 
   // Modal
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 },
