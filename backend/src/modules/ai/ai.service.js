@@ -23,7 +23,13 @@ const {
 } = require('./ai.helpers');
 const conversationsService = require('./conversations.service');
 const circuitBreaker = require('./swee.circuitBreaker');
-const { geminiRateLimitMessage, serviceBusyMessage } = require('./swee.messages');
+const scopeGuard = require('./swee.scopeGuard');
+const {
+  geminiRateLimitMessage,
+  serviceBusyMessage,
+  outOfScopeMessage,
+  scopeReminderText,
+} = require('./swee.messages');
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -296,16 +302,24 @@ function classifyGeminiError(err) {
   return err;
 }
 
-/** Build the current-turn payload for Gemini: text plus any inline attachments. */
+/**
+ * Build the current-turn payload for Gemini: text, any inline attachments, then the
+ * per-turn scope reminder. The reminder only goes to Gemini — it is never persisted.
+ */
 function buildMessageParts(message, attachments = []) {
-  if (!Array.isArray(attachments) || attachments.length === 0) {
-    return message;
-  }
+  const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
   const parts = [];
-  parts.push({ text: message || 'The user attached the file(s) below. Read them and respond per your instructions.' });
-  for (const a of attachments) {
-    parts.push({ inlineData: { mimeType: a.mimeType, data: a.data } });
+  parts.push({
+    text: message || (hasAttachments
+      ? 'The user attached the file(s) below. Read them and respond per your instructions.'
+      : ''),
+  });
+  if (hasAttachments) {
+    for (const a of attachments) {
+      parts.push({ inlineData: { mimeType: a.mimeType, data: a.data } });
+    }
   }
+  parts.push({ text: scopeReminderText() });
   return parts;
 }
 
@@ -352,29 +366,13 @@ async function geminiChat(message, history, systemPrompt, attachments) {
   }
 }
 
-async function geminiChatStream(message, history, systemPrompt, res) {
-  const model = getGeminiModel(systemPrompt);
-  const geminiHistory = toGeminiHistory(history);
-  const chatSession = model.startChat({ history: geminiHistory });
-  const result = await chatSession.sendMessageStream(message);
-
-  for await (const chunk of result.stream) {
-    const delta = chunk.text();
-    if (delta) {
-      res.write(`data: ${JSON.stringify({ delta })}\n\n`);
-    }
-  }
-  res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-  res.end();
-}
-
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Main chat handler. Loads history from DB when conversationId is set,
  * calls Gemini, persists messages, returns { reply, pendingAction, conversationId, messageId }.
  */
-const chat = async (userId, message, { conversationId, conversationHistory, tripContext, attachments = [] } = {}) => {
+const chat = async (userId, message, { conversationId, tripContext, attachments = [] } = {}) => {
   let resolvedConversationId = conversationId;
   let resolvedTripContext = tripContext || null;
 
@@ -389,24 +387,14 @@ const chat = async (userId, message, { conversationId, conversationHistory, trip
     resolvedTripContext = created.tripContext || tripContext || null;
   }
 
-  let history;
-  let memoryBlock = '';
-
-  if (resolvedConversationId) {
-    const msgCount = await conversationsService.countMessages(resolvedConversationId);
-    if (msgCount > 0) {
-      const loaded = await conversationsService.loadHistoryForGemini(
-        resolvedConversationId,
-        MAX_HISTORY_MESSAGES,
-      );
-      history = trimHistory(loaded.history);
-      memoryBlock = loaded.memoryBlock;
-    } else {
-      history = trimHistory(conversationHistory);
-    }
-  } else {
-    history = trimHistory(conversationHistory);
-  }
+  // History always comes from the server. Client-sent conversationHistory is ignored: it
+  // could be forged, and on a new chat it only duplicated the current message.
+  const loaded = await conversationsService.loadHistoryForGemini(
+    resolvedConversationId,
+    MAX_HISTORY_MESSAGES,
+  );
+  const history = trimHistory(loaded.history);
+  const memoryBlock = loaded.memoryBlock;
 
   const historyLength = history.length;
   const [userContext] = await Promise.all([loadUserContext(userId)]);
@@ -426,6 +414,15 @@ const chat = async (userId, message, { conversationId, conversationHistory, trip
       sweeErrorCode: 'CIRCUIT_OPEN',
     });
   }
+
+  // Independent scope check runs in parallel with the main call (never rejects, fails open).
+  const lastAssistant = [...history].reverse().find((m) => m.role === 'assistant');
+  const scopePromise = scopeGuard.checkScope({
+    message,
+    attachments,
+    lastAssistantMessage: lastAssistant?.content,
+    tripContext: resolvedTripContext,
+  });
 
   let rawReply;
   try {
@@ -459,7 +456,33 @@ const chat = async (userId, message, { conversationId, conversationHistory, trip
       reason: parsed.actionParseError,
     });
   }
-  const { reply, pendingAction } = parsed;
+  const scopeVerdict = await scopeGuard.awaitVerdict(scopePromise);
+  const guardMode = config.sweeScopeGuard?.mode || 'shadow';
+  let blockedBy = null;
+  if (scopeVerdict.scope === 'out') blockedBy = 'classifier';
+  else if (parsed.scope === 'out') blockedBy = 'self_report';
+
+  if (blockedBy) {
+    logger.info('Swee scope_out', {
+      userId,
+      conversationId: resolvedConversationId,
+      mode: guardMode,
+      blockedBy,
+      category: scopeVerdict.category || null,
+      classifier: scopeVerdict.scope,
+      selfReport: parsed.scope,
+    });
+  }
+
+  const enforceBlock = guardMode === 'enforce' && Boolean(blockedBy);
+  let { reply, pendingAction } = parsed;
+  if (enforceBlock) {
+    reply = outOfScopeMessage(resolvedTripContext);
+    pendingAction = null;
+  }
+  // Keep refused turns out of future Gemini history. Outside enforce mode only Swee's own
+  // refusals are flagged, so a classifier false positive never costs the user context.
+  const persistedScope = enforceBlock || parsed.scope === 'out' ? 'out' : 'in';
 
   // Persist a readable marker for attachment-carrying turns (binaries are not stored).
   let persistedUserContent = message;
@@ -474,6 +497,7 @@ const chat = async (userId, message, { conversationId, conversationHistory, trip
     assistantContent: reply,
     pendingAction: pendingAction || null,
     tripContext: tripContext || null,
+    scope: persistedScope,
   });
 
   return {
@@ -482,22 +506,6 @@ const chat = async (userId, message, { conversationId, conversationHistory, trip
     conversationId: resolvedConversationId,
     messageId: savedMessage.id,
   };
-};
-
-const chatStream = async (userId, message, conversationHistory, tripContext, res) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
-
-  const history = trimHistory(conversationHistory);
-  const historyLength = history.length;
-
-  const [userContext] = await Promise.all([loadUserContext(userId)]);
-
-  const systemPrompt = buildSweetSystemPrompt(userContext, tripContext, historyLength);
-  await geminiChatStream(message, history, systemPrompt, res);
 };
 
 /**
@@ -702,4 +710,4 @@ const reportIssue = async (userId, messageId, reason) => {
   );
 };
 
-module.exports = { chat, chatStream, executeAction, reportIssue };
+module.exports = { chat, executeAction, reportIssue, buildMessageParts };

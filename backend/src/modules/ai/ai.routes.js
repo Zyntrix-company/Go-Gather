@@ -19,9 +19,6 @@ router.patch('/conversations/:id/star', ctrl.setConversationStarred);
 // POST /ai/chat — Non-streaming chat with Swee; per-user rate limits apply
 router.post('/chat', sweeChatHourlyLimit, sweeChatDailyLimit, ctrl.chat);
 
-// POST /ai/chat/stream — SSE streaming chat with Swee
-router.post('/chat/stream', ctrl.chatStream);
-
 // DELETE /ai/chat/:userId — Clear conversation (client-side history; server acknowledges)
 router.delete('/chat/:userId', ctrl.clearConversation);
 

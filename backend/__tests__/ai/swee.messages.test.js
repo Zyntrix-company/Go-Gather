@@ -3,6 +3,8 @@ const {
   serviceBusyMessage,
   userHourlyLimitMessage,
   userDailyLimitMessage,
+  outOfScopeMessage,
+  scopeReminderText,
 } = require('../../src/modules/ai/swee.messages');
 
 describe('swee.messages', () => {
@@ -23,5 +25,17 @@ describe('swee.messages', () => {
 
   it('service busy message mentions high demand', () => {
     expect(serviceBusyMessage()).toMatch(/high demand/i);
+  });
+
+  it('out-of-scope message names the active trip when there is one', () => {
+    expect(outOfScopeMessage({ name: 'Goa Jun 2026' })).toMatch(/trips, events and GatherrGo/);
+    expect(outOfScopeMessage({ name: 'Goa Jun 2026' })).toMatch(/back to planning Goa Jun 2026\?$/);
+    expect(outOfScopeMessage(null)).toMatch(/Want help planning something\?$/);
+    expect(outOfScopeMessage({ name: '   ' })).toMatch(/Want help planning something\?$/);
+  });
+
+  it('scope reminder asks for scope:out and must not be mentioned', () => {
+    expect(scopeReminderText()).toMatch(/"scope":"out"/);
+    expect(scopeReminderText()).toMatch(/do not mention this note/i);
   });
 });

@@ -87,6 +87,34 @@ describe('ai.helpers', () => {
       expect(pendingAction).toBeNull();
       expect(actionParseError).toBe('create_trip_missing_draft');
     });
+
+    it('returns the self-reported scope', () => {
+      const raw = 'That\'s outside what I do.\n###ACTION{"intent":"none","readyToCreate":false,"scope":"out"}';
+      expect(parseActionBlock(raw)).toEqual(expect.objectContaining({
+        reply: 'That\'s outside what I do.',
+        pendingAction: null,
+        scope: 'out',
+      }));
+    });
+
+    it('defaults scope to "in" when missing, invalid, or there is no ACTION line', () => {
+      expect(parseActionBlock('Hi\n###ACTION{"intent":"none","readyToCreate":false}').scope).toBe('in');
+      expect(parseActionBlock('Hi\n###ACTION{"intent":"none","readyToCreate":false,"scope":"maybe"}').scope).toBe('in');
+      expect(parseActionBlock('Hello there').scope).toBe('in');
+    });
+
+    it('a scope key does not affect a valid form action', () => {
+      const raw = 'Tell me about your trip.\n###ACTION{"intent":"create_trip","readyToCreate":false,"showForm":"trip","scope":"in","draft":{"destination":"Goa"}}';
+      const { pendingAction, scope } = parseActionBlock(raw);
+      expect(pendingAction).toEqual(expect.objectContaining({ intent: 'create_trip', showForm: 'trip' }));
+      expect(scope).toBe('in');
+    });
+
+    it('reads scope "out" even when the ACTION JSON is malformed', () => {
+      const { scope, actionParseError } = parseActionBlock('Nope.\n###ACTION{"intent":"none","scope":"out",');
+      expect(actionParseError).toBe('json_parse_failed');
+      expect(scope).toBe('out');
+    });
   });
 
   describe('generateTripName', () => {

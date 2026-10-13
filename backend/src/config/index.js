@@ -122,6 +122,18 @@ module.exports = {
     model: process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite',
   },
 
+  // ─── Swee scope guard ─────────────────────────
+  // off = disabled · shadow = classify + log only · enforce = block out-of-scope turns
+  sweeScopeGuard: {
+    mode: ['off', 'shadow', 'enforce'].includes(process.env.SWEE_SCOPE_GUARD)
+      ? process.env.SWEE_SCOPE_GUARD
+      : 'shadow',
+    // Hard cap for the classifier call itself.
+    timeoutMs: parseInt(process.env.SWEE_SCOPE_GUARD_TIMEOUT_MS, 10) || 10000,
+    // How long to keep waiting for the classifier after Swee's main reply is ready.
+    graceMs: parseInt(process.env.SWEE_SCOPE_GUARD_GRACE_MS, 10) || 1500,
+  },
+
   // ─── Invite & App Store Links ─────────────────
   invite: {
     baseUrl:          process.env.APP_INVITE_BASE_URL || 'https://gatherrgo.com/invite',

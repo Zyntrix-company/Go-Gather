@@ -82,4 +82,26 @@ describe('swee.config buildSweetSystemPrompt', () => {
     expect(prompt).toMatch(/EARLIER IN THIS CONVERSATION/i);
     expect(prompt).toMatch(/Plan Mumbai trip/);
   });
+
+  it('puts the strict SCOPE section before everything else', () => {
+    const prompt = buildSweetSystemPrompt(baseContext, null, 0);
+    const scopeIdx = prompt.indexOf('SCOPE (HIGHEST PRIORITY');
+    expect(scopeIdx).toBeGreaterThan(-1);
+    expect(scopeIdx).toBeLessThan(prompt.indexOf('WHAT MATTERS MOST'));
+    expect(prompt).toMatch(/Judge EVERY message on its own/);
+    expect(prompt).toMatch(/no partial answer/i);
+    expect(prompt).toMatch(/even when it mentions a trip, destination or event/i);
+  });
+
+  it('requires a scope field in the ACTION line', () => {
+    const prompt = buildSweetSystemPrompt(baseContext, null, 0);
+    expect(prompt).toMatch(/scope: "in" \| "out"/);
+    expect(prompt).toMatch(/"scope":"out"/);
+  });
+
+  it('refuses non-travel attachments instead of describing them', () => {
+    const prompt = buildSweetSystemPrompt(baseContext, null, 0);
+    expect(prompt).toMatch(/do NOT describe, summarize, solve or work on it/);
+    expect(prompt).not.toMatch(/say briefly what you see/i);
+  });
 });
