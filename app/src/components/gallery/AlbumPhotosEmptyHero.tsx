@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { Upload } from 'lucide-react-native';
 
 export type AlbumEmptyVariant = 'own' | 'friend' | 'simple';
 export type AlbumEmptyKind = 'trip' | 'event';
@@ -26,14 +27,6 @@ function FriendEmptyIllustration() {
       <Rect x={26} y={8} width={20} height={8} rx={4} fill="#5eead4" />
       <Circle cx={18} cy={14} r={3} fill="#fda4af" opacity={0.85} />
       <Circle cx={54} cy={12} r={2.5} fill="#fde68a" opacity={0.9} />
-    </Svg>
-  );
-}
-
-function UploadIcon() {
-  return (
-    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-      <Path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
@@ -103,7 +96,7 @@ export default function AlbumPhotosEmptyHero({
         <Text style={styles.body}>{copy.body}</Text>
         {onUploadPress ? (
           <TouchableOpacity style={styles.uploadBtn} onPress={onUploadPress} activeOpacity={0.88}>
-            <UploadIcon />
+            <Upload size={15} color="#fff" />
             <Text style={styles.uploadBtnText}>Upload Photos</Text>
           </TouchableOpacity>
         ) : null}
@@ -151,7 +144,10 @@ const styles = StyleSheet.create({
   rootCentered: {
     flex: 1,
     minHeight: 320,
-    paddingVertical: 24,
+    // Extra bottom padding lifts the centred block a little above the
+    // geometric middle, so it reads closer to the album header.
+    paddingTop: 8,
+    paddingBottom: 72,
   },
   illusWrap: {
     marginBottom: 6,
@@ -180,20 +176,21 @@ const styles = StyleSheet.create({
     maxWidth: 280,
     marginTop: 2,
   },
+  // Matches the Home screen "Create Trip" action button.
   uploadBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 5,
     marginTop: 14,
     paddingHorizontal: 22,
-    paddingVertical: 11,
-    borderRadius: 24,
-    backgroundColor: '#0f766e',
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: '#009788',
   },
   uploadBtnText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#fff',
   },
   simpleTitle: {

@@ -12,7 +12,7 @@ import {
   Animated,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useChromeInsets } from '../../components/common/ChromeSafeAreaView';
 import Svg, { Path } from 'react-native-svg';
 import { Image as ImageIcon, FileText } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -270,7 +270,7 @@ function TypingIndicator() {
 // ─── Main Screen ───────────────────────────────────────────────────────────
 
 export default function ChatDetailScreen({ route, navigation }: any) {
-  const insets = useSafeAreaInsets();
+  const insets = useChromeInsets();
   const keyboardVisible = useKeyboardVisible();
   const initialMessageParam = route?.params?.initialMessage;
 

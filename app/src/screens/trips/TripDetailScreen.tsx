@@ -9,6 +9,7 @@ import AppModal from '../../components/common/AppModal';
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const EXPENSES_MODAL_HEIGHT = Math.round(SCREEN_H * 0.78);
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import ChromeSafeAreaView from '../../components/common/ChromeSafeAreaView';
 import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import SweeIcon from '../../components/common/SweeIcon';
@@ -2063,7 +2064,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   return (
     <BlobBackground>
-      <SafeAreaView style={styles.container}>
+      <ChromeSafeAreaView style={styles.container}>
 
         <AppHeader
           onLogoPress={() => navigation.goBack()}
@@ -3834,7 +3835,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
           </View>
         </AppModal>
 
-      </SafeAreaView>
+      </ChromeSafeAreaView>
     </BlobBackground>
   );
 }

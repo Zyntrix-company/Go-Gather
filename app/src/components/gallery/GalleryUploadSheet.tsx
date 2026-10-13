@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Pressable, StyleSheet, Platform } from 'react-native';
 import AppModal from '../common/AppModal';
 import DetailDialogHeader from '../details/DetailDialogHeader';
 import UploadOptionsRow from '../common/UploadOptionsRow';
@@ -23,13 +23,31 @@ export default function GalleryUploadSheet({
   showDrive = true,
   busy = false,
 }: GalleryUploadSheetProps) {
+  // iOS cannot present the image picker while this sheet is still animating
+  // out — the picker silently never opens. Hold the action until the sheet has
+  // fully dismissed there; Android can launch straight away.
+  const pendingRef = useRef<(() => void) | null>(null);
+
   const run = (fn: () => void) => {
+    if (Platform.OS === 'ios') {
+      pendingRef.current = fn;
+      onClose();
+      // Fallback in case onDismiss never fires.
+      setTimeout(handleDismiss, 600);
+      return;
+    }
     onClose();
     fn();
   };
 
+  const handleDismiss = () => {
+    const fn = pendingRef.current;
+    pendingRef.current = null;
+    fn?.();
+  };
+
   return (
-    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <AppModal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={handleDismiss}>
       <View style={styles.overlay}>
         <Pressable style={styles.dismissArea} onPress={onClose} />
         <View style={styles.dialog}>

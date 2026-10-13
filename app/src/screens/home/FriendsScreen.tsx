@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: '5%',
     paddingVertical: 16,
-    paddingBottom: 40,
+    paddingBottom: 120,
   },
 
   // Selection bar

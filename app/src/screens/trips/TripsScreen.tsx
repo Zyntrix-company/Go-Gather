@@ -25,7 +25,7 @@ import LocationMultiPicker from '../../components/common/LocationMultiPicker';
 import { formatLocationsLabel, normalizeLocations, toLocationPayload, type LocationPoint } from '../../utils/locations';
 import AppDatePicker from '../../components/common/AppDatePicker';
 import { launchImageLibrary } from 'react-native-image-picker';
-import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
+import { pickLocalDocuments } from '../../utils/pickLocalDocuments';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { Plane } from 'lucide-react-native';
 import { UnifiedCard } from '../../components/common/Cards';
@@ -651,16 +651,10 @@ export function CreateTripModal({
 
   async function handleUploadDocs() {
     try {
-      const [picked] = await pickDocument({ type: [docTypes.allFiles] });
-      const [localCopy] = await keepLocalCopy({
-        files: [{ uri: picked.uri, fileName: picked.name ?? `file_${Date.now()}` }],
-        destination: 'cachesDirectory',
-      });
-      if (localCopy.status === 'error') throw new Error(localCopy.copyError);
-      const file = { uri: localCopy.localUri, name: picked.name ?? `file_${Date.now()}`, type: picked.type ?? 'application/octet-stream' };
-      setUploadedDocs(p => [...p, file]);
-    } catch (err: any) {
-      if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) return;
+      // Multi-select, and each tap appends — so docs can be added in several rounds.
+      const files = await pickLocalDocuments();
+      if (files.length) setUploadedDocs(p => [...p, ...files]);
+    } catch {
       showAlert({ title: 'Error', message: 'Could not open file picker.' });
     }
   }
@@ -810,7 +804,7 @@ export function CreateTripModal({
                 </View>
                 <View>
                   <Text style={styles.ctRowText}>Upload Docs</Text>
-                  <Text style={styles.ctRowSub}>(PDF, JPG, PNG)</Text>
+                  <Text style={styles.ctRowSub}>{uploadedDocs.length > 0 ? 'Tap to add more' : '(PDF, JPG, PNG)'}</Text>
                 </View>
               </View>
               {uploadedDocs.length > 0 && (

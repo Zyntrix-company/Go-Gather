@@ -5,7 +5,7 @@
  */
 import React, { useRef } from 'react';
 import { Animated, PanResponder, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useChromeInsets } from '../common/ChromeSafeAreaView';
 import SweeIcon from '../common/SweeIcon';
 import { TAB_BAR_BASE_HEIGHT } from '../common/FloatingTabBar';
 
@@ -18,7 +18,7 @@ interface SweeFabProps {
 const FAB_FOOTER_GAP = 12;
 
 export default function SweeFab({ onPress, fabStyle }: SweeFabProps) {
-  const insets = useSafeAreaInsets();
+  const insets = useChromeInsets();
   // Sit just above the footer on every screen/device: the footer is
   // `TAB_BAR_BASE_HEIGHT + insets.bottom` tall, so add a small gap on top.
   const bottom = TAB_BAR_BASE_HEIGHT + insets.bottom + FAB_FOOTER_GAP;

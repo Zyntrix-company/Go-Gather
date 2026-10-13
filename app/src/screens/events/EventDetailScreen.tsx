@@ -8,6 +8,7 @@ import { launchCamera } from 'react-native-image-picker';
 import AppModal from '../../components/common/AppModal';
 import Toast from 'react-native-toast-message';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import ChromeSafeAreaView from '../../components/common/ChromeSafeAreaView';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { WebView } from 'react-native-webview';
@@ -1370,7 +1371,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
 
   return (
     <BlobBackground>
-      <SafeAreaView style={styles.container}>
+      <ChromeSafeAreaView style={styles.container}>
 
         <AppHeader
           onLogoPress={() => navigation.goBack()}
@@ -2752,7 +2753,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
           </View>
         </AppModal>
 
-      </SafeAreaView>
+      </ChromeSafeAreaView>
     </BlobBackground>
   );
 }

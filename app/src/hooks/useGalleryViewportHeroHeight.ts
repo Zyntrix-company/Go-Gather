@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useChromeInsets } from '../components/common/ChromeSafeAreaView';
 import { TAB_BAR_BASE_HEIGHT } from '../components/common/AppScreenLayout';
 import {
   ALBUM_HERO_H_PAD,
@@ -43,7 +43,7 @@ export function useGalleryViewportHeroHeight({
   viewOnly = false,
   keyboardVisible = false,
 }: UseGalleryViewportHeroHeightParams = {}): number {
-  const insets = useSafeAreaInsets();
+  const insets = useChromeInsets();
   const { width: SCREEN_W, height: SCREEN_H } = useWindowDimensions();
 
   return useMemo(() => {

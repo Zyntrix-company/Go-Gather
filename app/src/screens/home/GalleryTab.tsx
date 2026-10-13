@@ -155,12 +155,39 @@ function GridCard({ item, onPress, chip }: { item: any; onPress: () => void; chi
 
 // ─── Empty card ─────────────────────────────────────────────────────────────
 
-function EmptyCard({ label }: { label: string }) {
+const EMPTY_PROMPT_THEME = {
+  trip:  { bg: '#f0fdfa', border: '#ccfbf1', accent: '#0d9488', iconBg: '#ccfbf1' },
+  event: { bg: '#fffbeb', border: '#fde68a', accent: '#f59e0b', iconBg: '#fef3c7' },
+} as const;
+
+function EmptyAlbumPrompt({ kind, onPress }: { kind: 'trip' | 'event'; onPress: () => void }) {
+  const theme = EMPTY_PROMPT_THEME[kind];
   return (
-    <View style={styles.emptyCard}>
-      <CameraIcon />
-      <Text style={styles.emptyCardText}>{label}</Text>
-    </View>
+    <TouchableOpacity
+      style={[styles.emptyPrompt, { backgroundColor: theme.bg, borderColor: theme.border }]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <View style={[styles.emptyPromptIcon, { backgroundColor: theme.iconBg }]}>
+        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+          <Rect x={3} y={3} width={18} height={18} rx={2} ry={2} stroke={theme.accent} strokeWidth={2} />
+          <Circle cx={8.5} cy={8.5} r={1.5} fill={theme.accent} />
+          <Path d="M21 15l-5-5L5 21" stroke={theme.accent} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      </View>
+      <View style={styles.emptyPromptText}>
+        <Text style={styles.emptyPromptTitle}>No {kind} albums yet</Text>
+        <Text style={styles.emptyPromptSub}>
+          {kind === 'trip' ? 'Keep the memories from your trips in one place.' : 'Save the best moments from your events.'}
+        </Text>
+      </View>
+      <View style={[styles.emptyPromptCta, { backgroundColor: theme.accent }]}>
+        <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
+          <Path d="M12 5v14M5 12h14" stroke="#fff" strokeWidth={3} strokeLinecap="round" />
+        </Svg>
+        <Text style={styles.emptyPromptCtaText}>New</Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -848,7 +875,9 @@ function PhotosModal({
             )}
           </View>
         </AlbumPhotosScreenLayout>
-      </Modal>
+      {/* The upload sheet and Drive picker are rendered inside the album Modal:
+          on iOS a sibling Modal would try to present from the root controller,
+          which is already presenting this one, so it would never appear. */}
       <GalleryUploadSheet
         visible={showUploadSheet}
         onClose={() => setShowUploadSheet(false)}
@@ -908,6 +937,7 @@ function PhotosModal({
             )}
           </View>
         </View>
+      </Modal>
       </Modal>
     </>
   );
@@ -1277,7 +1307,7 @@ export default function GalleryTab({
                 />
               ))}
               {displayTrips.length === 0 && customTripCards.length === 0 && (
-                <EmptyCard label="Tap + to create a trip album" />
+                <EmptyAlbumPrompt kind="trip" onPress={() => setShowCreateCard('trip')} />
               )}
             </View>
 
@@ -1306,7 +1336,7 @@ export default function GalleryTab({
                 />
               ))}
               {galleryEvents.length === 0 && customEventCards.length === 0 && (
-                <EmptyCard label="Tap + to create an event album" />
+                <EmptyAlbumPrompt kind="event" onPress={() => setShowCreateCard('event')} />
               )}
             </View>
           </>
@@ -1430,13 +1460,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  emptyCard: {
-    width: CARD_W, height: 140, borderRadius: 14,
-    borderWidth: 2, borderColor: '#e2e8f0', borderStyle: 'dashed',
-    alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: '#fafafa',
+  emptyPrompt: {
+    width: '100%',
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: 14, borderWidth: 1,
+    paddingVertical: 14, paddingHorizontal: 14,
   },
-  emptyCardText: { fontSize: 12, color: '#cbd5e1', fontWeight: '500' },
+  emptyPromptIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  emptyPromptText: { flex: 1, minWidth: 0, gap: 2 },
+  emptyPromptTitle: { fontSize: 14, fontWeight: '500', color: '#0F172B' },
+  emptyPromptSub: { fontSize: 12, color: '#64748b', lineHeight: 16 },
+  emptyPromptCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6,
+  },
+  emptyPromptCtaText: { fontSize: 12, fontWeight: '500', color: '#fff' },
 
   // Modal
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 },

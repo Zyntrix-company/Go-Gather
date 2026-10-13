@@ -22,7 +22,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useKeyboardAnimation } from 'react-native-keyboard-controller';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import ChromeSafeAreaView, { useChromeInsets } from '../../components/common/ChromeSafeAreaView';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import SweeIcon from '../../components/common/SweeIcon';
 import SweeFab from '../../components/details/SweeFab';
@@ -545,7 +546,7 @@ function mapApiTrip(t: any): Trip {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function HomeScreen({ navigation, route }: any) {
-  const insets = useSafeAreaInsets();
+  const insets = useChromeInsets();
   const { refreshProfile } = useAuth();
   const rawUser = useAuthStore((s) => s.user) as any;
   const avatarUpdatedAt = useAuthStore((s) => s.avatarUpdatedAt);
@@ -1478,7 +1479,7 @@ export default function HomeScreen({ navigation, route }: any) {
 
   return (
     <BlobBackground>
-      <SafeAreaView style={styles.container}>
+      <ChromeSafeAreaView style={styles.container}>
         <AppHeader
           onLogoPress={() => setActiveTab('home')}
           onBellPress={() => navigation.navigate('Notifications')}
@@ -1527,7 +1528,7 @@ export default function HomeScreen({ navigation, route }: any) {
           ))}
         </Animated.View>
 
-      </SafeAreaView>
+      </ChromeSafeAreaView>
     </BlobBackground>
   );
 }

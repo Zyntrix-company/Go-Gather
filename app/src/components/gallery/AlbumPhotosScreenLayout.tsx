@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useChromeInsets } from '../common/ChromeSafeAreaView';
 import AppScreenLayout, { TAB_BAR_BASE_HEIGHT } from '../common/AppScreenLayout';
 import { KeyboardAvoider } from '../common/KeyboardAvoider';
 import type { TabType } from '../common/FloatingTabBar';
@@ -44,7 +44,7 @@ export default function AlbumPhotosScreenLayout({
   subHeader,
   scrollable = false,
 }: AlbumPhotosScreenLayoutProps) {
-  const insets = useSafeAreaInsets();
+  const insets = useChromeInsets();
   const tabBarPad = TAB_BAR_BASE_HEIGHT + insets.bottom + 6;
 
   // Track keyboard so we can hide the tab bar while typing.

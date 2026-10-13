@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Path, Circle } from 'react-native-svg';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useChromeInsets } from '../../components/common/ChromeSafeAreaView';
 import DeviceInfo from 'react-native-device-info';
 import AppScreenLayout, { tabBarContentPadding, TAB_BAR_BASE_HEIGHT } from '../../components/common/AppScreenLayout';
 import CachedImage from '../../components/common/CachedImage';
@@ -113,7 +113,7 @@ function MenuRow({
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
 export default function MenuScreen({ navigation }: { navigation: any }) {
-  const insets = useSafeAreaInsets();
+  const insets = useChromeInsets();
   const user = useAuthStore((s) => s.user) as any;
   const avatarUpdatedAt = useAuthStore((s) => s.avatarUpdatedAt);
   const { logout, refreshProfile } = useAuth();

@@ -361,15 +361,18 @@ export default function CustomCardPhotosModal({
             ) : null}
           </View>
         </AlbumPhotosScreenLayout>
+        {/* Rendered inside the album Modal: on iOS a sibling Modal would try to
+            present from the root controller, which is already presenting this
+            one, so the sheet would never appear. */}
+        <GalleryUploadSheet
+          visible={showUploadSheet}
+          onClose={() => setShowUploadSheet(false)}
+          onGallery={() => pickPhotos(false)}
+          onCamera={() => pickPhotos(true)}
+          showDrive={false}
+          busy={uploading}
+        />
       </Modal>
-      <GalleryUploadSheet
-        visible={showUploadSheet}
-        onClose={() => setShowUploadSheet(false)}
-        onGallery={() => pickPhotos(false)}
-        onCamera={() => pickPhotos(true)}
-        showDrive={false}
-        busy={uploading}
-      />
     </>
   );
 }

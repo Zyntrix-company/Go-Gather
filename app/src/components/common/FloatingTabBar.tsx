@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import SweeIcon from './SweeIcon';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useChromeInsets } from './ChromeSafeAreaView';
 
 export type TabType = 'trips' | 'events' | 'friends' | 'chat' | 'gallery';
 
@@ -55,7 +55,7 @@ function NavIcon({ name, active, onPress }: { name: TabType; active: boolean; on
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function FloatingTabBar({ activeTab, navigation }: FloatingTabBarProps) {
-  const insets = useSafeAreaInsets();
+  const insets = useChromeInsets();
   // Swee (chat) sits in the centre slot — it is the app's headline feature.
   const tabs: TabType[] = ['trips', 'events', 'chat', 'friends', 'gallery'];
 
