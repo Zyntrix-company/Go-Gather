@@ -613,7 +613,9 @@ const processEventEmailOrPhoneInvite = async ({
       }).catch((err) => logger.error('SES invite email failed', { email, error: err.message }));
     }
 
-    invited.push({ [email ? 'email' : 'phone']: identifier, branchUrl, expiresAt: expiresAt.toISOString() });
+    // shareText is the single source of the invite message; clients send it as-is (SMS/WhatsApp).
+    const shareText = generateInviteShareText({ inviterName, branchUrl, type: 'event', context: eventName });
+    invited.push({ [email ? 'email' : 'phone']: identifier, branchUrl, shareText, expiresAt: expiresAt.toISOString() });
   } catch (err) {
     logger.error('Failed to process event invite', { identifier, error: err.message });
   }

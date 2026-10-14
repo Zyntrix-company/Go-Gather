@@ -14,11 +14,8 @@ import Svg, { Path } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
 import { createFriendInvite, inviteToTrip } from '../../api/trips.api';
 import { inviteToEvent } from '../../api/events.api';
-import useAuthStore from '../../store/authStore';
 import { showAlert } from '../../store/alertStore';
 import {
-  buildEventInviteMessage,
-  buildTripInviteMessage,
   openSms,
   openWhatsAppShare,
 } from '../../utils/inviteShare';
@@ -77,9 +74,7 @@ function ChannelIcon({ channel, active }: { channel: InviteChannel; active: bool
   );
 }
 
-export default function InviteViaChannels({ variant, tripId, tripName, eventId, eventName, onComplete }: Props) {
-  const inviterName = useAuthStore(s => s.user?.fullName || s.user?.profile?.fullName || `A ${APP_BRAND_NAME} user`);
-
+export default function InviteViaChannels({ variant, tripId, eventId, onComplete }: Props) {
   const [channel, setChannel] = useState<InviteChannel>('sms');
   const [emailInput, setEmailInput] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
@@ -120,12 +115,14 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
     if (variant === 'event') {
       if (!eventId) throw new Error('Event not found');
       const res = await inviteToEvent(eventId, { shareOnly: true });
-      return res.shareText ?? buildEventInviteMessage(inviterName, eventName || 'an event', res.invited[0].branchUrl);
+      if (!res.shareText) throw new Error('No invite link returned');
+      return res.shareText;
     }
     if (!tripId) throw new Error('Trip not found');
     const res = await inviteToTrip(tripId, { shareOnly: true });
-    return res.shareText ?? buildTripInviteMessage(inviterName, tripName || 'a trip', res.invited[0].branchUrl);
-  }, [variant, tripId, tripName, eventId, eventName, inviterName]);
+    if (!res.shareText) throw new Error('No invite link returned');
+    return res.shareText;
+  }, [variant, tripId, eventId]);
 
   const fetchSmsOutcome = useCallback(
     async (phone: string): Promise<InviteOutcome> => {
@@ -148,15 +145,11 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
       if (blocked === 'already_member') throw new Error('ALREADY_MEMBER');
       if (blocked === 'already_invited') throw new Error('ALREADY_INVITED');
 
-      const branchUrl = res.invited?.[0]?.branchUrl;
-      if (!branchUrl) throw new Error('No invite link returned');
-      const fallback =
-        variant === 'event'
-          ? buildEventInviteMessage(inviterName, eventName || 'an event', branchUrl)
-          : buildTripInviteMessage(inviterName, tripName || 'a trip', branchUrl);
-      return { kind: 'share', shareText: res.shareText ?? fallback };
+      const shareText = res.invited?.[0]?.shareText;
+      if (!shareText) throw new Error('No invite link returned');
+      return { kind: 'share', shareText };
     },
-    [variant, tripId, tripName, eventId, eventName, inviterName],
+    [variant, tripId, eventId],
   );
 
   async function handleEmailSend() {

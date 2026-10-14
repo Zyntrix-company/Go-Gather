@@ -1,31 +1,11 @@
 import { Linking, Platform } from 'react-native';
 
-import { APP_BRAND_NAME } from '../constants/brand';
-
 /** Digits only, suitable for WhatsApp `phone` param (include country code, no +). */
 export function normalizePhoneDigits(raw: string): string {
   const trimmed = raw.trim();
   const hasPlus = trimmed.startsWith('+');
   const digits = trimmed.replace(/\D/g, '');
   return hasPlus ? digits : digits;
-}
-
-export function buildTripInviteMessage(inviterName: string, tripName: string, branchUrl: string): string {
-  return `${inviterName} is inviting you to join their trip "${tripName}" on ${APP_BRAND_NAME}!
-
-Plan trips together, split expenses, and keep all your travel memories in one place.
-
-Accept the invite:
-${branchUrl}`;
-}
-
-export function buildEventInviteMessage(inviterName: string, eventName: string, branchUrl: string): string {
-  return `${inviterName} is inviting you to "${eventName}" on ${APP_BRAND_NAME}!
-
-Plan trips together, split expenses, and keep all your travel memories in one place.
-
-Accept the invite:
-${branchUrl}`;
 }
 
 export async function openSms(phone: string, body: string): Promise<boolean> {

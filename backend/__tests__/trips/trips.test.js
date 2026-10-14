@@ -331,6 +331,26 @@ describe('Trips Routes', () => {
 
       expect(res.statusCode).toBe(200);
     });
+
+    it('returns the server-built shareText for an invited phone, so clients need no template', async () => {
+      mockTripMemberAdmin();
+      db.query
+        .mockResolvedValueOnce({ rows: [{ full_name: 'Alice' }] })  // inviterName
+        .mockResolvedValueOnce({ rows: [{ name: 'Goa 2026' }], rowCount: 1 })  // trip name
+        .mockResolvedValueOnce({ rows: [] })  // no account for this phone
+        .mockResolvedValueOnce({ rows: [] }); // INSERT trip_invites
+
+      const res = await request(app)
+        .post(`/trips/${TRIP_ID}/invite`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ phones: ['+919876543210'] });
+
+      expect(res.statusCode).toBe(200);
+      const [invited] = res.body.invited;
+      expect(invited.branchUrl).toMatch(/^https:\/\/gatherrgo\.com\/invite\/trip\/[0-9a-f-]{36}$/);
+      expect(invited.shareText).toContain('Alice is inviting you to join their trip "Goa 2026" on GatherrGo!');
+      expect(invited.shareText).toContain(invited.branchUrl);
+    });
   });
 
   // ── GET /trips/invite/:token ───────────────────────────────────────────────
