@@ -103,6 +103,14 @@ jobs:
             echo "WARNING: APPLE_PRIVATE_KEY_B64 secret not set — Apple token revocation disabled"
           fi
 
+          # ── 2e. Invite link base URL ──────────────────────────────────────────
+          # Invite links are built as {APP_DEEP_LINK_BASE_URL}/invite/{type}/{token}.
+          # Pinned on every deploy so a stale value (the dead gathergo.app domain)
+          # in the server's .env can't leak into production invites again.
+          sed -i '/^APP_DEEP_LINK_BASE_URL=/d' "$ENV_FILE" || true
+          echo "APP_DEEP_LINK_BASE_URL=https://gatherrgo.com" >> "$ENV_FILE"
+          echo "APP_DEEP_LINK_BASE_URL pinned to https://gatherrgo.com"
+
           # Brevo (BREVO_*) is managed only in $ENV_FILE on the server — deploy never touches it.
 
           # ── 3. Free disk space — remove images not used by a running container ──
