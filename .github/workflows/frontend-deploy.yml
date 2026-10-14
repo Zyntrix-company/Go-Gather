@@ -31,6 +31,9 @@ jobs:
       env:
         VITE_API_URL: https://api.gatherrgo.com
         VITE_CONTACT_RECEIVER_EMAIL: Hello@GatherrGo.com
+        # Numeric App Store ID, set as a repository variable once the app has an App Store
+        # listing. Enables the Smart App Banner on invite pages; omitted while unset.
+        VITE_APP_STORE_ID: ${{ vars.APP_STORE_ID }}
       run: npm run build
 
     - name: Configure AWS credentials
