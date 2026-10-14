@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, ScrollView, Image,
-  Dimensions, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, FlatList,
+  Dimensions, useWindowDimensions, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, FlatList,
 } from 'react-native';
 import { showConfirm } from '../../store/alertStore';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
@@ -41,6 +41,7 @@ import DrivePhotoPickerGrid from '../../components/gallery/DrivePhotoPickerGrid'
 import { drivePhotoSelectCap, toggleDriveFileSelection } from '../../utils/drivePickerSelection';
 import GalleryAlbumSubHeader from '../../components/gallery/GalleryAlbumSubHeader';
 import GalleryUploadSheet from '../../components/gallery/GalleryUploadSheet';
+import { TripAlbumsEmptyIllustration, EventAlbumsEmptyIllustration } from '../../components/gallery/GalleryEmptyIllustrations';
 import GalleryTravelersRow, { type GalleryTraveler } from '../../components/gallery/GalleryTravelersRow';
 import GalleryEngagementSection from '../../components/gallery/GalleryEngagementSection';
 import GalleryAlbumDescription from '../../components/gallery/GalleryAlbumDescription';
@@ -155,14 +156,40 @@ function GridCard({ item, onPress, chip }: { item: any; onPress: () => void; chi
 
 // ─── Empty card ─────────────────────────────────────────────────────────────
 
-// Text only — the section header's + button is the create action.
-function EmptyAlbumPrompt({ kind }: { kind: 'trip' | 'event' }) {
+const EMPTY_PROMPT_COPY = {
+  trip: {
+    title: 'Create your first trip album',
+    body: "Bring your group's travel photos and memories together in one place.",
+    cta: 'Create trip album',
+  },
+  event: {
+    title: 'Create your first event album',
+    body: 'Keep photos from celebrations and special occasions together in one place.',
+    cta: 'Create event album',
+  },
+} as const;
+
+// Illustration width tracks the screen height so both empty sections — each
+// with its CTA — fit above the tab bar in one view on typical phones, and grow
+// on taller screens/tablets. Also capped by width for narrow devices.
+function emptyIllustrationWidth(screenW: number, screenH: number) {
+  return Math.round(Math.min(Math.max(screenH * 0.16, 110), 220, screenW * 0.55));
+}
+
+function EmptyAlbumPrompt({ kind, onCreate }: { kind: 'trip' | 'event'; onCreate: () => void }) {
+  const copy = EMPTY_PROMPT_COPY[kind];
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  const illusWidth = emptyIllustrationWidth(screenW, screenH);
   return (
     <View style={styles.emptyPrompt}>
-      <Text style={styles.emptyPromptTitle}>No {kind} albums yet</Text>
-      <Text style={styles.emptyPromptSub}>
-        {kind === 'trip' ? 'Keep the memories from your trips in one place.' : 'Save the best moments from your events.'}
-      </Text>
+      {kind === 'trip'
+        ? <TripAlbumsEmptyIllustration width={illusWidth} />
+        : <EventAlbumsEmptyIllustration width={illusWidth} />}
+      <Text style={styles.emptyPromptTitle}>{copy.title}</Text>
+      <Text style={styles.emptyPromptSub}>{copy.body}</Text>
+      <TouchableOpacity style={styles.emptyPromptBtn} onPress={onCreate} activeOpacity={0.85}>
+        <Text style={styles.emptyPromptBtnText}>{copy.cta}</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -1283,7 +1310,7 @@ export default function GalleryTab({
                 />
               ))}
               {displayTrips.length === 0 && customTripCards.length === 0 && (
-                <EmptyAlbumPrompt kind="trip" />
+                <EmptyAlbumPrompt kind="trip" onCreate={() => setShowCreateCard('trip')} />
               )}
             </View>
 
@@ -1312,7 +1339,7 @@ export default function GalleryTab({
                 />
               ))}
               {galleryEvents.length === 0 && customEventCards.length === 0 && (
-                <EmptyAlbumPrompt kind="event" />
+                <EmptyAlbumPrompt kind="event" onCreate={() => setShowCreateCard('event')} />
               )}
             </View>
           </>
@@ -1436,11 +1463,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Same height as the old empty tile (and a grid card), so the Events header
-  // stays where it was when the Trips section is empty.
-  emptyPrompt: { width: '100%', height: 140, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  emptyPromptTitle: { fontSize: 11, fontWeight: '500', color: '#64748b' },
-  emptyPromptSub: { fontSize: 10, color: '#94a3b8', lineHeight: 14, textAlign: 'center' },
+  emptyPrompt: { width: '100%', alignItems: 'center', paddingBottom: 4 },
+  emptyPromptTitle: { fontSize: 14, fontWeight: '600', color: '#0F172B', textAlign: 'center', marginTop: 6 },
+  emptyPromptSub: { fontSize: 12, color: '#64748b', lineHeight: 16, textAlign: 'center', maxWidth: 290, marginTop: 3 },
+  // Matches the Home screen action buttons.
+  emptyPromptBtn: {
+    marginTop: 10,
+    backgroundColor: '#009788',
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyPromptBtnText: { color: '#fff', fontSize: 13, fontWeight: '500' },
 
   // Modal
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 },
