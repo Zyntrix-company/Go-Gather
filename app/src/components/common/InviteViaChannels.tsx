@@ -28,6 +28,7 @@ import {
   requestContactsPermission,
   type PickableContact,
 } from '../../utils/contactsAccess';
+import { APP_BRAND_NAME } from '../../constants/brand';
 
 export type InviteChannel = 'email' | 'sms' | 'whatsapp';
 
@@ -77,7 +78,7 @@ function ChannelIcon({ channel, active }: { channel: InviteChannel; active: bool
 }
 
 export default function InviteViaChannels({ variant, tripId, tripName, eventId, eventName, onComplete }: Props) {
-  const inviterName = useAuthStore(s => s.user?.fullName || s.user?.profile?.fullName || 'A GatherGo user');
+  const inviterName = useAuthStore(s => s.user?.fullName || s.user?.profile?.fullName || `A ${APP_BRAND_NAME} user`);
 
   const [channel, setChannel] = useState<InviteChannel>('sms');
   const [emailInput, setEmailInput] = useState('');
@@ -195,7 +196,7 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
         text1: onGatherGo ? 'Request sent!' : 'Invite sent!',
         text2: onGatherGo
           ? "They'll see it in their Requests — you'll be notified once they approve"
-          : 'They will get an email with a link to join GatherGo',
+          : `They will get an email with a link to join ${APP_BRAND_NAME}`,
       });
       setEmailInput('');
       onComplete?.();
@@ -237,7 +238,7 @@ export default function InviteViaChannels({ variant, tripId, tripName, eventId, 
         Toast.show({
           type: 'success',
           text1: `Request sent${outcome.name ? ` to ${outcome.name}` : ''}`,
-          text2: "They're on GatherGo — it's waiting in their Requests",
+          text2: `They're on ${APP_BRAND_NAME} — it's waiting in their Requests`,
         });
         onComplete?.();
         return;

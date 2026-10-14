@@ -5,6 +5,7 @@ import colors from '../../theme/colors';
 import { validateInvite, claimInvite, type InvitePreview, type InviteType } from '../../api/invites.api';
 import { handleApiError } from '../../api/trips.api';
 import Toast from 'react-native-toast-message';
+import { APP_BRAND_NAME } from '../../constants/brand';
 
 type Props = {
   navigation: any;
@@ -28,7 +29,7 @@ function headline(preview: InvitePreview): string {
     const eventName = preview.context?.eventName;
     return `${name} invited you to${eventName ? ` "${eventName}"` : ' an event'}`;
   }
-  return `${name} wants to be your friend on GatherGo`;
+  return `${name} wants to be your friend on ${APP_BRAND_NAME}`;
 }
 
 export default function AcceptInviteScreen({ navigation, route }: Props) {

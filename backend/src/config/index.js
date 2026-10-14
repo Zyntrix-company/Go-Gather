@@ -100,6 +100,11 @@ module.exports = {
   // ─── Token Encryption (AES-256-GCM) ──────────
   tokenEncryptionKey: process.env.TOKEN_ENCRYPTION_KEY,
 
+  // ─── Brand ───────────────────────────────────
+  // Canonical user-facing spelling. Two r's: Gathe-rr-Go. The bundle id
+  // (com.gathergo.app) keeps one r and is an identifier, not brand text.
+  brandName: 'GatherrGo',
+
   // ─── App URLs ────────────────────────────────
   clientUrl: process.env.CLIENT_URL || 'http://localhost:3001',
   websiteUrl: process.env.WEBSITE_URL || 'https://www.gatherrgo.com',

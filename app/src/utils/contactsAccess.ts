@@ -1,5 +1,6 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 import Contacts, { Contact } from 'react-native-contacts';
+import { APP_BRAND_NAME } from '../constants/brand';
 
 export type ContactPhone = { number: string; label: string };
 
@@ -16,7 +17,7 @@ export async function requestContactsPermission(): Promise<boolean> {
       PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
       {
         title: 'Contacts',
-        message: 'GatherGo needs access to your contacts so you can invite friends via SMS or WhatsApp.',
+        message: `${APP_BRAND_NAME} needs access to your contacts so you can invite friends via SMS or WhatsApp.`,
         buttonPositive: 'Allow',
         buttonNegative: 'Deny',
       },

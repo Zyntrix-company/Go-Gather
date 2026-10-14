@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Text, View, StyleSheet, Animated } from 'react-native';
 import { colors } from '../../theme/colors';
 
-const APP_BRAND_NAME = 'GatherrGo';
+import { APP_BRAND_NAME } from '../../constants/brand';
 const BRAND_SPLIT = new RegExp(`(${APP_BRAND_NAME})`, 'gi');
 
 function sanitizeSweeDisplayText(text: string): string {

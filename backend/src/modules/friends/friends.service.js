@@ -183,7 +183,7 @@ const respondFriendRequest = async (currentUserId, connectionId, action) => {
       conn.requester_id,
       {
         title: `${accepterName} accepted your friend request!`,
-        body: "You're now connected on GatherGo",
+        body: `You're now connected on ${config.brandName}`,
       },
       'FRIEND_ACCEPTED',
       { connectionId, userId: currentUserId, screen: 'friends' },
@@ -354,7 +354,7 @@ const createFriendInvite = async (inviterId, { channels, emails = [], phones = [
     'SELECT full_name FROM profiles WHERE user_id = $1',
     [inviterId],
   );
-  const inviterName = inviterResult.rows[0]?.full_name || 'A GatherGo user';
+  const inviterName = inviterResult.rows[0]?.full_name || `A ${config.brandName} user`;
 
   // Anyone we were given who already has an account gets a real friend request —
   // it lands in their Requests tab. Only the rest need an invite link.
@@ -429,7 +429,7 @@ const createFriendInvite = async (inviterId, { channels, emails = [], phones = [
     for (const email of pendingEmails) {
       sendEmail({
         to: email,
-        subject: `${inviterName} invited you to GatherGo`,
+        subject: `${inviterName} invited you to ${config.brandName}`,
         html: wrapEmail(`
           <h2 style="margin:0 0 10px 0; font-size:22px; font-weight:700; color:#111827;">
             You&rsquo;re invited to Gatherrgo!

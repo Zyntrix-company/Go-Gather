@@ -196,7 +196,7 @@ const createEvent = async (userId, body) => {
       );
       createAndSendNotifications(
         usersResult.rows,
-        { title: `${name} — ${inviterName} added you!`, body: 'Open GatherGo to see the event' },
+        { title: `${name} — ${inviterName} added you!`, body: `Open ${config.brandName} to see the event` },
         'EVENT_MEMBER_ADDED',
         { eventId: event.id, screen: 'events' },
       );
@@ -216,7 +216,7 @@ const createEvent = async (userId, body) => {
           );
           await sendEmail({
             to: email,
-            subject: `${inviterName} invited you to "${name}" on GatherGo`,
+            subject: `${inviterName} invited you to "${name}" on ${config.brandName}`,
             html: buildInviteEmail({ inviterName, eventName: name, deepLink: branchUrl, expiresAt }),
             text: `${inviterName} invited you to join "${name}". Accept: ${branchUrl}`,
           });
@@ -607,7 +607,7 @@ const processEventEmailOrPhoneInvite = async ({
     if (email) {
       sendEmail({
         to: email,
-        subject: `${inviterName} invited you to "${eventName}" on GatherGo`,
+        subject: `${inviterName} invited you to "${eventName}" on ${config.brandName}`,
         html: buildInviteEmail({ inviterName, eventName, deepLink: branchUrl, expiresAt }),
         text: `${inviterName} invited you to join "${eventName}". Accept: ${branchUrl}`,
       }).catch((err) => logger.error('SES invite email failed', { email, error: err.message }));

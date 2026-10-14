@@ -1,4 +1,5 @@
 const { query: db, getClient } = require('../../config/database');
+const config = require('../../config');
 const { createAndSendNotification, createAndSendNotifications, notifySafely } = require('../../utils/fcm.util');
 const logger = require('../../utils/logger');
 const { phoneKey } = require('../../utils/phone.util');
@@ -248,7 +249,7 @@ const claimFriendInvite = async (token, claimantId, _preloaded) => {
     notifySafely(() => createAndSendNotification(
       inviterId,
       {
-        title: `${claimantName} wants to be your friend on GatherGo`,
+        title: `${claimantName} wants to be your friend on ${config.brandName}`,
         body: 'Tap to accept or decline',
       },
       'FRIEND_REQUEST',

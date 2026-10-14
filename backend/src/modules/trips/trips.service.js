@@ -189,7 +189,7 @@ const createTrip = async (userId, body) => {
       );
       createAndSendNotifications(
         usersResult.rows,
-        { title: `${name} — ${inviterName} added you!`, body: 'Open GatherGo to see the trip' },
+        { title: `${name} — ${inviterName} added you!`, body: `Open ${config.brandName} to see the trip` },
         'TRIP_MEMBER_ADDED',
         { tripId: trip.id, screen: 'trips' },
       );
@@ -209,7 +209,7 @@ const createTrip = async (userId, body) => {
           );
           await sendEmail({
             to: email,
-            subject: `${inviterName} invited you to "${name}" on GatherGo`,
+            subject: `${inviterName} invited you to "${name}" on ${config.brandName}`,
             html: buildInviteEmail({ inviterName, tripName: name, deepLink: branchUrl, expiresAt }),
             text: `${inviterName} invited you to join "${name}". Accept: ${branchUrl}`,
           });
@@ -799,7 +799,7 @@ const processEmailOrPhoneInvite = async ({
     if (email) {
       sendEmail({
         to: email,
-        subject: `${inviterName} invited you to "${tripName}" on GatherGo`,
+        subject: `${inviterName} invited you to "${tripName}" on ${config.brandName}`,
         html: buildInviteEmail({ inviterName, tripName, deepLink: branchUrl, expiresAt }),
         text: `${inviterName} invited you to join "${tripName}". Accept: ${branchUrl}`,
       }).catch((err) => logger.error('SES invite email failed', { email, error: err.message }));
