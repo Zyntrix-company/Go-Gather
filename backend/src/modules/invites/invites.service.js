@@ -6,10 +6,19 @@ const { phoneKey } = require('../../utils/phone.util');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const getInstallLinks = () => {
+// Play Install Referrer carries this through the install so the app can resume the
+// invite on first launch. Only a Play Store URL can carry it — an APK link cannot.
+// The app parses it back in app/src/utils/installReferrer.ts (`invite={type}/{token}`).
+const withInstallReferrer = (url, type, token) => {
+  if (!url || !/^https:\/\/play\.google\.com\//.test(url)) return url;
+  const referrer = encodeURIComponent(`invite=${type}/${token}`);
+  return `${url}${url.includes('?') ? '&' : '?'}referrer=${referrer}`;
+};
+
+const getInstallLinks = (type, token) => {
   const isLive = process.env.APP_IS_LIVE === 'true';
   return {
-    android: isLive ? process.env.ANDROID_STORE_URL : process.env.ANDROID_APK_URL,
+    android: withInstallReferrer(isLive ? process.env.ANDROID_STORE_URL : process.env.ANDROID_APK_URL, type, token),
     ios:     isLive ? process.env.IOS_STORE_URL     : process.env.IOS_TESTFLIGHT_URL,
   };
 };
@@ -99,7 +108,7 @@ const validateInvite = async (token) => {
       tripName:  type === 'trip'  ? (row.context_name || null) : null,
       eventName: type === 'event' ? (row.context_name || null) : null,
     },
-    installLinks: getInstallLinks(),
+    installLinks: getInstallLinks(type, token),
   };
 };
 

@@ -21,6 +21,7 @@ import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { loadUploadLimits } from './src/utils/uploadLimits';
 import useAuthStore from './src/store/authStore';
 import usePendingInviteStore, { PendingInvite } from './src/store/pendingInviteStore';
+import { applyInstallReferrer } from './src/utils/installReferrer';
 
 // Configure geolocation to use native Android location provider
 Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLevel: 'whenInUse' });
@@ -115,6 +116,12 @@ function App() {
       if (invite) usePendingInviteStore.getState().setPendingInvite(invite);
     });
     return () => subscription.remove();
+  }, []);
+
+  // First launch after a Play Store install: recover the invite the recipient tapped
+  // before they had the app.
+  useEffect(() => {
+    applyInstallReferrer();
   }, []);
 
   // Consume a pending invite link once the user is authenticated, past splash,

@@ -116,6 +116,31 @@ describe('Invites Routes', () => {
       expect(res.body).toHaveProperty('expiresAt');
     });
 
+    it('appends the invite as a Play Install Referrer to the Play Store link when live', async () => {
+      process.env.APP_IS_LIVE = 'true';
+      try {
+        db.query.mockResolvedValueOnce({ rows: [validFriendInviteRow] });
+
+        const res = await request(app).get('/invites/validate/validfriendtoken');
+
+        expect(res.body.installLinks.android).toBe(
+          'https://play.google.com/store/apps/details?id=com.gathergo.app&referrer=invite%3Dfriend%2Fvalidfriendtoken',
+        );
+        // iOS has no deferred deep link, so its link stays untouched.
+        expect(res.body.installLinks.ios).toBe('https://apps.apple.com/app/gathergo/id123456');
+      } finally {
+        process.env.APP_IS_LIVE = 'false';
+      }
+    });
+
+    it('leaves the APK download link untouched when not live', async () => {
+      db.query.mockResolvedValueOnce({ rows: [validFriendInviteRow] });
+
+      const res = await request(app).get('/invites/validate/validfriendtoken');
+
+      expect(res.body.installLinks.android).toBe('https://test.example.com/test.apk');
+    });
+
     it('returns valid=true for valid trip invite', async () => {
       db.query
         .mockResolvedValueOnce({ rows: [] })             // no friend invite match
