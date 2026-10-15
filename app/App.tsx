@@ -121,7 +121,8 @@ function App() {
   // First launch after a Play Store install: recover the invite the recipient tapped
   // before they had the app.
   useEffect(() => {
-    applyInstallReferrer();
+    // Restore an invite stashed before a kill first, so a fresh referrer doesn't race it.
+    usePendingInviteStore.getState().hydratePendingInvite().then(applyInstallReferrer);
   }, []);
 
   // Consume a pending invite link once the user is authenticated, past splash,

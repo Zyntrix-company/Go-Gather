@@ -1,5 +1,10 @@
 import { parseInstallReferrer } from '../src/utils/installReferrer';
 
+// The module under test imports pendingInviteStore, which persists via AsyncStorage.
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);
+
 const TOKEN = '3f2b8c1e-9a47-4d6e-b1f0-5c7a2e9d4b10';
 
 describe('parseInstallReferrer', () => {

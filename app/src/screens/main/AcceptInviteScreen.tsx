@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import AppScreenLayout from '../../components/common/AppScreenLayout';
+import Avatar from '../../components/common/Avatar';
 import colors from '../../theme/colors';
 import { validateInvite, claimInvite, type InvitePreview, type InviteType } from '../../api/invites.api';
-import { handleApiError } from '../../api/trips.api';
+import { handleApiError, parseError } from '../../api/trips.api';
+import useAuth from '../../hooks/useAuth';
+import useAuthStore from '../../store/authStore';
+import usePendingInviteStore from '../../store/pendingInviteStore';
 import Toast from 'react-native-toast-message';
 import { APP_BRAND_NAME } from '../../constants/brand';
 
@@ -38,6 +42,9 @@ export default function AcceptInviteScreen({ navigation, route }: Props) {
   const [accepting, setAccepting] = useState(false);
   const [preview, setPreview] = useState<InvitePreview | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const { logout } = useAuth();
+  const myName = useAuthStore(s => s.user?.fullName || s.user?.profile?.fullName || null);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,11 +63,22 @@ export default function AcceptInviteScreen({ navigation, route }: Props) {
     };
   }, [token]);
 
+  // Sign out but keep the invite, so it resumes under whichever account signs in next.
+  const handleSwitchAccount = async () => {
+    const invite = { type: route.params.type, token };
+    await logout();
+    usePendingInviteStore.getState().setPendingInvite(invite);
+  };
+
   const handleAccept = async () => {
     setAccepting(true);
+    setClaimError(null);
     try {
       const result = await claimInvite(token);
-      if (result.type === 'trip') {
+      if (result.type === 'friend' && result.status === 'accepted') {
+        Toast.show({ type: 'success', text1: "You're already friends" });
+        navigation.goBack();
+      } else if (result.type === 'trip') {
         navigation.replace('TripDetail', { trip: { id: result.tripId } });
       } else if (result.type === 'event') {
         navigation.replace('EventDetail', { event: { id: result.eventId } });
@@ -69,7 +87,16 @@ export default function AcceptInviteScreen({ navigation, route }: Props) {
         navigation.replace('Notifications', { initialTab: 'requests' });
       }
     } catch (err) {
-      handleApiError(err);
+      const code = parseError(err).error;
+      if (code === 'SELF_CLAIM') {
+        setClaimError('This is your own invite link. Send it to a friend instead.');
+      } else if (code === 'INVALID_INVITE') {
+        setClaimError('This invite has expired or has already been used. Ask them to send you a new one.');
+      } else if (code === 'FORBIDDEN') {
+        setClaimError(`This invite was sent to a different account${myName ? `, and you're signed in as ${myName}` : ''}.`);
+      } else {
+        handleApiError(err);
+      }
     } finally {
       setAccepting(false);
     }
@@ -94,12 +121,9 @@ export default function AcceptInviteScreen({ navigation, route }: Props) {
 
         {!loading && preview && preview.valid && (
           <>
-            {preview.invitedBy?.avatarUrl ? (
-              <Image source={{ uri: preview.invitedBy.avatarUrl }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder]} />
-            )}
+            <Avatar uri={preview.invitedBy?.avatarUrl} size={88} />
             <Text style={styles.headline}>{headline(preview)}</Text>
+            {claimError && <Text style={styles.claimError}>{claimError}</Text>}
 
             <TouchableOpacity
               style={[styles.acceptBtn, accepting && styles.acceptBtnDisabled]}
@@ -118,6 +142,14 @@ export default function AcceptInviteScreen({ navigation, route }: Props) {
             <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>
               <Text style={styles.declineText}>Not now</Text>
             </TouchableOpacity>
+
+            {myName && (
+              <TouchableOpacity onPress={handleSwitchAccount} activeOpacity={0.7}>
+                <Text style={styles.accountText}>
+                  Signed in as {myName}. <Text style={styles.accountLink}>Not you? Switch account</Text>
+                </Text>
+              </TouchableOpacity>
+            )}
           </>
         )}
       </View>
@@ -133,15 +165,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     paddingBottom: 80,
     gap: 16,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    marginBottom: 4,
-  },
-  avatarPlaceholder: {
-    backgroundColor: colors.secondary,
   },
   headline: {
     fontSize: 18,
@@ -173,6 +196,21 @@ const styles = StyleSheet.create({
     color: colors.accentForeground,
     fontSize: 16,
     fontWeight: '700',
+  },
+  claimError: {
+    fontSize: 14,
+    color: colors.error,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  accountText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  accountLink: {
+    color: colors.accent,
+    fontWeight: '600',
   },
   declineText: {
     color: colors.textMuted,
