@@ -5,9 +5,18 @@ export type InvitePreview = {
   reason?: 'NOT_FOUND' | 'ALREADY_CLAIMED' | 'EXPIRED';
   type?: InviteType;
   token?: string;
-  expiresAt?: string;
+  /** null for a reusable trip/event share link — those never expire. */
+  expiresAt?: string | null;
   invitedBy?: { name: string | null; avatarUrl: string | null };
-  context?: { tripName: string | null; eventName: string | null };
+  context?: {
+    tripName: string | null;
+    eventName: string | null;
+    // trip / event only. The page is public, so this is a head-count — never member names.
+    startDate?: string | null;
+    endDate?: string | null;
+    locationName?: string | null;
+    memberCount?: number | null;
+  };
   installLinks?: { android?: string; ios?: string };
 };
 

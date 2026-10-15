@@ -2,7 +2,7 @@ import React from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link, useParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, PartyPopper, Smartphone, Download } from 'lucide-react';
+import { ArrowLeft, PartyPopper, Smartphone, Download, Calendar, MapPin, Users } from 'lucide-react';
 import SEO from '../components/SEO';
 import { fetchInvitePreview, type InvitePreview, type InviteType } from '../lib/inviteApi';
 
@@ -22,6 +22,27 @@ const REASON_COPY: Record<NonNullable<InvitePreview['reason']>, string> = {
   ALREADY_CLAIMED: 'This invite has already been accepted.',
   EXPIRED: 'This invite link has expired. Ask them to send you a new one.',
 };
+
+// Dates arrive as ISO strings (a bare date or a midnight timestamp). Read the calendar day
+// as written rather than through a Date, so the viewer's timezone can't shift it.
+function parseDay(iso?: string | null): Date | null {
+  if (!iso) return null;
+  const [y, m, d] = iso.split('T')[0].split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+function formatDateRange(start?: string | null, end?: string | null): string | null {
+  const from = parseDay(start);
+  if (!from) return null;
+  const to = parseDay(end) ?? from;
+  const fmt = (d: Date, withYear: boolean) =>
+    d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}) });
+  if (to.getTime() === from.getTime()) return fmt(from, true);
+  return from.getFullYear() === to.getFullYear()
+    ? `${fmt(from, false)} – ${fmt(to, true)}`
+    : `${fmt(from, true)} – ${fmt(to, true)}`;
+}
 
 // The inviter's photo, falling back to the party icon if it is missing or fails to load.
 function InviterBadge({ avatarUrl, name }: { avatarUrl?: string | null; name: string }) {
@@ -116,6 +137,17 @@ export default function Invite() {
   const inviterName = preview.invitedBy?.name || 'Someone';
   const contextName = inviteType === 'trip' ? preview.context?.tripName ?? null : preview.context?.eventName ?? null;
   const headline = TYPE_COPY[inviteType](inviterName, contextName);
+  // Trips and events show what they are; a friend link has nothing more to say.
+  const details: { icon: React.ElementType; text: string }[] = [];
+  if (inviteType !== 'friend') {
+    const when = formatDateRange(preview.context?.startDate, preview.context?.endDate);
+    if (when) details.push({ icon: Calendar, text: when });
+    if (preview.context?.locationName) details.push({ icon: MapPin, text: preview.context.locationName });
+    const count = preview.context?.memberCount;
+    if (typeof count === 'number' && count > 0) {
+      details.push({ icon: Users, text: `${count} ${count === 1 ? 'member' : 'members'}` });
+    }
+  }
   const inviteUrl = `${INVITE_ORIGIN}/invite/${inviteType}/${token ?? ''}`;
   const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const isIos = /iPad|iPhone|iPod/.test(userAgent);
@@ -155,6 +187,16 @@ export default function Invite() {
       >
         <InviterBadge avatarUrl={preview.invitedBy?.avatarUrl} name={inviterName} />
         <h1 className="text-2xl font-bold text-slate-900 leading-snug">{headline}</h1>
+        {details.length > 0 && (
+          <ul className="flex flex-col items-center gap-2 text-sm text-slate-600">
+            {details.map(({ icon: Icon, text }) => (
+              <li key={text} className="inline-flex items-center gap-2">
+                <Icon className="w-4 h-4 text-teal-600" aria-hidden />
+                {text}
+              </li>
+            ))}
+          </ul>
+        )}
         <p className="text-sm text-slate-500">
           Open this link on your phone with GatherrGo installed to accept — or get the app below.
         </p>
