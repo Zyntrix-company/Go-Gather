@@ -3,6 +3,7 @@ const config = require('../../config');
 const { createAndSendNotification, createAndSendNotifications, notifySafely } = require('../../utils/fcm.util');
 const logger = require('../../utils/logger');
 const { phoneKey } = require('../../utils/phone.util');
+const { normalizeAvatarUrl } = require('../../utils/avatarUrl.util');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -44,7 +45,7 @@ const findInviteByToken = async (token) => {
   // Trip invite
   const tripResult = await db(
     `SELECT ti.id, ti.invited_by, ti.expires_at, ti.accepted_at AS claimed_at,
-            ti.user_id AS claimed_by, ti.trip_id,
+            ti.user_id AS claimed_by, ti.status, ti.trip_id,
             t.name AS context_name,
             p.full_name AS inviter_name, p.avatar_url AS inviter_avatar
      FROM trip_invites ti
@@ -60,7 +61,7 @@ const findInviteByToken = async (token) => {
   // Event invite
   const eventResult = await db(
     `SELECT ei.id, ei.invited_by, ei.expires_at, ei.accepted_at AS claimed_at,
-            ei.user_id AS claimed_by, ei.event_id,
+            ei.user_id AS claimed_by, ei.status, ei.event_id,
             e.name AS context_name,
             p.full_name AS inviter_name, p.avatar_url AS inviter_avatar
      FROM event_invites ei
@@ -87,7 +88,8 @@ const validateInvite = async (token) => {
 
   const { row, type } = found;
 
-  if (row.claimed_at) {
+  // A declined request is as used-up as an accepted one.
+  if (row.claimed_at || row.status === 'declined') {
     return { valid: false, reason: 'ALREADY_CLAIMED' };
   }
 
@@ -102,7 +104,7 @@ const validateInvite = async (token) => {
     expiresAt: row.expires_at,
     invitedBy: {
       name:      row.inviter_name   || null,
-      avatarUrl: row.inviter_avatar || null,
+      avatarUrl: normalizeAvatarUrl(row.inviter_avatar),
     },
     context: {
       tripName:  type === 'trip'  ? (row.context_name || null) : null,

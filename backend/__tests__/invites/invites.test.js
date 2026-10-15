@@ -116,6 +116,41 @@ describe('Invites Routes', () => {
       expect(res.body).toHaveProperty('expiresAt');
     });
 
+    it('serves the inviter avatar via CloudFront, not a legacy/expired S3 URL', async () => {
+      db.query.mockResolvedValueOnce({
+        rows: [{
+          ...validFriendInviteRow,
+          inviter_avatar: 'https://bucket.s3.ap-south-1.amazonaws.com/avatars/bob.jpg?X-Amz-Expires=900&X-Amz-Signature=abc',
+        }],
+      });
+
+      const res = await request(app).get('/invites/validate/validfriendtoken');
+
+      expect(res.body.invitedBy.avatarUrl).toBe('https://test.cloudfront.net/avatars/bob.jpg');
+    });
+
+    it('returns a null avatar for a malformed stored URL so clients show the placeholder', async () => {
+      db.query.mockResolvedValueOnce({
+        rows: [{ ...validFriendInviteRow, inviter_avatar: 'https://undefined/avatars/bob.jpg' }],
+      });
+
+      const res = await request(app).get('/invites/validate/validfriendtoken');
+
+      expect(res.body.valid).toBe(true);
+      expect(res.body.invitedBy.avatarUrl).toBeNull();
+    });
+
+    it('treats a declined trip invite as already used', async () => {
+      db.query
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ ...validTripInviteRow, status: 'declined' }] });
+
+      const res = await request(app).get('/invites/validate/declinedtoken');
+
+      expect(res.body.valid).toBe(false);
+      expect(res.body.reason).toBe('ALREADY_CLAIMED');
+    });
+
     it('appends the invite as a Play Install Referrer to the Play Store link when live', async () => {
       process.env.APP_IS_LIVE = 'true';
       try {
