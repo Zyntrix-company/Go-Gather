@@ -35,6 +35,15 @@ class InstallReferrerModule(reactContext: ReactApplicationContext) :
       return
     }
 
+    // Play keeps an install's referrer for up to 90 days, so an existing user updating to
+    // this version would otherwise replay a long-dead invite. Past the invite lifetime the
+    // token is expired anyway, so skip the read for good.
+    if (installAgeMs() > INVITE_LIFETIME_MS) {
+      prefs.edit().putBoolean(KEY_CONSUMED, true).apply()
+      promise.resolve(null)
+      return
+    }
+
     val client = InstallReferrerClient.newBuilder(reactApplicationContext).build()
     val settled = AtomicBoolean(false)
 
@@ -71,8 +80,18 @@ class InstallReferrerModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  private fun installAgeMs(): Long =
+    try {
+      val ctx = reactApplicationContext
+      System.currentTimeMillis() - ctx.packageManager.getPackageInfo(ctx.packageName, 0).firstInstallTime
+    } catch (_: Exception) {
+      0L
+    }
+
   private companion object {
     const val PREFS = "gathergo_install_referrer"
     const val KEY_CONSUMED = "consumed"
+    // Matches the server-side invite expiry (7 days).
+    const val INVITE_LIFETIME_MS = 7L * 24 * 60 * 60 * 1000
   }
 }
