@@ -22,7 +22,7 @@ app/
 │   │   └── main/         # ChatDetail (Swee), Notifications, NotificationSettings, Profile,
 │   │                     #   EditProfile, FriendProfile, Settings, ChangePassword,
 │   │                     #   DeleteAccount, ConnectedEmail, PersonalDocuments, Support,
-│   │                     #   Faq, Legal, AcceptInvite
+│   │                     #   Faq, Legal
 │   ├── navigation/       # RootNavigator, AuthStack, MainStack
 │   ├── store/            # Zustand: auth, notifications, notificationSettings, chat,
 │   │                     #   alert, pendingInvite, uploadLimits
@@ -95,7 +95,6 @@ app/
 | `ChatDetailScreen` | Swee AI assistant (Gemini 2.5 Flash on the backend): conversations, trip/event context, form-driven create/edit cards, document/photo attachments. |
 | `NotificationsScreen` / `NotificationSettingsScreen` | In-app feed and per-category preferences. |
 | `FriendsScreen` / `FriendProfileScreen` | Friends, requests, user search, public profile. |
-| `AcceptInviteScreen` | Handles trip / event / friend invite links. |
 | `MenuScreen` | Full-screen menu opened from the hamburger: Profile, Settings, Support, Legal. |
 | `ProfileScreen` / `EditProfileScreen` | View and edit own profile. |
 | `SettingsScreen` | Notifications, connected email, change password, delete account. |
@@ -119,8 +118,7 @@ RootNavigator
     ├── Notifications, NotificationSettings
     ├── Menu, Profile, EditProfile, FriendProfile
     ├── Settings, ChangePassword, DeleteAccount, ConnectedEmail, PersonalDocuments
-    ├── Support, Faq, Legal, HowItWorks
-    └── AcceptInvite
+    └── Support, Faq, Legal, HowItWorks
 ```
 
 ---
@@ -211,7 +209,7 @@ npm run ios
 
 - **Styling:** uses NativeWind — write `className="..."` Tailwind classes directly on RN components. Theme colours are in `src/theme/colors.ts`.
 - **Forms:** all forms use React Hook Form with Zod schemas for validation.
-- **Deep links:** invites use native **Universal Links (iOS) / App Links (Android)** on `https://gatherrgo.com/invite/{trip|event|friend}/{token}` (also `gathergo://invite/...`). `App.tsx` parses the URL, stores a pending invite if logged out, and `AcceptInviteScreen` calls `POST /invites/claim/:token`. No third-party SDK.
+- **Deep links:** invites use native **Universal Links (iOS) / App Links (Android)** on `https://gatherrgo.com/invite/{trip|event|friend}/{token}` (also `gathergo://invite/...`). `App.tsx` parses the URL, stores a pending invite if logged out, and once signed in calls `POST /invites/open/:token`, which leaves a pending request (friend, or trip/event shown in the invite popup over Requests). No third-party SDK.
 - **Google Sign-In:** needs the Google web client ID and `google-services.json` (Android) / `GoogleService-Info.plist` (iOS).
 - **Sign in with Apple:** iOS only; requires the Sign in with Apple capability (`ios/Demo/Demo.entitlements`) and the backend `APPLE_*` config.
 - **Tests:** `npm test` (Jest). Lint: `npm run lint`.
