@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -16,6 +16,8 @@ import useNotificationStore from '../../store/notificationStore';
 import useAuthStore from '../../store/authStore';
 import { getRelativeTime } from '../../utils/relativeTime';
 import { showAlert } from '../../store/alertStore';
+import InviteRequestPopup, { type InviteRequestRef } from '../../components/common/InviteRequestPopup';
+import { APP_BRAND_NAME } from '../../constants/brand';
 import {
   getRequests,
   respondToRequest,
@@ -216,6 +218,8 @@ export default function NotificationsScreen({ navigation, route }: any) {
   const [requests, setRequests] = useState<IncomingRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
   const [respondingId, setRespondingId] = useState<string | null>(null);
+  // The trip/event invite popup. Opened by a tapped invite link, a push, or a card tap.
+  const [popupRequest, setPopupRequest] = useState<InviteRequestRef | null>(null);
 
   const loadRequests = useCallback(async () => {
     try {
@@ -227,6 +231,21 @@ export default function NotificationsScreen({ navigation, route }: any) {
       setRequestsLoading(false);
     }
   }, []);
+
+  // Route params can change while this screen is already mounted (an invite link tapped
+  // while it is open), so react to them rather than only reading them once.
+  const previewParam = route?.params?.previewRequest as InviteRequestRef | undefined;
+  const initialTabParam = route?.params?.initialTab as string | undefined;
+  useEffect(() => {
+    if (initialTabParam === 'requests') setActiveTab('requests');
+  }, [initialTabParam]);
+  useEffect(() => {
+    if (!previewParam) return;
+    setActiveTab('requests');
+    setPopupRequest({ type: previewParam.type, id: previewParam.id });
+    // Consume it, so coming back to this screen doesn't reopen the popup.
+    navigation.setParams({ previewRequest: undefined });
+  }, [previewParam?.type, previewParam?.id, navigation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Opening this screen marks every notification as read (bell badge clears app-wide).
   useFocusEffect(
@@ -309,8 +328,34 @@ export default function NotificationsScreen({ navigation, route }: any) {
         friendName: item.from.name ?? 'Friend',
       });
     }
-    // Trip/event context intentionally isn't openable — you aren't a member until you approve.
+    // A trip/event request opens the same popup as the invite link — you aren't a member until you accept.
+    if (item.type === 'trip' || item.type === 'event') {
+      setPopupRequest({ type: item.type, id: item.id });
+    }
   };
+
+  const handlePopupAccepted = useCallback(
+    (r: { type: 'trip' | 'event'; requestId: string; parentId: string; name: string }) => {
+      setPopupRequest(null);
+      setRequests(rs => rs.filter(x => x.id !== r.requestId));
+      Toast.show({ type: 'success', text1: r.name ? `You joined "${r.name}"` : 'You joined' });
+      loadRequests();
+      if (r.parentId) {
+        if (r.type === 'trip') navigation.navigate('TripDetail', { trip: { id: r.parentId } });
+        else navigation.navigate('EventDetail', { event: { id: r.parentId } });
+      }
+    },
+    [navigation, loadRequests],
+  );
+
+  const handlePopupDeclined = useCallback(
+    (r: { type: 'trip' | 'event'; requestId: string }) => {
+      setPopupRequest(null);
+      setRequests(rs => rs.filter(x => x.id !== r.requestId));
+      loadRequests();
+    },
+    [loadRequests],
+  );
 
   const renderRequest = (item: IncomingRequest) => {
     const busy = respondingId === item.id;
@@ -321,7 +366,7 @@ export default function NotificationsScreen({ navigation, route }: any) {
         : `${inviter} invited you to "${item.context?.name ?? 'a ' + item.type}"`;
     const subtitle =
       item.type === 'friend'
-        ? 'Approve to connect on GatherGo'
+        ? `Approve to connect on ${APP_BRAND_NAME}`
         : [item.context?.locationName, item.context?.startDate?.slice(0, 10)]
             .filter(Boolean)
             .join(' · ') || `Approve to join this ${item.type}`;
@@ -330,7 +375,7 @@ export default function NotificationsScreen({ navigation, route }: any) {
       <TouchableOpacity
         style={styles.notifCard}
         onPress={() => openRequestContext(item)}
-        activeOpacity={item.type === 'friend' ? 0.7 : 1}>
+        activeOpacity={0.7}>
         <View style={styles.unreadAccent} />
 
         <View style={styles.notifIconWrap}>
@@ -537,6 +582,13 @@ export default function NotificationsScreen({ navigation, route }: any) {
             </TouchableOpacity>
             )
           )}
+        />
+
+        <InviteRequestPopup
+          request={popupRequest}
+          onClose={() => setPopupRequest(null)}
+          onAccepted={handlePopupAccepted}
+          onDeclined={handlePopupDeclined}
         />
     </AppScreenLayout>
   );

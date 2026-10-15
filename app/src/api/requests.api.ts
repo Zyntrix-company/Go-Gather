@@ -45,3 +45,21 @@ export async function respondToRequest(
     name?: string;
   };
 }
+
+/** What the invite popup shows. Only the invitee can read it, and only while the request is pending. */
+export type RequestPreview = {
+  type: 'trip' | 'event';
+  id: string;
+  name: string;
+  startDate: string | null;
+  endDate: string | null;
+  locationName: string | null;
+  inviter: { id: string; name: string | null; avatarUrl: string | null };
+  members: { id: string; name: string | null; avatarUrl: string | null }[];
+  memberCount: number;
+};
+
+export async function getRequestPreview(type: 'trip' | 'event', id: string) {
+  const res = await client.get(`/requests/${type}/${id}/preview`);
+  return res.data as RequestPreview;
+}

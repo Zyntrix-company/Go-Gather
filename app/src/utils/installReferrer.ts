@@ -7,7 +7,7 @@ import usePendingInviteStore, { PendingInvite } from '../store/pendingInviteStor
  * The invite landing page sends a recipient without the app to the Play Store with
  * `&referrer=invite%3D{type}%2F{token}` (built in backend invites.service.js). Play
  * hands that string back on first launch; we turn it into a pending invite and let the
- * normal flow (App.tsx) carry it through login to AcceptInvite.
+ * normal flow (App.tsx) carry it through login to POST /invites/open.
  */
 
 const INVITE_PARAM = /(?:^|&)invite=([^&]+)/;

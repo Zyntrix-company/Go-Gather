@@ -5,7 +5,7 @@
  * @format
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StatusBar, Linking } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -22,12 +22,15 @@ import { loadUploadLimits } from './src/utils/uploadLimits';
 import useAuthStore from './src/store/authStore';
 import usePendingInviteStore, { PendingInvite } from './src/store/pendingInviteStore';
 import { applyInstallReferrer } from './src/utils/installReferrer';
+import { openInvite } from './src/api/invites.api';
+import { actionForOpenResult, failureForOpenError, type OpenInviteAction } from './src/utils/openInvite';
 
 // Configure geolocation to use native Android location provider
 Geolocation.setRNConfiguration({ skipPermissionRequests: true, authorizationLevel: 'whenInUse' });
 
 // Invites are approval-based: these open the Requests tab, never the trip/event
-// itself — you are not a member until you approve.
+// itself — you are not a member until you accept. Trip/event requests also open the
+// invite popup (the push carries the request's id as `inviteId`).
 const REQUEST_PUSH_TYPES = ['FRIEND_REQUEST', 'TRIP_REQUEST', 'EVENT_REQUEST'];
 
 // Matches https://gatherrgo.com/invite/{type}/{token} (Universal/App Link) and
@@ -46,7 +49,11 @@ function navigateFromPushData(
 ) {
   if (!nav || !data) return;
   if (type && REQUEST_PUSH_TYPES.includes(type)) {
-    nav.navigate('Notifications' as never, { initialTab: 'requests' } as never);
+    const previewRequest =
+      data.inviteId && (type === 'TRIP_REQUEST' || type === 'EVENT_REQUEST')
+        ? { type: type === 'TRIP_REQUEST' ? 'trip' : 'event', id: data.inviteId }
+        : undefined;
+    nav.navigate('Notifications' as never, { initialTab: 'requests', previewRequest } as never);
   } else if (data.tripId && type !== 'FRIEND_ACCEPTED') {
     nav.navigate('TripDetail' as never, { trip: { id: data.tripId } } as never);
   } else if (data.eventId) {
@@ -57,6 +64,23 @@ function navigateFromPushData(
         userId: data.fromUserId ?? data.userId,
       } as never);
     }
+  }
+}
+
+function runOpenInviteAction(nav: NavigationContainerRef<any> | null, action: OpenInviteAction) {
+  if (!nav) return;
+  // The ref is typed against an unknown param list, so go through a plain (name, params) signature.
+  const go = (name: string, params: object) => (nav as { navigate: (n: string, p: object) => void }).navigate(name, params);
+  switch (action.kind) {
+    case 'requests':
+      go('Notifications', { initialTab: 'requests', previewRequest: action.previewRequest });
+      break;
+    case 'detail':
+      go(action.screen, action.screen === 'TripDetail' ? { trip: { id: action.id } } : { event: { id: action.id } });
+      break;
+    case 'toast':
+      Toast.show({ type: action.tone, text1: action.text });
+      break;
   }
 }
 
@@ -76,21 +100,34 @@ function App() {
     return unsubscribe;
   }, []);
 
-  // Push-tap navigation: cold start (app was killed)
+  // Push-tap navigation: cold start (app was killed). The tap is held until the user is
+  // signed in and past splash — navigating earlier lands on a navigator that doesn't have
+  // the screen yet and silently goes nowhere.
+  const [coldStartPush, setColdStartPush] = useState<{ data: Record<string, string>; type?: string } | null>(null);
   useEffect(() => {
     messaging().getInitialNotification().then((remoteMessage) => {
-      if (!remoteMessage) return;
-      // Delay until navigator is mounted and ready
-      const timer = setTimeout(() => {
-        navigateFromPushData(
-          navigationRef.current,
-          remoteMessage.data as Record<string, string> | undefined,
-          remoteMessage.data?.type as string | undefined,
-        );
-      }, 500);
-      return () => clearTimeout(timer);
+      if (!remoteMessage?.data) return;
+      setColdStartPush({
+        data: remoteMessage.data as Record<string, string>,
+        type: remoteMessage.data.type as string | undefined,
+      });
     });
   }, []);
+
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isSplashComplete = useAuthStore((s) => s.isSplashComplete);
+  const pendingProfileSetup = useAuthStore((s) => s.pendingProfileSetup);
+  const profileComplete = useAuthStore((s) => s.user?.isProfileComplete !== false);
+  const appReady = isSplashComplete && isAuthenticated && !pendingProfileSetup && profileComplete;
+
+  useEffect(() => {
+    if (!coldStartPush || !appReady) return;
+    const timer = setTimeout(() => {
+      navigateFromPushData(navigationRef.current, coldStartPush.data, coldStartPush.type);
+      setColdStartPush(null);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [coldStartPush, appReady]);
 
   useEffect(() => {
     function navigateEmailConnected(url: string) {
@@ -125,25 +162,44 @@ function App() {
     usePendingInviteStore.getState().hydratePendingInvite().then(applyInstallReferrer);
   }, []);
 
-  // Consume a pending invite link once the user is authenticated, past splash,
-  // and has a complete profile — i.e. once MainStack (and its AcceptInvite
-  // screen) is actually mounted. Covers both "tapped link while logged out,
-  // then logged in" and "tapped link while already logged in".
+  // Open a pending invite link once the user is authenticated, past splash, and has a
+  // complete profile — i.e. once MainStack is actually mounted. Covers "tapped link while
+  // logged out, then logged in" and "tapped link while already logged in". The server
+  // creates the request; the answer decides where we go (see utils/openInvite.ts).
   const pendingInvite = usePendingInviteStore((s) => s.pendingInvite);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isSplashComplete = useAuthStore((s) => s.isSplashComplete);
-  const pendingProfileSetup = useAuthStore((s) => s.pendingProfileSetup);
-  const profileComplete = useAuthStore((s) => s.user?.isProfileComplete !== false);
+  const openingRef = useRef(false);
+  const [openTick, setOpenTick] = useState(0);
 
   useEffect(() => {
-    if (!pendingInvite) return;
-    if (!isSplashComplete || !isAuthenticated || pendingProfileSetup || !profileComplete) return;
-    const timer = setTimeout(() => {
-      navigationRef.current?.navigate('AcceptInvite' as never, pendingInvite as never);
-      usePendingInviteStore.getState().setPendingInvite(null);
+    if (!pendingInvite || !appReady || openingRef.current) return;
+    const timer = setTimeout(async () => {
+      if (openingRef.current) return;
+      openingRef.current = true;
+      const invite = pendingInvite;
+      // Only a definitive server answer clears the stash — and never a newer link tapped meanwhile.
+      const clearIfStillCurrent = () => {
+        const current = usePendingInviteStore.getState().pendingInvite;
+        if (current && current.token === invite.token && current.type === invite.type) {
+          usePendingInviteStore.getState().setPendingInvite(null);
+        }
+      };
+      try {
+        const result = await openInvite(invite.token);
+        clearIfStillCurrent();
+        runOpenInviteAction(navigationRef.current, actionForOpenResult(result));
+      } catch (err) {
+        const failure = failureForOpenError(err, invite);
+        Toast.show({ type: 'error', text1: failure.toast });
+        if (!failure.retryable) clearIfStillCurrent();
+        // retryable: the invite stays stashed and is tried again on the next app start
+      } finally {
+        openingRef.current = false;
+        const next = usePendingInviteStore.getState().pendingInvite;
+        if (next && (next.token !== invite.token || next.type !== invite.type)) setOpenTick((t) => t + 1);
+      }
     }, 400);
     return () => clearTimeout(timer);
-  }, [pendingInvite, isAuthenticated, isSplashComplete, pendingProfileSetup, profileComplete]);
+  }, [pendingInvite, appReady, openTick]);
 
   useEffect(() => {
     // TODO: replace with actual webClientId from Google Cloud console

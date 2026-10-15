@@ -2,28 +2,19 @@ import client from './client';
 
 export type InviteType = 'trip' | 'event' | 'friend';
 
-export type InvitePreview = {
-  valid: boolean;
-  reason?: 'NOT_FOUND' | 'ALREADY_CLAIMED' | 'EXPIRED';
-  type?: InviteType;
-  token?: string;
-  expiresAt?: string;
-  invitedBy?: { name: string | null; avatarUrl: string | null };
-  context?: { tripName: string | null; eventName: string | null };
-  installLinks?: { android?: string; ios?: string };
-};
+/**
+ * Answer to POST /invites/open/:token. Opening never joins anyone: a friend link
+ * leaves a pending friend request, a trip/event link leaves a pending request that is
+ * accepted from the popup. Errors: SELF_CLAIM, INVALID_INVITE, NOT_FOUND, FORBIDDEN.
+ */
+export type OpenInviteResult =
+  | { type: 'friend'; status: 'pending' | 'already_friends' | 'outgoing_pending'; inviterName: string | null }
+  | { type: 'trip'; status: 'pending'; inviteId: string; tripId: string }
+  | { type: 'trip'; status: 'member'; tripId: string }
+  | { type: 'event'; status: 'pending'; inviteId: string; eventId: string }
+  | { type: 'event'; status: 'member'; eventId: string };
 
-export type ClaimInviteResult =
-  | { type: 'trip'; tripId: string; tripName?: string }
-  | { type: 'event'; eventId: string; eventName?: string }
-  | { type: 'friend'; status: 'pending' | 'accepted'; connectionId: string | null };
-
-export async function validateInvite(token: string): Promise<InvitePreview> {
-  const res = await client.get(`/invites/validate/${token}`);
-  return res.data as InvitePreview;
-}
-
-export async function claimInvite(token: string): Promise<ClaimInviteResult> {
-  const res = await client.post(`/invites/claim/${token}`);
-  return res.data as ClaimInviteResult;
+export async function openInvite(token: string): Promise<OpenInviteResult> {
+  const res = await client.post(`/invites/open/${token}`);
+  return res.data as OpenInviteResult;
 }

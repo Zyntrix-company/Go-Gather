@@ -330,7 +330,7 @@ export async function inviteToTrip(tripId: string, body: { friendIds?: string[];
 export type InviteResult = {
   added: { userId: string; name: string | null; method: string }[];
   requested: { userId: string; inviteId: string; name: string | null; method: string }[];
-  invited: { email?: string; phone?: string; branchUrl: string; shareText: string; expiresAt: string }[];
+  invited: { email?: string; phone?: string; branchUrl: string; shareText: string; expiresAt: string | null }[];
   skipped?: { userId: string; reason: string }[];
   shareText?: string;
 };
