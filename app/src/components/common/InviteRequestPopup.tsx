@@ -40,7 +40,8 @@ type Props = {
 
 export default function InviteRequestPopup({ request, onClose, onAccepted, onDeclined }: Props) {
   const [preview, setPreview] = useState<RequestPreview | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Starts true so the first frame after opening is the spinner, not an empty card.
+  const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState<'accept' | 'decline' | null>(null);
 
