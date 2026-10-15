@@ -23,6 +23,26 @@ const REASON_COPY: Record<NonNullable<InvitePreview['reason']>, string> = {
   EXPIRED: 'This invite link has expired. Ask them to send you a new one.',
 };
 
+// The inviter's photo, falling back to the party icon if it is missing or fails to load.
+function InviterBadge({ avatarUrl, name }: { avatarUrl?: string | null; name: string }) {
+  const [failed, setFailed] = React.useState(false);
+  if (avatarUrl && !failed) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={name}
+        onError={() => setFailed(true)}
+        className="w-20 h-20 rounded-full object-cover border-2 border-teal-100 shadow-md mx-auto"
+      />
+    );
+  }
+  return (
+    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-teal-50 border border-teal-100 shadow-inner mx-auto">
+      <PartyPopper className="w-7 h-7 text-teal-600" />
+    </div>
+  );
+}
+
 export default function Invite() {
   const { type, token } = useParams<{ type: string; token: string }>();
   const [preview, setPreview] = React.useState<InvitePreview | null>(null);
@@ -121,9 +141,7 @@ export default function Invite() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md rounded-3xl bg-white/60 border border-white/60 shadow-lg shadow-teal-900/5 p-8 md:p-10 text-center space-y-6"
       >
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-teal-50 border border-teal-100 shadow-inner mx-auto">
-          <PartyPopper className="w-7 h-7 text-teal-600" />
-        </div>
+        <InviterBadge avatarUrl={preview.invitedBy?.avatarUrl} name={inviterName} />
         <h1 className="text-2xl font-bold text-slate-900 leading-snug">{headline}</h1>
         <p className="text-sm text-slate-500">
           Open this link on your phone with GatherrGo installed to accept — or get the app below.
