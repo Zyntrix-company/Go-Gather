@@ -169,32 +169,27 @@ const createTrip = async (userId, body) => {
     );
     const inviterName = inviterResult.rows[0]?.full_name || 'A fellow traveller';
 
-    // Add friendIds directly to trip_members + FCM
-    const addedUsers = [];
+    // Picked friends get a request (same as Members → Invite Friends) — nobody is added
+    // without accepting. Only real friends can be picked.
     for (const friendId of friendIds) {
       try {
-        const { rowCount } = await db(
-          `INSERT INTO trip_members (trip_id, user_id, role) VALUES ($1, $2, 'member')
-           ON CONFLICT (trip_id, user_id) DO NOTHING`,
-          [trip.id, friendId],
+        const friendCheck = await db(
+          `SELECT 1 FROM friend_connections
+           WHERE status = 'accepted'
+             AND ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))`,
+          [userId, friendId],
         );
-        if (rowCount > 0) addedUsers.push(friendId);
+        if (friendCheck.rowCount === 0) {
+          logger.warn('Skipped non-friend on trip creation', { friendId });
+          continue;
+        }
+        await createTripRequest({
+          tripId: trip.id, tripName: name, invitedBy: userId, inviterName, userId: friendId,
+          requested: [], skipped: [],
+        });
       } catch (err) {
-        logger.error('Failed to add friend to trip on creation', { friendId, error: err.message });
+        logger.error('Failed to invite friend on trip creation', { friendId, error: err.message });
       }
-    }
-
-    if (addedUsers.length > 0) {
-      const usersResult = await db(
-        'SELECT id, fcm_token FROM users WHERE id = ANY($1::uuid[])',
-        [addedUsers],
-      );
-      createAndSendNotifications(
-        usersResult.rows,
-        { title: `${name} — ${inviterName} added you!`, body: `Open ${config.brandName} to see the trip` },
-        'TRIP_MEMBER_ADDED',
-        { tripId: trip.id, screen: 'trips' },
-      );
     }
 
     // Email invites. The message carries the creator's reusable link; the per-person row

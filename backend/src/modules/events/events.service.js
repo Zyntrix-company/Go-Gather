@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
 const { sendEmail, wrapEmail } = require('../../utils/mailer');
-const { createAndSendNotification, createAndSendNotifications, notifySafely } = require('../../utils/fcm.util');
+const { createAndSendNotification, notifySafely } = require('../../utils/fcm.util');
 const { batchDeleteFromS3, getPresignedDownloadUrl } = require('../../utils/s3.util');
 const { generateInviteShareText } = require('../../utils/shareText.util');
 const config = require('../../config');
@@ -176,32 +176,27 @@ const createEvent = async (userId, body) => {
     );
     const inviterName = inviterResult.rows[0]?.full_name || 'A fellow organiser';
 
-    // Add friendIds directly to event_members + FCM
-    const addedUsers = [];
+    // Picked friends get a request (same as Members → Invite Friends) — nobody is added
+    // without accepting. Only real friends can be picked.
     for (const friendId of friendIds) {
       try {
-        const { rowCount } = await db(
-          `INSERT INTO event_members (event_id, user_id, role) VALUES ($1, $2, 'member')
-           ON CONFLICT (event_id, user_id) DO NOTHING`,
-          [event.id, friendId],
+        const friendCheck = await db(
+          `SELECT 1 FROM friend_connections
+           WHERE status = 'accepted'
+             AND ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))`,
+          [userId, friendId],
         );
-        if (rowCount > 0) addedUsers.push(friendId);
+        if (friendCheck.rowCount === 0) {
+          logger.warn('Skipped non-friend on event creation', { friendId });
+          continue;
+        }
+        await createEventRequest({
+          eventId: event.id, eventName: name, invitedBy: userId, inviterName, userId: friendId,
+          requested: [], skipped: [],
+        });
       } catch (err) {
-        logger.error('Failed to add friend to event on creation', { friendId, error: err.message });
+        logger.error('Failed to invite friend on event creation', { friendId, error: err.message });
       }
-    }
-
-    if (addedUsers.length > 0) {
-      const usersResult = await db(
-        'SELECT id, fcm_token FROM users WHERE id = ANY($1::uuid[])',
-        [addedUsers],
-      );
-      createAndSendNotifications(
-        usersResult.rows,
-        { title: `${name} — ${inviterName} added you!`, body: `Open ${config.brandName} to see the event` },
-        'EVENT_MEMBER_ADDED',
-        { eventId: event.id, screen: 'events' },
-      );
     }
 
     // Email invites. The message carries the creator's reusable link; the per-person row
