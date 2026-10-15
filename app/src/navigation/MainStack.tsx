@@ -31,8 +31,9 @@ export type MainStackParamList = {
         previewRequest?: { type: 'trip' | 'event'; id: string };
       }
     | undefined;
-  TripDetail: { trip: any };
-  EventDetail: { event: any };
+  /** openMembersTab: open the Members dialog on that tab on arrival (used right after creating). */
+  TripDetail: { trip: any; openMembersTab?: 'Invite New' };
+  EventDetail: { event: any; openMembersTab?: 'Invite New' };
   ChatDetail: {
     conversationId?: string;
     tripContext?: {

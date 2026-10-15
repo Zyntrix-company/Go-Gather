@@ -518,7 +518,6 @@ export default function FriendsScreen() {
             endDate: (data.endDateISO ?? data.endDate ?? '') as string,
             locations: toLocationPayload(tripLocations.length > 0 ? tripLocations : [{ name: 'TBD' }]),
             friendIds: (data.friendIds as string[] | undefined)?.length ? data.friendIds as string[] : undefined,
-            emails: data.inviteEmail ? [data.inviteEmail as string] : undefined,
             reminders: data.reminders as boolean | undefined,
             ...(cropFraction && { bannerCropFraction: cropFraction }),
           });
@@ -539,12 +538,13 @@ export default function FriendsScreen() {
               }
             });
           }
-          Toast.show({ type: 'success', text1: 'Trip created!', text2: `${selectedIds.size} friend${selectedIds.size !== 1 ? 's' : ''} added` });
+          Toast.show({ type: 'success', text1: 'Trip created!', text2: `${selectedIds.size} friend${selectedIds.size !== 1 ? 's' : ''} invited` });
           setBannerImageUri(undefined);
           setBannerImageType('image/jpeg');
           setBannerCropFraction(null);
           setShowTripModal(false);
           setSelectedIds(new Set());
+          return { id: newTrip.id };
         }}
       />
 
@@ -554,7 +554,7 @@ export default function FriendsScreen() {
         onClose={() => setShowEventModal(false)}
         initialFriendIds={Array.from(selectedIds)}
         onSave={() => {
-          Toast.show({ type: 'success', text1: 'Event created!', text2: `${selectedIds.size} friend${selectedIds.size !== 1 ? 's' : ''} added` });
+          Toast.show({ type: 'success', text1: 'Event created!', text2: `${selectedIds.size} friend${selectedIds.size !== 1 ? 's' : ''} invited` });
           setShowEventModal(false);
           setSelectedIds(new Set());
         }}

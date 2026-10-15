@@ -1427,7 +1427,6 @@ export default function HomeScreen({ navigation, route }: any) {
             endDate: (data.endDateISO ?? data.endDate ?? '') as string,
             locations: toLocationPayload(tripLocations.length > 0 ? tripLocations : [{ name: 'TBD' }]),
             friendIds: (data.friendIds as string[] | undefined)?.length ? data.friendIds as string[] : undefined,
-            emails: data.inviteEmail ? [data.inviteEmail as string] : undefined,
             ...(cropFraction ? { bannerCropFraction: cropFraction } : {}),
           });
           let newTrip = requireTripFromResponse(res);
@@ -1455,6 +1454,7 @@ export default function HomeScreen({ navigation, route }: any) {
           loadTrips(1, true);
           setTripBannerUri(undefined);
           setTripBannerCrop(null);
+          return { id: newTrip.id };
         }}
       />
 

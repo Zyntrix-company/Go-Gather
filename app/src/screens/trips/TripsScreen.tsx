@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
+import InviteFriendsPicker from '../../components/common/InviteFriendsPicker';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -42,7 +43,6 @@ import {
   archiveTrip as archiveTripApi,
   uploadTripPhotos,
   uploadDoc as uploadTripDoc,
-  getFriends,
   handleApiError,
   getEmailStatus,
   listEmailAttachments,
@@ -133,14 +133,6 @@ const MOCK_TRIPS: Trip[] = [
     ],
     extraMembers: 0,
   },
-];
-
-const CT_FRIENDS = [
-  { id: '1', name: 'Yuki Tanaka', email: 'yuki_tanaka@example.com', uri: 'https://i.pravatar.cc/150?img=32' },
-  { id: '2', name: 'Amara Okafor', email: 'amara2025@example.com', uri: 'https://i.pravatar.cc/150?img=38' },
-  { id: '3', name: 'Marcus Johnson', email: 'marcusj_nyc@example.com', uri: 'https://i.pravatar.cc/150?img=13' },
-  { id: '4', name: 'Sofia Rodriguez', email: 'sofia_rio@example.com', uri: 'https://i.pravatar.cc/150?img=45' },
-  { id: '5', name: 'Ahmed Al-Rashid', email: 'ahmed_explorer@example.com', uri: 'https://i.pravatar.cc/150?img=53' },
 ];
 
 // ─── Date Helpers ─────────────────────────────────────────────────────────────
@@ -408,7 +400,8 @@ function TripCardPastLocal({ trip, onPress, showMenu, onToggleMenu, onArchive, o
 export type CreateTripModalProps = {
   visible: boolean;
   onClose: () => void;
-  onSave: (data: Record<string, unknown>) => Promise<void>;
+  /** Return the created trip so the modal can open it on Members → Invite New. */
+  onSave: (data: Record<string, unknown>) => Promise<{ id?: string } | void>;
   // Lifted: banner state lives in TripsScreen so it isn't lost on nav
   bannerImageUri: string | undefined;
   setBannerImageUri: (v: string | undefined) => void;
@@ -438,7 +431,6 @@ export function CreateTripModal({
   const [endDateObj, setEndDateObj] = useState<Date | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [apiFriends, setApiFriends] = useState<typeof CT_FRIENDS>([]);
   const [reminders, setReminders] = useState(false);
   const [uploadedDocs, setUploadedDocs] = useState<{ uri: string; name: string; type: string }[]>([]);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
@@ -451,11 +443,6 @@ export function CreateTripModal({
   const [emailPickerLoading, setEmailPickerLoading] = useState(false);
   const [emailStatus, setEmailStatus] = useState({ gmail: { connected: false }, outlook: { connected: false } });
   const [emailSelectedDocs, setEmailSelectedDocs] = useState<{ attachmentId: string; messageId: string; fileName: string; provider: 'gmail' | 'outlook' }[]>([]);
-  const [memberTab, setMemberTab] = useState<'friends' | 'new'>('friends');
-  const [friendSearch, setFriendSearch] = useState('');
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [invitePhone, setInvitePhone] = useState('');
-  const [inviteWhatsapp, setInviteWhatsapp] = useState('');
   const [isCompressing, setIsCompressing] = useState(false);
   const [showStartDateTooltip, setShowStartDateTooltip] = useState(false);
   const [showEndDateTooltip, setShowEndDateTooltip] = useState(false);
@@ -611,7 +598,6 @@ export function CreateTripModal({
     setStartDateError(null); setEndDateError(null);
     setReminders(false); setUploadedDocs([]); setSelectedFriendIds([]);
     setEmailSelectedDocs([]);
-    setFriendSearch(''); setInviteEmail(''); setInvitePhone(''); setInviteWhatsapp('');
     // Banner state lives in the parent — do NOT reset it here so it
     // survives the user tapping Cancel and re-opening the modal.
     // Parent clears it only after a successful trip creation.
@@ -624,7 +610,7 @@ export function CreateTripModal({
     setSubmitError(null);
     setIsSubmitting(true);
     try {
-      await onSave({
+      const created = await onSave({
         name: name.trim(),
         locations,
         startDate: formatDate(startDateObj),
@@ -632,7 +618,6 @@ export function CreateTripModal({
         startDateISO: startDateObj ? dateToISO(startDateObj) : undefined,
         endDateISO: endDateObj ? dateToISO(endDateObj) : undefined,
         friendIds: selectedFriendIds,
-        inviteEmail: inviteEmail.trim() || undefined,
         bannerImageUrl: bannerImageUri,
         bannerImageType: bannerImageType,
         bannerCropFraction: bannerCropFraction,
@@ -642,6 +627,11 @@ export function CreateTripModal({
       });
       reset();
       onClose();
+      // Email / SMS / WhatsApp invites need the trip's link, so they happen now: open the
+      // new trip straight on Members → Invite New.
+      if (created?.id) {
+        navigation.navigate('TripDetail', { trip: { id: created.id }, openMembersTab: 'Invite New' });
+      }
     } catch (err) {
       setSubmitError(showCreateFailure(err, 'trip'));
     } finally {
@@ -659,33 +649,11 @@ export function CreateTripModal({
     }
   }
 
-  function toggleFriend(id: string) {
-    setSelectedFriendIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  }
-
   useEffect(() => {
     if (visible && initialFriendIds && initialFriendIds.length > 0) {
       setSelectedFriendIds(initialFriendIds);
     }
   }, [visible]);
-
-  useEffect(() => {
-    if (!showInviteModal) return;
-    getFriends(friendSearch || undefined).then(data => {
-      const mapped = data.friends.map(f => ({
-        id: f.user.id,
-        name: f.user.name,
-        email: '',
-        uri: f.user.avatarUrl ?? `https://i.pravatar.cc/150?u=${f.user.id}`,
-      }));
-      setApiFriends(mapped);
-    }).catch((err) => { handleApiError(err); });
-  }, [showInviteModal]);
-
-  const filteredFriends = apiFriends.filter(f =>
-    f.name.toLowerCase().includes(friendSearch.toLowerCase()) ||
-    (f.email && f.email.toLowerCase().includes(friendSearch.toLowerCase()))
-  );
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -994,88 +962,14 @@ export function CreateTripModal({
           </View>
         </View>
 
-        {/* Invite Members Sub-Modal */}
-        {showInviteModal && (
-          <Modal visible transparent animationType="fade" onRequestClose={() => setShowInviteModal(false)}>
-            <View style={styles.modalOverlay}>
-              <View style={[styles.modalDialog, { maxHeight: '85%' }]}>
-                <View style={[styles.ctHeader, { backgroundColor: '#f0fdfa' }]}>
-                  <Text style={styles.ctTitle}>Invite Members</Text>
-                  <TouchableOpacity onPress={() => setShowInviteModal(false)} style={styles.ctCloseBtn} activeOpacity={0.7}>
-                    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-                      <Path d="M18 6L6 18M6 6l12 12" stroke="#64748b" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-                    </Svg>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.inviteTabBar}>
-                  <TouchableOpacity style={[styles.inviteTab, memberTab === 'friends' && styles.inviteTabActive]} onPress={() => setMemberTab('friends')} activeOpacity={0.8}>
-                    <Text style={[styles.inviteTabText, memberTab === 'friends' && styles.inviteTabTextActive]}>Friends</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.inviteTab, memberTab === 'new' && styles.inviteTabActive]} onPress={() => setMemberTab('new')} activeOpacity={0.8}>
-                    <Text style={[styles.inviteTabText, memberTab === 'new' && styles.inviteTabTextActive]}>Invite New</Text>
-                  </TouchableOpacity>
-                </View>
-                <ScrollView contentContainerStyle={{ padding: 14 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                  {memberTab === 'friends' && (
-                    <>
-                      <TextInput style={[styles.ctInput, { marginBottom: 12 }]} placeholder="Search friends..." placeholderTextColor="#94a3b8" value={friendSearch} onChangeText={setFriendSearch} />
-                      {filteredFriends.length === 0
-                        ? <Text style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 8, marginBottom: 4 }}>No friends found.</Text>
-                        : filteredFriends.map(friend => {
-                          const sel = selectedFriendIds.includes(friend.id);
-                          return (
-                            <TouchableOpacity key={friend.id} style={[styles.friendSelectRow, sel && { backgroundColor: '#f0fdfa' }]} onPress={() => toggleFriend(friend.id)} activeOpacity={0.8}>
-                              <FriendSelectAvatar uri={friend.uri} name={friend.name} style={styles.friendSelectAvatar as any} />
-                              <View style={{ flex: 1 }}>
-                                <Text style={styles.friendName}>{friend.name}</Text>
-                                <Text style={[styles.friendHandle, { fontSize: 12 }]}>{friend.email}</Text>
-                              </View>
-                              {sel && (
-                                <View style={styles.checkCircle}>
-                                  <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                                    <Path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-                                  </Svg>
-                                </View>
-                              )}
-                            </TouchableOpacity>
-                          );
-                        })
-                      }
-                    </>
-                  )}
-                  {memberTab === 'new' && (
-                    <>
-                      <Text style={[styles.ctLabel, { marginTop: 0 }]}>Email Address</Text>
-                      <TextInput style={[styles.ctInput, { marginBottom: 8 }]} placeholder="Enter email address" placeholderTextColor="#94a3b8" value={inviteEmail} onChangeText={setInviteEmail} keyboardType="email-address" autoCapitalize="none" />
-                      <Text style={styles.ctLabel}>Phone Number</Text>
-                      <TextInput style={[styles.ctInput, { marginBottom: 8 }]} placeholder="Enter phone number" placeholderTextColor="#94a3b8" value={invitePhone} onChangeText={setInvitePhone} keyboardType="phone-pad" />
-                      <Text style={styles.ctLabel}>WhatsApp Number</Text>
-                      <TextInput style={[styles.ctInput, { marginBottom: 8 }]} placeholder="Enter WhatsApp number" placeholderTextColor="#94a3b8" value={inviteWhatsapp} onChangeText={setInviteWhatsapp} keyboardType="phone-pad" />
-                      <TouchableOpacity
-                        style={[styles.ctCreateBtn, { alignSelf: 'stretch', marginTop: 4 }]}
-                        onPress={() => {
-                          const hasAny = inviteEmail.trim() || invitePhone.trim() || inviteWhatsapp.trim();
-                          if (hasAny) {
-                            const via = [inviteEmail.trim() && 'email', invitePhone.trim() && 'phone', inviteWhatsapp.trim() && 'WhatsApp'].filter(Boolean).join(', ');
-                            showAlert({ title: 'Invite sent!', message: `Invitation sent via ${via}` });
-                            setInviteEmail(''); setInvitePhone(''); setInviteWhatsapp('');
-                          }
-                        }}
-                        activeOpacity={0.85}>
-                        <Text style={styles.ctCreateBtnText}>Send Invitation</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </ScrollView>
-                <View style={styles.ctFooter}>
-                  <TouchableOpacity style={[styles.ctCreateBtn, { flex: 1 }]} onPress={() => setShowInviteModal(false)} activeOpacity={0.85}>
-                    <Text style={styles.ctCreateBtnText}>Done ({selectedFriendIds.length} selected)</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </Modal>
-        )}
+        {/* Invite Friends — same design as Members → Invite Friends */}
+        <InviteFriendsPicker
+          visible={showInviteModal}
+          parentType="trip"
+          selectedIds={selectedFriendIds}
+          onChange={setSelectedFriendIds}
+          onClose={() => setShowInviteModal(false)}
+        />
 
         {/* Provider Picker */}
         <Modal visible={showProviderPicker} transparent animationType="fade" onRequestClose={() => setShowProviderPicker(false)}>
@@ -1354,20 +1248,6 @@ export function CreateTripModal({
   );
 }
 
-// ─── Friend avatar with fallback ─────────────────────────────────────────────
-
-function FriendSelectAvatar({ uri, name, style }: { uri: string; name: string; style: any }) {
-  const [failed, setFailed] = useState(false);
-  if (!uri || failed) {
-    return (
-      <View style={[style, { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }]}>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: '#94a3b8' }}>{name?.[0]?.toUpperCase() ?? '?'}</Text>
-      </View>
-    );
-  }
-  return <CachedImage uri={uri} style={style} resizeMode="cover" onError={() => setFailed(true)} />;
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function TripsScreen({ openCreateOnMount = false, onCreateMountHandled }: { openCreateOnMount?: boolean; onCreateMountHandled?: () => void } = {}) {
@@ -1595,7 +1475,6 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
             endDate: (data.endDateISO ?? data.endDate ?? '') as string,
             locations: toLocationPayload(tripLocations.length > 0 ? tripLocations : [{ name: 'TBD' }]),
             friendIds: (data.friendIds as string[] | undefined)?.length ? data.friendIds as string[] : undefined,
-            emails: data.inviteEmail ? [data.inviteEmail as string] : undefined,
             reminders: data.reminders as boolean | undefined,
             ...(cropFraction && { bannerCropFraction: cropFraction }),
           });
@@ -1654,6 +1533,7 @@ export default function TripsScreen({ openCreateOnMount = false, onCreateMountHa
           setBannerImageUri(undefined);
           setBannerImageType('image/jpeg');
           setBannerCropFraction(null);
+          return { id: newTrip.id };
         }}
       />
     </View>
@@ -1797,14 +1677,4 @@ const styles = StyleSheet.create({
   ctCreateBtnText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 
   // Invite modal tabs
-  inviteTabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  inviteTab: { flex: 1, paddingVertical: 10, alignItems: 'center' },
-  inviteTabActive: { borderBottomWidth: 2, borderBottomColor: '#0d9488', backgroundColor: '#f0fdfa' },
-  inviteTabText: { fontSize: 13, fontWeight: '500', color: '#64748b' },
-  inviteTabTextActive: { color: '#0d9488' },
-  friendSelectRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: 10, marginBottom: 4 },
-  friendSelectAvatar: { width: 44, height: 44, borderRadius: 22 },
-  checkCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
-  friendName: { fontSize: 13, fontWeight: '400', color: '#0f172a' },
-  friendHandle: { fontSize: 13, color: '#64748b', marginTop: 2 },
 });

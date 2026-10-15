@@ -854,6 +854,16 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   // ── Members modal ──
   const [memberTab, setMemberTab] = useState<'Members' | 'Invite Friends' | 'Invite New'>('Members');
+
+  // Opened straight after creating the trip: land on Members → Invite New, where email,
+  // SMS and WhatsApp invites (which need the trip's link) are sent.
+  const openMembersTab = route?.params?.openMembersTab as 'Invite New' | undefined;
+  useEffect(() => {
+    if (!openMembersTab) return;
+    setMemberTab(openMembersTab);
+    setShowMembers(true);
+    navigation.setParams({ openMembersTab: undefined });
+  }, [openMembersTab]); // eslint-disable-line react-hooks/exhaustive-deps
   const [memberSearch, setMemberSearch] = useState('');
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
 

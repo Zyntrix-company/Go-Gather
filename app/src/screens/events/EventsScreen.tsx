@@ -26,6 +26,7 @@ import CachedImage from '../../components/common/CachedImage';
 import LocationMultiPicker from '../../components/common/LocationMultiPicker';
 import { formatLocationsLabel, toLocationPayload, type LocationPoint } from '../../utils/locations';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import InviteFriendsPicker from '../../components/common/InviteFriendsPicker';
 import colors from '../../theme/colors';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import { EmailProviderPickerRow } from '../../components/common/EmailProviderUI';
@@ -35,7 +36,7 @@ import {
   showCreateFailure,
 } from '../../utils/createEntityFlow';
 import Toast from 'react-native-toast-message';
-import { getFriends, getEmailStatus, listEmailAttachments, importEmailAttachments, type EmailAttachment } from '../../api/trips.api';
+import { getEmailStatus, listEmailAttachments, importEmailAttachments, type EmailAttachment } from '../../api/trips.api';
 import {
   getEvents,
   createEvent as apiCreateEvent,
@@ -78,14 +79,6 @@ const TYPE_COLORS: Record<string, string> = {
   Professional: '#e0f2fe', Meetup: '#f0fdf4', Festival: '#ccfbf1',
   Family: '#fff7ed', Sports: '#fef2f2', Religious: '#f5f3ff', Other: '#f8fafc',
 };
-
-const CT_FRIENDS: { id: string; name: string; email: string; uri: string }[] = [
-  { id: '1', name: 'Yuki Tanaka', email: 'yuki_tanaka@example.com', uri: 'https://i.pravatar.cc/150?img=32' },
-  { id: '2', name: 'Amara Okafor', email: 'amara2025@example.com', uri: 'https://i.pravatar.cc/150?img=38' },
-  { id: '3', name: 'Marcus Johnson', email: 'marcusj_nyc@example.com', uri: 'https://i.pravatar.cc/150?img=13' },
-  { id: '4', name: 'Priya Sharma', email: 'priya.sharma@example.com', uri: 'https://i.pravatar.cc/150?img=45' },
-  { id: '5', name: 'Carlos Rodriguez', email: 'carlos.r@example.com', uri: 'https://i.pravatar.cc/150?img=12' },
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -307,7 +300,6 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
   const [locations, setLocations] = useState<LocationPoint[]>([]);
   const [uploadedDocs, setUploadedDocs] = useState<{ uri: string; name: string; type: string }[]>([]);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
-  const [apiFriends, setApiFriends] = useState<typeof CT_FRIENDS>([]);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showProviderPicker, setShowProviderPicker] = useState(false);
   const [showEmailPicker, setShowEmailPicker] = useState(false);
@@ -317,11 +309,6 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
   const [emailPickerLoading, setEmailPickerLoading] = useState(false);
   const [emailStatus, setEmailStatus] = useState({ gmail: { connected: false }, outlook: { connected: false } });
   const [emailSelectedDocs, setEmailSelectedDocs] = useState<{ attachmentId: string; messageId: string; fileName: string; provider: 'gmail' | 'outlook' }[]>([]);
-  const [memberTab, setMemberTab] = useState<'friends' | 'new'>('friends');
-  const [friendSearch, setFriendSearch] = useState('');
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [invitePhone, setInvitePhone] = useState('');
-  const [inviteWhatsapp, setInviteWhatsapp] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
@@ -394,28 +381,11 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
   })).current;
 
   useEffect(() => {
-    if (!showInviteModal) return;
-    getFriends(friendSearch || undefined).then(data => {
-      const mapped = data.friends.map((f: any) => ({
-        id: f.user.id,
-        name: f.user.name,
-        email: '',
-        uri: f.user.avatarUrl ?? `https://i.pravatar.cc/150?u=${f.user.id}`,
-      }));
-      setApiFriends(mapped);
-    }).catch((err) => { handleApiError(err); });
-  }, [showInviteModal]);
-
-  useEffect(() => {
     if (visible && initialFriendIds && initialFriendIds.length > 0) {
       setSelectedFriendIds(initialFriendIds);
     }
   }, [visible]);
 
-  const filteredFriends = apiFriends.filter(f =>
-    f.name.toLowerCase().includes(friendSearch.toLowerCase()) ||
-    f.email.toLowerCase().includes(friendSearch.toLowerCase())
-  );
 
   function reset() {
     setName(''); setType('Other'); setShowTypeDrop(false);
@@ -425,7 +395,6 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
     setUploadedDocs([]); setSelectedFriendIds([]);
     setEmailSelectedDocs([]);
     setShowInviteModal(false); setShowProviderPicker(false); setShowEmailPicker(false);
-    setMemberTab('friends'); setFriendSearch(''); setInviteEmail(''); setInvitePhone(''); setInviteWhatsapp('');
     setReminders(true);
     setBannerImageUri(undefined); setBannerCropFraction(null);
     setCropPreviewUri(undefined);
@@ -506,7 +475,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
         dateISO: eventDateIso,
         dateDisplay: fmtDateDisplay(dateObj),
         dateDisplayNoYear: fmtDateNoYear(dateObj),
-        memberCount: result.memberCount ?? 1 + selectedFriendIds.length,
+        memberCount: result.memberCount ?? 1,
         memberAvatars: [],
         description: result.event.description ?? '',
         bannerImageUrl: isLocalUri ? localBannerUri : null,
@@ -546,6 +515,9 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
       }
       reset();
       onClose();
+      // Email / SMS / WhatsApp invites need the event's link, so they happen now: open the
+      // new event straight on Members → Invite New.
+      navigation.navigate('EventDetail', { event: { id: newEvent.id, name: newEvent.name }, openMembersTab: 'Invite New' });
 
       if (isLocalUri && localBannerUri) {
         void runSafePostCreate('Banner upload', async () => {
@@ -876,132 +848,14 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
         </View>
       </View>
 
-      {/* ── Invite Members Sub-Modal ── */}
-      {showInviteModal && (
-        <Modal visible transparent animationType="fade" onRequestClose={() => setShowInviteModal(false)}>
-          <View style={modal.overlay}>
-            <View style={[modal.dialog, { maxHeight: '85%' }]}>
-              <View style={[modal.header, { backgroundColor: '#f0fdfa' }]}>
-                <Text style={modal.title}>Invite Members</Text>
-                <TouchableOpacity onPress={() => setShowInviteModal(false)} style={modal.closeBtn} activeOpacity={0.7}>
-                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-                    <Path d="M18 6L6 18M6 6l12 12" stroke="#64748b" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                </TouchableOpacity>
-              </View>
-              <View style={modal.inviteTabBar}>
-                <TouchableOpacity style={[modal.inviteTab, memberTab === 'friends' && modal.inviteTabActive]} onPress={() => setMemberTab('friends')} activeOpacity={0.8}>
-                  <Text style={[modal.inviteTabText, memberTab === 'friends' && modal.inviteTabTextActive]}>Friends</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[modal.inviteTab, memberTab === 'new' && modal.inviteTabActive]} onPress={() => setMemberTab('new')} activeOpacity={0.8}>
-                  <Text style={[modal.inviteTabText, memberTab === 'new' && modal.inviteTabTextActive]}>Invite New</Text>
-                </TouchableOpacity>
-              </View>
-              <ScrollView contentContainerStyle={{ padding: 14 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                {memberTab === 'friends' && (
-                  <>
-                    <TextInput
-                      style={[modal.input, { marginBottom: 12 }]}
-                      placeholder="Search friends..."
-                      placeholderTextColor="#94a3b8"
-                      value={friendSearch}
-                      onChangeText={setFriendSearch}
-                    />
-                    {filteredFriends.length === 0
-                      ? <Text style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, marginTop: 8, marginBottom: 4 }}>No friends found.</Text>
-                      : filteredFriends.map(friend => {
-                        const sel = selectedFriendIds.includes(friend.id);
-                        return (
-                          <TouchableOpacity
-                            key={friend.id}
-                            style={[modal.friendSelectRow, sel && { backgroundColor: '#f0fdfa' }]}
-                            onPress={() => toggleFriend(friend.id)}
-                            activeOpacity={0.8}
-                          >
-                            <View style={modal.friendAvatar}>
-                              {friend.uri ? (
-                                <CachedImage
-                                  uri={friend.uri}
-                                  style={{ width: 38, height: 38, borderRadius: 19 }}
-                                  resizeMode="cover"
-                                />
-                              ) : (
-                                <Text style={modal.friendAvatarText}>{friend.name[0]}</Text>
-                              )}
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Text style={modal.friendName}>{friend.name}</Text>
-                              <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{friend.email}</Text>
-                            </View>
-                            {sel && (
-                              <View style={modal.checkCircle}>
-                                <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
-                                  <Path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
-                                </Svg>
-                              </View>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })
-                    }
-                  </>
-                )}
-                {memberTab === 'new' && (
-                  <>
-                    <Text style={[modal.label, { marginTop: 0 }]}>Email Address</Text>
-                    <TextInput
-                      style={[modal.input, { marginBottom: 8 }]}
-                      placeholder="Enter email address"
-                      placeholderTextColor="#94a3b8"
-                      value={inviteEmail}
-                      onChangeText={setInviteEmail}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                    />
-                    <Text style={modal.label}>Phone Number</Text>
-                    <TextInput
-                      style={[modal.input, { marginBottom: 8 }]}
-                      placeholder="Enter phone number"
-                      placeholderTextColor="#94a3b8"
-                      value={invitePhone}
-                      onChangeText={setInvitePhone}
-                      keyboardType="phone-pad"
-                    />
-                    <Text style={modal.label}>WhatsApp Number</Text>
-                    <TextInput
-                      style={[modal.input, { marginBottom: 8 }]}
-                      placeholder="Enter WhatsApp number"
-                      placeholderTextColor="#94a3b8"
-                      value={inviteWhatsapp}
-                      onChangeText={setInviteWhatsapp}
-                      keyboardType="phone-pad"
-                    />
-                    <TouchableOpacity
-                      style={[modal.createBtn, { alignSelf: 'stretch', marginTop: 4 }]}
-                      onPress={() => {
-                        const hasAny = inviteEmail.trim() || invitePhone.trim() || inviteWhatsapp.trim();
-                        if (hasAny) {
-                          const via = [inviteEmail.trim() && 'email', invitePhone.trim() && 'phone', inviteWhatsapp.trim() && 'WhatsApp'].filter(Boolean).join(', ');
-                          showAlert({ title: 'Invite sent!', message: `Invitation sent via ${via}` });
-                          setInviteEmail(''); setInvitePhone(''); setInviteWhatsapp('');
-                        }
-                      }}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={modal.createBtnTxt}>Send Invitation</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </ScrollView>
-              <View style={[modal.footer, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]}>
-                <TouchableOpacity style={[modal.createBtn, { flex: 1 }]} onPress={() => setShowInviteModal(false)} activeOpacity={0.85}>
-                  <Text style={modal.createBtnTxt}>Done ({selectedFriendIds.length} selected)</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
+      {/* ── Invite Friends — same design as Members → Invite Friends ── */}
+      <InviteFriendsPicker
+        visible={showInviteModal}
+        parentType="event"
+        selectedIds={selectedFriendIds}
+        onChange={setSelectedFriendIds}
+        onClose={() => setShowInviteModal(false)}
+      />
 
       {/* ── Provider Picker ── */}
       <Modal visible={showProviderPicker} transparent animationType="fade" onRequestClose={() => setShowProviderPicker(false)}>
@@ -1649,24 +1503,4 @@ const modal = StyleSheet.create({
   },
   createBtnTxt: { color: '#fff', fontSize: 14, fontWeight: '600' },
 
-  // Invite modal
-  inviteTabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  inviteTab: { flex: 1, paddingVertical: 10, alignItems: 'center' },
-  inviteTabActive: { borderBottomWidth: 2, borderBottomColor: '#0d9488', backgroundColor: '#f0fdfa' },
-  inviteTabText: { fontSize: 13, fontWeight: '500', color: '#64748b' },
-  inviteTabTextActive: { color: '#0d9488' },
-  friendSelectRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 10, borderRadius: 10, marginBottom: 4,
-  },
-  friendAvatar: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: '#ccfbf1', alignItems: 'center', justifyContent: 'center',
-  },
-  friendAvatarText: { fontSize: 16, fontWeight: '600', color: colors.accent },
-  friendName: { fontSize: 13, fontWeight: '400', color: '#0f172a' },
-  checkCircle: {
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
-  },
 });
