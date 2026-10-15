@@ -1,9 +1,12 @@
+const crypto = require('crypto');
 const { query: db, getClient } = require('../../config/database');
 const config = require('../../config');
 const { createAndSendNotification, createAndSendNotifications, notifySafely } = require('../../utils/fcm.util');
 const logger = require('../../utils/logger');
 const { phoneKey } = require('../../utils/phone.util');
 const { normalizeAvatarUrl } = require('../../utils/avatarUrl.util');
+const { findShareLinkByToken } = require('./shareLinks.service');
+const { ensureFriendRequest, ensureFriendRequestSafe } = require('../friends/friends.service');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -24,9 +27,24 @@ const getInstallLinks = (type, token) => {
   };
 };
 
+// Trip and event invites share one shape; only the table/column names differ.
+// These are constants, never user input, so interpolating them into SQL is safe.
+const PARENT = {
+  trip:  { invites: 'trip_invites',  members: 'trip_members',  col: 'trip_id',  parents: 'trips',  idKey: 'tripId' },
+  event: { invites: 'event_invites', members: 'event_members', col: 'event_id', parents: 'events', idKey: 'eventId' },
+};
+
+const httpError = (statusCode, error, message) => {
+  const err = new Error(message);
+  err.statusCode = statusCode;
+  err.error = error;
+  return err;
+};
+
 /**
- * Search friend_invites, trip_invites for a given token.
- * Returns { row, type } or null.
+ * Search friend_invites, trip_invites, event_invites and share_links for a token.
+ * Returns { row, type, shareLink? } or null. The share_links lookup comes last so the
+ * older lookups (and the tests that queue mocks for them) keep their order.
  */
 const findInviteByToken = async (token) => {
   // Friend invite
@@ -74,7 +92,49 @@ const findInviteByToken = async (token) => {
     return { row: eventResult.rows[0], type: 'event' };
   }
 
+  // Reusable share link (never expires, never claimed)
+  const shareLink = await findShareLinkByToken(token);
+  if (shareLink) {
+    return { row: shareLink, type: shareLink.parent_type, shareLink: true };
+  }
+
   return null;
+};
+
+/**
+ * Public-safe summary of a trip/event: name, dates, place and how many people are in it
+ * (a count only — the landing page is public, so no member names). Null if it's gone.
+ * Events are single-day (migration 014), so start and end are both event_date.
+ */
+const getParentContext = async (type, parentId) => {
+  const cfg = PARENT[type];
+  const dates = type === 'trip'
+    ? 'p.start_date AS start_date, p.end_date AS end_date'
+    : 'p.event_date AS start_date, p.event_date AS end_date';
+  const result = await db(
+    `SELECT p.name, ${dates}, p.location_name,
+            (SELECT COUNT(*)::int FROM ${cfg.members} m WHERE m.${cfg.col} = p.id) AS member_count
+     FROM ${cfg.parents} p WHERE p.id = $1`,
+    [parentId],
+  );
+  const row = result?.rows?.[0];
+  if (!row) return null;
+  return {
+    name: row.name,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    locationName: row.location_name || null,
+    memberCount: row.member_count,
+  };
+};
+
+const isMember = async (type, parentId, userId) => {
+  const cfg = PARENT[type];
+  const result = await db(
+    `SELECT 1 FROM ${cfg.members} WHERE ${cfg.col} = $1 AND user_id = $2`,
+    [parentId, userId],
+  );
+  return result.rows.length > 0;
 };
 
 // ─── Validate Invite (public — no JWT) ────────────────────────────────────────
@@ -86,7 +146,18 @@ const validateInvite = async (token) => {
     return { valid: false, reason: 'NOT_FOUND' };
   }
 
-  const { row, type } = found;
+  const { row, type, shareLink } = found;
+
+  // A share link is reusable: never claimed or expired, only dead once the trip/event
+  // is gone or the member who shared it has left.
+  if (shareLink) {
+    const [context, creatorIsMember] = await Promise.all([
+      getParentContext(type, row.parent_id),
+      isMember(type, row.parent_id, row.invited_by),
+    ]);
+    if (!context || !creatorIsMember) return { valid: false, reason: 'NOT_FOUND' };
+    return buildValidResponse({ type, token, row, expiresAt: null, context, parentName: context.name });
+  }
 
   // A declined request is as used-up as an accepted one.
   if (row.claimed_at || row.status === 'declined') {
@@ -97,22 +168,39 @@ const validateInvite = async (token) => {
     return { valid: false, reason: 'EXPIRED' };
   }
 
-  return {
-    valid: true,
-    type,
-    token,
-    expiresAt: row.expires_at,
-    invitedBy: {
-      name:      row.inviter_name   || null,
-      avatarUrl: normalizeAvatarUrl(row.inviter_avatar),
-    },
-    context: {
-      tripName:  type === 'trip'  ? (row.context_name || null) : null,
-      eventName: type === 'event' ? (row.context_name || null) : null,
-    },
-    installLinks: getInstallLinks(type, token),
-  };
+  // Extra details for the landing page. Best effort — they must never break validation.
+  let context = null;
+  if (type !== 'friend') {
+    try {
+      context = await getParentContext(type, row[PARENT[type].col]);
+    } catch (err) {
+      logger.warn('Invite context lookup failed', { type, err: err.message });
+    }
+  }
+  return buildValidResponse({ type, token, row, expiresAt: row.expires_at, context, parentName: row.context_name });
 };
+
+const buildValidResponse = ({ type, token, row, expiresAt, context, parentName }) => ({
+  valid: true,
+  type,
+  token,
+  expiresAt,
+  invitedBy: {
+    name:      row.inviter_name   || null,
+    avatarUrl: normalizeAvatarUrl(row.inviter_avatar),
+  },
+  context: {
+    tripName:  type === 'trip'  ? (parentName || null) : null,
+    eventName: type === 'event' ? (parentName || null) : null,
+    ...(type !== 'friend' && {
+      startDate:    context?.startDate ?? null,
+      endDate:      context?.endDate ?? null,
+      locationName: context?.locationName ?? null,
+      memberCount:  context?.memberCount ?? null,
+    }),
+  },
+  installLinks: getInstallLinks(type, token),
+});
 
 // ─── Claim Invite (authenticated) ─────────────────────────────────────────────
 
@@ -526,6 +614,190 @@ const declineInvite = async (table, inviteId, userId) => {
 const declineTripInvite  = (inviteId, userId) => declineInvite('trip_invites', inviteId, userId);
 const declineEventInvite = (inviteId, userId) => declineInvite('event_invites', inviteId, userId);
 
+// ─── Open Invite (authenticated) ──────────────────────────────────────────────
+//
+// What the app calls when someone taps an invite link. Unlike claimInvite it never
+// joins anyone: a friend link becomes a pending friend request from the inviter, and a
+// trip/event link becomes a pending request the person accepts from the popup.
+// (claimInvite is left as it was, for app versions already installed.)
+
+const openInvite = async (token, userId) => {
+  const found = await findInviteByToken(token);
+  if (!found) throw httpError(404, 'NOT_FOUND', 'Invite not found');
+
+  if (found.type === 'friend') return openFriendInvite(token, userId);
+  return openParentInvite(found, userId);
+};
+
+// Friend link: one-time. Opening it consumes it and leaves a pending request
+// inviter → opener. Nothing is pushed to either side; the inviter hears about it
+// only if the opener approves (friendsService.respondFriendRequest).
+const openFriendInvite = async (token, userId) => {
+  const client = await getClient();
+  const run = (sql, params) => client.query(sql, params);
+  try {
+    await client.query('BEGIN');
+
+    // Lock the invite so two simultaneous opens can't both consume it.
+    const lock = await client.query(
+      `SELECT fi.id, fi.invited_by, fi.expires_at, fi.claimed_at, fi.claimed_by,
+              p.full_name AS inviter_name
+       FROM friend_invites fi
+       LEFT JOIN profiles p ON p.user_id = fi.invited_by
+       WHERE fi.token = $1
+       FOR UPDATE OF fi`,
+      [token],
+    );
+    const invite = lock.rows[0];
+    if (!invite) throw httpError(404, 'NOT_FOUND', 'Invite not found');
+
+    const inviterId = invite.invited_by;
+    const inviterName = invite.inviter_name || null;
+    const outcome = (status) => ({ type: 'friend', status, inviterName });
+
+    // Opening your own link does not use it up.
+    if (inviterId === userId) throw httpError(400, 'SELF_CLAIM', 'Cannot open your own invite');
+
+    if (invite.claimed_at) {
+      if (invite.claimed_by !== userId) {
+        throw httpError(404, 'INVALID_INVITE', 'Invite is invalid, expired, or already used');
+      }
+      // Same person opening it again: say where the pair stands now.
+      const pair = await client.query(
+        `SELECT requester_id, status FROM friend_connections
+         WHERE (requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1)
+         LIMIT 1`,
+        [inviterId, userId],
+      );
+      await client.query('COMMIT');
+      const current = pair.rows[0];
+      if (current?.status === 'accepted') return outcome('already_friends');
+      if (current?.status === 'pending') {
+        return outcome(current.requester_id === inviterId ? 'pending' : 'outgoing_pending');
+      }
+      // Declined (or gone): they already dealt with this link.
+      throw httpError(404, 'INVALID_INVITE', 'Invite is invalid, expired, or already used');
+    }
+
+    if (new Date(invite.expires_at) < new Date()) {
+      throw httpError(404, 'INVALID_INVITE', 'Invite is invalid, expired, or already used');
+    }
+
+    const ensured = await ensureFriendRequest(inviterId, userId, run);
+    // A block is never revealed — to the opener it looks like an expired link.
+    if (ensured.status === 'blocked') {
+      throw httpError(404, 'INVALID_INVITE', 'Invite is invalid, expired, or already used');
+    }
+
+    await client.query(
+      'UPDATE friend_invites SET claimed_at = NOW(), claimed_by = $1 WHERE id = $2',
+      [userId, invite.id],
+    );
+    if (ensured.status === 'pending') {
+      await client.query(
+        `INSERT INTO referrals (referrer_id, referred_user_id, invite_token)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (referred_user_id) DO NOTHING`,
+        [inviterId, userId, token],
+      );
+    }
+
+    await client.query('COMMIT');
+    return outcome(ensured.status);
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+// Trip/event link: reusable. Already a member → straight to the trip/event. Otherwise
+// the opener gets (or keeps) a pending request, plus a separate friend request from
+// the person who invited them. Joining itself happens when they accept the popup.
+const openParentInvite = async (found, userId) => {
+  const { row, type, shareLink } = found;
+  const cfg = PARENT[type];
+  const parentId = shareLink ? row.parent_id : row[cfg.col];
+  const inviterId = row.invited_by;
+
+  const exists = await db(`SELECT 1 FROM ${cfg.parents} WHERE id = $1`, [parentId]);
+  if (exists.rows.length === 0) throw httpError(404, 'NOT_FOUND', `This ${type} no longer exists`);
+
+  if (await isMember(type, parentId, userId)) {
+    return { type, status: 'member', [cfg.idKey]: parentId };
+  }
+
+  if (inviterId === userId) {
+    // They shared it, then left — the link is dead.
+    throw httpError(404, 'INVALID_INVITE', 'This invite link is no longer active');
+  }
+
+  if (shareLink) {
+    // A link only works while the member who shared it is still in.
+    if (!(await isMember(type, parentId, inviterId))) {
+      throw httpError(404, 'INVALID_INVITE', 'This invite link is no longer active');
+    }
+  } else if (row.claimed_by && row.claimed_by !== userId) {
+    // Older single-use link that was sent to somebody else.
+    throw httpError(403, 'FORBIDDEN', 'This invite was sent to someone else');
+  }
+
+  let inviteId = null;
+  if (!shareLink && row.status === 'pending' && !row.claimed_by) {
+    inviteId = await bindLegacyInvite(type, row.id, parentId, userId);
+  }
+  if (!inviteId) inviteId = await upsertPendingRequest(type, parentId, inviterId, userId);
+
+  // Joining never makes people friends, but the inviter also asks to connect — separately.
+  await ensureFriendRequestSafe(inviterId, userId);
+
+  return { type, status: 'pending', inviteId, [cfg.idKey]: parentId };
+};
+
+/**
+ * Creates the opener's pending request, or reuses the one they already have and
+ * refreshes its expiry so a lapsed request reappears in the Requests tab.
+ */
+const upsertPendingRequest = async (type, parentId, inviterId, userId) => {
+  const cfg = PARENT[type];
+  const result = await db(
+    `INSERT INTO ${cfg.invites} (${cfg.col}, invited_by, user_id, token, expires_at, status)
+     VALUES ($1, $2, $3, $4, NOW() + INTERVAL '7 days', 'pending')
+     ON CONFLICT (${cfg.col}, user_id) WHERE status = 'pending' AND user_id IS NOT NULL
+     DO UPDATE SET expires_at = EXCLUDED.expires_at
+     RETURNING id`,
+    [parentId, inviterId, userId, crypto.randomUUID()],
+  );
+  return result.rows[0].id;
+};
+
+/**
+ * An older single-use link that was never bound to anyone: bind it to the opener so it
+ * becomes their request. Returns null if that isn't possible (they already have a
+ * pending request for this trip/event, or lost a race) and the caller reuses that one.
+ */
+const bindLegacyInvite = async (type, rowId, parentId, userId) => {
+  const cfg = PARENT[type];
+  try {
+    const result = await db(
+      `UPDATE ${cfg.invites}
+       SET user_id = $1, expires_at = NOW() + INTERVAL '7 days'
+       WHERE id = $2 AND user_id IS NULL AND status = 'pending'
+         AND NOT EXISTS (
+           SELECT 1 FROM ${cfg.invites} x
+           WHERE x.${cfg.col} = $3 AND x.user_id = $1 AND x.status = 'pending'
+         )
+       RETURNING id`,
+      [userId, rowId, parentId],
+    );
+    return result.rows[0]?.id || null;
+  } catch (err) {
+    if (err.code === '23505') return null; // raced with another pending request
+    throw err;
+  }
+};
+
 // ─── Signup matching ──────────────────────────────────────────────────────────
 //
 // Someone with no account gets an email/SMS invite, installs the app, and signs up
@@ -563,12 +835,14 @@ const linkPendingInvitesToUser = async (userId, { email = null, phone = null } =
        SET user_id = $1
        FROM matched m, trips t, profiles p
        WHERE ti.id = m.id AND t.id = ti.trip_id AND p.user_id = ti.invited_by
-       RETURNING ti.id, ti.trip_id, t.name AS trip_name, p.full_name AS inviter_name`,
+       RETURNING ti.id, ti.trip_id, ti.invited_by, t.name AS trip_name, p.full_name AS inviter_name`,
       [userId, email, phoneMatch],
     );
     summary.trips = trips.rows.length;
 
     for (const row of trips.rows) {
+      // Joining never makes friends, but the inviter also asks to connect — separately and quietly.
+      await ensureFriendRequestSafe(row.invited_by, userId);
       notifySafely(() => createAndSendNotification(
         userId,
         {
@@ -605,12 +879,13 @@ const linkPendingInvitesToUser = async (userId, { email = null, phone = null } =
        SET user_id = $1
        FROM matched m, events e, profiles p
        WHERE ei.id = m.id AND e.id = ei.event_id AND p.user_id = ei.invited_by
-       RETURNING ei.id, ei.event_id, e.name AS event_name, p.full_name AS inviter_name`,
+       RETURNING ei.id, ei.event_id, ei.invited_by, e.name AS event_name, p.full_name AS inviter_name`,
       [userId, email, phoneMatch],
     );
     summary.events = events.rows.length;
 
     for (const row of events.rows) {
+      await ensureFriendRequestSafe(row.invited_by, userId);
       notifySafely(() => createAndSendNotification(
         userId,
         {
@@ -644,13 +919,8 @@ const linkPendingInvitesToUser = async (userId, { email = null, phone = null } =
     );
 
     for (const invite of friendInvites.rows) {
-      const conn = await db(
-        `INSERT INTO friend_connections (requester_id, addressee_id, status)
-         VALUES ($1, $2, 'pending')
-         ON CONFLICT (requester_id, addressee_id) DO NOTHING
-         RETURNING id`,
-        [invite.invited_by, userId],
-      );
+      // Race-safe, and aware of a request already sitting in the other direction.
+      const ensured = await ensureFriendRequest(invite.invited_by, userId);
 
       await db(
         'UPDATE friend_invites SET claimed_at = NOW(), claimed_by = $1 WHERE id = $2',
@@ -664,7 +934,7 @@ const linkPendingInvitesToUser = async (userId, { email = null, phone = null } =
         [invite.invited_by, userId, invite.token],
       ).catch(() => {});
 
-      if (conn.rows.length === 0) continue; // already connected in some form
+      if (!ensured.created) continue; // already connected, already requested, or blocked
       summary.friends += 1;
 
       notifySafely(() => createAndSendNotification(
@@ -674,7 +944,7 @@ const linkPendingInvitesToUser = async (userId, { email = null, phone = null } =
           body: 'Open Requests to approve or decline',
         },
         'FRIEND_REQUEST',
-        { connectionId: conn.rows[0].id, fromUserId: invite.invited_by, screen: 'requests' },
+        { connectionId: ensured.connectionId, fromUserId: invite.invited_by, screen: 'requests' },
       ), 'FRIEND_REQUEST');
     }
   } catch (err) {
@@ -691,6 +961,7 @@ const linkPendingInvitesToUser = async (userId, { email = null, phone = null } =
 module.exports = {
   validateInvite,
   claimInvite,
+  openInvite,
   acceptTripInvite,
   acceptEventInvite,
   declineTripInvite,

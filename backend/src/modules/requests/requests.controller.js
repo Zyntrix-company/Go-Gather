@@ -11,6 +11,17 @@ const getRequests = async (req, res, next) => {
   }
 };
 
+/** GET /requests/:type/:id/preview — my own pending trip/event request, with who is already in. */
+const getRequestPreview = async (req, res, next) => {
+  try {
+    const { type, id } = req.params;
+    const result = await requestsService.getRequestPreview(req.user.id, type, id);
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 /** PUT /requests/:type/:id — { action: 'approve' | 'decline' } */
 const respondToRequest = async (req, res, next) => {
   try {
@@ -24,4 +35,4 @@ const respondToRequest = async (req, res, next) => {
   }
 };
 
-module.exports = { getRequests, respondToRequest };
+module.exports = { getRequests, getRequestPreview, respondToRequest };

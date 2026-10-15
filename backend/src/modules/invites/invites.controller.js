@@ -26,4 +26,18 @@ const claimInvite = async (req, res, next) => {
   }
 };
 
-module.exports = { validateInvite, claimInvite };
+/**
+ * POST /invites/open/:token — requires JWT. What the app calls when an invite link is
+ * tapped: creates the pending friend/trip/event request (never joins anyone).
+ */
+const openInvite = async (req, res, next) => {
+  try {
+    const result = await invitesService.openInvite(req.params.token, req.user.id);
+    logger.info('Invite opened', { token: req.params.token, userId: req.user.id, status: result.status });
+    return res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { validateInvite, claimInvite, openInvite };

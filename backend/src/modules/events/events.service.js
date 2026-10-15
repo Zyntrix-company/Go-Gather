@@ -18,6 +18,8 @@ const {
 const { resolveBannerUrl } = require('../../utils/banner.util');
 const { phoneKey } = require('../../utils/phone.util');
 const { normalizeAuthEmail } = require('../../utils/email.util');
+const { getOrCreateShareLink } = require('../invites/shareLinks.service');
+const { ensureFriendRequestSafe } = require('../friends/friends.service');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -202,13 +204,14 @@ const createEvent = async (userId, body) => {
       );
     }
 
-    // Send Branch-linked email invites
+    // Email invites. The message carries the creator's reusable link; the per-person row
+    // only records who it was for, so signing up with that address still attaches it.
     for (const email of emails) {
       (async () => {
         try {
           const token = crypto.randomUUID();
           const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
-          const branchUrl = `${config.appDeepLinkBaseUrl}/invite/event/${token}`;
+          const { url: branchUrl } = await getOrCreateShareLink('event', event.id, userId);
           await db(
             `INSERT INTO event_invites (event_id, invited_by, email, phone, token, expires_at, branch_url)
              VALUES ($1, $2, $3, NULL, $4, $5, $6) ON CONFLICT (token) DO NOTHING`,
@@ -217,8 +220,9 @@ const createEvent = async (userId, body) => {
           await sendEmail({
             to: email,
             subject: `${inviterName} invited you to "${name}" on ${config.brandName}`,
-            html: buildInviteEmail({ inviterName, eventName: name, deepLink: branchUrl, expiresAt }),
+            html: buildInviteEmail({ inviterName, eventName: name, deepLink: branchUrl }),
             text: `${inviterName} invited you to join "${name}". Accept: ${branchUrl}`,
+            tags: ['transactional', 'invite'],
           });
         } catch (err) {
           logger.error('Failed to process email invite on event creation', { email, error: err.message });
@@ -562,6 +566,7 @@ const deleteEvent = async (eventId) => {
   await db("DELETE FROM notes    WHERE parent_type = 'event' AND parent_id = $1", [eventId]);
 
   // 4. Delete event (cascades event_members, event_invites, event_reminders)
+  await db("DELETE FROM share_links WHERE parent_type = 'event' AND parent_id = $1", [eventId]);
   await db('DELETE FROM events WHERE id = $1', [eventId]);
 };
 
@@ -592,11 +597,12 @@ const processEventEmailOrPhoneInvite = async ({
       return;
     }
 
-    // No account — create invite token + link + email. They sign up with this same
-    // email/phone and signup matching turns this row into a request.
+    // No account — the message carries the sharer's reusable link. This per-person row
+    // only records who it was for: if they sign up with this same email/phone, signup
+    // matching turns it into a request even if they never tap the link.
     const token = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
-    const branchUrl = `${config.appDeepLinkBaseUrl}/invite/event/${token}`;
+    const { url: branchUrl } = await getOrCreateShareLink('event', eventId, invitedBy);
 
     await db(
       `INSERT INTO event_invites (event_id, invited_by, email, phone, token, expires_at, branch_url)
@@ -608,14 +614,15 @@ const processEventEmailOrPhoneInvite = async ({
       sendEmail({
         to: email,
         subject: `${inviterName} invited you to "${eventName}" on ${config.brandName}`,
-        html: buildInviteEmail({ inviterName, eventName, deepLink: branchUrl, expiresAt }),
+        html: buildInviteEmail({ inviterName, eventName, deepLink: branchUrl }),
         text: `${inviterName} invited you to join "${eventName}". Accept: ${branchUrl}`,
-      }).catch((err) => logger.error('SES invite email failed', { email, error: err.message }));
+        tags: ['transactional', 'invite'],
+      }).catch((err) => logger.error('Invite email failed', { email, error: err.message }));
     }
 
     // shareText is the single source of the invite message; clients send it as-is (SMS/WhatsApp).
     const shareText = generateInviteShareText({ inviterName, branchUrl, type: 'event', context: eventName });
-    invited.push({ [email ? 'email' : 'phone']: identifier, branchUrl, shareText, expiresAt: expiresAt.toISOString() });
+    invited.push({ [email ? 'email' : 'phone']: identifier, branchUrl, shareText, expiresAt: null });
   } catch (err) {
     logger.error('Failed to process event invite', { identifier, error: err.message });
   }
@@ -635,16 +642,10 @@ const inviteToEvent = async (eventId, invitedBy, { friendIds = [], emails = [], 
   const eventName = eventResult.rows[0].name;
 
   if (shareOnly) {
-    const token = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
-    const branchUrl = `${config.appDeepLinkBaseUrl}/invite/event/${token}`;
-    await db(
-      `INSERT INTO event_invites (event_id, invited_by, email, phone, token, expires_at, branch_url)
-       VALUES ($1, $2, NULL, NULL, $3, $4, $5) ON CONFLICT (token) DO NOTHING`,
-      [eventId, invitedBy, token, expiresAt.toISOString(), branchUrl],
-    );
+    // The sharer's one reusable link — same URL every time, never expires.
+    const { url: branchUrl } = await getOrCreateShareLink('event', eventId, invitedBy);
     const shareText = generateInviteShareText({ inviterName, branchUrl, type: 'event', context: eventName });
-    return { added: [], invited: [{ branchUrl, expiresAt: expiresAt.toISOString() }], skipped: [], shareText };
+    return { added: [], invited: [{ branchUrl, expiresAt: null }], skipped: [], shareText };
   }
 
   const added = [];      // nobody is auto-added any more — kept so the response shape is stable
@@ -706,11 +707,15 @@ const createEventRequest = async ({ eventId, eventName, invitedBy, inviterName, 
   const expiresAt = new Date(Date.now() + 7 * 24 * 3600000);
 
   // The partial unique index on (event_id, user_id) WHERE status = 'pending' makes
-  // re-inviting someone who already has an open request a no-op.
+  // re-inviting someone who already has a live open request a no-op. One that has
+  // lapsed (expires_at passed) is still holding that slot but is invisible in the
+  // Requests tab, so it is revived instead.
   const insertResult = await db(
     `INSERT INTO event_invites (event_id, invited_by, user_id, token, expires_at, status)
      VALUES ($1, $2, $3, $4, $5, 'pending')
-     ON CONFLICT DO NOTHING
+     ON CONFLICT (event_id, user_id) WHERE status = 'pending' AND user_id IS NOT NULL
+     DO UPDATE SET expires_at = EXCLUDED.expires_at, invited_by = EXCLUDED.invited_by
+     WHERE event_invites.expires_at <= NOW()
      RETURNING id`,
     [eventId, invitedBy, userId, token, expiresAt.toISOString()],
   );
@@ -719,6 +724,9 @@ const createEventRequest = async ({ eventId, eventName, invitedBy, inviterName, 
     skipped.push({ userId, reason: 'already_invited' });
     return;
   }
+
+  // Joining never makes friends, but the inviter also asks to connect — separately and quietly.
+  await ensureFriendRequestSafe(invitedBy, userId);
 
   const inviteId = insertResult.rows[0].id;
   const profile = await db('SELECT full_name AS name FROM profiles WHERE user_id = $1', [userId]);
@@ -892,14 +900,14 @@ const unarchiveEvent = async (eventId) => {
 
 // ─── Email template ───────────────────────────────────────────────────────────
 
-const buildInviteEmail = ({ inviterName, eventName, deepLink, expiresAt }) =>
+const buildInviteEmail = ({ inviterName, eventName, deepLink }) =>
   wrapEmail(`
     <h2 style="margin:0 0 10px 0; font-size:22px; font-weight:700; color:#111827;">
       You&rsquo;re invited!
     </h2>
     <p style="margin:0 0 28px 0; font-size:15px; color:#374151; line-height:1.65;">
       <strong>${inviterName}</strong> has invited you to join
-      <strong>&ldquo;${eventName}&rdquo;</strong> on Gatherrgo.
+      <strong>&ldquo;${eventName}&rdquo;</strong> on ${config.brandName}.
     </p>
 
     <!-- Bulletproof full-width-on-mobile CTA -->
@@ -917,10 +925,6 @@ const buildInviteEmail = ({ inviterName, eventName, deepLink, expiresAt }) =>
         </td>
       </tr>
     </table>
-
-    <p style="margin:0; font-size:13px; color:#6B7280; text-align:center;">
-      This invite expires on <strong>${new Date(expiresAt).toLocaleDateString()}</strong>.
-    </p>
   `);
 
 const VALID_SECTIONS = ['docs', 'members', 'photos', 'expenses', 'polls', 'notes'];

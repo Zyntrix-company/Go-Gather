@@ -7,6 +7,7 @@ const { sendEmail, wrapEmail, sendConnectionRequestEmail, sendRequestAcceptedEma
 const { getPresignedDownloadUrl } = require('../../utils/s3.util');
 const logger = require('../../utils/logger');
 const { phoneKey } = require('../../utils/phone.util');
+const { normalizeAvatarUrl } = require('../../utils/avatarUrl.util');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -36,18 +37,83 @@ const getUserFcmToken = async (userId) => {
   );
   return result.rows[0]?.fcm_token || null;
 };
-const normalizeAvatarUrl = (rawAvatarUrl) => {
-  if (!rawAvatarUrl || rawAvatarUrl.includes('https://undefined')) return null;
-  // Rewrite legacy direct S3 URLs (including expired presigned URLs) to CloudFront.
-  const cf = config.s3?.cloudfrontDomain;
-  if (cf && rawAvatarUrl.includes('.amazonaws.com/')) {
-    try {
-      const key = new URL(rawAvatarUrl).pathname.replace(/^\//, '');
-      if (key) return `https://${cf}/${key}`;
-    } catch { /* fall through */ }
+
+// ─── Ensure a pending friend request (race-safe) ──────────────────────────────
+
+/**
+ * Makes sure a pending request fromId → toId exists, without ever auto-accepting.
+ * Used by invite links, trip/event invites and signup matching; sends nothing itself.
+ *
+ * The pair is unique regardless of direction (idx_friend_pair), so this reads the pair
+ * first and then inserts with ON CONFLICT DO NOTHING — a concurrent insert just makes
+ * the next pass see the row instead of failing.
+ *
+ * `run` is a (sql, params) => Promise<{rows}> — pass `db`, or a transaction client's query.
+ *
+ * status:
+ *   'pending'          a request fromId → toId exists (`created` is true if we made or re-opened it)
+ *   'outgoing_pending' toId already sent fromId a pending request
+ *   'already_friends'
+ *   'blocked'          either side blocked the other
+ */
+const ensureFriendRequest = async (fromId, toId, run = db) => {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const found = await run(
+      `SELECT id, requester_id, status FROM friend_connections
+       WHERE (requester_id = $1 AND addressee_id = $2)
+          OR (requester_id = $2 AND addressee_id = $1)
+       LIMIT 1`,
+      [fromId, toId],
+    );
+    const existing = found.rows[0];
+
+    if (existing) {
+      if (existing.status === 'accepted') return { status: 'already_friends', created: false };
+      if (existing.status === 'blocked') return { status: 'blocked', created: false };
+      if (existing.status === 'pending') {
+        return existing.requester_id === fromId
+          ? { status: 'pending', created: false, connectionId: existing.id }
+          : { status: 'outgoing_pending', created: false, connectionId: existing.id };
+      }
+      // declined → re-open, with the inviter as the requester
+      const reopened = await run(
+        `UPDATE friend_connections
+         SET requester_id = $1, addressee_id = $2, status = 'pending', updated_at = NOW()
+         WHERE id = $3 AND status = 'declined'
+         RETURNING id`,
+        [fromId, toId, existing.id],
+      );
+      if (reopened.rows.length > 0) {
+        return { status: 'pending', created: true, connectionId: reopened.rows[0].id };
+      }
+      continue; // changed under us — read it again
+    }
+
+    const inserted = await run(
+      `INSERT INTO friend_connections (requester_id, addressee_id, status)
+       VALUES ($1, $2, 'pending')
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
+      [fromId, toId],
+    );
+    if (inserted.rows.length > 0) {
+      return { status: 'pending', created: true, connectionId: inserted.rows[0].id };
+    }
+    // lost a race to a concurrent insert — read it again
   }
-  return rawAvatarUrl;
+  throw new Error('Could not settle friend request state');
 };
+
+/** ensureFriendRequest for side-effect callers: a failure must never fail the invite. */
+const ensureFriendRequestSafe = async (fromId, toId) => {
+  try {
+    return await ensureFriendRequest(fromId, toId);
+  } catch (err) {
+    logger.error('ensureFriendRequest failed', { fromId, toId, err: err.message });
+    return null;
+  }
+};
+
 // ─── Send Friend Request ───────────────────────────────────────────────────────
 
 const sendFriendRequest = async (requesterId, addresseeId) => {
@@ -206,7 +272,7 @@ const respondFriendRequest = async (currentUserId, connectionId, action) => {
       friend: {
         userId: currentUserId,
         name: accepter.full_name || null,
-        avatarUrl: accepter.avatar_url || null,
+        avatarUrl: normalizeAvatarUrl(accepter.avatar_url),
       },
     };
   }
@@ -432,10 +498,10 @@ const createFriendInvite = async (inviterId, { channels, emails = [], phones = [
         subject: `${inviterName} invited you to ${config.brandName}`,
         html: wrapEmail(`
           <h2 style="margin:0 0 10px 0; font-size:22px; font-weight:700; color:#111827;">
-            You&rsquo;re invited to Gatherrgo!
+            You&rsquo;re invited to ${config.brandName}!
           </h2>
           <p style="margin:0 0 28px 0; font-size:15px; color:#374151; line-height:1.65;">
-            <strong>${inviterName}</strong> wants to connect with you on Gatherrgo —
+            <strong>${inviterName}</strong> wants to connect with you on ${config.brandName} —
             the app for planning trips and gatherings with the people who matter most.
           </p>
 
@@ -449,7 +515,7 @@ const createFriendInvite = async (inviterId, { channels, emails = [], phones = [
                           text-decoration:none; font-size:16px; font-weight:700;
                           border-radius:8px; text-align:center;
                           font-family:'Segoe UI',Arial,sans-serif;">
-                  Join Gatherrgo
+                  Join ${config.brandName}
                 </a>
               </td>
             </tr>
@@ -461,6 +527,7 @@ const createFriendInvite = async (inviterId, { channels, emails = [], phones = [
           </p>
         `),
         text: shareText,
+        tags: ['transactional', 'invite'],
       }).catch((err) =>
         logger.error('Invite email send failed', { err: err.message, email }),
       );
@@ -484,4 +551,6 @@ module.exports = {
   getFriends,
   removeFriend,
   createFriendInvite,
+  ensureFriendRequest,
+  ensureFriendRequestSafe,
 };

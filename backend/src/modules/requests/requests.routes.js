@@ -11,6 +11,17 @@ router.use(authenticateJWT);
 // GET /requests — pending friend + trip + event requests for the current user
 router.get('/', controller.getRequests);
 
+// GET /requests/:type/:id/preview — details for the invite popup (trip | event only)
+router.get(
+  '/:type/:id/preview',
+  [
+    param('type').isIn(['trip', 'event']).withMessage('type must be trip or event'),
+    param('id').isUUID().withMessage('id must be a UUID'),
+  ],
+  validate,
+  controller.getRequestPreview,
+);
+
 // PUT /requests/:type/:id — approve or decline
 router.put(
   '/:type/:id',

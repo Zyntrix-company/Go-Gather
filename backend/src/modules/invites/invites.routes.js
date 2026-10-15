@@ -27,4 +27,13 @@ router.post(
   controller.claimInvite,
 );
 
+// POST /invites/open/:token — JWT required. Creates the pending request; never joins.
+router.post(
+  '/open/:token',
+  authenticateJWT,
+  tokenValidation,
+  validate,
+  controller.openInvite,
+);
+
 module.exports = router;

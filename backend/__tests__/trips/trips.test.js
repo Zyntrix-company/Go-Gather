@@ -338,6 +338,7 @@ describe('Trips Routes', () => {
         .mockResolvedValueOnce({ rows: [{ full_name: 'Alice' }] })  // inviterName
         .mockResolvedValueOnce({ rows: [{ name: 'Goa 2026' }], rowCount: 1 })  // trip name
         .mockResolvedValueOnce({ rows: [] })  // no account for this phone
+        .mockResolvedValueOnce({ rows: [{ token: '5b1b8f2e-0c3a-4d52-9d8e-3f6a1c2b4d7e' }] })  // get-or-create share link
         .mockResolvedValueOnce({ rows: [] }); // INSERT trip_invites
 
       const res = await request(app)
@@ -349,6 +350,7 @@ describe('Trips Routes', () => {
       const [invited] = res.body.invited;
       expect(invited.branchUrl).toMatch(/^https:\/\/gatherrgo\.com\/invite\/trip\/[0-9a-f-]{36}$/);
       expect(invited.shareText).toContain('Alice is inviting you to join their trip "Goa 2026" on GatherrGo!');
+      expect(invited.branchUrl).toBe('https://gatherrgo.com/invite/trip/5b1b8f2e-0c3a-4d52-9d8e-3f6a1c2b4d7e'); // the reusable link
       expect(invited.shareText).toContain(invited.branchUrl);
     });
   });

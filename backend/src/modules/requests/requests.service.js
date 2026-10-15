@@ -1,6 +1,7 @@
 const { query: db } = require('../../config/database');
 const invitesService = require('../invites/invites.service');
 const friendsService = require('../friends/friends.service');
+const { normalizeAvatarUrl } = require('../../utils/avatarUrl.util');
 
 // ─── Incoming requests (friend + trip + event) ────────────────────────────────
 //
@@ -55,7 +56,7 @@ const getIncomingRequests = async (userId) => {
   const fromUser = (row, id) => ({
     id,
     name: row.inviter_name || null,
-    avatarUrl: row.inviter_avatar || null,
+    avatarUrl: normalizeAvatarUrl(row.inviter_avatar),
   });
 
   const items = [
@@ -140,4 +141,86 @@ const respondToRequest = async (userId, type, id, action) => {
   throw err;
 };
 
-module.exports = { getIncomingRequests, respondToRequest };
+// ─── Preview (invite popup) ───────────────────────────────────────────────────
+//
+// Details for the popup shown over the Requests tab: what the trip/event is, who
+// invited you and who is already in. Only the request's own invitee may read it, and
+// only while it is still pending — you are not a member yet.
+
+const PREVIEW_MEMBER_CAP = 12;
+
+// Table and column names come from this constant, never from the request.
+const PREVIEW = {
+  trip: {
+    invites: 'trip_invites', col: 'trip_id', parents: 'trips', members: 'trip_members',
+    dates: 'p.start_date AS start_date, p.end_date AS end_date',
+  },
+  event: {
+    invites: 'event_invites', col: 'event_id', parents: 'events', members: 'event_members',
+    // Events are single-day (migration 014).
+    dates: 'p.event_date AS start_date, p.event_date AS end_date',
+  },
+};
+
+const getRequestPreview = async (userId, type, id) => {
+  const cfg = PREVIEW[type];
+  if (!cfg) {
+    const err = new Error('Unknown request type');
+    err.statusCode = 400;
+    err.error = 'INVALID_TYPE';
+    throw err;
+  }
+
+  const header = await db(
+    `SELECT i.${cfg.col} AS parent_id, i.invited_by,
+            p.name, ${cfg.dates}, p.location_name,
+            pr.full_name AS inviter_name, pr.avatar_url AS inviter_avatar
+     FROM ${cfg.invites} i
+     JOIN ${cfg.parents} p ON p.id = i.${cfg.col}
+     LEFT JOIN profiles pr ON pr.user_id = i.invited_by
+     WHERE i.id = $1 AND i.user_id = $2 AND i.status = 'pending' AND i.expires_at > NOW()`,
+    [id, userId],
+  );
+  const row = header.rows[0];
+  if (!row) {
+    const err = new Error('Request not found, already responded to, or not yours');
+    err.statusCode = 404;
+    err.error = 'NOT_FOUND';
+    throw err;
+  }
+
+  const [members, count] = await Promise.all([
+    db(
+      `SELECT m.user_id AS id, pr.full_name AS name, pr.avatar_url
+       FROM ${cfg.members} m
+       LEFT JOIN profiles pr ON pr.user_id = m.user_id
+       WHERE m.${cfg.col} = $1
+       ORDER BY m.joined_at ASC
+       LIMIT ${PREVIEW_MEMBER_CAP}`,
+      [row.parent_id],
+    ),
+    db(`SELECT COUNT(*)::int AS n FROM ${cfg.members} WHERE ${cfg.col} = $1`, [row.parent_id]),
+  ]);
+
+  return {
+    type,
+    id,
+    name: row.name,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    locationName: row.location_name || null,
+    inviter: {
+      id: row.invited_by,
+      name: row.inviter_name || null,
+      avatarUrl: normalizeAvatarUrl(row.inviter_avatar),
+    },
+    members: members.rows.map((m) => ({
+      id: m.id,
+      name: m.name || null,
+      avatarUrl: normalizeAvatarUrl(m.avatar_url),
+    })),
+    memberCount: count.rows[0]?.n ?? members.rows.length,
+  };
+};
+
+module.exports = { getIncomingRequests, getRequestPreview, respondToRequest };

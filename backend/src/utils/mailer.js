@@ -194,7 +194,7 @@ const sendEmailViaSes = async ({ to, subject, html, text }) => {
  * @param {string}  options.html    HTML body
  * @param {string} [options.text]   Plain-text fallback
  */
-const sendEmailViaBrevo = async ({ to, subject, html, text }) => {
+const sendEmailViaBrevo = async ({ to, subject, html, text, tags }) => {
   const { apiKey, fromEmail, fromName } = config.brevo;
   const supportEmail =
     config.ses.supportEmail || config.ses.fromEmail || config.brevo.fromEmail;
@@ -218,7 +218,7 @@ const sendEmailViaBrevo = async ({ to, subject, html, text }) => {
     ...(supportEmail && {
       replyTo: { email: supportEmail, name: fromName || 'Gatherrgo Support' },
     }),
-    tags: ['transactional', 'auth'],
+    tags: tags && tags.length > 0 ? tags : ['transactional', 'auth'],
   };
 
   try {

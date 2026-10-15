@@ -64,7 +64,8 @@ describe('Invites Routes', () => {
       db.query
         .mockResolvedValueOnce({ rows: [] })  // friend_invites
         .mockResolvedValueOnce({ rows: [] })  // trip_invites
-        .mockResolvedValueOnce({ rows: [] }); // event_invites
+        .mockResolvedValueOnce({ rows: [] })  // event_invites
+        .mockResolvedValueOnce({ rows: [] }); // share_links
 
       const res = await request(app).get('/invites/validate/unknowntoken');
 
@@ -202,7 +203,8 @@ describe('Invites Routes', () => {
       db.query
         .mockResolvedValueOnce({ rows: [] })  // no friend invite
         .mockResolvedValueOnce({ rows: [] })  // no trip invite
-        .mockResolvedValueOnce({ rows: [] }); // no event invite
+        .mockResolvedValueOnce({ rows: [] })  // no event invite
+        .mockResolvedValueOnce({ rows: [] }); // no share link
 
       const res = await request(app)
         .post('/invites/claim/unknowntoken')
