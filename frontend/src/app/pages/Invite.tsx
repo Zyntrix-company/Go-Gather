@@ -116,9 +116,21 @@ export default function Invite() {
   const inviterName = preview.invitedBy?.name || 'Someone';
   const contextName = inviteType === 'trip' ? preview.context?.tripName ?? null : preview.context?.eventName ?? null;
   const headline = TYPE_COPY[inviteType](inviterName, contextName);
-  const storeLink = preview.installLinks?.android || preview.installLinks?.ios;
   const inviteUrl = `${INVITE_ORIGIN}/invite/${inviteType}/${token ?? ''}`;
-  const isIos = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isIos = /iPad|iPhone|iPod/.test(userAgent);
+  const isAndroid = /Android/i.test(userAgent);
+  // Phones get their own store only; desktop gets both, labelled.
+  const storeLinks: { href: string; label: string }[] = [];
+  const { android, ios } = preview.installLinks ?? {};
+  if (isIos) {
+    if (ios) storeLinks.push({ href: ios, label: 'Get GatherrGo' });
+  } else if (isAndroid) {
+    if (android) storeLinks.push({ href: android, label: 'Get GatherrGo' });
+  } else {
+    if (android) storeLinks.push({ href: android, label: 'Get GatherrGo for Android' });
+    if (ios) storeLinks.push({ href: ios, label: 'Get GatherrGo for iPhone' });
+  }
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center px-6 py-16 bg-white">
@@ -157,17 +169,18 @@ export default function Invite() {
               Open in the GatherrGo app
             </a>
           )}
-          {storeLink && (
+          {storeLinks.map(({ href, label }) => (
             <a
-              href={storeLink}
+              key={href}
+              href={href}
               target="_blank"
               rel="noreferrer"
               className="w-full px-6 py-3 rounded-xl bg-white border border-teal-200 hover:border-teal-400 text-teal-700 font-semibold transition-all flex items-center justify-center gap-2 text-sm"
             >
               <Download className="w-4 h-4" />
-              Get GatherrGo
+              {label}
             </a>
-          )}
+          ))}
         </div>
         {isIos && (
           <p className="text-xs text-slate-500 pt-1">
