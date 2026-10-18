@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Image,
-  Platform,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -123,7 +122,8 @@ export const emailProviderStyles = StyleSheet.create({
     bottom: -28,
     width: 140,
     height: 140,
-    opacity: Platform.OS === 'ios' ? 0.55 : 0.28,
+    // Same on both platforms: a faint, crisp logo watermark (this is how Android looks).
+    opacity: 0.28,
   },
   glassCardFrost: {
     ...StyleSheet.absoluteFillObject,
@@ -206,7 +206,6 @@ export function EmailProviderGlassCard({
   connected?: boolean;
   children: React.ReactNode;
 }) {
-  const blurRadius = Platform.OS === 'ios' ? 28 : 0;
   return (
     <View style={emailProviderStyles.glassCard}>
       <View style={emailProviderStyles.glassCardBg} pointerEvents="none">
@@ -215,7 +214,6 @@ export function EmailProviderGlassCard({
           source={EMAIL_PROVIDER_ASSETS[provider]}
           style={emailProviderStyles.glassCardBgIcon}
           resizeMode="contain"
-          blurRadius={blurRadius}
         />
         <View style={emailProviderStyles.glassCardFrost} />
       </View>
