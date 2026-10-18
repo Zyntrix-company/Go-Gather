@@ -54,6 +54,8 @@ export type RequestPreview = {
   startDate: string | null;
   endDate: string | null;
   locationName: string | null;
+  /** Same banner the home card shows. Absent on older backends; the popup then uses the stock image. */
+  bannerImageUrl?: string | null;
   inviter: { id: string; name: string | null; avatarUrl: string | null };
   members: { id: string; name: string | null; avatarUrl: string | null }[];
   memberCount: number;

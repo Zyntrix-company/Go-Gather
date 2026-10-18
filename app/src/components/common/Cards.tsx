@@ -102,7 +102,9 @@ export type UnifiedCardProps = {
   daysToGo?: number;            // pass >0 to show badge, omit/0 to hide
   isActiveToday?: boolean;      // show TODAY / ACTIVE badge (events happening today)
   // Interaction
-  onPress: () => void;
+  onPress?: () => void;
+  /** Display-only (e.g. inside the invite popup): not tappable, no ⋮ menu button. */
+  readOnly?: boolean;
   onToggleMenu?: () => void;
   showMenu?: boolean;
   // Menu actions
@@ -121,7 +123,7 @@ export function UnifiedCard({
   members, extraMembers = 0,
   daysToGo,
   isActiveToday = false,
-  onPress, onToggleMenu, showMenu = false,
+  onPress, readOnly = false, onToggleMenu, showMenu = false,
   archiveLabel = 'Archive', onArchive, onDelete,
   extraMenuItems,
   mb = 12,
@@ -131,7 +133,7 @@ export function UnifiedCard({
 
   return (
     <View style={[s.wrapper, { marginBottom: mb, zIndex: showMenu ? 100 : 1 }]}>
-      <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.85}>
+      <TouchableOpacity style={s.card} onPress={onPress} disabled={readOnly} activeOpacity={readOnly ? 1 : 0.85}>
 
         {/* Left — square image */}
         {imageUri && !imgFailed
@@ -172,14 +174,16 @@ export function UnifiedCard({
               maxVisible={2}
               containerStyle={s.avatarStack}
             />
-            <TouchableOpacity
-              style={s.moreBtn}
-              onPress={onToggleMenu}
-              activeOpacity={0.7}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <MoreVertical size={12} color="#64748b" strokeWidth={1.6} />
-            </TouchableOpacity>
+            {!readOnly && (
+              <TouchableOpacity
+                style={s.moreBtn}
+                onPress={onToggleMenu}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MoreVertical size={12} color="#64748b" strokeWidth={1.6} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Bottom row: days to go — always reserves space for uniform height */}

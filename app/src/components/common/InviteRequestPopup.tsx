@@ -12,25 +12,30 @@ import Toast from 'react-native-toast-message';
 import colors from '../../theme/colors';
 import AppModal from './AppModal';
 import Avatar from './Avatar';
-import StackedAvatars from './StackedAvatars';
+import { UnifiedCard } from './Cards';
 import {
   getRequestPreview,
   respondToRequest,
   type RequestPreview,
 } from '../../api/requests.api';
-import { inviteMetaLine, memberCountLabel } from '../../utils/inviteDisplay';
+import { inviteDateLabel, inviteDaysToGo, inviteHeadline } from '../../utils/inviteDisplay';
 
-// Same look and motion as ThemedAlert, so this reads as one of the app's own dialogs.
+// Same look as ThemedAlert (overlay, radius, border, shadow), but quicker: this is the first
+// thing an invitee sees, so it should pop in and out without making them wait.
 const OVERLAY_COLOR = 'rgba(15, 23, 42, 0.48)';
-const ENTER_DURATION = 240;
-const EXIT_DURATION = 180;
+const ENTER_DURATION = 170;
+const EXIT_DURATION = 120;
+const ENTER_RISE = 18;
+
+// Same stock image the home screen falls back to when a trip/event has no banner.
+const FALLBACK_BANNER = require('../../assets/images/goa_beach.png');
 
 export type InviteRequestRef = { type: 'trip' | 'event'; id: string };
 
 type Props = {
   /** The pending trip/event request to show; null keeps the popup closed. */
   request: InviteRequestRef | null;
-  /** Dismissed without answering (tap outside, Android back, Close) — the request stays in Requests. */
+  /** Dismissed without answering (tap outside, Android back) — the request stays in Requests. */
   onClose: () => void;
   /** Accepted: the user is now a member. `parentId` is the trip/event id. */
   onAccepted: (r: { type: 'trip' | 'event'; requestId: string; parentId: string; name: string }) => void;
@@ -40,14 +45,17 @@ type Props = {
 
 export default function InviteRequestPopup({ request, onClose, onAccepted, onDeclined }: Props) {
   const [preview, setPreview] = useState<RequestPreview | null>(null);
-  // Starts true so the first frame after opening is the spinner, not an empty card.
+  // Starts true so the first frame after opening is the skeleton, not an empty card.
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [busy, setBusy] = useState<'accept' | 'decline' | null>(null);
 
-  const scaleAnim = useRef(new Animated.Value(0.94)).current;
+  const scaleAnim = useRef(new Animated.Value(0.92)).current;
+  const riseAnim = useRef(new Animated.Value(ENTER_RISE)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
+  const contentAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0.55)).current;
   const dismissingRef = useRef(false);
 
   const dismissAnimated = useCallback(
@@ -56,21 +64,27 @@ export default function InviteRequestPopup({ request, onClose, onAccepted, onDec
       dismissingRef.current = true;
       Animated.parallel([
         Animated.timing(scaleAnim, {
-          toValue: 0.96,
+          toValue: 0.95,
+          duration: EXIT_DURATION,
+          easing: Easing.bezier(0.4, 0, 1, 1),
+          useNativeDriver: true,
+        }),
+        Animated.timing(riseAnim, {
+          toValue: 10,
           duration: EXIT_DURATION,
           easing: Easing.bezier(0.4, 0, 1, 1),
           useNativeDriver: true,
         }),
         Animated.timing(opacityAnim, {
           toValue: 0,
-          duration: EXIT_DURATION - 20,
-          easing: Easing.out(Easing.cubic),
+          duration: EXIT_DURATION,
+          easing: Easing.out(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.timing(overlayAnim, {
           toValue: 0,
-          duration: EXIT_DURATION + 40,
-          easing: Easing.out(Easing.cubic),
+          duration: EXIT_DURATION + 20,
+          easing: Easing.out(Easing.quad),
           useNativeDriver: true,
         }),
       ]).start(() => {
@@ -78,10 +92,10 @@ export default function InviteRequestPopup({ request, onClose, onAccepted, onDec
         after();
       });
     },
-    [scaleAnim, opacityAnim, overlayAnim],
+    [scaleAnim, riseAnim, opacityAnim, overlayAnim],
   );
 
-  // Open: animate in and load the details.
+  // Open: pop in and load the details.
   const requestKey = request ? `${request.type}:${request.id}` : null;
   useEffect(() => {
     if (!request) return;
@@ -90,12 +104,16 @@ export default function InviteRequestPopup({ request, onClose, onAccepted, onDec
     setLoadFailed(false);
     setLoading(true);
     setBusy(null);
+    contentAnim.setValue(0);
 
-    scaleAnim.setValue(0.94);
+    scaleAnim.setValue(0.92);
+    riseAnim.setValue(ENTER_RISE);
     opacityAnim.setValue(0);
     overlayAnim.setValue(0);
     Animated.parallel([
-      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 300, friction: 24 }),
+      // A touch of overshoot gives the pop; the spring settles fast.
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 340, friction: 22 }),
+      Animated.spring(riseAnim, { toValue: 0, useNativeDriver: true, tension: 340, friction: 24 }),
       Animated.timing(opacityAnim, {
         toValue: 1,
         duration: ENTER_DURATION,
@@ -104,7 +122,7 @@ export default function InviteRequestPopup({ request, onClose, onAccepted, onDec
       }),
       Animated.timing(overlayAnim, {
         toValue: 1,
-        duration: ENTER_DURATION + 30,
+        duration: ENTER_DURATION,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
@@ -126,7 +144,31 @@ export default function InviteRequestPopup({ request, onClose, onAccepted, onDec
     };
     // requestKey stands in for `request` so a re-render with the same request doesn't reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, scaleAnim, opacityAnim, overlayAnim]);
+  }, [requestKey]);
+
+  // Skeleton shimmer, only while there is something to wait for.
+  useEffect(() => {
+    if (!request || !loading) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.55, duration: 650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [request, loading, pulseAnim]);
+
+  // Loaded: the card fades in over the skeleton's footprint.
+  useEffect(() => {
+    if (!preview && !loadFailed) return;
+    Animated.timing(contentAnim, {
+      toValue: 1,
+      duration: 160,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [preview, loadFailed, contentAnim]);
 
   const close = () => {
     if (busy) return;
@@ -160,24 +202,46 @@ export default function InviteRequestPopup({ request, onClose, onAccepted, onDec
     }
   };
 
-  const meta = preview ? inviteMetaLine(preview.startDate, preview.endDate, preview.locationName) : '';
+  // The home cards only draw avatars that have a photo; everyone else folds into "+N".
+  const avatarMembers = (preview?.members ?? [])
+    .filter((m) => !!m.avatarUrl)
+    .map((m) => ({ id: m.id, uri: m.avatarUrl as string }));
+  const headline = preview ? inviteHeadline(preview.inviter.name, preview.type) : '';
 
   return (
     <AppModal visible={!!request} transparent animationType="none" statusBarTranslucent onRequestClose={close}>
       <Animated.View style={[styles.overlay, { opacity: overlayAnim }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} />
-        <Animated.View style={[styles.card, { transform: [{ scale: scaleAnim }], opacity: opacityAnim }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Close invite" />
+        <Animated.View
+          style={[
+            styles.dialog,
+            { opacity: opacityAnim, transform: [{ translateY: riseAnim }, { scale: scaleAnim }] },
+          ]}>
           {loading && (
-            <View style={styles.centerBlock}>
-              <ActivityIndicator size="small" color={colors.accent} />
-            </View>
+            <Animated.View style={{ opacity: pulseAnim }} accessibilityLabel="Loading invite">
+              <View style={styles.body}>
+                <View style={styles.skelHeadline} />
+                <View style={styles.skelCard}>
+                  <View style={styles.skelImg} />
+                  <View style={styles.skelLines}>
+                    <View style={[styles.skelLine, { width: '70%' }]} />
+                    <View style={[styles.skelLine, { width: '50%' }]} />
+                    <View style={[styles.skelLine, { width: '60%' }]} />
+                  </View>
+                </View>
+              </View>
+              <View style={styles.actions}>
+                <View style={[styles.btn, styles.btnSecondary]} />
+                <View style={[styles.btn, styles.btnSecondary]} />
+              </View>
+            </Animated.View>
           )}
 
           {!loading && loadFailed && (
-            <>
-              <View style={styles.content}>
-                <Text style={styles.title}>This invite isn't available</Text>
-                <Text style={styles.subtitle}>It may have expired or already been answered.</Text>
+            <Animated.View style={{ opacity: contentAnim }}>
+              <View style={[styles.body, styles.errorBody]}>
+                <Text style={styles.errorTitle}>This invite isn't available</Text>
+                <Text style={styles.errorText}>It may have expired or already been answered.</Text>
               </View>
               <View style={styles.actions}>
                 <Pressable
@@ -188,30 +252,31 @@ export default function InviteRequestPopup({ request, onClose, onAccepted, onDec
                   <Text style={styles.btnTextSecondary}>Close</Text>
                 </Pressable>
               </View>
-            </>
+            </Animated.View>
           )}
 
           {!loading && preview && (
-            <>
-              <View style={styles.content}>
-                <View style={styles.avatarWrap}>
-                  <Avatar uri={preview.inviter.avatarUrl} size={56} />
+            <Animated.View style={{ opacity: contentAnim }}>
+              <View style={styles.body}>
+                <View style={styles.headlineRow} accessible accessibilityLabel={headline}>
+                  <Avatar uri={preview.inviter.avatarUrl} size={28} />
+                  <Text style={styles.headline} numberOfLines={2}>
+                    {headline}
+                  </Text>
                 </View>
-                <Text style={styles.subtitle}>{`${preview.inviter.name || 'Someone'} invited you to`}</Text>
-                <Text style={[styles.title, styles.titleSpaced]}>{preview.name}</Text>
-                {!!meta && <Text style={styles.subtitle}>{meta}</Text>}
-                <View style={styles.membersRow}>
-                  <StackedAvatars
-                    avatars={preview.members.map((m) => ({ id: m.id, avatarUrl: m.avatarUrl ?? undefined }))}
-                    totalCount={preview.memberCount}
-                    maxVisible={4}
-                    size={28}
-                    overlap={8}
-                    counterStyle="soft"
-                    animated={false}
-                  />
-                  <Text style={styles.memberCount}>{memberCountLabel(preview.memberCount)}</Text>
-                </View>
+
+                <UnifiedCard
+                  readOnly
+                  imageUri={preview.bannerImageUrl}
+                  imageFallback={FALLBACK_BANNER}
+                  name={preview.name}
+                  location={preview.locationName || 'Location TBD'}
+                  dateLabel={inviteDateLabel(preview.type, preview.startDate, preview.endDate)}
+                  members={avatarMembers}
+                  extraMembers={Math.max(0, preview.memberCount - avatarMembers.length)}
+                  daysToGo={inviteDaysToGo(preview.startDate)}
+                  mb={0}
+                />
               </View>
 
               <View style={styles.actions}>
@@ -240,7 +305,7 @@ export default function InviteRequestPopup({ request, onClose, onAccepted, onDec
                   )}
                 </Pressable>
               </View>
-            </>
+            </Animated.View>
           )}
         </Animated.View>
       </Animated.View>
@@ -254,11 +319,11 @@ const styles = StyleSheet.create({
     backgroundColor: OVERLAY_COLOR,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 28,
+    paddingHorizontal: 20,
   },
-  card: {
+  dialog: {
     width: '100%',
-    maxWidth: 340,
+    maxWidth: 360,
     backgroundColor: colors.surface,
     borderRadius: 18,
     overflow: 'hidden',
@@ -270,59 +335,38 @@ const styles = StyleSheet.create({
     shadowRadius: 28,
     elevation: 10,
   },
-  centerBlock: {
-    paddingVertical: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
+  body: {
+    paddingTop: 20,
+    paddingHorizontal: 14,
   },
-  content: {
-    paddingTop: 26,
-    paddingHorizontal: 22,
-    paddingBottom: 4,
-    alignItems: 'center',
-  },
-  avatarWrap: {
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    textAlign: 'center',
-    letterSpacing: -0.2,
-  },
-  titleSpaced: {
-    marginTop: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 21,
-    marginTop: 4,
-  },
-  membersRow: {
+  headlineRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 14,
+    marginBottom: 14,
+    paddingHorizontal: 8,
   },
-  memberCount: {
-    fontSize: 14,
-    color: colors.textSecondary,
+  headline: {
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    letterSpacing: -0.1,
+    textAlign: 'center',
   },
   actions: {
-    marginTop: 22,
+    marginTop: 16,
     flexDirection: 'column',
     gap: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
   },
   btn: {
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
+    minHeight: 48,
     paddingVertical: 13,
   },
   btnPrimary: {
@@ -348,5 +392,60 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     letterSpacing: -0.1,
     color: colors.textPrimary,
+  },
+  errorBody: {
+    alignItems: 'center',
+    paddingHorizontal: 22,
+  },
+  errorTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    letterSpacing: -0.2,
+  },
+  errorText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 21,
+    marginTop: 8,
+  },
+  // Skeleton — same footprint as the loaded card (UnifiedCard: minHeight 90, 66px image),
+  // so the dialog doesn't change size when the details arrive.
+  skelHeadline: {
+    alignSelf: 'center',
+    width: '62%',
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.surfaceSecondary,
+    marginTop: 7,
+    marginBottom: 21,
+  },
+  skelCard: {
+    minHeight: 90,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 11,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EEF2F7',
+  },
+  skelImg: {
+    width: 66,
+    height: 66,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  skelLines: {
+    flex: 1,
+    gap: 8,
+  },
+  skelLine: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.surfaceSecondary,
   },
 });
