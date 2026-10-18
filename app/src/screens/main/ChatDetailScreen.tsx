@@ -1209,7 +1209,7 @@ const styles = StyleSheet.create({
   headerInfo: { flex: 1, minWidth: 0 },
   headerName: { fontSize: 14, fontWeight: '400', color: '#009788' },
   headerStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1 },
-  headerOnlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success },
+  headerOnlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
   headerSubtitle: { flexShrink: 1, fontSize: 11, color: '#64748b' },
 
   list: { flex: 1 },
@@ -1277,7 +1277,7 @@ const styles = StyleSheet.create({
   },
   attachBtn: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: '#f0fdfa', borderWidth: 1.5, borderColor: '#ccfbf1',
+    backgroundColor: colors.bubbleSwee, borderWidth: 1.5, borderColor: colors.bubbleSweeBorder,
     alignItems: 'center', justifyContent: 'center',
   },
 
@@ -1288,7 +1288,7 @@ const styles = StyleSheet.create({
   },
   composerChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#f0fdfa', borderWidth: 1, borderColor: '#ccfbf1',
+    backgroundColor: colors.bubbleSwee, borderWidth: 1, borderColor: colors.bubbleSweeBorder,
     borderRadius: 10, paddingVertical: 6, paddingHorizontal: 10, maxWidth: 200,
   },
   composerChipName: { flex: 1, fontSize: 12, color: '#0f172a', fontWeight: '500' },
@@ -1319,7 +1319,7 @@ const styles = StyleSheet.create({
   },
   attachOptionIconWrap: {
     width: 44, height: 44, borderRadius: 12,
-    backgroundColor: '#f0fdfa', borderWidth: 1, borderColor: '#ccfbf1',
+    backgroundColor: colors.bubbleSwee, borderWidth: 1, borderColor: colors.bubbleSweeBorder,
     alignItems: 'center', justifyContent: 'center',
   },
   attachOptionInfo: { flex: 1 },
