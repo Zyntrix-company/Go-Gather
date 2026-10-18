@@ -1310,7 +1310,11 @@ export default function HomeScreen({ navigation, route }: any) {
       <Modal
         visible={blogDetailVisible}
         animationType="slide"
+        // iOS: a native sheet sits below the status area, so the header and its back button
+        // can't end up under the notch/Dynamic Island, and swiping down also closes it.
+        presentationStyle="pageSheet"
         onRequestClose={() => { setBlogDetailVisible(false); setSelectedBlog(null); }}
+        onDismiss={() => { setBlogDetailVisible(false); setSelectedBlog(null); }}
         statusBarTranslucent>
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
           {/* Header */}
