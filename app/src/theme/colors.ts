@@ -61,10 +61,10 @@ export const colors = {
   warning: '#f59e0b',
 
   // Swee chat bubbles (pastel)
-  bubbleUser: '#FEF9C3',        // yellow-100
-  bubbleUserBorder: '#FDE68A',  // yellow-200
-  bubbleSwee: '#D1FAE5',        // mint (emerald-100)
-  bubbleSweeBorder: '#A7F3D0',  // emerald-200
+  bubbleUser: '#FDE8D2',        // soft peach (matches the orange blob)
+  bubbleUserBorder: '#F9D5B0',
+  bubbleSwee: 'rgba(45,212,191,0.13)',        // light, see-through aqua-teal
+  bubbleSweeBorder: 'rgba(45,212,191,0.28)',
 };
 
 export default colors;
