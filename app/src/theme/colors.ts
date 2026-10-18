@@ -59,6 +59,12 @@ export const colors = {
   error: '#ef4444',
   success: '#10b981',
   warning: '#f59e0b',
+
+  // Swee chat bubbles (pastel)
+  bubbleUser: '#FEF9C3',        // yellow-100
+  bubbleUserBorder: '#FDE68A',  // yellow-200
+  bubbleSwee: '#D1FAE5',        // mint (emerald-100)
+  bubbleSweeBorder: '#A7F3D0',  // emerald-200
 };
 
 export default colors;

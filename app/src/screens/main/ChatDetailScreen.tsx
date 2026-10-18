@@ -49,6 +49,7 @@ import {
 import { animateTextStream } from '../../utils/animateTextStream';
 import { loadChatDraft, saveChatDraft, clearChatDraft } from '../../utils/chatDraftStorage';
 import { SkeletonBox } from '../../components/common/ExpenseTabSkeleton';
+import colors from '../../theme/colors';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -794,7 +795,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             <View style={styles.msgAttachList}>
               {item.attachments!.map((a, i) => (
                 <View key={i} style={styles.msgAttachChip}>
-                  {a.kind === 'image' ? <ImageIcon size={14} color="#fff" /> : <FileText size={14} color="#fff" />}
+                  {a.kind === 'image' ? <ImageIcon size={14} color="#475569" /> : <FileText size={14} color="#475569" />}
                   <Text style={styles.msgAttachName} numberOfLines={1}>{a.name}</Text>
                 </View>
               ))}
@@ -959,6 +960,9 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             renderItem={renderMessage}
             contentContainerStyle={styles.messageList}
             showsVerticalScrollIndicator={false}
+            // With the keyboard up, the first tap on a card control (e.g. a date field)
+            // must reach that control instead of only dismissing the keyboard.
+            keyboardShouldPersistTaps="handled"
             onScroll={(e) => {
               if (e.nativeEvent.contentOffset.y < 48) loadOlderMessages();
             }}
@@ -1190,9 +1194,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    backgroundColor: 'rgba(255,255,255,0.9)',
     gap: 8,
   },
   iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
@@ -1216,10 +1217,13 @@ const styles = StyleSheet.create({
 
   msgBubble: { maxWidth: '82%', borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14 },
   msgBubbleWide: { maxWidth: '100%', alignSelf: 'stretch', width: '100%' },
-  msgBubbleUser: { backgroundColor: '#0d9488', borderBottomRightRadius: 4 },
+  msgBubbleUser: {
+    backgroundColor: colors.bubbleUser, borderBottomRightRadius: 4,
+    borderWidth: 1, borderColor: colors.bubbleUserBorder,
+  },
   msgBubbleSwee: {
-    backgroundColor: '#f0fdfa', borderBottomLeftRadius: 4,
-    borderWidth: 1, borderColor: '#ccfbf1',
+    backgroundColor: colors.bubbleSwee, borderBottomLeftRadius: 4,
+    borderWidth: 1, borderColor: colors.bubbleSweeBorder,
   },
 
   // Confirm chips
@@ -1246,9 +1250,9 @@ const styles = StyleSheet.create({
   viewBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
 
   msgText: { fontSize: 14, color: '#0f172a', lineHeight: 21 },
-  msgTextUser: { color: '#ffffff' },
+  msgTextUser: { color: '#0f172a' },
   msgTime: { fontSize: 10, color: '#94a3b8', marginTop: 6, textAlign: 'right' },
-  msgTimeUser: { color: 'rgba(255,255,255,0.65)' },
+  msgTimeUser: { color: 'rgba(15,23,42,0.45)' },
 
   typingBubble: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -1262,8 +1266,7 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row', alignItems: 'flex-end',
     paddingHorizontal: 16, paddingVertical: 10,
-    borderTopWidth: 1, borderTopColor: '#f1f5f9',
-    backgroundColor: 'rgba(255,255,255,0.95)', gap: 10,
+    gap: 10,
   },
   attachBtn: {
     width: 44, height: 44, borderRadius: 22,
@@ -1287,10 +1290,10 @@ const styles = StyleSheet.create({
   msgAttachList: { gap: 6, marginBottom: 6 },
   msgAttachChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 8,
+    backgroundColor: 'rgba(15,23,42,0.06)', borderRadius: 8,
     paddingVertical: 6, paddingHorizontal: 8,
   },
-  msgAttachName: { flex: 1, fontSize: 12, color: '#ffffff', fontWeight: '500' },
+  msgAttachName: { flex: 1, fontSize: 12, color: '#0f172a', fontWeight: '500' },
 
   // Attachment bottom sheet
   attachSheet: {
