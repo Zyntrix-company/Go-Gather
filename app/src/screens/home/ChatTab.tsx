@@ -56,7 +56,7 @@ function ListHeader({ searchQuery, onSearchChange, onNewChat }: HeaderProps) {
         <Text style={styles.heroHeading}>
           Ask Swee anything — trips, tips, or just chat!
         </Text>
-        <Text style={styles.heroSubtitle}>
+        <Text style={styles.heroSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
           Your AI travel companion, always ready to help
         </Text>
         <TouchableOpacity
@@ -262,7 +262,8 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: {
     fontFamily: 'Inter', fontSize: 16, fontWeight: '400', color: '#45556C',
-    textAlign: 'center', lineHeight: 20, letterSpacing: 0, width: 316,
+    // Full width (not a fixed 316) so the line fits on one line and shrinks slightly on narrow phones.
+    textAlign: 'center', lineHeight: 20, letterSpacing: 0, alignSelf: 'stretch',
   },
 
   // New Chat button — same pill as Create Trip / Create Event
@@ -306,7 +307,7 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: 32, paddingHorizontal: 24, gap: 8 },
   emptyTitle: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: '400',
     color: '#0f172a',
     textAlign: 'center',
   },
