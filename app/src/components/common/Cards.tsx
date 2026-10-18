@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, Image, StyleSheet,
+  View, Text, TouchableOpacity, Image, StyleSheet, Platform,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { MoreVertical } from 'lucide-react-native';
@@ -373,6 +373,11 @@ const s = StyleSheet.create({
     fontWeight: '400',
     color: '#009788',
     flexShrink: 1,
+    // Trim the text box's built-in space above the letters so the name's top lines up with the
+    // photo's top edge (Android adds extra font padding on top of this).
+    lineHeight: 16,
+    marginTop: -2,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
   },
   infoRow: {
     flexDirection: 'row',
@@ -383,6 +388,8 @@ const s = StyleSheet.create({
     fontSize: 11,
     color: '#64748b',
     flex: 1,              // lets text truncate instead of wrapping
+    lineHeight: 14,       // tight box so the date's bottom lines up with the photo's bottom edge
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
   },
   right: {
     flexDirection: 'column',
