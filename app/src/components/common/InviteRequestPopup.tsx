@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     marginTop: 8,
   },
-  // Skeleton — same footprint as the loaded card (UnifiedCard: minHeight 90, 66px image),
+  // Skeleton — same footprint as the loaded card (UnifiedCard: minHeight 84, 60px image),
   // so the dialog doesn't change size when the details arrive.
   skelHeadline: {
     alignSelf: 'center',
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     marginBottom: 21,
   },
   skelCard: {
-    minHeight: 90,
+    minHeight: 84,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -434,8 +434,8 @@ const styles = StyleSheet.create({
     borderColor: '#EEF2F7',
   },
   skelImg: {
-    width: 66,
-    height: 66,
+    width: 60,
+    height: 60,
     borderRadius: 12,
     backgroundColor: colors.surfaceSecondary,
   },

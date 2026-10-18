@@ -337,7 +337,7 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 90,
+    minHeight: 84,
     gap: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -346,8 +346,8 @@ const s = StyleSheet.create({
     elevation: 3,
   },
   img: {
-    width: 66,
-    height: 66,
+    width: 60,
+    height: 60,
     borderRadius: 12,
     flexShrink: 0,
   },
@@ -361,7 +361,7 @@ const s = StyleSheet.create({
     gap: 3,                 // minimum space between lines
     // Same height as the photo (s.img), lines spread evenly: the name starts at the photo's
     // top edge and the date ends at its bottom edge. minHeight, so large fonts can still grow.
-    minHeight: 66,
+    minHeight: 60,
     justifyContent: 'space-between',
     minWidth: 0,            // allows flex child to shrink and truncate text
     // No negative marginRight: it would pull the avatar column left over the
@@ -396,7 +396,7 @@ const s = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 6,
     // Matches the photo height: avatars level with the name, "days to go" level with the date.
-    minHeight: 66,
+    minHeight: 60,
     justifyContent: 'space-between',
     flexShrink: 0,
   },
