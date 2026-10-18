@@ -1250,6 +1250,8 @@ export default function GalleryTab({
             <View style={styles.profileInfo}>
               {displayName ? (
                 <View style={styles.nameRow}>
+                  {/* Same width as the edit icon on the other side, so the name itself is centred. */}
+                  <View style={styles.nameSpacer} />
                   <Text style={styles.name}>{displayName}</Text>
                   <TouchableOpacity style={styles.editBtn} onPress={onEditProfile} activeOpacity={0.8}>
                     <Pen size={15} color="#64748b" />
@@ -1394,6 +1396,7 @@ const styles = StyleSheet.create({
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
   avatarInitial: { fontSize: 38, fontWeight: '600', color: '#0d9488' },
   editBtn: { alignItems: 'center', justifyContent: 'center' },
+  nameSpacer: { width: 15 },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   name: { fontSize: 18, fontWeight: '500', color: '#0F172B', textAlign: 'center' },
   handle: { fontSize: 14, color: '#0d9488', fontWeight: '500', textAlign: 'center' },

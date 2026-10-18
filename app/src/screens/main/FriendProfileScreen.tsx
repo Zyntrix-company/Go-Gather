@@ -539,7 +539,9 @@ export default function FriendProfileScreen() {
                 <View style={styles.profileInfo}>
                   {displayName ? (
                     <View style={styles.nameRow}>
-                      <Text style={styles.name} numberOfLines={2}>{displayName}</Text>
+                      {/* Same width as the remove icon on the other side, so the name itself is centred. */}
+                      {profile?.friendshipStatus === 'accepted' && <View style={styles.nameSpacer} />}
+                      <Text style={[styles.name, { flexShrink: 1 }]} numberOfLines={2}>{displayName}</Text>
                       {profile?.friendshipStatus === 'accepted' && (
                         <TouchableOpacity
                           style={styles.removeFriendBtn}
@@ -683,6 +685,7 @@ const styles = StyleSheet.create({
   profileInfo: { justifyContent: 'center', gap: 4 },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   removeFriendBtn: { alignItems: 'center', justifyContent: 'center' },
+  nameSpacer: { width: 15 },
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 2, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
   avatarInitial: { fontSize: 38, fontWeight: '600', color: '#0d9488' },
