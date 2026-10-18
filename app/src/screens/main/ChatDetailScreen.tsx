@@ -925,7 +925,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
         {/* ── Chat sub-header ── */}
         <View style={styles.header}>
           <View style={styles.headerAvatarSwee}>
-            <SweeIcon size={24} color="#fff" />
+            <SweeIcon size={20} color="#fff" />
           </View>
 
           <View style={styles.headerInfo}>
@@ -1199,22 +1199,18 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(15,23,42,0.08)',
-    gap: 12,
+    gap: 8,
   },
-  iconBtn: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(15,23,42,0.05)',
-    alignItems: 'center', justifyContent: 'center',
-  },
+  iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   headerAvatarSwee: {
-    width: 48, height: 48, borderRadius: 24,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center',
   },
   headerInfo: { flex: 1, minWidth: 0 },
-  headerName: { fontSize: 17, fontWeight: '600', color: '#0f172a', letterSpacing: -0.2 },
-  headerStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  headerOnlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#22c55e' },
-  headerSubtitle: { flexShrink: 1, fontSize: 13, color: '#64748b' },
+  headerName: { fontSize: 14, fontWeight: '400', color: '#009788' },
+  headerStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1 },
+  headerOnlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#22c55e' },
+  headerSubtitle: { flexShrink: 1, fontSize: 11, color: '#64748b' },
 
   list: { flex: 1 },
   messageList: { paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 8, gap: 10 },
