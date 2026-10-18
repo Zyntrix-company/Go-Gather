@@ -2,6 +2,7 @@ const { query: db } = require('../../config/database');
 const invitesService = require('../invites/invites.service');
 const friendsService = require('../friends/friends.service');
 const { normalizeAvatarUrl } = require('../../utils/avatarUrl.util');
+const { presignOwnBanner } = require('../../utils/banner.util');
 
 // ─── Incoming requests (friend + trip + event) ────────────────────────────────
 //
@@ -154,11 +155,13 @@ const PREVIEW = {
   trip: {
     invites: 'trip_invites', col: 'trip_id', parents: 'trips', members: 'trip_members',
     dates: 'p.start_date AS start_date, p.end_date AS end_date',
+    banner: 'COALESCE(p.banner_image_url, p.cover_photo_url)',
   },
   event: {
     invites: 'event_invites', col: 'event_id', parents: 'events', members: 'event_members',
     // Events are single-day (migration 014).
     dates: 'p.event_date AS start_date, p.event_date AS end_date',
+    banner: 'p.banner_image_url',
   },
 };
 
@@ -173,7 +176,7 @@ const getRequestPreview = async (userId, type, id) => {
 
   const header = await db(
     `SELECT i.${cfg.col} AS parent_id, i.invited_by,
-            p.name, ${cfg.dates}, p.location_name,
+            p.name, ${cfg.dates}, p.location_name, ${cfg.banner} AS banner_url,
             pr.full_name AS inviter_name, pr.avatar_url AS inviter_avatar
      FROM ${cfg.invites} i
      JOIN ${cfg.parents} p ON p.id = i.${cfg.col}
@@ -209,6 +212,7 @@ const getRequestPreview = async (userId, type, id) => {
     startDate: row.start_date,
     endDate: row.end_date,
     locationName: row.location_name || null,
+    bannerImageUrl: await presignOwnBanner(row.banner_url),
     inviter: {
       id: row.invited_by,
       name: row.inviter_name || null,

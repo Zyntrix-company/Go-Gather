@@ -212,6 +212,56 @@ describe('Invites as approval-based requests', () => {
     });
   });
 
+  // ── Invite popup preview ───────────────────────────────────────────────────
+
+  describe('GET /requests/:type/:id/preview', () => {
+    const previewHandlers = (banner) => [
+      ['FROM trip_invites i', {
+        rows: [{
+          parent_id: TRIP_ID,
+          invited_by: ALICE,
+          name: 'Goa Trip',
+          start_date: '2026-08-01',
+          end_date: '2026-08-05',
+          location_name: 'Goa',
+          banner_url: banner,
+          inviter_name: 'Alice',
+          inviter_avatar: null,
+        }],
+        rowCount: 1,
+      }],
+      ['FROM trip_members m', { rows: [{ id: ALICE, name: 'Alice', avatar_url: null }], rowCount: 1 }],
+      ['COUNT(*)', { rows: [{ n: 1 }], rowCount: 1 }],
+    ];
+
+    it('includes the trip banner so the popup can show the same image as the home card', async () => {
+      routeQueries(previewHandlers('https://images.unsplash.com/photo-1?w=800'));
+
+      const res = await request(app)
+        .get(`/requests/trip/${INVITE_ID}/preview`)
+        .set('Authorization', `Bearer ${bobToken}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toMatchObject({
+        name: 'Goa Trip',
+        locationName: 'Goa',
+        bannerImageUrl: 'https://images.unsplash.com/photo-1?w=800',
+        memberCount: 1,
+      });
+    });
+
+    it('returns a null banner when the trip has none', async () => {
+      routeQueries(previewHandlers(null));
+
+      const res = await request(app)
+        .get(`/requests/trip/${INVITE_ID}/preview`)
+        .set('Authorization', `Bearer ${bobToken}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.bannerImageUrl).toBeNull();
+    });
+  });
+
   // ── Approve / decline ──────────────────────────────────────────────────────
 
   describe('PUT /requests/trip/:id', () => {
