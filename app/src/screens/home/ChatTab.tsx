@@ -11,7 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import { Search } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 import ChatConversationRow from '../../components/chat/ChatConversationRow';
 import ChatListSkeleton from '../../components/chat/ChatListSkeleton';
@@ -29,15 +29,6 @@ type Props = {
   onOpenConversation: (conversationId: string) => void;
   onOpenNewChat: () => void;
 };
-
-function SearchIcon() {
-  return (
-    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
-      <Circle cx={11} cy={11} r={8} stroke="#94a3b8" strokeWidth={2} />
-      <Path d="M21 21l-4.35-4.35" stroke="#94a3b8" strokeWidth={2} strokeLinecap="round" />
-    </Svg>
-  );
-}
 
 type HeaderProps = {
   searchQuery: string;
@@ -70,7 +61,7 @@ function ListHeader({ searchQuery, onSearchChange, onNewChat }: HeaderProps) {
 
       {/* Search bar */}
       <View style={styles.searchBar}>
-        <SearchIcon />
+        <Search size={18} color="#94a3b8" />
         <TextInput
           style={styles.searchInput}
           placeholder="Search chats..."
@@ -284,12 +275,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderRadius: 12,
+    // Same shape, border and size as the Home search bar
+    minHeight: 48,
+    borderRadius: 999,
     borderWidth: 1.5,
-    borderColor: '#e2e8f0',
+    borderColor: '#E0DBD3',
     backgroundColor: 'transparent',
-    paddingHorizontal: 14,
-    paddingVertical: Platform.OS === 'android' ? 12 : 14,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     marginBottom: 4,
   },
   searchInput: {

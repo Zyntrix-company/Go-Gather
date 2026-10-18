@@ -9,8 +9,9 @@ import {
   Modal,
   Pressable,
   Dimensions,
+  Platform,
 } from 'react-native';
-import { MoreVertical, Eye, Trash2 } from 'lucide-react-native';
+import { MoreVertical, Eye, Trash2, Search } from 'lucide-react-native';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
@@ -431,13 +432,11 @@ export default function FriendsScreen() {
 
               {!isSelecting && (
                 <View style={styles.searchBar}>
-                  <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" style={styles.searchIcon}>
-                    <Path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
+                  <Search size={18} color="#94a3b8" style={styles.searchIcon} />
                   <TextInput
                     style={styles.searchInput}
                     placeholder="Search by name or handle..."
-                    placeholderTextColor="#64748b"
+                    placeholderTextColor="#94a3b8"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                   />
@@ -573,7 +572,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: '5%',
+    paddingHorizontal: 20,
     paddingVertical: 16,
     paddingBottom: 120,
   },
@@ -636,20 +635,20 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontFamily: 'Inter',
-    fontSize: 22,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '400',
     color: '#0F172B',
     textAlign: 'center',
-    lineHeight: 30,
+    lineHeight: 28,
     letterSpacing: 0,
   },
   headerSubtitle: {
     fontFamily: 'Inter',
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '400',
     color: '#45556C',
     textAlign: 'center',
-    lineHeight: 21,
+    lineHeight: 20,
     letterSpacing: 0,
     marginTop: 9,
   },
@@ -676,43 +675,45 @@ const styles = StyleSheet.create({
   },
 
   // Section Label
+  // Same section-label style as Trips / Events
   sectionLabel: {
-    fontFamily: 'Inter',
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#404a59',
-    lineHeight: 21,
-    letterSpacing: 0,
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
     marginTop: 9,
     marginBottom: 10,
   },
 
-  // Search bar
+  // Search bar — same shape, border and sizes as the Home search bar
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 48,
     backgroundColor: 'transparent',
     borderRadius: 999,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 4,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(15, 23, 42, 0.12)',
+    borderWidth: 1.5,
+    borderColor: '#E0DBD3',
   },
   searchIcon: {
     marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '400',
     color: '#0f172a',
     padding: 0,
     backgroundColor: 'transparent',
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
   },
   noResultsText: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '400',
     color: '#94a3b8',
     textAlign: 'center',
     paddingVertical: 20,
@@ -859,14 +860,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '600',
     color: '#334155',
     marginBottom: 4,
   },
   emptyText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
     color: '#94a3b8',
     marginBottom: 20,
   },
