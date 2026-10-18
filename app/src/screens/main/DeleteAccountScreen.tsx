@@ -3,14 +3,12 @@ import {
   View,
   Text,
   TouchableOpacity,
-  TextInput,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
-import { KeyboardAvoider } from '../../components/common/KeyboardAvoider';
 import Svg, { Path } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
+import ConfirmWordModal from '../../components/common/ConfirmWordModal';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
 import colors from '../../theme/colors';
@@ -46,15 +44,17 @@ export default function DeleteAccountScreen({ navigation }: { navigation: any })
   const { deleteAccount } = useAuth();
   const userEmail = useAuthStore((s) => s.user?.email ?? '');
 
-  const [confirmText, setConfirmText] = useState('');
-  const [focused, setFocused] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canDelete = confirmText.trim().toUpperCase() === CONFIRM_WORD && !isDeleting;
+  function openConfirm() {
+    setError(null);
+    setConfirmOpen(true);
+  }
 
   async function handleDelete() {
-    if (!canDelete) return;
+    if (isDeleting) return;
     setError(null);
     setIsDeleting(true);
     try {
@@ -68,10 +68,9 @@ export default function DeleteAccountScreen({ navigation }: { navigation: any })
 
   return (
     <AppScreenLayout navigation={navigation} title="Delete Account" onBack={() => navigation.goBack()}>
-      <KeyboardAvoider style={styles.kav}>
+      <View style={styles.kav}>
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { paddingBottom: TAB_BAR_SCROLL_PADDING }]}
-          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
 
           <View style={styles.form}>
@@ -94,46 +93,34 @@ export default function DeleteAccountScreen({ navigation }: { navigation: any })
             <Bullet>Expenses, photos and notes you added to shared trips and events stay for the other members, shown as "Deleted user"</Bullet>
             <Bullet>Shared trips and events you organised are handed over to another member</Bullet>
 
-            <Text style={styles.fieldLabel}>
-              Type <Text style={styles.confirmWord}>{CONFIRM_WORD}</Text> to confirm
-            </Text>
-            <TextInput
-              style={[styles.input, focused && styles.inputFocused]}
-              placeholder={CONFIRM_WORD}
-              placeholderTextColor="#94a3b8"
-              value={confirmText}
-              onChangeText={(v) => { setConfirmText(v); if (error) setError(null); }}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              editable={!isDeleting}
-              underlineColorAndroid="transparent"
-              selectionColor="#0d9488"
-            />
-
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
             <TouchableOpacity
-              style={[styles.deleteBtn, !canDelete && styles.deleteBtnDisabled]}
-              onPress={handleDelete}
-              activeOpacity={0.85}
-              disabled={!canDelete}>
-              {isDeleting
-                ? <ActivityIndicator color={colors.error} />
-                : <Text style={styles.deleteBtnText}>Delete my account</Text>}
+              style={styles.deleteBtn}
+              onPress={openConfirm}
+              activeOpacity={0.85}>
+              <Text style={styles.deleteBtnText}>Delete my account</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.cancelBtn}
               onPress={() => navigation.goBack()}
-              activeOpacity={0.7}
-              disabled={isDeleting}>
+              activeOpacity={0.7}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
-      </KeyboardAvoider>
+      </View>
+
+      <ConfirmWordModal
+        visible={confirmOpen}
+        title="Delete your account?"
+        message="This permanently deletes your account and cannot be undone."
+        word={CONFIRM_WORD}
+        confirmLabel="Delete my account"
+        busy={isDeleting}
+        error={error}
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </AppScreenLayout>
   );
 }
@@ -187,32 +174,6 @@ const styles = StyleSheet.create({
   bulletDot: { fontSize: 13, color: '#94a3b8', width: 16, lineHeight: 19 },
   bulletText: { flex: 1, fontSize: 13, color: '#475569', lineHeight: 19 },
 
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-    marginTop: 24,
-    marginBottom: 7,
-    letterSpacing: 0.1,
-  },
-  confirmWord: { color: colors.error, fontWeight: '700' },
-  input: {
-    borderWidth: 2,
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    fontSize: 15,
-    color: '#0f172a',
-  },
-  inputFocused: { borderColor: '#0d9488' },
-  errorText: {
-    fontSize: 12,
-    color: '#ef4444',
-    marginTop: 8,
-    marginLeft: 2,
-  },
-
   deleteBtn: {
     backgroundColor: DESTRUCTIVE_BG,
     borderWidth: StyleSheet.hairlineWidth,
@@ -224,7 +185,6 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     marginTop: 24,
   },
-  deleteBtnDisabled: { opacity: 0.45 },
   deleteBtnText: {
     color: colors.error,
     fontSize: 15,
