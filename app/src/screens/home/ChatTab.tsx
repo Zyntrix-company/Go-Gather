@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: '#e2e8f0',
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === 'android' ? 12 : 14,
     marginBottom: 4,
