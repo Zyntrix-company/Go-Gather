@@ -1198,7 +1198,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(15,23,42,0.08)',
+    borderBottomColor: '#f1f5f9',
     gap: 8,
   },
   iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
@@ -1209,7 +1209,7 @@ const styles = StyleSheet.create({
   headerInfo: { flex: 1, minWidth: 0 },
   headerName: { fontSize: 14, fontWeight: '400', color: '#009788' },
   headerStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1 },
-  headerOnlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#22c55e' },
+  headerOnlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success },
   headerSubtitle: { flexShrink: 1, fontSize: 11, color: '#64748b' },
 
   list: { flex: 1 },
