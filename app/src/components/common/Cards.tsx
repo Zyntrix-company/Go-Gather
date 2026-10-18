@@ -152,11 +152,11 @@ export function UnifiedCard({
         <View style={s.info}>
           <Text style={s.name} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
           <View style={s.infoRow}>
-            <PinIcon color="#0d9488" size={11} />
+            <PinIcon color="#0d9488" size={12} />
             <Text style={s.infoText} numberOfLines={1} ellipsizeMode="tail">{location || 'Location TBD'}</Text>
           </View>
           <View style={s.infoRow}>
-            <CalendarIcon color="#f97316" size={11} />
+            <CalendarIcon color="#f97316" size={12} />
             <Text style={s.infoText} numberOfLines={1} ellipsizeMode="tail">{dateLabel}</Text>
           </View>
         </View>
@@ -369,13 +369,13 @@ const s = StyleSheet.create({
     // ending in a clean "name…". The card's gap:8 keeps the columns apart.
   },
   name: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '400',
     color: '#009788',
     flexShrink: 1,
     // Trim the text box's built-in space above the letters so the name's top lines up with the
     // photo's top edge (Android adds extra font padding on top of this).
-    lineHeight: 16,
+    lineHeight: 18,
     marginTop: -2,
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
   },
@@ -385,10 +385,10 @@ const s = StyleSheet.create({
     gap: 4,
   },
   infoText: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#64748b',
     flex: 1,              // lets text truncate instead of wrapping
-    lineHeight: 14,       // tight box so the date's bottom lines up with the photo's bottom edge
+    lineHeight: 15,       // tight box so the date's bottom lines up with the photo's bottom edge
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
   },
   right: {
