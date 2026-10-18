@@ -203,6 +203,8 @@ export type AppDatePickerProps = {
   title?: string;
   /** Trigger container style. */
   triggerStyle?: StyleProp<ViewStyle>;
+  /** Called when the trigger is tapped, just before the calendar opens. */
+  onOpen?: () => void;
   /** Called when the modal closes (selection or cancel). */
   onClose?: () => void;
 };
@@ -219,6 +221,7 @@ export default function AppDatePicker({
   disabled,
   title = 'Select date',
   triggerStyle,
+  onOpen,
   onClose,
 }: AppDatePickerProps) {
   const { min, max } = useMemo(
@@ -235,7 +238,11 @@ export default function AppDatePicker({
   return (
     <>
       <TouchableOpacity
-        onPress={() => !disabled && setVisible(true)}
+        onPress={() => {
+          if (disabled) return;
+          onOpen?.();
+          setVisible(true);
+        }}
         activeOpacity={0.8}
         disabled={disabled}
         style={[

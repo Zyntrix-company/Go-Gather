@@ -14,6 +14,7 @@ import {
   StyleSheet,
   Platform,
   Modal,
+  Keyboard,
   ActivityIndicator,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -38,6 +39,12 @@ import AppDatePicker from '../common/AppDatePicker';
 import CurrencyPickerDropdown from '../common/CurrencyPickerDropdown';
 import { getCurrencyDef } from '../../utils/currency';
 import type { PendingAction } from '../../api/ai.api';
+import {
+  endAfterStartChange,
+  eventDateProblem,
+  planDateMessage,
+  tripDatesProblem,
+} from '../../utils/planDates';
 
 const PRIMARY = '#0d9488';
 
@@ -232,8 +239,8 @@ export function TripPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
   const [destination, setDestination] = useState<string>(draft.destination || '');
   const needsDestination = !draft.destination;
 
-  const datesValid = !!startDate && !!endDate && endDate >= startDate;
-  const canCreate = datesValid && !!destination.trim() && !submitting;
+  const datesProblem = tripDatesProblem(startDate, endDate);
+  const canCreate = !datesProblem && !!destination.trim() && !submitting;
 
   const toggleFocus = (key: string) => {
     setFocus((prev) => {
@@ -290,13 +297,24 @@ export function TripPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
       <SectionLabel icon={<Calendar size={17} color="#0f172a" />}>Dates</SectionLabel>
       <View style={styles.dateRow}>
         <View style={styles.dateCell}>
-          <AppDatePicker value={startDate} onChange={setStartDate} mode="future" placeholder="Start" format="medium" />
+          <AppDatePicker
+            value={startDate}
+            onChange={(iso) => {
+              setStartDate(iso);
+              setEndDate((end) => endAfterStartChange(iso, end));
+            }}
+            onOpen={Keyboard.dismiss}
+            mode="future"
+            placeholder="Start"
+            format="medium"
+          />
         </View>
         <ArrowRight size={18} color="#94a3b8" />
         <View style={styles.dateCell}>
           <AppDatePicker
             value={endDate}
             onChange={setEndDate}
+            onOpen={Keyboard.dismiss}
             mode="future"
             minDate={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
             placeholder="End"
@@ -379,7 +397,7 @@ export function TripPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
           </>
         )}
       </TouchableOpacity>
-      {!datesValid && <Text style={styles.helperText}>Pick start and end dates to continue.</Text>}
+      {!!datesProblem && <Text style={styles.helperText}>{planDateMessage(datesProblem, 'trip')}</Text>}
     </View>
   );
 }
@@ -393,7 +411,8 @@ export function EventPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
   const [location, setLocation] = useState<string>(draft.location || '');
   const [description, setDescription] = useState<string>(draft.description || '');
 
-  const canCreate = !!name.trim() && !!eventDate && !submitting;
+  const dateProblem = eventDateProblem(eventDate);
+  const canCreate = !!name.trim() && !dateProblem && !submitting;
 
   const submit = () => {
     if (!canCreate) return;
@@ -433,7 +452,14 @@ export function EventPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
       <SectionLabel icon={<Calendar size={17} color="#0f172a" />}>Date & Time</SectionLabel>
       <View style={styles.dateRow}>
         <View style={styles.dateCell}>
-          <AppDatePicker value={eventDate} onChange={setEventDate} mode="future" placeholder="Date" format="medium" />
+          <AppDatePicker
+            value={eventDate}
+            onChange={setEventDate}
+            onOpen={Keyboard.dismiss}
+            mode="future"
+            placeholder="Date"
+            format="medium"
+          />
         </View>
         <View style={styles.dateCell}>
           <TimeField value={eventTime} onChange={setEventTime} />
@@ -490,7 +516,11 @@ export function EventPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
           </>
         )}
       </TouchableOpacity>
-      {!canCreate && !submitting && <Text style={styles.helperText}>Add a name and date to continue.</Text>}
+      {!canCreate && !submitting && (
+        <Text style={styles.helperText}>
+          {dateProblem && name.trim() ? planDateMessage(dateProblem, 'event') : 'Add a name and date to continue.'}
+        </Text>
+      )}
     </View>
   );
 }
