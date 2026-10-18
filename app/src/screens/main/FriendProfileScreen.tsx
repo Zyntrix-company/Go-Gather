@@ -206,7 +206,7 @@ function CustomAlbumPhotosModal({
   }, [visible, albumId, userId]);
 
   return (
-    <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <AlbumPhotosScreenLayout
         navigation={navigation}
         activeTab="friends"
@@ -365,7 +365,7 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
   });
 
   return (
-    <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <AlbumPhotosScreenLayout
         navigation={navigation}
         activeTab="friends"
