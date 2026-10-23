@@ -9,8 +9,12 @@ const { presignOwnBanner } = require('../../utils/banner.util');
 // One call backs the Requests tab. Every item carries the id needed to act on it:
 // friend → connectionId, trip/event → the invite id.
 
-const getIncomingRequests = async (userId) => {
-  const [friends, trips, events] = await Promise.all([
+// Trip/event invites accepted before approval-based requests existed (migration 060) were
+// auto-adds, not something the user responded to, so they never show as "You accepted".
+const REQUESTS_FLOW_START = '2026-07-14';
+
+const getIncomingRequests = async (userId, { includeResponded = false } = {}) => {
+  const [friends, trips, events, responded] = await Promise.all([
     db(
       `SELECT fc.id, fc.created_at, fc.requester_id,
               p.full_name AS inviter_name, p.avatar_url AS inviter_avatar
@@ -52,6 +56,7 @@ const getIncomingRequests = async (userId) => {
        ORDER BY ei.created_at DESC`,
       [userId],
     ),
+    includeResponded ? getRespondedRequests(userId) : [],
   ]);
 
   const fromUser = (row, id) => ({
@@ -68,6 +73,7 @@ const getIncomingRequests = async (userId) => {
       context: null,
       createdAt: r.created_at,
       expiresAt: null,
+      status: 'pending',
     })),
     ...trips.rows.map((r) => ({
       id: r.id,
@@ -82,6 +88,7 @@ const getIncomingRequests = async (userId) => {
       },
       createdAt: r.created_at,
       expiresAt: r.expires_at,
+      status: 'pending',
     })),
     ...events.rows.map((r) => ({
       id: r.id,
@@ -98,10 +105,122 @@ const getIncomingRequests = async (userId) => {
       },
       createdAt: r.created_at,
       expiresAt: r.expires_at,
+      status: 'pending',
     })),
   ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-  return { requests: items, total: items.length };
+  // total counts pending only — it backs the badge. Responded requests follow, newest first.
+  return { requests: [...items, ...responded], total: items.length };
+};
+
+/** Requests I already accepted or declined — they stay in the list with their status. */
+const getRespondedRequests = async (userId) => {
+  const [friends, trips, events] = await Promise.all([
+    db(
+      `SELECT fc.id, fc.created_at, fc.updated_at AS responded_at, fc.status, fc.requester_id,
+              p.full_name AS inviter_name, p.avatar_url AS inviter_avatar
+       FROM friend_connections fc
+       LEFT JOIN profiles p ON p.user_id = fc.requester_id
+       WHERE fc.addressee_id = $1 AND fc.status IN ('accepted', 'declined')`,
+      [userId],
+    ),
+    // Only the newest response per trip, and none while a live re-invite is pending —
+    // the pending row is what the user acts on (the pending-only unique index allows both).
+    db(
+      `SELECT * FROM (
+         SELECT DISTINCT ON (ti.trip_id)
+                ti.id, ti.created_at, ti.trip_id, ti.invited_by, ti.status,
+                COALESCE(ti.accepted_at, ti.declined_at) AS responded_at,
+                t.name AS context_name, t.location_name, t.start_date, t.end_date,
+                p.full_name AS inviter_name, p.avatar_url AS inviter_avatar,
+                EXISTS (
+                  SELECT 1 FROM trip_members tm WHERE tm.trip_id = ti.trip_id AND tm.user_id = $1
+                ) AS still_member
+         FROM trip_invites ti
+         JOIN trips t ON t.id = ti.trip_id
+         LEFT JOIN profiles p ON p.user_id = ti.invited_by
+         WHERE ti.user_id = $1
+           AND (ti.status = 'declined' OR (ti.status = 'accepted' AND ti.accepted_at >= $2))
+           AND NOT EXISTS (
+             SELECT 1 FROM trip_invites live
+             WHERE live.trip_id = ti.trip_id AND live.user_id = $1
+               AND live.status = 'pending' AND live.expires_at > NOW()
+           )
+         ORDER BY ti.trip_id, COALESCE(ti.accepted_at, ti.declined_at) DESC NULLS LAST
+       ) latest`,
+      [userId, REQUESTS_FLOW_START],
+    ),
+    db(
+      `SELECT * FROM (
+         SELECT DISTINCT ON (ei.event_id)
+                ei.id, ei.created_at, ei.event_id, ei.invited_by, ei.status,
+                COALESCE(ei.accepted_at, ei.declined_at) AS responded_at,
+                e.name AS context_name, e.location_name, e.event_date,
+                p.full_name AS inviter_name, p.avatar_url AS inviter_avatar,
+                EXISTS (
+                  SELECT 1 FROM event_members em WHERE em.event_id = ei.event_id AND em.user_id = $1
+                ) AS still_member
+         FROM event_invites ei
+         JOIN events e ON e.id = ei.event_id
+         LEFT JOIN profiles p ON p.user_id = ei.invited_by
+         WHERE ei.user_id = $1
+           AND (ei.status = 'declined' OR (ei.status = 'accepted' AND ei.accepted_at >= $2))
+           AND NOT EXISTS (
+             SELECT 1 FROM event_invites live
+             WHERE live.event_id = ei.event_id AND live.user_id = $1
+               AND live.status = 'pending' AND live.expires_at > NOW()
+           )
+         ORDER BY ei.event_id, COALESCE(ei.accepted_at, ei.declined_at) DESC NULLS LAST
+       ) latest`,
+      [userId, REQUESTS_FLOW_START],
+    ),
+  ]);
+
+  const fromUser = (row, id) => ({
+    id,
+    name: row.inviter_name || null,
+    avatarUrl: normalizeAvatarUrl(row.inviter_avatar),
+  });
+  const base = (r) => ({
+    id: r.id,
+    createdAt: r.created_at,
+    expiresAt: null,
+    status: r.status,
+    respondedAt: r.responded_at || r.created_at,
+  });
+
+  // Accepted trip/event rows say whether you're still in it, so the app doesn't open one you left.
+  const membership = (r) => (r.status === 'accepted' ? { isMember: Boolean(r.still_member) } : {});
+
+  return [
+    ...friends.rows.map((r) => ({ ...base(r), type: 'friend', from: fromUser(r, r.requester_id), context: null })),
+    ...trips.rows.map((r) => ({
+      ...base(r),
+      ...membership(r),
+      type: 'trip',
+      from: fromUser(r, r.invited_by),
+      context: {
+        tripId: r.trip_id,
+        name: r.context_name,
+        locationName: r.location_name,
+        startDate: r.start_date,
+        endDate: r.end_date,
+      },
+    })),
+    ...events.rows.map((r) => ({
+      ...base(r),
+      ...membership(r),
+      type: 'event',
+      from: fromUser(r, r.invited_by),
+      context: {
+        eventId: r.event_id,
+        name: r.context_name,
+        locationName: r.location_name,
+        startDate: r.event_date,
+        endDate: r.event_date,
+      },
+    })),
+  ].sort((a, b) => new Date(b.respondedAt) - new Date(a.respondedAt));
 };
 
 // ─── Respond ──────────────────────────────────────────────────────────────────

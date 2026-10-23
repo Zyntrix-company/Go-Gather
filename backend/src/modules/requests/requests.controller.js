@@ -1,10 +1,15 @@
 const requestsService = require('./requests.service');
 const logger = require('../../utils/logger');
 
-/** GET /requests — every pending request addressed to me (friend, trip, event). */
+/**
+ * GET /requests — every pending request addressed to me (friend, trip, event).
+ * ?include=responded also returns the ones I accepted or declined, with their status.
+ */
 const getRequests = async (req, res, next) => {
   try {
-    const result = await requestsService.getIncomingRequests(req.user.id);
+    const result = await requestsService.getIncomingRequests(req.user.id, {
+      includeResponded: req.query.include === 'responded',
+    });
     return res.status(200).json(result);
   } catch (error) {
     next(error);

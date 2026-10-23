@@ -12,6 +12,7 @@ const {
 } = require('./swee.config');
 const {
   parseActionBlock,
+  shortenActivityTitle,
   generateTripName,
   resolveEventType,
   parseActivityTime,
@@ -191,7 +192,7 @@ async function bulkCreateActivities(tripId, userId, activities) {
     if (!act.title) continue;
     try {
       await activitiesService.createActivity(tripId, userId, {
-        title: String(act.title).slice(0, 255),
+        title: shortenActivityTitle(act.title),
         date: act.date || null,
         time: parseActivityTime(act.time),
         locationName: act.locationName || null,

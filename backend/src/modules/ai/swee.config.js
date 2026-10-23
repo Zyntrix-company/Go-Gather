@@ -462,6 +462,7 @@ Rules:
 - NEVER say a trip/event was created or updated in chat — the app handles execution and shows the result
 - draft must contain only known-value fields (skip unknown fields)
 - activities: array of { "title": string, "date": "YYYY-MM-DD", "time": "HH:MM" } — time in 24h format; include only after user agrees
+- activity title: a short label — aim for about 30 characters, never more than 35 (e.g. "Snorkelling at Nusa Penida")
 - identify_update: ONLY after user named or chose a specific trip/event — never on vague requests like "change the trip name"
 - identify_update: use targetTripName OR tripId for trips; targetEventName OR eventId for events
 - For add_note: {"intent":"add_note","readyToCreate":true,"tripId":"[id]","noteContent":"..."}

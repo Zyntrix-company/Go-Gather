@@ -1,5 +1,6 @@
 const {
   parseActionBlock,
+  shortenActivityTitle,
   normalizeSweeReply,
   generateTripName,
   resolveEventType,
@@ -212,6 +213,46 @@ describe('ai.helpers', () => {
       const err = badRequest('test');
       expect(err.statusCode).toBe(400);
       expect(err.message).toBe('test');
+    });
+  });
+
+  describe('shortenActivityTitle', () => {
+    it('keeps titles of 35 characters or fewer unchanged', () => {
+      expect(shortenActivityTitle('Snorkelling at Nusa Penida')).toBe('Snorkelling at Nusa Penida');
+      const exact = 'a'.repeat(35);
+      expect(shortenActivityTitle(exact)).toBe(exact);
+    });
+
+    it('cuts long titles at a word boundary, never over 35 characters', () => {
+      const out = shortenActivityTitle('Sunset dinner cruise along the Chao Phraya River with live music');
+      expect(out.length).toBeLessThanOrEqual(35);
+      expect(out).toBe('Sunset dinner cruise along the Chao');
+    });
+
+    it('drops a dangling connector word or punctuation at the cut', () => {
+      const out = shortenActivityTitle('Morning walk through the old town and the night market');
+      expect(out.length).toBeLessThanOrEqual(35);
+      expect(out).toBe('Morning walk through the old town');
+    });
+
+    it('hard-cuts a single very long word', () => {
+      expect(shortenActivityTitle('x'.repeat(50))).toHaveLength(35);
+    });
+
+    it('never splits an emoji in half when hard-cutting', () => {
+      const out = shortenActivityTitle('Kayaking' + '🌊'.repeat(20));
+      expect(out.length).toBeLessThanOrEqual(35);
+      // 'Kayaking' (8) + 13 whole waves (26) = 34; a 14th would need 2 more units.
+      expect(out).toBe('Kayaking' + '🌊'.repeat(13));
+      expect(out).not.toMatch(/[\uD800-\uDBFF]$/);
+    });
+
+    it('applies to activities in a parsed ACTION block', () => {
+      const raw = 'Here you go.\n###ACTION{"intent":"create_trip","readyToCreate":false,"showForm":"trip","scope":"in","draft":{"destination":"Bali","activities":[{"title":"Full-day snorkelling and diving trip around Nusa Penida island","date":"2026-07-20","time":"08:00"}]}}';
+      const { pendingAction } = parseActionBlock(raw);
+      const title = pendingAction.draft.activities[0].title;
+      expect(title.length).toBeLessThanOrEqual(35);
+      expect(title).toBe('Full-day snorkelling and diving');
     });
   });
 });

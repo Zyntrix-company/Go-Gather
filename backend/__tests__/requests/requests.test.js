@@ -210,6 +210,138 @@ describe('Invites as approval-based requests', () => {
       const res = await request(app).get('/requests');
       expect(res.statusCode).toBe(401);
     });
+
+    it('does not look up responded requests unless asked', async () => {
+      routeQueries([]);
+
+      const res = await request(app)
+        .get('/requests')
+        .set('Authorization', `Bearer ${bobToken}`);
+
+      expect(res.statusCode).toBe(200);
+      const sqls = db.query.mock.calls.map(([sql]) => String(sql));
+      expect(sqls.some((sql) => sql.includes("status IN ('accepted', 'declined')"))).toBe(false);
+      expect(sqls.some((sql) => sql.includes("status = 'declined'"))).toBe(false);
+    });
+
+    it('?include=responded keeps accepted/declined requests after the pending ones, with their status', async () => {
+      routeQueries([
+        ["fc.status IN ('accepted', 'declined')", {
+          rows: [{
+            id: CONN_ID,
+            created_at: '2026-07-10T10:00:00Z',
+            responded_at: '2026-07-11T10:00:00Z',
+            status: 'declined',
+            requester_id: ALICE,
+            inviter_name: 'Alice',
+            inviter_avatar: null,
+          }],
+          rowCount: 1,
+        }],
+        ["ti.status = 'declined'", (sql) => {
+          // Accepted trip invites only count from when approval-based requests began.
+          expect(sql).toContain('ti.accepted_at >= $2');
+          return {
+            rows: [{
+              id: INVITE_ID,
+              created_at: '2026-07-12T10:00:00Z',
+              responded_at: '2026-07-13T10:00:00Z',
+              status: 'accepted',
+              trip_id: TRIP_ID,
+              invited_by: ALICE,
+              context_name: 'Goa Trip',
+              location_name: 'Goa',
+              start_date: '2026-08-01',
+              end_date: '2026-08-05',
+              inviter_name: 'Alice',
+              inviter_avatar: null,
+            }],
+            rowCount: 1,
+          };
+        }],
+        ['FROM friend_connections fc', {
+          rows: [{
+            id: 'dddd0002-0000-4000-8000-000000000002',
+            created_at: '2026-07-01T10:00:00Z',
+            requester_id: ALICE,
+            inviter_name: 'Alice',
+            inviter_avatar: null,
+          }],
+          rowCount: 1,
+        }],
+      ]);
+
+      const res = await request(app)
+        .get('/requests?include=responded')
+        .set('Authorization', `Bearer ${bobToken}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.total).toBe(1); // pending only — backs the badge
+      expect(res.body.requests.map((r) => [r.type, r.status])).toEqual([
+        ['friend', 'pending'],
+        ['trip', 'accepted'],   // responded, newest response first
+        ['friend', 'declined'],
+      ]);
+      const trip = res.body.requests.find((r) => r.type === 'trip');
+      expect(trip.context).toMatchObject({ tripId: TRIP_ID, name: 'Goa Trip' });
+      expect(trip.respondedAt).toBe('2026-07-13T10:00:00Z');
+    });
+
+    it('?include=responded keeps one response per trip/event and none while a live re-invite is pending', async () => {
+      const respondedSql = {};
+      routeQueries([
+        ["ti.status = 'declined'", (sql) => { respondedSql.trip = sql; return EMPTY; }],
+        ["ei.status = 'declined'", (sql) => { respondedSql.event = sql; return EMPTY; }],
+      ]);
+
+      const res = await request(app)
+        .get('/requests?include=responded')
+        .set('Authorization', `Bearer ${bobToken}`);
+
+      expect(res.statusCode).toBe(200);
+      // Declined twice (or declined then accepted) → only the newest response.
+      expect(respondedSql.trip).toContain('DISTINCT ON (ti.trip_id)');
+      expect(respondedSql.trip).toContain('ORDER BY ti.trip_id, COALESCE(ti.accepted_at, ti.declined_at) DESC');
+      expect(respondedSql.event).toContain('DISTINCT ON (ei.event_id)');
+      // Declined plus a newer live pending invite → only the pending row (from the pending query).
+      expect(respondedSql.trip).toContain("live.status = 'pending' AND live.expires_at > NOW()");
+      expect(respondedSql.event).toContain("live.status = 'pending' AND live.expires_at > NOW()");
+    });
+
+    it('?include=responded marks accepted rows with isMember; declined rows carry none', async () => {
+      const tripRow = (over) => ({
+        created_at: '2026-07-12T10:00:00Z',
+        responded_at: '2026-07-13T10:00:00Z',
+        trip_id: TRIP_ID,
+        invited_by: ALICE,
+        context_name: 'Goa Trip',
+        location_name: 'Goa',
+        start_date: '2026-08-01',
+        end_date: '2026-08-05',
+        inviter_name: 'Alice',
+        inviter_avatar: null,
+        ...over,
+      });
+      routeQueries([
+        ["ti.status = 'declined'", {
+          rows: [
+            tripRow({ id: INVITE_ID, status: 'accepted', still_member: false }),
+            tripRow({ id: 'cccc0002-0000-4000-8000-000000000002', trip_id: 'aaaa0002-0000-4000-8000-000000000002', status: 'declined', still_member: false }),
+          ],
+          rowCount: 2,
+        }],
+      ]);
+
+      const res = await request(app)
+        .get('/requests?include=responded')
+        .set('Authorization', `Bearer ${bobToken}`);
+
+      expect(res.statusCode).toBe(200);
+      const accepted = res.body.requests.find((r) => r.status === 'accepted');
+      const declined = res.body.requests.find((r) => r.status === 'declined');
+      expect(accepted.isMember).toBe(false); // left the trip since accepting
+      expect(declined).not.toHaveProperty('isMember');
+    });
   });
 
   // ── Invite popup preview ───────────────────────────────────────────────────

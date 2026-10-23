@@ -139,6 +139,43 @@ function readScope(action, jsonStr = '') {
   return /"scope"\s*:\s*"out"/.test(jsonStr) ? 'out' : 'in';
 }
 
+// ─── Activity titles ──────────────────────────────────────────────────────────
+// Swee is asked for ~30-char activity titles; this is the hard cap if it runs long.
+
+const ACTIVITY_TITLE_MAX = 35;
+const TRAILING_CONNECTOR = /\s+(?:at|in|on|to|and|with|for|of|the|a|an|from|via|near|&)$/i;
+
+// Cut to at most `max` UTF-16 units without leaving half of a surrogate pair (e.g. an
+// emoji), which would be stored as a replacement character.
+function sliceUnits(text, max) {
+  const out = text.slice(0, max);
+  const last = out.charCodeAt(out.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? out.slice(0, -1) : out;
+}
+
+function shortenActivityTitle(title) {
+  const text = String(title ?? '').replace(/\s+/g, ' ').trim();
+  if (text.length <= ACTIVITY_TITLE_MAX) return text;
+  // Cut at the last word boundary that fits; hard-cut only if that would leave too little.
+  const head = text.slice(0, ACTIVITY_TITLE_MAX + 1);
+  const space = head.lastIndexOf(' ');
+  let out = space >= 15 ? head.slice(0, space) : sliceUnits(text, ACTIVITY_TITLE_MAX);
+  let prev;
+  do {
+    prev = out;
+    out = out.replace(/[\s,;:.\-–—&(/]+$/, '').replace(TRAILING_CONNECTOR, '');
+  } while (out !== prev);
+  return out || sliceUnits(text, ACTIVITY_TITLE_MAX).trim();
+}
+
+function shortenDraftActivityTitles(action) {
+  const acts = action?.draft?.activities;
+  if (!Array.isArray(acts)) return;
+  for (const act of acts) {
+    if (act && typeof act.title === 'string') act.title = shortenActivityTitle(act.title);
+  }
+}
+
 function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
   const normalized = normalizeSweeReply(rawText);
   const marker = '###ACTION';
@@ -169,6 +206,8 @@ function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
         scope: readScope(action),
       };
     }
+
+    shortenDraftActivityTitles(action);
 
     const meaningful = action.readyToCreate
       || action.intent === 'identify_update'
@@ -321,6 +360,7 @@ module.exports = {
   normalizeSweeReply,
   validatePendingAction,
   parseActionBlock,
+  shortenActivityTitle,
   generateTripName,
   resolveEventType,
   parseActivityTime,
