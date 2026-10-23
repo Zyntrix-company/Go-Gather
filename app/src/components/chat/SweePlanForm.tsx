@@ -38,6 +38,7 @@ import {
 import AppDatePicker from '../common/AppDatePicker';
 import CurrencyPickerDropdown from '../common/CurrencyPickerDropdown';
 import { getCurrencyDef } from '../../utils/currency';
+import colors from '../../theme/colors';
 import type { PendingAction } from '../../api/ai.api';
 import {
   endAfterStartChange,
@@ -527,11 +528,12 @@ export function EventPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+  // Same teal as Swee's message bubble, so the forms Swee shows read as part of her reply.
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.bubbleSwee,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.bubbleSweeBorder,
     padding: 14,
     marginTop: 8,
     marginBottom: 2,

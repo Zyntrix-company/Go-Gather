@@ -26,6 +26,14 @@ function ProfileIcon() {
   );
 }
 
+function DocumentsIcon() {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" stroke="#64748b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
 function SettingsIcon() {
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -176,7 +184,9 @@ export default function MenuScreen({ navigation }: { navigation: any }) {
         <View style={styles.topDivider} />
 
         {/* Menu rows */}
-        <MenuRow icon={<ProfileIcon />}  label="Profile"  onPress={() => navigation.navigate('Profile')} />
+        <MenuRow icon={<ProfileIcon />}  label="Profile"  onPress={() => navigation.navigate('EditProfile')} />
+        <View style={styles.rowDivider} />
+        <MenuRow icon={<DocumentsIcon />} label="Documents" onPress={() => navigation.navigate('PersonalDocuments')} />
         <View style={styles.rowDivider} />
         <MenuRow icon={<SettingsIcon />} label="Settings" onPress={() => navigation.navigate('Settings')} />
         <View style={styles.rowDivider} />

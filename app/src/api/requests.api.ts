@@ -23,10 +23,16 @@ export type IncomingRequest = {
   context: RequestContext | null;
   createdAt: string;
   expiresAt: string | null;
+  /** Absent on older backends — treat as pending. */
+  status?: 'pending' | 'accepted' | 'declined';
+  respondedAt?: string;
+  /** Accepted trip/event rows only: false once you've left or been removed. */
+  isMember?: boolean;
 };
 
+/** Pending requests first, then the ones already accepted/declined (they stay, with their status). */
 export async function getRequests() {
-  const res = await client.get('/requests');
+  const res = await client.get('/requests', { params: { include: 'responded' } });
   return res.data as { requests: IncomingRequest[]; total: number };
 }
 

@@ -406,34 +406,30 @@ function ActivityGroupsList({
         const collapseKey = `${collapseKeyPrefix}${dateKey}`;
         const isCollapsed = collapsedDates.has(collapseKey);
         const isLast = index === entries.length - 1;
+        // Main dot sits on the date row; each activity row carries its own small dot on the
+        // same rail axis, so dots always match activities 1:1 (the last date included).
         return (
-          <View key={collapseKey} style={styles.timelineRow}>
-            <View style={styles.timelineRail}>
-              <View style={styles.timelineDot} />
-              {!isLast && (
-                <View style={styles.timelineConnector}>
-                  <View style={styles.timelineConnectorDot} />
-                  <View style={styles.timelineConnectorDot} />
-                  <View style={styles.timelineConnectorDot} />
-                  <View style={styles.timelineConnectorDot} />
-                  <View style={styles.timelineConnectorDot} />
-                  <View style={styles.timelineConnectorDot} />
-                </View>
-              )}
-            </View>
-            <View style={[styles.timelineContent, !isLast && { paddingBottom: 8 }]}>
-              <TouchableOpacity style={styles.actDateRow} onPress={() => onToggleDate(collapseKey)} activeOpacity={0.7}>
+          <View key={collapseKey} style={!isLast && { paddingBottom: 8 }}>
+            <View style={styles.timelineRow}>
+              <View style={styles.timelineRail}>
+                <View style={styles.timelineDot} />
+              </View>
+              <TouchableOpacity style={[styles.timelineContent, styles.actDateRow]} onPress={() => onToggleDate(collapseKey)} activeOpacity={0.7}>
                 <Text style={styles.actDateLabel}>
                   {formatActivityDate(dateKey === '__nodate__' ? '' : dateKey)}
                 </Text>
                 {isCollapsed ? <ChevDown color="#0d9488" /> : <ChevUp color="#0d9488" />}
               </TouchableOpacity>
-              {!isCollapsed && (
-                <View style={styles.actItemsWrap}>
-                  {acts.map((act, idx) => (
+            </View>
+            {!isCollapsed && (
+              <View style={styles.actItemsWrap}>
+                {acts.map((act, idx) => (
+                  <View key={act.id} style={styles.timelineRow}>
+                    <View style={styles.timelineRail}>
+                      <View style={styles.timelineConnectorDot} />
+                    </View>
                     <TouchableOpacity
-                      key={act.id}
-                      style={[styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]}
+                      style={[styles.timelineContent, styles.actItemRow, idx === acts.length - 1 && { marginBottom: 0 }]}
                       onPress={() => onActivityPress(act)}
                       activeOpacity={0.7}>
                       <Text style={[styles.actItemLine, styles.actTimeLabel]}>
@@ -441,10 +437,10 @@ function ActivityGroupsList({
                       </Text>
                       <Text style={[styles.actItemLine, styles.actItemTitle]} numberOfLines={1}>{act.title}</Text>
                     </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         );
       })}
@@ -2178,24 +2174,24 @@ export default function TripDetailScreen({ route, navigation }: any) {
               {showUpcoming ? <ChevUp /> : <ChevDown />}
             </TouchableOpacity>
             {showUpcoming && (
-              <View style={styles.activityCard}>
-                {!tripDetailReady
-                  ? (
-                    <View style={styles.activitiesLoading}>
-                      <ActivityIndicator size="small" color="#0d9488" />
-                    </View>
-                  )
-                  : upcomingActs.length === 0
-                    ? <Text style={styles.emptySub}>No upcoming activities yet</Text>
-                    : (
+              !tripDetailReady
+                ? (
+                  <View style={styles.activitiesLoading}>
+                    <ActivityIndicator size="small" color="#0d9488" />
+                  </View>
+                )
+                : upcomingActs.length === 0
+                  ? <Text style={styles.activitiesEmpty}>No activities yet</Text>
+                  : (
+                    <View style={styles.activityCard}>
                       <ActivityGroupsList
                         activities={upcomingActs}
                         collapsedDates={collapsedDates}
                         onToggleDate={toggleActivityDate}
                         onActivityPress={startEditActivity}
                       />
-                    )}
-              </View>
+                    </View>
+                  )
             )}
           </View>}
 
@@ -2209,15 +2205,12 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 </Svg>
                 <Text style={styles.sectionTitleDark}>Activities</Text>
               </View>
-              {activities.length === 0 ? (
-                <View style={styles.emptyBox}>
-                  <Text style={styles.emptyTitle}>No activities</Text>
-                  <Text style={styles.emptySub}>No activities were recorded for this trip</Text>
-                </View>
-              ) : !tripDetailReady ? (
+              {!tripDetailReady ? (
                 <View style={styles.activitiesLoading}>
                   <ActivityIndicator size="small" color="#0d9488" />
                 </View>
+              ) : activities.length === 0 ? (
+                <Text style={styles.activitiesEmpty}>No activities yet</Text>
               ) : (
                 <View style={styles.activityCard}>
                   <ActivityGroupsList
@@ -2242,25 +2235,23 @@ export default function TripDetailScreen({ route, navigation }: any) {
                 {showCompleted ? <ChevUp /> : <ChevDown />}
               </TouchableOpacity>
               {showCompleted && (
-                <View style={styles.activityCard}>
-                  {completed.length === 0
-                    ? (
-                      <Text style={styles.emptySub}>No completed activities yet</Text>
-                    )
-                    : !tripDetailReady ? (
-                      <View style={styles.activitiesLoading}>
-                        <ActivityIndicator size="small" color="#0d9488" />
-                      </View>
-                    ) : (
-                      <ActivityGroupsList
-                        activities={completed}
-                        collapsedDates={collapsedDates}
-                        onToggleDate={toggleActivityDate}
-                        onActivityPress={startEditActivity}
-                        collapseKeyPrefix="completed:"
-                      />
-                    )}
-                </View>
+                !tripDetailReady ? (
+                  <View style={styles.activitiesLoading}>
+                    <ActivityIndicator size="small" color="#0d9488" />
+                  </View>
+                ) : completed.length === 0 ? (
+                  <Text style={styles.activitiesEmpty}>No activities yet</Text>
+                ) : (
+                  <View style={styles.activityCard}>
+                    <ActivityGroupsList
+                      activities={completed}
+                      collapsedDates={collapsedDates}
+                      onToggleDate={toggleActivityDate}
+                      onActivityPress={startEditActivity}
+                      collapseKeyPrefix="completed:"
+                    />
+                  </View>
+                )
               )}
             </View>
           )}
@@ -2919,7 +2910,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
       ═══════════════════════════════════════════════════ */}
         <AppModal visible={showMembers} transparent animationType="fade" onRequestClose={() => setShowMembers(false)}>
           <View style={styles.overlay}>
-            <View style={styles.dialog}>
+            <View style={[styles.dialog, styles.membersDialog]}>
               <DHeader title="Trip Members" subtitle={`Current members: ${memberCount}`} onClose={() => setShowMembers(false)} />
               <TabBar tabs={['Members', 'Invite Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -3891,7 +3882,7 @@ const styles = StyleSheet.create({
   activityCard: {
     backgroundColor: '#ffffff',
     borderRadius: 14,
-    paddingLeft: 0,
+    paddingLeft: 12,
     paddingRight: 14,
     paddingVertical: 14,
     borderWidth: 1,
@@ -3901,7 +3892,6 @@ const styles = StyleSheet.create({
   sectionTitleDark: { fontSize: 13, fontWeight: '600', color: '#64748b', letterSpacing: 0.6 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
 
-  emptyBox: { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#e2e8f0', paddingVertical: 32, paddingHorizontal: 20, alignItems: 'center' },
   emptyCompletedActivities: { backgroundColor: 'transparent', borderWidth: 0, paddingVertical: 16, paddingHorizontal: 12, alignItems: 'center' },
   emptyCenter: { alignItems: 'center', paddingVertical: 28 },
   emptyTitle: { fontSize: 13, color: '#64748b', fontWeight: '400', marginTop: 10, textAlign: 'center' },
@@ -3911,18 +3901,18 @@ const styles = StyleSheet.create({
   actTitle: { fontSize: 12, fontWeight: '400', color: '#0f172a', marginBottom: 2 },
   actMeta: { fontSize: 11, color: '#94a3b8' },
   activitiesLoading: { paddingVertical: 28, alignItems: 'center', justifyContent: 'center' },
+  activitiesEmpty: { fontSize: 12, color: '#94a3b8', textAlign: 'center', paddingVertical: 12 },
 
-  timelineRow: { flexDirection: 'row' },
-  timelineRail: { width: 16, alignItems: 'center' },
-  timelineDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0d9488', marginTop: 8 },
-  timelineConnector: { flex: 1, minHeight: 8, alignItems: 'center', justifyContent: 'space-evenly', paddingVertical: 4 },
+  timelineRow: { flexDirection: 'row', alignItems: 'center' },
+  timelineRail: { width: 16, alignItems: 'center', justifyContent: 'center' },
+  timelineDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0d9488' },
   timelineConnectorDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#99f6e4' },
   timelineContent: { flex: 1 },
 
   actDateRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 4, marginBottom: 2 },
   actDateLabel: { fontSize: 13, fontWeight: '600', color: '#0d9488' },
-  actItemsWrap: { marginLeft: 2, marginTop: 2, paddingBottom: 4 },
-  actItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, paddingLeft: 4, paddingRight: 4, borderWidth: 1, borderColor: 'transparent', borderRadius: 10, backgroundColor: 'transparent', gap: 8, marginBottom: 2 },
+  actItemsWrap: { marginTop: 2, paddingBottom: 4 },
+  actItemRow: { flexDirection: 'row', alignItems: 'center', marginLeft: 2, paddingVertical: 5, paddingLeft: 4, paddingRight: 4, borderWidth: 1, borderColor: 'transparent', borderRadius: 10, backgroundColor: 'transparent', gap: 8, marginBottom: 2 },
   actItemLine: { fontSize: 12, fontWeight: '400', color: '#0f172a' },
   actTimeLabel: { minWidth: 44 },
   actItemTitle: { flex: 1 },
@@ -3933,6 +3923,8 @@ const styles = StyleSheet.create({
   // Modal base
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
   dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '82%', overflow: 'hidden' },
+  // Members / Invite Friends / Invite New share one fixed size, so the dialog doesn't resize per tab or platform.
+  membersDialog: { height: EXPENSES_MODAL_HEIGHT },
   expensesDialog: {
     height: EXPENSES_MODAL_HEIGHT,
     maxHeight: '92%',
@@ -3999,8 +3991,9 @@ const styles = StyleSheet.create({
   memberEmail: { fontSize: 11, color: '#64748b', marginTop: 1 },
   ownerBadge: { backgroundColor: '#f0fdfa', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#99f6e4' },
   ownerTxt: { fontSize: 11, color: '#0d9488', fontWeight: '500' },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 10, gap: 8 },
-  searchInput: { flex: 1, fontSize: 12, color: '#0f172a' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 10, height: 38, marginBottom: 10, gap: 8 },
+  // Same height on iOS and Android: no platform input padding inside the fixed-height box.
+  searchInput: { flex: 1, fontSize: 12, color: '#0f172a', paddingVertical: 0, includeFontPadding: false },
   checkCircle: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtnActive: { borderColor: '#0d9488', backgroundColor: '#0d9488' },

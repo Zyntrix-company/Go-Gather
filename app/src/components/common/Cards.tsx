@@ -153,7 +153,7 @@ export function UnifiedCard({
           <Text style={s.name} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
           <View style={s.infoRow}>
             <PinIcon color="#0d9488" size={12} />
-            <Text style={s.infoText} numberOfLines={1} ellipsizeMode="tail">{location || 'Location TBD'}</Text>
+            <Text style={[s.infoText, s.locationText]} numberOfLines={1} ellipsizeMode="tail">{location || 'Location TBD'}</Text>
           </View>
           <View style={s.infoRow}>
             <CalendarIcon color="#f97316" size={12} />
@@ -390,6 +390,10 @@ const s = StyleSheet.create({
     flex: 1,              // lets text truncate instead of wrapping
     lineHeight: 15,       // tight box so the date's bottom lines up with the photo's bottom edge
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
+  },
+  locationText: {
+    fontSize: 13,
+    lineHeight: 16,
   },
   right: {
     flexDirection: 'column',

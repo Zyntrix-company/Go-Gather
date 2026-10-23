@@ -29,6 +29,9 @@ import {
 // rows would be duplicates — the Requests tab is the place to act on them.
 const REQUEST_TYPES = ['FRIEND_REQUEST', 'TRIP_REQUEST', 'EVENT_REQUEST'];
 
+/** Older backends send no status — those rows are all pending. */
+const isPendingRequest = (r: IncomingRequest) => !r.status || r.status === 'pending';
+
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
 function getReminderIcon(reminderType?: string) {
@@ -221,6 +224,12 @@ export default function NotificationsScreen({ navigation, route }: any) {
   // The trip/event invite popup. Opened by a tapped invite link, a push, or a card tap.
   const [popupRequest, setPopupRequest] = useState<InviteRequestRef | null>(null);
 
+  const setRequestStatus = useCallback(
+    (id: string, status: 'accepted' | 'declined') =>
+      setRequests(rs => rs.map(r => (r.id === id ? { ...r, status } : r))),
+    [],
+  );
+
   const loadRequests = useCallback(async () => {
     try {
       const res = await getRequests();
@@ -273,16 +282,16 @@ export default function NotificationsScreen({ navigation, route }: any) {
   const displayed: any[] = activeTab === 'notifications' ? notificationsTabItems : requests;
 
   const notificationsUnread = notificationsTabItems.filter(n => !n.read).length;
-  const requestsUnread      = requests.length;
+  const requestsUnread      = requests.filter(isPendingRequest).length;
 
   const handleRespond = useCallback(
     async (item: IncomingRequest, action: 'approve' | 'decline') => {
       if (respondingId) return;
       setRespondingId(item.id);
 
-      // Optimistic: the row goes away immediately, and comes back if the call fails.
+      // Optimistic: the row shows its new status immediately, and reverts if the call fails.
       const previous = requests;
-      setRequests(rs => rs.filter(r => r.id !== item.id));
+      setRequestStatus(item.id, action === 'approve' ? 'accepted' : 'declined');
 
       try {
         await respondToRequest(item.type as RequestType, item.id, action);
@@ -303,7 +312,7 @@ export default function NotificationsScreen({ navigation, route }: any) {
         setRespondingId(null);
       }
     },
-    [requests, respondingId, loadRequests],
+    [requests, respondingId, loadRequests, setRequestStatus],
   );
 
   const onEndReached = useCallback(() => {
@@ -329,15 +338,21 @@ export default function NotificationsScreen({ navigation, route }: any) {
       });
     }
     // A trip/event request opens the same popup as the invite link — you aren't a member until you accept.
-    if (item.type === 'trip' || item.type === 'event') {
+    if ((item.type === 'trip' || item.type === 'event') && isPendingRequest(item)) {
       setPopupRequest({ type: item.type, id: item.id });
+      return;
+    }
+    // Accepted and still a member: open what you joined. Declined or since left: nothing to open.
+    if (item.status === 'accepted' && item.isMember !== false) {
+      if (item.type === 'trip' && item.context?.tripId) navigation.navigate('TripDetail', { trip: { id: item.context.tripId } });
+      if (item.type === 'event' && item.context?.eventId) navigation.navigate('EventDetail', { event: { id: item.context.eventId } });
     }
   };
 
   const handlePopupAccepted = useCallback(
     (r: { type: 'trip' | 'event'; requestId: string; parentId: string; name: string }) => {
       setPopupRequest(null);
-      setRequests(rs => rs.filter(x => x.id !== r.requestId));
+      setRequestStatus(r.requestId, 'accepted');
       Toast.show({ type: 'success', text1: r.name ? `You joined "${r.name}"` : 'You joined' });
       loadRequests();
       if (r.parentId) {
@@ -345,20 +360,21 @@ export default function NotificationsScreen({ navigation, route }: any) {
         else navigation.navigate('EventDetail', { event: { id: r.parentId } });
       }
     },
-    [navigation, loadRequests],
+    [navigation, loadRequests, setRequestStatus],
   );
 
   const handlePopupDeclined = useCallback(
     (r: { type: 'trip' | 'event'; requestId: string }) => {
       setPopupRequest(null);
-      setRequests(rs => rs.filter(x => x.id !== r.requestId));
+      setRequestStatus(r.requestId, 'declined');
       loadRequests();
     },
-    [loadRequests],
+    [loadRequests, setRequestStatus],
   );
 
   const renderRequest = (item: IncomingRequest) => {
     const busy = respondingId === item.id;
+    const pending = isPendingRequest(item);
     const inviter = item.from.name ?? 'Someone';
     const title =
       item.type === 'friend'
@@ -366,17 +382,17 @@ export default function NotificationsScreen({ navigation, route }: any) {
         : `${inviter} invited you to "${item.context?.name ?? 'a ' + item.type}"`;
     const subtitle =
       item.type === 'friend'
-        ? `Approve to connect on ${APP_BRAND_NAME}`
+        ? `Accept to connect on ${APP_BRAND_NAME}`
         : [item.context?.locationName, item.context?.startDate?.slice(0, 10)]
             .filter(Boolean)
-            .join(' · ') || `Approve to join this ${item.type}`;
+            .join(' · ') || `Accept to join this ${item.type}`;
 
     return (
       <TouchableOpacity
         style={styles.notifCard}
         onPress={() => openRequestContext(item)}
         activeOpacity={0.7}>
-        <View style={styles.unreadAccent} />
+        {pending && <View style={styles.unreadAccent} />}
 
         <View style={styles.notifIconWrap}>
           {getNotificationIcon(
@@ -386,7 +402,7 @@ export default function NotificationsScreen({ navigation, route }: any) {
 
         <View style={styles.notifContent}>
           <View style={styles.notifTitleRow}>
-            <Text style={[styles.notifTitle, styles.notifTitleUnread]} numberOfLines={2}>
+            <Text style={[styles.notifTitle, pending && styles.notifTitleUnread]} numberOfLines={2}>
               {title}
             </Text>
           </View>
@@ -395,26 +411,32 @@ export default function NotificationsScreen({ navigation, route }: any) {
             <Text style={styles.notifTime}>{getRelativeTime(item.createdAt)}</Text>
           </View>
 
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={[styles.acceptBtn, busy && styles.btnDisabled]}
-              onPress={() => handleRespond(item, 'approve')}
-              disabled={busy}
-              activeOpacity={0.8}>
-              {busy ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <Text style={styles.acceptBtnText}>Approve</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.declineBtn, busy && styles.btnDisabled]}
-              onPress={() => handleRespond(item, 'decline')}
-              disabled={busy}
-              activeOpacity={0.8}>
-              <Text style={styles.declineBtnText}>Decline</Text>
-            </TouchableOpacity>
-          </View>
+          {pending ? (
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={[styles.acceptBtn, busy && styles.btnDisabled]}
+                onPress={() => handleRespond(item, 'approve')}
+                disabled={busy}
+                activeOpacity={0.8}>
+                {busy ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.acceptBtnText}>Accept</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.declineBtn, busy && styles.btnDisabled]}
+                onPress={() => handleRespond(item, 'decline')}
+                disabled={busy}
+                activeOpacity={0.8}>
+                <Text style={styles.declineBtnText}>Decline</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={styles.requestStatusText}>
+              {item.status === 'accepted' ? 'You accepted this invitation.' : 'You declined this invitation.'}
+            </Text>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -737,7 +759,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // Approve / Decline action row (Requests tab)
+  // Accept / Decline action row (Requests tab)
   actionRow: {
     flexDirection: 'row',
     gap: 8,
@@ -757,20 +779,28 @@ const styles = StyleSheet.create({
   },
   acceptBtnText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#ffffff',
   },
   declineBtn: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#ef4444',
     borderRadius: 8,
     paddingVertical: 7,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 30,
   },
   declineBtnText: {
     fontSize: 13,
     fontWeight: '500',
+    color: '#ffffff',
+  },
+  // Shown in place of the buttons once a request is answered.
+  requestStatusText: {
+    fontSize: 12,
     color: '#64748b',
+    marginTop: 10,
   },
 
   // Empty state

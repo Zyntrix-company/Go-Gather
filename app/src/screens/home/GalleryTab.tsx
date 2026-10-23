@@ -47,6 +47,7 @@ import GalleryEngagementSection from '../../components/gallery/GalleryEngagement
 import GalleryAlbumDescription from '../../components/gallery/GalleryAlbumDescription';
 import GalleryHeroMedia from '../../components/gallery/GalleryHeroMedia';
 import CustomCardPhotosModal from '../../components/gallery/CustomCardPhotosModal';
+import GalleryAlbumSkeleton from '../../components/gallery/GalleryAlbumSkeleton';
 import { getTripMembers } from '../../api/trips.api';
 import { getEventMembers } from '../../api/events.api';
 import { focusAlbumPhotosAtEnd } from '../../utils/albumPhotosOrder';
@@ -155,23 +156,20 @@ const EMPTY_PROMPT_COPY = {
   trip: {
     title: 'Create your first trip album',
     body: "Bring your group's travel photos and memories together in one place.",
-    cta: 'Create trip album',
   },
   event: {
     title: 'Create your first event album',
     body: 'Keep photos from celebrations and special occasions together in one place.',
-    cta: 'Create event album',
   },
 } as const;
 
-// Illustration width tracks the screen height so both empty sections — each
-// with its CTA — fit above the tab bar in one view on typical phones, and grow
-// on taller screens/tablets. Also capped by width for narrow devices.
+// Illustration width tracks the screen height so both empty sections fit above the tab
+// bar in one view on typical phones, and grow on taller screens/tablets. Also capped by width for narrow devices.
 function emptyIllustrationWidth(screenW: number, screenH: number) {
   return Math.round(Math.min(Math.max(screenH * 0.16, 110), 220, screenW * 0.55));
 }
 
-function EmptyAlbumPrompt({ kind, onCreate }: { kind: 'trip' | 'event'; onCreate: () => void }) {
+function EmptyAlbumPrompt({ kind }: { kind: 'trip' | 'event' }) {
   const copy = EMPTY_PROMPT_COPY[kind];
   const { width: screenW, height: screenH } = useWindowDimensions();
   const illusWidth = emptyIllustrationWidth(screenW, screenH);
@@ -182,9 +180,6 @@ function EmptyAlbumPrompt({ kind, onCreate }: { kind: 'trip' | 'event'; onCreate
         : <EventAlbumsEmptyIllustration width={illusWidth} />}
       <Text style={styles.emptyPromptTitle}>{copy.title}</Text>
       <Text style={styles.emptyPromptSub}>{copy.body}</Text>
-      <TouchableOpacity style={styles.emptyPromptBtn} onPress={onCreate} activeOpacity={0.85}>
-        <Text style={styles.emptyPromptBtnText}>{copy.cta}</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -232,54 +227,6 @@ function GallerySkeleton() {
         {cardKeys.map(k => <View key={k} style={skStyles.card} />)}
       </View>
     </Animated.View>
-  );
-}
-
-// ─── Gallery album (modal) skeleton ──────────────────────────────────────────
-
-function GalleryAlbumSkeleton({ heroH }: { heroH: number }) {
-  const pulse = useRef(new Animated.Value(0.5)).current;
-  const pageW = Dimensions.get('window').width;
-  const innerW = pageW - 32;
-
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.5, duration: 800, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [pulse]);
-
-  const B = ({ w, h, r = 8, style: s }: { w: number | string; h: number; r?: number; style?: object }) => (
-    <Animated.View style={[{ width: w, height: h, borderRadius: r, backgroundColor: '#e2e8f0', opacity: pulse }, s]} />
-  );
-
-  return (
-    <View style={{ flex: 1 }}>
-      <View style={{ paddingHorizontal: 16, paddingTop: 4 }}>
-        <B w={innerW} h={Math.max(heroH - 10, 200)} r={18} />
-      </View>
-      <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingVertical: 5 }}>
-        {[0, 1, 2, 3, 4].map(i => <B key={i} w={64} h={50} r={8} />)}
-      </View>
-      <B w={160} h={13} r={6} style={{ marginLeft: 16, marginTop: 12 }} />
-      <View style={{ flexDirection: 'row', gap: 16, paddingHorizontal: 16, paddingTop: 16 }}>
-        <B w={68} h={18} r={9} />
-        <B w={90} h={18} r={9} />
-      </View>
-      {[0, 1, 2].map(i => (
-        <View key={i} style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 14, alignItems: 'center' }}>
-          <B w={32} h={32} r={16} />
-          <View style={{ flex: 1, gap: 6 }}>
-            <B w="42%" h={12} r={6} />
-            <B w="68%" h={11} r={5} />
-          </View>
-        </View>
-      ))}
-    </View>
   );
 }
 
@@ -735,7 +682,9 @@ function PhotosModal({
   const keyboardVisible = useKeyboardVisible();
   const showTravelersInView = parentType === 'trip' && members.length > 0 && photos.length > 0 && !hideTravelers && !editMode;
   const showTravelersInEdit = editMode && parentType === 'trip' && !userId && members.length > 0 && photos.length > 0;
-  const photosEmpty = photos.length === 0 && !loading;
+  // First photos still uploading/importing into an empty album: skeleton instead of the empty state.
+  const showSkeleton = loading || ((uploading || driveImporting) && photos.length === 0);
+  const photosEmpty = photos.length === 0 && !showSkeleton;
   const displaySubtitle = editMode ? subtitleDraft : (initialSubtitle?.trim() ?? '');
   const heroHeight = useGalleryViewportHeroHeight({
     hasTravelers: showTravelersInView || showTravelersInEdit,
@@ -780,7 +729,7 @@ function PhotosModal({
           }
         >
           <View style={[styles.galleryAlbumBody, photosEmpty && styles.galleryAlbumBodyEmpty]}>
-            {loading ? (
+            {showSkeleton ? (
               <GalleryAlbumSkeleton heroH={heroHeight} />
             ) : (
               <>
@@ -1277,7 +1226,7 @@ export default function GalleryTab({
           <>
             {/* ── Trips ── */}
             <SectionHeader
-              title="Gallery of Trips"
+              title="Trips"
               count={displayTrips.length + customTripCards.length}
               onAdd={() => setShowCreateCard('trip')}
               icon={<Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" stroke="#0d9488" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" /></Svg>}
@@ -1307,14 +1256,14 @@ export default function GalleryTab({
                 />
               ))}
               {displayTrips.length === 0 && customTripCards.length === 0 && (
-                <EmptyAlbumPrompt kind="trip" onCreate={() => setShowCreateCard('trip')} />
+                <EmptyAlbumPrompt kind="trip" />
               )}
             </View>
 
             {/* ── Events ── */}
             <View style={styles.sectionSpacer} />
             <SectionHeader
-              title="Gallery of Events"
+              title="Events"
               count={galleryEvents.length + customEventCards.length}
               onAdd={() => setShowCreateCard('event')}
               icon={<Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke="#f59e0b" strokeWidth={2} /><Path d="M16 2v4M8 2v4M3 10h18" stroke="#f59e0b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>}
@@ -1336,7 +1285,7 @@ export default function GalleryTab({
                 />
               ))}
               {galleryEvents.length === 0 && customEventCards.length === 0 && (
-                <EmptyAlbumPrompt kind="event" onCreate={() => setShowCreateCard('event')} />
+                <EmptyAlbumPrompt kind="event" />
               )}
             </View>
           </>
@@ -1456,19 +1405,8 @@ const styles = StyleSheet.create({
   },
 
   emptyPrompt: { width: '100%', alignItems: 'center', paddingBottom: 4 },
-  emptyPromptTitle: { fontSize: 14, fontWeight: '600', color: '#0F172B', textAlign: 'center', marginTop: 6 },
+  emptyPromptTitle: { fontSize: 14, fontWeight: '500', color: '#0F172B', textAlign: 'center', marginTop: 6 },
   emptyPromptSub: { fontSize: 12, color: '#64748b', lineHeight: 16, textAlign: 'center', maxWidth: 290, marginTop: 3 },
-  // Matches the Home screen action buttons.
-  emptyPromptBtn: {
-    marginTop: 10,
-    backgroundColor: '#009788',
-    borderRadius: 999,
-    paddingVertical: 8,
-    paddingHorizontal: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyPromptBtnText: { color: '#fff', fontSize: 13, fontWeight: '500' },
 
   // Modal
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 },

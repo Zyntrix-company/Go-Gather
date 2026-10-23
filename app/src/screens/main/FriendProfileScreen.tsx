@@ -572,7 +572,7 @@ export default function FriendProfileScreen() {
 
             {/* ── Trips ── */}
             <SectionHeader
-              title="Gallery of Trips"
+              title="Trips"
               count={galleryTrips.length + customTripAlbums.length}
               icon={<Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" stroke="#0d9488" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" /></Svg>}
             />
@@ -598,7 +598,7 @@ export default function FriendProfileScreen() {
             {/* ── Events ── */}
             <View style={styles.sectionSpacer} />
             <SectionHeader
-              title="Gallery of Events"
+              title="Events"
               count={galleryEvents.length + customEventAlbums.length}
               icon={<Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke="#f59e0b" strokeWidth={2} /><Path d="M16 2v4M8 2v4M3 10h18" stroke="#f59e0b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>}
             />

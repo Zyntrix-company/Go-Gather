@@ -165,8 +165,9 @@ const styles = StyleSheet.create({
   flex1: { flex: 1 },
   flexShrink: { flexGrow: 0, flexShrink: 1 },
   body: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 10, gap: 8 },
-  searchInput: { flex: 1, fontSize: 12, color: '#0f172a' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 10, height: 38, marginBottom: 10, gap: 8 },
+  // Same height on iOS and Android: no platform input padding inside the fixed-height box.
+  searchInput: { flex: 1, fontSize: 12, color: '#0f172a', paddingVertical: 0, includeFontPadding: false },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   memberAvatar: { width: 40, height: 40, borderRadius: 20 },
   avatarFallback: { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },

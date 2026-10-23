@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { clearInFlowConnect } from '../../utils/drivePickerFlow';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import colors from '../../theme/colors';
 import {
@@ -103,6 +104,7 @@ export default function ConnectedEmailScreen({ navigation, route }: { navigation
   }, [load]);
 
   async function onConnect(provider: EmailProvider) {
+    clearInFlowConnect(); // this sign-in returns here, not to an abandoned in-flow connect
     setConnecting(provider);
     setError(null);
     try {
@@ -118,6 +120,7 @@ export default function ConnectedEmailScreen({ navigation, route }: { navigation
   }
 
   async function onConnectDrive() {
+    clearInFlowConnect();
     setConnecting('drive');
     setError(null);
     try {

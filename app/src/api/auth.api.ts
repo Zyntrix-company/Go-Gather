@@ -188,10 +188,15 @@ const authApi = {
 
   /**
    * POST /auth/logout
-   * Requires accessToken (auto-injected) + refreshToken in body.
+   * Requires accessToken + refreshToken in body. The access token is passed explicitly
+   * because logout clears local storage before this call runs.
    */
-  logout: async (refreshToken: string): Promise<void> => {
-    await client.post('/auth/logout', { refreshToken });
+  logout: async (refreshToken: string, accessToken?: string | null): Promise<void> => {
+    await client.post(
+      '/auth/logout',
+      { refreshToken },
+      accessToken ? { headers: { Authorization: `Bearer ${accessToken}` } } : undefined,
+    );
   },
 
   /**

@@ -79,6 +79,19 @@ function processQueue(error: any, token: string | null = null) {
   pendingQueue = [];
 }
 
+// ─── Session generation ───────────────────────────────────────────────────────
+// Bumped whenever the session ends or a new one starts (logout, delete, login).
+// A refresh that started under an older generation must not write its tokens
+// back — that would undo a logout or overwrite the next user's session.
+let sessionGeneration = 0;
+
+export function bumpSessionGeneration() {
+  sessionGeneration += 1;
+  // Requests waiting on the old session's refresh belong to that session.
+  isRefreshing = false;
+  processQueue(new Error('Session changed'), null);
+}
+
 // ─── Response Interceptor: Handle 401 with token refresh ─────────────────────
 client.interceptors.response.use(
   (response) => response,
@@ -107,6 +120,7 @@ client.interceptors.response.use(
 
       originalRequest._retry = true;
       isRefreshing = true;
+      const generation = sessionGeneration;
 
       try {
         // Primary: read from secure storage; fallback to in-memory store
@@ -117,6 +131,18 @@ client.interceptors.response.use(
         if (!refreshToken) throw new Error('No refresh token');
 
         const { data } = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken }, { timeout: 15000 });
+        // Session ended or changed while refreshing: drop these tokens. The server already
+        // rotated out the refresh token logout revoked, so revoke the new one instead.
+        if (generation !== sessionGeneration) {
+          if (data?.accessToken && data?.refreshToken) {
+            axios.post(
+              `${API_BASE}/auth/logout`,
+              { refreshToken: data.refreshToken },
+              { timeout: 15000, headers: { Authorization: `Bearer ${data.accessToken}` } },
+            ).catch(() => {});
+          }
+          throw new Error('Session changed');
+        }
         const newAccessToken: string = data.accessToken;
         const newRefreshToken: string = data.refreshToken ?? refreshToken;
 
@@ -131,6 +157,10 @@ client.interceptors.response.use(
         }
         return client(originalRequest);
       } catch (refreshError: any) {
+        // Stale refresh: its queue was already released by the bump, and the new
+        // session's storage and store are not ours to clear — fail quietly.
+        if (generation !== sessionGeneration) return Promise.reject(refreshError);
+
         processQueue(refreshError, null);
 
         // Only wipe tokens if the refresh endpoint explicitly rejected them (401/403).
@@ -151,7 +181,8 @@ client.interceptors.response.use(
 
         return Promise.reject(refreshError);
       } finally {
-        isRefreshing = false;
+        // A newer session may have its own refresh running — leave its flag alone.
+        if (generation === sessionGeneration) isRefreshing = false;
       }
     }
 

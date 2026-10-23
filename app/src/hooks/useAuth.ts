@@ -4,6 +4,7 @@ import { Platform, PermissionsAndroid } from 'react-native';
 import useAuthStore from '../store/authStore';
 import useNotificationStore from '../store/notificationStore';
 import authApi from '../api/auth.api';
+import { bumpSessionGeneration } from '../api/client';
 import notificationsApi from '../api/notifications.api';
 import storage from '../utils/storage';
 
@@ -55,6 +56,7 @@ export default function useAuth() {
       const deviceToken = await getFcmToken();
       const platform = Platform.OS === 'ios' ? 'ios' : 'android';
       const res = await authApi.verifyOtp({ email, otp, deviceToken, platform });
+      bumpSessionGeneration(); // a stale refresh from a previous session can't overwrite these
       await storage.setToken(res.accessToken);
       await storage.setRefreshToken(res.refreshToken);
       useNotificationStore.getState().clearNotifications();
@@ -78,6 +80,7 @@ export default function useAuth() {
       const deviceToken = await getFcmToken();
       const platform = Platform.OS === 'ios' ? 'ios' : 'android';
       const res = await authApi.login({ email, password, deviceToken, platform });
+      bumpSessionGeneration(); // a stale refresh from a previous session can't overwrite these
       await storage.setToken(res.accessToken);
       await storage.setRefreshToken(res.refreshToken);
       useNotificationStore.getState().clearNotifications();
@@ -98,6 +101,7 @@ export default function useAuth() {
     try {
       const deviceToken = await getFcmToken();
       const res = await authApi.googleLogin(idToken, deviceToken);
+      bumpSessionGeneration(); // a stale refresh from a previous session can't overwrite these
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
       useNotificationStore.getState().clearNotifications();
@@ -123,6 +127,7 @@ export default function useAuth() {
     try {
       const deviceToken = await getFcmToken();
       const res = await authApi.appleLogin({ ...credential, deviceToken });
+      bumpSessionGeneration(); // a stale refresh from a previous session can't overwrite these
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
       useNotificationStore.getState().clearNotifications();
@@ -139,29 +144,20 @@ export default function useAuth() {
    * Logout — calls API and clears all local state & tokens.
    */
   async function logout() {
-    setLoading(true);
-    try {
-      // 1. Social Sign Outs
-      try {
-        await GoogleSignin.signOut();
-      } catch (e) {
-        // Silently ignore if not logged in via Google
-      }
+    // Clear local state first so the app leaves the main screens at once. Waiting on the
+    // network here kept those screens mounted and firing requests that 401'd after revoke.
+    // Bump first: a refresh still in flight can no longer write its tokens back, so the
+    // tokens read next are the ones the server considers live.
+    bumpSessionGeneration();
+    const refreshToken = await storage.getRefreshToken().catch(() => null);
+    const accessToken = (await storage.getToken().catch(() => null)) ?? useAuthStore.getState().accessToken;
+    await storage.clearAll();
+    useNotificationStore.getState().clearNotifications();
+    storeLogout();
 
-      // 2. Clear backend session
-      const refreshToken = await storage.getRefreshToken();
-      if (refreshToken) {
-        await authApi.logout(refreshToken).catch(() => {
-          // Silently ignore API errors on logout
-        });
-      }
-    } finally {
-      // 3. Clear local storage and store
-      await storage.clearAll();
-      useNotificationStore.getState().clearNotifications();
-      storeLogout();
-      setLoading(false);
-    }
+    // Server revoke + Google sign-out in the background; failures are ignored.
+    if (refreshToken) authApi.logout(refreshToken, accessToken).catch(() => {});
+    GoogleSignin.signOut().catch(() => {});
   }
 
   /**
@@ -180,6 +176,7 @@ export default function useAuth() {
     } catch {
       // not signed in via Google
     }
+    bumpSessionGeneration();
     await storage.clearAll();
     useNotificationStore.getState().clearNotifications();
     storeLogout();

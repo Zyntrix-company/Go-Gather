@@ -1883,7 +1883,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         ═══════════════════════════════════════════════════ */}
         <AppModal visible={showMembers} transparent animationType="fade" onRequestClose={() => setShowMembers(false)}>
           <View style={styles.overlay}>
-            <View style={styles.dialog}>
+            <View style={[styles.dialog, styles.membersDialog]}>
               <DHeader title="Event Members" subtitle={`Current members: ${memberCount}`} onClose={() => setShowMembers(false)} />
               <TabBar tabs={['Members', 'Invite Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -2824,6 +2824,8 @@ const styles = StyleSheet.create({
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
   dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '82%', overflow: 'hidden' },
+  // Members / Invite Friends / Invite New share one fixed size, so the dialog doesn't resize per tab or platform.
+  membersDialog: { height: EXPENSES_MODAL_HEIGHT },
   expensesDialog: {
     height: EXPENSES_MODAL_HEIGHT,
     maxHeight: '92%',
@@ -2864,11 +2866,12 @@ const styles = StyleSheet.create({
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   avatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   memberAvatar: { width: 40, height: 40, borderRadius: 20 },
-  memberName: { fontSize: 13, fontWeight: '500', color: '#0f172a' },
+  memberName: { fontSize: 12, fontWeight: '500', color: '#0f172a' },
   ownerBadge: { backgroundColor: '#f0fdfa', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#99f6e4' },
   ownerTxt: { fontSize: 11, color: '#0d9488', fontWeight: '500' },
-  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 10, gap: 8 },
-  searchInput: { flex: 1, fontSize: 13, color: '#0f172a' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 10, height: 38, marginBottom: 10, gap: 8 },
+  // Same height on iOS and Android: no platform input padding inside the fixed-height box.
+  searchInput: { flex: 1, fontSize: 12, color: '#0f172a', paddingVertical: 0, includeFontPadding: false },
   checkCircle: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#0d9488', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#f8fafc', borderWidth: 1.5, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
   inviteIconBtnActive: { borderColor: '#0d9488', backgroundColor: '#0d9488' },

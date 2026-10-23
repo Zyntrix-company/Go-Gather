@@ -21,7 +21,6 @@ import {
   StyleSheet,
   Modal,
   Pressable,
-  ScrollView,
   FlatList,
   StyleProp,
   ViewStyle,
@@ -502,18 +501,31 @@ function CalendarModal({
           {/* ── Month dropdown overlay ── */}
           {monthOpen && (
             <View style={[styles.dropdown, styles.dropdownMonth]} pointerEvents="auto">
-              <ScrollView
+              <FlatList
+                data={MONTHS_FULL}
+                keyExtractor={m => m}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingVertical: 4 }}>
-                {MONTHS_FULL.map((m, i) => {
+                nestedScrollEnabled
+                initialNumToRender={MONTHS_FULL.length}
+                getItemLayout={(_, index) => ({
+                  length: DROPDOWN_ITEM_H,
+                  offset: DROPDOWN_LIST_PAD + DROPDOWN_ITEM_H * index,
+                  index,
+                })}
+                // Open on the month in view so later valid months (e.g. Nov/Dec) aren't hidden
+                // below a block of disabled ones. Clamped to the real scroll range: iOS doesn't
+                // clamp an initial offset and would show a blank strip under December.
+                contentOffset={{ x: 0, y: monthListInitialOffset(viewMonth) }}
+                contentContainerStyle={{ paddingVertical: DROPDOWN_LIST_PAD }}
+                renderItem={({ item: m, index: i }) => {
                   const enabled = isMonthInRange(viewYear, i);
                   const active = i === viewMonth;
+                  // Disabled rows still take the touch (as a no-op), so a drag that starts on
+                  // one scrolls the list instead of falling through to the card behind it.
                   return (
                     <TouchableOpacity
-                      key={m}
                       onPress={() => enabled && pickMonth(i)}
                       activeOpacity={enabled ? 0.6 : 1}
-                      disabled={!enabled}
                       style={[
                         styles.dropdownItem,
                         active && styles.dropdownItemActive,
@@ -528,8 +540,8 @@ function CalendarModal({
                       </Text>
                     </TouchableOpacity>
                   );
-                })}
-              </ScrollView>
+                }}
+              />
             </View>
           )}
 
@@ -540,6 +552,7 @@ function CalendarModal({
                 data={yearOptions}
                 keyExtractor={y => String(y)}
                 showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
                 getItemLayout={(_, index) => ({ length: 40, offset: 40 * index, index })}
                 initialScrollIndex={Math.max(
                   0,
@@ -580,6 +593,19 @@ function CalendarModal({
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const CARD_PAD_H = 18;
+// Month/year dropdown geometry — shared by the styles and the month list's initial offset.
+const DROPDOWN_ITEM_H = 40;
+const DROPDOWN_LIST_PAD = 4;
+const DROPDOWN_MAX_H = 260;
+const DROPDOWN_BORDER = 1;
+
+/** Scroll offset that puts `month0` at the top of the list, or as far as the list can scroll. */
+function monthListInitialOffset(month0: number): number {
+  const contentH = MONTHS_FULL.length * DROPDOWN_ITEM_H + DROPDOWN_LIST_PAD * 2;
+  const viewportH = DROPDOWN_MAX_H - DROPDOWN_BORDER * 2;
+  const maxOffset = Math.max(0, contentH - viewportH);
+  return month0 === 0 ? 0 : Math.min(DROPDOWN_LIST_PAD + DROPDOWN_ITEM_H * month0, maxOffset);
+}
 const CELL_SIZE = 36;
 const PILL_SIZE = 32;
 
@@ -770,14 +796,14 @@ const styles = StyleSheet.create({
     top: 88,                         // sits just under the header row (title 32 + field 40 + small gap)
     backgroundColor: C.surface,
     borderRadius: 10,
-    borderWidth: 1,
+    borderWidth: DROPDOWN_BORDER,
     borderColor: C.border,
     shadowColor: '#0f172a',
     shadowOpacity: 0.12,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
-    maxHeight: 260,
+    maxHeight: DROPDOWN_MAX_H,
     overflow: 'hidden',
     zIndex: 50,
   },
@@ -792,7 +818,7 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
   dropdownItem: {
-    height: 40,
+    height: DROPDOWN_ITEM_H,
     justifyContent: 'center',
     paddingHorizontal: 14,
   },

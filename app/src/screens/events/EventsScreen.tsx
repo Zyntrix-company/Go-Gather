@@ -29,6 +29,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import InviteFriendsPicker from '../../components/common/InviteFriendsPicker';
 import colors from '../../theme/colors';
 import { showAlert, showConfirm } from '../../store/alertStore';
+import { promptConnectEmail } from '../../utils/drivePickerFlow';
 import { EmailProviderPickerRow } from '../../components/common/EmailProviderUI';
 import {
   requireEventFromResponse,
@@ -402,8 +403,18 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
 
   const navigation = useNavigation<any>();
 
+  // Email-connect watcher started from this form. Stopped when the form closes or another
+  // connect starts, so an abandoned sign-in can't pop the picker open on a later visit.
+  const cancelEmailConnectRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      cancelEmailConnectRef.current?.();
+      cancelEmailConnectRef.current = null;
+      setShowProviderPicker(false);
+      setShowEmailPicker(false);
+      return;
+    }
     getEmailStatus().then((d: any) => {
       setEmailStatus({
         gmail:   { connected: Boolean(d?.gmail?.connected) },
@@ -412,10 +423,28 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
     }).catch(() => {});
   }, [visible]);
 
+  useEffect(() => () => cancelEmailConnectRef.current?.(), []);
+
   async function openEmailPicker(provider: 'gmail' | 'outlook') {
-    if (!emailStatus[provider].connected) {
-      onClose();
-      navigation.navigate('ConnectedEmail');
+    let connected = emailStatus[provider].connected;
+    if (!connected) {
+      // emailStatus can be stale — verify live before prompting to connect.
+      try {
+        const d: any = await getEmailStatus();
+        setEmailStatus({ gmail: { connected: Boolean(d?.gmail?.connected) }, outlook: { connected: Boolean(d?.outlook?.connected) } });
+        connected = Boolean(d?.[provider]?.connected);
+      } catch { /* fall through to connect prompt */ }
+    }
+    if (!connected) {
+      // Connect in place — the form stays open, and the picker opens once sign-in completes.
+      cancelEmailConnectRef.current?.();
+      cancelEmailConnectRef.current = promptConnectEmail(provider, () => {
+        cancelEmailConnectRef.current = null;
+        getEmailStatus().then((d: any) => {
+          setEmailStatus({ gmail: { connected: Boolean(d?.gmail?.connected) }, outlook: { connected: Boolean(d?.outlook?.connected) } });
+          openEmailPicker(provider);
+        }).catch(() => {});
+      });
       return;
     }
     setEmailPickerProvider(provider);

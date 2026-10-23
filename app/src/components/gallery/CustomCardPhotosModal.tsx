@@ -22,6 +22,7 @@ import GalleryAlbumSubHeader from './GalleryAlbumSubHeader';
 import GalleryUploadSheet from './GalleryUploadSheet';
 import GalleryEngagementSection from './GalleryEngagementSection';
 import GalleryAlbumDescription from './GalleryAlbumDescription';
+import GalleryAlbumSkeleton from './GalleryAlbumSkeleton';
 import GalleryHeroMedia, { type GalleryHeroMediaItem } from './GalleryHeroMedia';
 import { focusAlbumPhotosAtEnd, sortAlbumPhotosOldestFirst } from '../../utils/albumPhotosOrder';
 import useUploadLimits from '../../hooks/useUploadLimits';
@@ -83,7 +84,9 @@ export default function CustomCardPhotosModal({
   });
 
   const keyboardVisible = useKeyboardVisible();
-  const photosEmpty = photos.length === 0 && !loading;
+  // First photos still uploading into an empty album: skeleton instead of the empty state.
+  const uploadingFirst = uploading && photos.length === 0;
+  const photosEmpty = photos.length === 0 && !loading && !uploadingFirst;
   const heroHeight = useGalleryViewportHeroHeight({
     hasDescription: photos.length > 0,
     hasPhotos: photos.length > 0,
@@ -277,6 +280,10 @@ export default function CustomCardPhotosModal({
           }
         >
           <View style={[styles.galleryAlbumBody, photosEmpty && styles.galleryAlbumBodyEmpty]}>
+            {uploadingFirst ? (
+              <GalleryAlbumSkeleton heroH={heroHeight} />
+            ) : (
+            <>
             <AlbumPhotosHeroCarousel
               galleryChrome
               photos={photos}
@@ -359,6 +366,8 @@ export default function CustomCardPhotosModal({
                 onDeleteComment={engagement.handleDeleteComment}
               />
             ) : null}
+            </>
+            )}
           </View>
         </AlbumPhotosScreenLayout>
         {/* Rendered inside the album Modal: on iOS a sibling Modal would try to

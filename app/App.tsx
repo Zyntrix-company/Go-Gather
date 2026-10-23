@@ -22,6 +22,7 @@ import { loadUploadLimits } from './src/utils/uploadLimits';
 import useAuthStore from './src/store/authStore';
 import usePendingInviteStore, { PendingInvite } from './src/store/pendingInviteStore';
 import { applyInstallReferrer } from './src/utils/installReferrer';
+import { consumeInFlowConnect } from './src/utils/drivePickerFlow';
 import { openInvite } from './src/api/invites.api';
 import { actionForOpenResult, failureForOpenError, type OpenInviteAction } from './src/utils/openInvite';
 
@@ -133,6 +134,13 @@ function App() {
     function navigateEmailConnected(url: string) {
       const qs = url.includes('?') ? url.split('?')[1] : '';
       const params = new URLSearchParams(qs);
+      // Started from a trip/event/gallery flow: stay there — its watcher opens the picker.
+      if (consumeInFlowConnect()) {
+        if (params.get('success') !== 'true') {
+          Toast.show({ type: 'error', text1: 'Could not connect', text2: 'Please try again.' });
+        }
+        return;
+      }
       navigationRef.current?.navigate('ConnectedEmail' as never, {
         oauthProvider: params.get('provider') ?? undefined,
         oauthSuccess: params.get('success') === 'true',

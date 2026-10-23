@@ -5,19 +5,18 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
-import ConfirmWordModal from '../../components/common/ConfirmWordModal';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
+import { showAlert, showConfirm } from '../../store/alertStore';
 import colors from '../../theme/colors';
 
 // Same tokens as ThemedAlert's destructive button, used app-wide for delete actions
 const DESTRUCTIVE_BG = 'rgba(239, 68, 68, 0.07)';
 const DESTRUCTIVE_BORDER = 'rgba(239, 68, 68, 0.18)';
-
-const CONFIRM_WORD = 'DELETE';
 
 function TrashIcon() {
   return (
@@ -44,25 +43,31 @@ export default function DeleteAccountScreen({ navigation }: { navigation: any })
   const { deleteAccount } = useAuth();
   const userEmail = useAuthStore((s) => s.user?.email ?? '');
 
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   function openConfirm() {
-    setError(null);
-    setConfirmOpen(true);
+    if (isDeleting) return;
+    showConfirm({
+      title: 'Delete your account?',
+      message: 'This permanently deletes your account and cannot be undone.',
+      confirmText: 'Delete',
+      destructive: true,
+      onConfirm: handleDelete,
+    });
   }
 
   async function handleDelete() {
     if (isDeleting) return;
-    setError(null);
     setIsDeleting(true);
     try {
       // On success the auth store clears and the navigator swaps to the auth stack.
       await deleteAccount();
     } catch (e: any) {
-      setError(e?.response?.data?.message || 'Could not delete your account. Please try again.');
       setIsDeleting(false);
+      showAlert({
+        title: 'Could not delete account',
+        message: e?.response?.data?.message || 'Please try again.',
+      });
     }
   }
 
@@ -94,10 +99,13 @@ export default function DeleteAccountScreen({ navigation }: { navigation: any })
             <Bullet>Shared trips and events you organised are handed over to another member</Bullet>
 
             <TouchableOpacity
-              style={styles.deleteBtn}
+              style={[styles.deleteBtn, isDeleting && styles.deleteBtnBusy]}
               onPress={openConfirm}
+              disabled={isDeleting}
               activeOpacity={0.85}>
-              <Text style={styles.deleteBtnText}>Delete my account</Text>
+              {isDeleting
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.deleteBtnText}>Delete My Account</Text>}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -109,18 +117,6 @@ export default function DeleteAccountScreen({ navigation }: { navigation: any })
           </View>
         </ScrollView>
       </View>
-
-      <ConfirmWordModal
-        visible={confirmOpen}
-        title="Delete your account?"
-        message="This permanently deletes your account and cannot be undone."
-        word={CONFIRM_WORD}
-        confirmLabel="Delete my account"
-        busy={isDeleting}
-        error={error}
-        onConfirm={handleDelete}
-        onCancel={() => setConfirmOpen(false)}
-      />
     </AppScreenLayout>
   );
 }
@@ -174,10 +170,9 @@ const styles = StyleSheet.create({
   bulletDot: { fontSize: 13, color: '#94a3b8', width: 16, lineHeight: 19 },
   bulletText: { flex: 1, fontSize: 13, color: '#475569', lineHeight: 19 },
 
+  // Primary button style, as used across the app.
   deleteBtn: {
-    backgroundColor: DESTRUCTIVE_BG,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: DESTRUCTIVE_BORDER,
+    backgroundColor: colors.buttonPrimary,
     borderRadius: 12,
     paddingVertical: 13,
     paddingHorizontal: 24,
@@ -185,8 +180,9 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     marginTop: 24,
   },
+  deleteBtnBusy: { opacity: 0.7 },
   deleteBtnText: {
-    color: colors.error,
+    color: '#ffffff',
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: -0.1,
