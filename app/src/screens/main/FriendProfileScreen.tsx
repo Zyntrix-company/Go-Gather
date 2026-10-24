@@ -91,9 +91,10 @@ function EmptyCard({ label }: { label: string }) {
 
 const fpSkStyles = StyleSheet.create({
   profileCard: { marginTop: 14, marginBottom: 28, alignItems: 'center' },
-  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32, alignSelf: 'stretch' },
+  // Same centred row as the loaded profile card (and GalleryTab), so nothing jumps when it loads.
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32 },
   avatar: { width: 112, height: 112, borderRadius: 56, backgroundColor: '#e2e8f0' },
-  profileInfo: { flex: 1, gap: 8 },
+  profileInfo: { alignItems: 'center', gap: 8 },
   nameBar: { width: 160, height: 20, borderRadius: 6, backgroundColor: '#e2e8f0' },
   handleBar: { width: 100, height: 16, borderRadius: 5, backgroundColor: '#e2e8f0' },
   locationBar: { width: 80, height: 14, borderRadius: 5, backgroundColor: '#e2e8f0' },
@@ -690,7 +691,7 @@ const styles = StyleSheet.create({
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 2, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
   avatarInitial: { fontSize: 38, fontWeight: '600', color: '#0d9488' },
-  name: { fontSize: 18, fontWeight: '500', color: '#0F172B', lineHeight: 22, textAlign: 'center' },
+  name: { fontSize: 18, fontWeight: '500', color: '#0F172B', textAlign: 'center' },
   handle: { fontSize: 14, color: '#0d9488', fontWeight: '500', textAlign: 'center' },
   locationRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   locationText: { fontSize: 14, color: '#45556C', textAlign: 'center' },

@@ -1406,7 +1406,7 @@ const styles = StyleSheet.create({
   },
 
   emptyPrompt: { width: '100%', alignItems: 'center', paddingBottom: 4 },
-  emptyPromptTitle: { fontSize: 14, fontWeight: '500', color: '#0F172B', textAlign: 'center', marginTop: 6 },
+  emptyPromptTitle: { fontSize: 14, fontWeight: '400', color: '#0F172B', textAlign: 'center', marginTop: 6 },
   emptyPromptSub: { fontSize: 12, color: '#64748b', lineHeight: 16, textAlign: 'center', maxWidth: 290, marginTop: 3 },
 
   // Modal
