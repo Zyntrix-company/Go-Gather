@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
-  Dimensions, StyleSheet, ActivityIndicator, Modal, Animated,
+  Dimensions, StyleSheet, ActivityIndicator, Animated,
 } from 'react-native';
+import Modal from '../../components/common/StackedModal';
 import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';
 import { useGalleryViewportHeroHeight } from '../../hooks/useGalleryViewportHeroHeight';
 import AlbumPhotosFooter from '../../components/gallery/AlbumPhotosFooter';

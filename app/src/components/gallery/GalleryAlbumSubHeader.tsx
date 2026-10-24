@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, TextInput, Keyboard, Modal, Pressable, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, TextInput, Keyboard, Pressable, Dimensions } from 'react-native';
+import Modal from '../common/StackedModal';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { Pen, Archive, Trash2, Upload, MoreVertical } from 'lucide-react-native';
 import { albumChromeStyles as acs } from '../../constants/albumPhotosLayout';

@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { Dimensions, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Modal from './StackedModal';
 import { MoreVertical, Pen, Trash2 } from 'lucide-react-native';
 import CachedImage from './CachedImage';
 

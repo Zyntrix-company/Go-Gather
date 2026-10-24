@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
+import Modal from './StackedModal';
 import Svg, { Path } from 'react-native-svg';
 
 // ─── Constants ────────────────────────────────────────────────────────────────

@@ -6,11 +6,11 @@ import {
   StyleSheet,
   FlatList,
   TextInput,
-  Modal,
   ScrollView,
   ActivityIndicator,
   Animated,
 } from 'react-native';
+import Modal from '../../components/common/StackedModal';
 import { useFocusEffect } from '@react-navigation/native';
 import { useChromeInsets } from '../../components/common/ChromeSafeAreaView';
 import Svg, { Path } from 'react-native-svg';

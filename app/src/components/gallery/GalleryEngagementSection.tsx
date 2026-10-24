@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, StyleSheet, ActivityIndicator,
-  ScrollView, Keyboard, Modal, Pressable, Dimensions, BackHandler, Platform,
+  ScrollView, Keyboard, Pressable, Dimensions, BackHandler, Platform,
 } from 'react-native';
+import Modal from '../common/StackedModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { MoreVertical, Pen, Trash2 } from 'lucide-react-native';

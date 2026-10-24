@@ -7,12 +7,12 @@ import {
   StyleSheet,
   ScrollView,
   Image,
-  Modal,
   FlatList,
   ActivityIndicator,
   SafeAreaView,
   Dimensions,
 } from 'react-native';
+import Modal from '../../components/common/StackedModal';
 import { KeyboardAvoider } from '../../components/common/KeyboardAvoider';
 import Svg, { Path } from 'react-native-svg';
 import Logo from '../../components/common/Logo';

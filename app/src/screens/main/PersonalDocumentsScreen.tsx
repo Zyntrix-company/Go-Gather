@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator,
-  Modal, Pressable, TextInput, Dimensions, FlatList,
+  Pressable, TextInput, Dimensions, FlatList,
   Image, SafeAreaView,
 } from 'react-native';
+import Modal from '../../components/common/StackedModal';
 import { KeyboardAvoider, KeyboardProvider } from '../../components/common/KeyboardAvoider';
 import { WebView } from 'react-native-webview';
 import { useFocusEffect } from '@react-navigation/native';

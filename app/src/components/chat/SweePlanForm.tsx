@@ -13,10 +13,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
-  Modal,
   Keyboard,
   ActivityIndicator,
 } from 'react-native';
+import Modal from '../common/StackedModal';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   Calendar,

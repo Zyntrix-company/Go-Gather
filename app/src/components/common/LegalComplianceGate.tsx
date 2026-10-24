@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Modal,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import Modal from './StackedModal';
 import { ShieldCheck, ChevronRight, Check } from 'lucide-react-native';
 import { fetchLegalStatus, postLegalAck } from '../../api/legal.api';
 import LegalModal from './LegalModal';

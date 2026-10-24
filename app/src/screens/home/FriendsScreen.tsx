@@ -6,11 +6,11 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
-  Modal,
   Pressable,
   Dimensions,
   Platform,
 } from 'react-native';
+import Modal from '../../components/common/StackedModal';
 import { MoreVertical, Eye, Trash2, Search } from 'lucide-react-native';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';

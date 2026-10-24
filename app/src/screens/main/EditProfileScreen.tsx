@@ -5,11 +5,11 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  Modal,
   FlatList,
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import Modal from '../../components/common/StackedModal';
 import { KeyboardAvoider } from '../../components/common/KeyboardAvoider';
 import CachedImage from '../../components/common/CachedImage';
 import Svg, { Path } from 'react-native-svg';

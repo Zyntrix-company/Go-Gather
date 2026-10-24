@@ -5,11 +5,11 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Modal,
   FlatList,
   StyleSheet,
   Platform,
 } from 'react-native';
+import Modal from './StackedModal';
 import Svg, { Path } from 'react-native-svg';
 import Toast from 'react-native-toast-message';
 import { createFriendInvite, inviteToTrip } from '../../api/trips.api';

@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, ScrollView, Image,
-  Dimensions, useWindowDimensions, StyleSheet, ActivityIndicator, Modal, TextInput, Animated, FlatList,
+  Dimensions, useWindowDimensions, StyleSheet, ActivityIndicator, TextInput, Animated, FlatList,
 } from 'react-native';
+import Modal from '../../components/common/StackedModal';
 import { showConfirm } from '../../store/alertStore';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import {

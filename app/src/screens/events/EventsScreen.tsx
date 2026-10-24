@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Modal, TextInput, Platform, ActivityIndicator, Image, FlatList,
+  TextInput, Platform, ActivityIndicator, Image, FlatList,
   RefreshControl, Animated, PanResponder, Dimensions, SafeAreaView, Pressable, Switch,
 } from 'react-native';
+import Modal from '../../components/common/StackedModal';
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
 import { CalendarPlus } from 'lucide-react-native';
 import DateInfoPopover from '../../components/common/DateInfoPopover';

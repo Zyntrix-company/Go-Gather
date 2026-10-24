@@ -1,12 +1,13 @@
 import React from 'react';
-import { Modal, ModalProps } from 'react-native';
+import { ModalProps } from 'react-native';
 import Toast from 'react-native-toast-message';
+import StackedModal from './StackedModal';
 
 export default function AppModal({ children, ...props }: ModalProps) {
   return (
-    <Modal {...props}>
+    <StackedModal {...props}>
       {children}
       <Toast />
-    </Modal>
+    </StackedModal>
   );
 }

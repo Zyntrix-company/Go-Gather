@@ -19,12 +19,12 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Modal,
   Pressable,
   FlatList,
   StyleProp,
   ViewStyle,
 } from 'react-native';
+import Modal from './StackedModal';
 import Svg, { Path, Rect } from 'react-native-svg';
 
 // ─── Colour & layout tokens ──────────────────────────────────────────────────

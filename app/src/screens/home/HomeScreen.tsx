@@ -12,7 +12,6 @@ import {
   Animated,
   PanResponder,
   TextInput,
-  Modal,
   Pressable,
   ActivityIndicator,
   InteractionManager,
@@ -21,6 +20,7 @@ import {
   Linking,
   RefreshControl,
 } from 'react-native';
+import Modal from '../../components/common/StackedModal';
 import { useKeyboardAnimation } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ChromeSafeAreaView, { useChromeInsets } from '../../components/common/ChromeSafeAreaView';

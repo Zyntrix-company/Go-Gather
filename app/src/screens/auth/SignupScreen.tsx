@@ -6,12 +6,12 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  Modal,
   FlatList,
   SafeAreaView,
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import Modal from '../../components/common/StackedModal';
 import { KeyboardAvoider } from '../../components/common/KeyboardAvoider';
 import LegalModal from '../../components/common/LegalModal';
 import Svg, { Path } from 'react-native-svg';

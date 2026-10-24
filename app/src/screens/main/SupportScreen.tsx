@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Modal, TextInput, ActivityIndicator,
+  TextInput, ActivityIndicator,
 } from 'react-native';
+import Modal from '../../components/common/StackedModal';
 import { KeyboardAvoider, KeyboardProvider } from '../../components/common/KeyboardAvoider';
 import { X } from 'lucide-react-native';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';

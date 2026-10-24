@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
+import Modal from '../common/StackedModal';
 import { showConfirm } from '../../store/alertStore';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import {

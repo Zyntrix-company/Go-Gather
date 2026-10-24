@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  Modal,
   View,
   Text,
   TouchableOpacity,
@@ -8,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import Modal from './StackedModal';
 import { WebView } from 'react-native-webview';
 import { X } from 'lucide-react-native';
 import { fetchLegalDocument, type LegalDocumentResponse } from '../../api/legal.api';

@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  Modal,
   TextInput,
   Dimensions,
   FlatList,
@@ -22,6 +21,7 @@ import {
   SafeAreaView,
   Pressable,
 } from 'react-native';
+import Modal from '../../components/common/StackedModal';
 import LocationMultiPicker from '../../components/common/LocationMultiPicker';
 import { formatLocationsLabel, normalizeLocations, toLocationPayload, type LocationPoint } from '../../utils/locations';
 import AppDatePicker from '../../components/common/AppDatePicker';

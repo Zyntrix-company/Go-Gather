@@ -3,7 +3,8 @@
  * Dynamically positioned based on the clicked info icon location
  */
 import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import Modal from './StackedModal';
 
 interface DateInfoPopoverProps {
   visible: boolean;
