@@ -62,6 +62,7 @@ import EventsScreen, { CreateEventModal } from '../events/EventsScreen';
 import FriendsScreen from './FriendsScreen';
 import ChatTab from './ChatTab';
 import GalleryTab from './GalleryTab';
+import { tabBarSideInset } from '../../components/common/FloatingTabBar';
 import { UnifiedCard } from '../../components/common/Cards';
 import { requireTripFromResponse, runSafePostCreate } from '../../utils/createEntityFlow';
 import { formatLocationsLabel, toLocationPayload, type LocationPoint } from '../../utils/locations';
@@ -1522,7 +1523,7 @@ export default function HomeScreen({ navigation, route }: any) {
         <Animated.View
           style={[
             styles.tabBar,
-            { paddingBottom: insets.bottom + 6, height: 58 + insets.bottom },
+            { paddingBottom: insets.bottom + 6, height: 58 + insets.bottom, paddingHorizontal: tabBarSideInset(insets.bottom) },
             { transform: [{ translateY: tabBarSlide.interpolate({ inputRange: [0, 1], outputRange: [0, 58 + insets.bottom] }) }] },
           ]}
         >

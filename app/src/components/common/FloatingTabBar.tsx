@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import Svg, { Path, Rect, Circle } from 'react-native-svg';
 import SweeIcon from './SweeIcon';
 import { useChromeInsets } from './ChromeSafeAreaView';
@@ -7,6 +7,16 @@ import { useChromeInsets } from './ChromeSafeAreaView';
 export type TabType = 'trips' | 'events' | 'friends' | 'chat' | 'gallery';
 
 export const TAB_BAR_BASE_HEIGHT = 58;
+
+// iPhones with a home indicator have rounded display corners, and the outer tab labels sit
+// low enough to reach into the curve. Pull the tabs in from the sides there; the bar's
+// background still spans the full width. Home-button iPhones and Android get 0.
+const IOS_TAB_SIDE_INSET = 12;
+
+/** Pass the bottom inset from `useChromeInsets()`. */
+export function tabBarSideInset(bottomInset: number): number {
+  return Platform.OS === 'ios' && bottomInset > 0 ? IOS_TAB_SIDE_INSET : 0;
+}
 
 interface FloatingTabBarProps {
   activeTab?: TabType | null;
@@ -68,7 +78,7 @@ export default function FloatingTabBar({ activeTab, navigation }: FloatingTabBar
   };
 
   return (
-    <View style={[styles.tabBar, { paddingBottom: insets.bottom + 6, minHeight: TAB_BAR_BASE_HEIGHT + insets.bottom }]}>
+    <View style={[styles.tabBar, { paddingBottom: insets.bottom + 6, minHeight: TAB_BAR_BASE_HEIGHT + insets.bottom, paddingHorizontal: tabBarSideInset(insets.bottom) }]}>
       {tabs.map(tab => (
         <NavIcon
           key={tab}
