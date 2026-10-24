@@ -11,8 +11,9 @@ const IOS_TOP_TRIM = 10;
 // The home indicator is drawn inside the window, in the bottom ~13pt (8pt up, 5pt tall);
 // Android's nav bar sits outside it. The tab bar already leaves ~12pt under its labels
 // (TAB_BAR_BASE_HEIGHT), so this is only what is needed on top of that to keep the labels
-// ~9pt clear of the indicator. Devices with no home indicator report 0 and get 0.
-const IOS_HOME_INDICATOR_RESERVE = 10;
+// ~3pt clear of the indicator and well inside the rounded display corners. Devices with
+// no home indicator report 0 and get 0.
+const IOS_HOME_INDICATOR_RESERVE = 5;
 
 /**
  * Safe-area insets for the app chrome (AppHeader + tab bar). Use these instead of

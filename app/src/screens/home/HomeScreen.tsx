@@ -1890,7 +1890,7 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   navItem: { alignItems: 'center', justifyContent: 'center', flex: 1, paddingTop: 4 },
-  navText: { fontSize: 9, color: '#94a3b8', marginTop: 2, fontWeight: '500' },
+  navText: { fontSize: 12, color: '#94a3b8', marginTop: 2, fontWeight: '500' },
   navTextActive: { color: '#0d9488', fontWeight: '500' },
 
   // ── Modals (shared overlay + dialog shell) ──
