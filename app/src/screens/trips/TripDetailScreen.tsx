@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import AppModal from '../../components/common/AppModal';
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const EXPENSES_MODAL_HEIGHT = Math.round(SCREEN_H * 0.78);
+const EXPENSES_MODAL_HEIGHT = Math.round(SCREEN_H * 0.85);
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ChromeSafeAreaView from '../../components/common/ChromeSafeAreaView';
 import LinearGradient from 'react-native-linear-gradient';

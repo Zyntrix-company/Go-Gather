@@ -272,7 +272,7 @@ function ActionIcon({ path, color }: { path: string; color: string }) {
 }
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const EXPENSES_MODAL_HEIGHT = Math.round(SCREEN_H * 0.78);
+const EXPENSES_MODAL_HEIGHT = Math.round(SCREEN_H * 0.85);
 const isSmall = SCREEN_W < 360;
 
 const DHeader = DetailDialogHeader;
