@@ -532,16 +532,9 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.bubbleSwee,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.bubbleSweeBorder,
     padding: 14,
     marginTop: 8,
     marginBottom: 2,
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
   },
 
   sectionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 7 },

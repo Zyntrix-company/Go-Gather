@@ -8,8 +8,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // AppHeader and below the tab bar, which Android doesn't have. Reserve a little
 // less on iOS — still clear of the notch, island and home indicator.
 const IOS_TOP_TRIM = 10;
-const IOS_BOTTOM_TRIM = 14;
-const IOS_MIN_BOTTOM = 12;
+// The home indicator is drawn inside the window, in the bottom ~13pt (8pt up, 5pt tall);
+// Android's nav bar sits outside it. The tab bar already leaves ~12pt under its labels
+// (TAB_BAR_BASE_HEIGHT), so this is only what is needed on top of that to keep the labels
+// ~9pt clear of the indicator. Devices with no home indicator report 0 and get 0.
+const IOS_HOME_INDICATOR_RESERVE = 10;
 
 /**
  * Safe-area insets for the app chrome (AppHeader + tab bar). Use these instead of
@@ -22,7 +25,7 @@ export function useChromeInsets() {
   return {
     ...insets,
     top: insets.top > 20 ? insets.top - IOS_TOP_TRIM : insets.top,
-    bottom: insets.bottom > 0 ? Math.max(insets.bottom - IOS_BOTTOM_TRIM, IOS_MIN_BOTTOM) : 0,
+    bottom: Math.min(insets.bottom, IOS_HOME_INDICATOR_RESERVE),
   };
 }
 

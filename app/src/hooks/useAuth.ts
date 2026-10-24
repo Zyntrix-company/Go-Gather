@@ -4,7 +4,7 @@ import { Platform, PermissionsAndroid } from 'react-native';
 import useAuthStore from '../store/authStore';
 import useNotificationStore from '../store/notificationStore';
 import authApi from '../api/auth.api';
-import { bumpSessionGeneration } from '../api/client';
+import { bumpSessionGeneration, getSessionGeneration } from '../api/client';
 import notificationsApi from '../api/notifications.api';
 import storage from '../utils/storage';
 
@@ -56,13 +56,16 @@ export default function useAuth() {
       const deviceToken = await getFcmToken();
       const platform = Platform.OS === 'ios' ? 'ios' : 'android';
       const res = await authApi.verifyOtp({ email, otp, deviceToken, platform });
-      bumpSessionGeneration(); // a stale refresh from a previous session can't overwrite these
+      const gen = bumpSessionGeneration(); // a stale refresh from a previous session can't overwrite these
       await storage.setToken(res.accessToken);
       await storage.setRefreshToken(res.refreshToken);
       useNotificationStore.getState().clearNotifications();
       setAuth(res.user, res.accessToken, res.refreshToken);
       // Fetch full profile so store has complete name/photo data
-      try { await authApi.getMe().then(u => setAuth(u, res.accessToken, res.refreshToken)); } catch {}
+      try {
+        const me = await authApi.getMe();
+        if (gen === getSessionGeneration()) setAuth(me, res.accessToken, res.refreshToken);
+      } catch {}
       return res;
     } finally {
       setLoading(false);
@@ -80,13 +83,16 @@ export default function useAuth() {
       const deviceToken = await getFcmToken();
       const platform = Platform.OS === 'ios' ? 'ios' : 'android';
       const res = await authApi.login({ email, password, deviceToken, platform });
-      bumpSessionGeneration(); // a stale refresh from a previous session can't overwrite these
+      const gen = bumpSessionGeneration(); // a stale refresh from a previous session can't overwrite these
       await storage.setToken(res.accessToken);
       await storage.setRefreshToken(res.refreshToken);
       useNotificationStore.getState().clearNotifications();
       setAuth(res.user, res.accessToken, res.refreshToken);
       // Fetch full profile so store has complete name/photo data
-      try { await authApi.getMe().then(u => setAuth(u, res.accessToken, res.refreshToken)); } catch {}
+      try {
+        const me = await authApi.getMe();
+        if (gen === getSessionGeneration()) setAuth(me, res.accessToken, res.refreshToken);
+      } catch {}
       return res;
     } finally {
       setLoading(false);
@@ -101,13 +107,16 @@ export default function useAuth() {
     try {
       const deviceToken = await getFcmToken();
       const res = await authApi.googleLogin(idToken, deviceToken);
-      bumpSessionGeneration(); // a stale refresh from a previous session can't overwrite these
+      const gen = bumpSessionGeneration(); // a stale refresh from a previous session can't overwrite these
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
       useNotificationStore.getState().clearNotifications();
       setAuth(res.user, res.accessToken, res.refreshToken);
       // Fetch full profile so store has complete name/photo data
-      try { await authApi.getMe().then(u => setAuth(u, res.accessToken, res.refreshToken)); } catch {}
+      try {
+        const me = await authApi.getMe();
+        if (gen === getSessionGeneration()) setAuth(me, res.accessToken, res.refreshToken);
+      } catch {}
       return res;
     } finally {
       setLoading(false);
@@ -127,13 +136,16 @@ export default function useAuth() {
     try {
       const deviceToken = await getFcmToken();
       const res = await authApi.appleLogin({ ...credential, deviceToken });
-      bumpSessionGeneration(); // a stale refresh from a previous session can't overwrite these
+      const gen = bumpSessionGeneration(); // a stale refresh from a previous session can't overwrite these
       await storage.setToken(res.accessToken);
       if (res.refreshToken) await storage.setRefreshToken(res.refreshToken);
       useNotificationStore.getState().clearNotifications();
       setAuth(res.user, res.accessToken, res.refreshToken);
       // Fetch full profile so store has complete name/photo data
-      try { await authApi.getMe().then(u => setAuth(u, res.accessToken, res.refreshToken)); } catch {}
+      try {
+        const me = await authApi.getMe();
+        if (gen === getSessionGeneration()) setAuth(me, res.accessToken, res.refreshToken);
+      } catch {}
       return res;
     } finally {
       setLoading(false);
@@ -144,19 +156,27 @@ export default function useAuth() {
    * Logout — calls API and clears all local state & tokens.
    */
   async function logout() {
-    // Clear local state first so the app leaves the main screens at once. Waiting on the
-    // network here kept those screens mounted and firing requests that 401'd after revoke.
-    // Bump first: a refresh still in flight can no longer write its tokens back, so the
-    // tokens read next are the ones the server considers live.
-    bumpSessionGeneration();
-    const refreshToken = await storage.getRefreshToken().catch(() => null);
-    const accessToken = (await storage.getToken().catch(() => null)) ?? useAuthStore.getState().accessToken;
-    await storage.clearAll();
-    useNotificationStore.getState().clearNotifications();
+    // The screen must change on the tap: flip the auth state synchronously, before any await.
+    // (Keychain reads/deletes and the network call used to run first, so the app sat on Home
+    // for seconds — long enough to use it — and a pending request could even undo the logout.)
+    // Bumping first also stops a refresh/profile fetch already in flight from writing the old
+    // session back.
+    const gen = bumpSessionGeneration();
+    const snapshot = useAuthStore.getState();
     storeLogout();
+    useNotificationStore.getState().clearNotifications();
 
-    // Server revoke + Google sign-out in the background; failures are ignored.
-    if (refreshToken) authApi.logout(refreshToken, accessToken).catch(() => {});
+    // Everything below is cleanup, off the tap's critical path.
+    try {
+      // Refresh tokens rotate in Keychain only, so prefer it over the in-memory copy.
+      const refreshToken = (await storage.getRefreshToken().catch(() => null)) ?? snapshot.refreshToken;
+      const accessToken = (await storage.getToken().catch(() => null)) ?? snapshot.accessToken;
+      // Don't wipe the Keychain if someone signed in again in the meantime.
+      if (gen === getSessionGeneration()) await storage.clearAll();
+      if (refreshToken) authApi.logout(refreshToken, accessToken).catch(() => {});
+    } catch {
+      // best-effort
+    }
     GoogleSignin.signOut().catch(() => {});
   }
 
@@ -188,6 +208,8 @@ export default function useAuth() {
    * Returns user if session is valid, null otherwise.
    */
   async function loadFromToken() {
+    // Logout/login while /auth/me is in flight must not bring the old session back.
+    const gen = getSessionGeneration();
     setLoading(true);
     try {
       // Keychain can fail silently on Android — fall back to in-memory store
@@ -198,12 +220,15 @@ export default function useAuth() {
       }
 
       const user = await authApi.getMe();
+      if (gen !== getSessionGeneration()) return null;
       const refreshToken = (await storage.getRefreshToken()) || useAuthStore.getState().refreshToken;
+      if (gen !== getSessionGeneration()) return null;
       setAuth(user, token, refreshToken);
       // Re-register device token in case FCM rotated it while the app was inactive
       registerDeviceIfPossible();
       return user;
     } catch (err: any) {
+      if (gen !== getSessionGeneration()) return null;
       // Only wipe tokens when the server explicitly rejects credentials (401/403)
       // AND there is no network-level error (e.g. timeout, ECONNREFUSED).
       // Network errors have no response object — err.response is undefined.
@@ -270,11 +295,15 @@ export default function useAuth() {
    * Safe to call anywhere — will NOT clear tokens on failure.
    */
   async function refreshProfile() {
+    // Runs on every Menu focus. If the user logs out while /auth/me is in flight, its
+    // result must be dropped — setAuth() here would sign them straight back in.
+    const gen = getSessionGeneration();
     try {
       // Keychain can fail silently on Android — fall back to in-memory store
       const token = (await storage.getToken()) || useAuthStore.getState().accessToken;
       if (!token) return null;
       const user = await authApi.getMe();
+      if (gen !== getSessionGeneration()) return null;
       // Preserve a locally-extracted DOB (e.g. from Google People API) if the server hasn't stored one yet. Without this, the server
       // response would overwrite the dob set via updateUser() in the login flow.
       const storedDob = useAuthStore.getState().user?.dob;
@@ -282,6 +311,7 @@ export default function useAuth() {
         user.dob = storedDob;
       }
       const refreshToken = (await storage.getRefreshToken()) || useAuthStore.getState().refreshToken;
+      if (gen !== getSessionGeneration()) return null;
       setAuth(user, token, refreshToken);
       return user;
     } catch (e: any) {

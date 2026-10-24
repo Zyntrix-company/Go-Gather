@@ -850,6 +850,9 @@ export default function TripDetailScreen({ route, navigation }: any) {
 
   // ── Members modal ──
   const [memberTab, setMemberTab] = useState<'Members' | 'Invite Friends' | 'Invite New'>('Members');
+  // All three member tabs share the height of the Invite New content (same as the Friends
+  // screen's Invite Friends dialog); longer member lists scroll inside it.
+  const [memberBodyH, setMemberBodyH] = useState<number | null>(null);
 
   // Opened straight after creating the trip: land on Members → Invite New, where email,
   // SMS and WhatsApp invites (which need the trip's link) are sent.
@@ -2910,10 +2913,13 @@ export default function TripDetailScreen({ route, navigation }: any) {
       ═══════════════════════════════════════════════════ */}
         <AppModal visible={showMembers} transparent animationType="fade" onRequestClose={() => setShowMembers(false)}>
           <View style={styles.overlay}>
-            <View style={[styles.dialog, styles.membersDialog]}>
+            <View style={styles.dialog}>
               <DHeader title="Trip Members" subtitle={`Current members: ${memberCount}`} onClose={() => setShowMembers(false)} />
               <TabBar tabs={['Members', 'Invite Friends', 'Invite New']} active={memberTab} onSelect={t => setMemberTab(t as any)} />
-              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <ScrollView
+                style={memberBodyH != null ? { height: memberBodyH } : undefined}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled">
                 {memberTab === 'Members' && (
                   <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20 }}>
                     <Text style={styles.memberSectionLabel}>Current Members</Text>
@@ -2996,6 +3002,19 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </View>
                 )}
               </ScrollView>
+              {/* Invisible copy of the Invite New content, measured once to size the tabs. */}
+              {memberBodyH == null && (
+                <View
+                  style={styles.memberBodyMeasure}
+                  pointerEvents="none"
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  onLayout={e => setMemberBodyH(Math.round(e.nativeEvent.layout.height))}>
+                  <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 20 }}>
+                    <InviteViaChannels variant="trip" tripId={tripId} tripName={trip?.name} />
+                  </View>
+                </View>
+              )}
             </View>
           </View>
         </AppModal>
@@ -3923,8 +3942,7 @@ const styles = StyleSheet.create({
   // Modal base
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.52)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
   dialog: { backgroundColor: '#fff', borderRadius: 20, width: '100%', maxHeight: '82%', overflow: 'hidden' },
-  // Members / Invite Friends / Invite New share one fixed size, so the dialog doesn't resize per tab or platform.
-  membersDialog: { height: EXPENSES_MODAL_HEIGHT },
+  memberBodyMeasure: { position: 'absolute', left: 0, right: 0, top: 0, opacity: 0 },
   expensesDialog: {
     height: EXPENSES_MODAL_HEIGHT,
     maxHeight: '92%',

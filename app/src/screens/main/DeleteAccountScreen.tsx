@@ -13,6 +13,7 @@ import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
 import { showAlert, showConfirm } from '../../store/alertStore';
 import colors from '../../theme/colors';
+import { APP_BRAND_NAME } from '../../constants/brand';
 
 // Same tokens as ThemedAlert's destructive button, used app-wide for delete actions
 const DESTRUCTIVE_BG = 'rgba(239, 68, 68, 0.07)';
@@ -84,7 +85,7 @@ export default function DeleteAccountScreen({ navigation }: { navigation: any })
             </View>
 
             <Text style={styles.subtitle}>
-              This permanently deletes your GatherGo account. It cannot be undone.
+              This permanently deletes your {APP_BRAND_NAME} account. It cannot be undone.
             </Text>
             {userEmail ? <Text style={styles.emailText}>{userEmail}</Text> : null}
 

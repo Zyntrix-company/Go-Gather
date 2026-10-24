@@ -85,11 +85,17 @@ function processQueue(error: any, token: string | null = null) {
 // back — that would undo a logout or overwrite the next user's session.
 let sessionGeneration = 0;
 
-export function bumpSessionGeneration() {
+export function bumpSessionGeneration(): number {
   sessionGeneration += 1;
   // Requests waiting on the old session's refresh belong to that session.
   isRefreshing = false;
   processQueue(new Error('Session changed'), null);
+  return sessionGeneration;
+}
+
+/** Lets a caller that awaits the network check the session didn't end meanwhile. */
+export function getSessionGeneration(): number {
+  return sessionGeneration;
 }
 
 // ─── Response Interceptor: Handle 401 with token refresh ─────────────────────
