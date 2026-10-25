@@ -486,7 +486,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent', borderWidth: 1.5, borderColor: '#e2e8f0',
     borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
   },
-  dropdownText:        { fontSize: 14, color: '#0f172a', flex: 1, marginRight: 4 },
+  dropdownText:        { fontSize: 13, color: '#0f172a', flex: 1, marginRight: 4 },
   dropdownPlaceholder: { color: '#45556C' },
 
   // ── Bottom block ────────────────────────────────────────────────────────────

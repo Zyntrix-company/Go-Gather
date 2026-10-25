@@ -14,6 +14,7 @@ import GalleryAlbumSubHeader from '../../components/gallery/GalleryAlbumSubHeade
 import GalleryTravelersRow, { type GalleryTraveler } from '../../components/gallery/GalleryTravelersRow';
 import GalleryEngagementSection from '../../components/gallery/GalleryEngagementSection';
 import GalleryHeroMedia from '../../components/gallery/GalleryHeroMedia';
+import { FriendGalleryEmptyIllustration } from '../../components/gallery/GalleryEmptyIllustrations';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { useGalleryEngagement } from '../../hooks/useGalleryEngagement';
 import useAuthStore from '../../store/authStore';
@@ -81,10 +82,6 @@ function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
       </View>
     </TouchableOpacity>
   );
-}
-
-function EmptyCard({ label }: { label: string }) {
-  return <Text style={styles.emptyText}>{label}</Text>;
 }
 
 // ─── Profile skeleton ─────────────────────────────────────────────────────────
@@ -486,6 +483,8 @@ export default function FriendProfileScreen() {
   }, [userId]);
 
   const displayName = profile?.name ?? friendName;
+  const tripAlbumCount = galleryTrips.length + customTripAlbums.length;
+  const eventAlbumCount = galleryEvents.length + customEventAlbums.length;
   const handle = profile?.username ? `@${profile.username}` : '';
   const initial = displayName?.[0]?.toUpperCase() ?? '?';
   const resolvedAvatarUrl = profile?.avatarUrl || paramAvatarUrl || null;
@@ -572,49 +571,63 @@ export default function FriendProfileScreen() {
 
             </View>
 
-            {/* ── Trips ── */}
-            <SectionHeader
-              title="Trips"
-              count={galleryTrips.length + customTripAlbums.length}
-              icon={<Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" stroke="#0d9488" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" /></Svg>}
-            />
-            <View style={styles.grid}>
-              {galleryTrips.map((trip: any) => (
-                <GridCard key={trip.id} item={trip} onPress={() => setPhotoModal({
-                  id: trip.id,
-                  name: trip.name,
-                  type: 'trip',
-                  subtitle: trip.gallerySubtitle ?? null,
-                  hideTravelers: trip.galleryHideTravelers ?? false,
-                  location: trip.location ?? null,
-                })} />
-              ))}
-              {customTripAlbums.map((album: any) => (
-                <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name, kind: 'trip' })} />
-              ))}
-              {galleryTrips.length === 0 && customTripAlbums.length === 0 && (
-                <EmptyCard label="No past trips yet" />
-              )}
-            </View>
+            {tripAlbumCount + eventAlbumCount === 0 ? (
+              // Nothing shared at all: one illustrated placeholder instead of the sections.
+              <View style={styles.galleryEmpty}>
+                <FriendGalleryEmptyIllustration width={240} />
+                <Text style={styles.galleryEmptyTitle}>No adventures shared yet</Text>
+                <Text style={styles.galleryEmptySub}>
+                  When {displayName ? displayName.split(' ')[0] : 'they'} shares trips or events, they'll show up here.
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Only sections with albums are shown — an empty one is hidden, not labelled. */}
+                {tripAlbumCount > 0 && (
+                  <>
+                    <SectionHeader
+                      title="Trips"
+                      count={tripAlbumCount}
+                      icon={<Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" stroke="#0d9488" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" /></Svg>}
+                    />
+                    <View style={styles.grid}>
+                      {galleryTrips.map((trip: any) => (
+                        <GridCard key={trip.id} item={trip} onPress={() => setPhotoModal({
+                          id: trip.id,
+                          name: trip.name,
+                          type: 'trip',
+                          subtitle: trip.gallerySubtitle ?? null,
+                          hideTravelers: trip.galleryHideTravelers ?? false,
+                          location: trip.location ?? null,
+                        })} />
+                      ))}
+                      {customTripAlbums.map((album: any) => (
+                        <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name, kind: 'trip' })} />
+                      ))}
+                    </View>
+                  </>
+                )}
 
-            {/* ── Events ── */}
-            <View style={styles.sectionSpacer} />
-            <SectionHeader
-              title="Events"
-              count={galleryEvents.length + customEventAlbums.length}
-              icon={<Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke="#f59e0b" strokeWidth={2} /><Path d="M16 2v4M8 2v4M3 10h18" stroke="#f59e0b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>}
-            />
-            <View style={styles.grid}>
-              {galleryEvents.map((ev: any) => (
-                <GridCard key={ev.id} item={ev} onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null, location: ev.location ?? null })} />
-              ))}
-              {customEventAlbums.map((album: any) => (
-                <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name, kind: 'event' })} />
-              ))}
-              {galleryEvents.length === 0 && customEventAlbums.length === 0 && (
-                <EmptyCard label="No past events yet" />
-              )}
-            </View>
+                {eventAlbumCount > 0 && (
+                  <>
+                    {tripAlbumCount > 0 && <View style={styles.sectionSpacer} />}
+                    <SectionHeader
+                      title="Events"
+                      count={eventAlbumCount}
+                      icon={<Svg width={20} height={20} viewBox="0 0 24 24" fill="none"><Rect x={3} y={4} width={18} height={18} rx={2} ry={2} stroke="#f59e0b" strokeWidth={2} /><Path d="M16 2v4M8 2v4M3 10h18" stroke="#f59e0b" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></Svg>}
+                    />
+                    <View style={styles.grid}>
+                      {galleryEvents.map((ev: any) => (
+                        <GridCard key={ev.id} item={ev} onPress={() => setPhotoModal({ id: ev.id, name: ev.name, type: 'event', subtitle: ev.gallerySubtitle ?? null, location: ev.location ?? null })} />
+                      ))}
+                      {customEventAlbums.map((album: any) => (
+                        <GridCard key={`custom-${album.id}`} item={album} onPress={() => setCustomAlbumModal({ id: album.id, name: album.name, kind: 'event' })} />
+                      ))}
+                    </View>
+                  </>
+                )}
+              </>
+            )}
 
           </ScrollView>
         )}
@@ -720,7 +733,9 @@ const styles = StyleSheet.create({
     borderRadius: 6, zIndex: 10,
   },
   cardChipText: { fontSize: 10, fontWeight: '600', color: '#fff', letterSpacing: 0.4 },
-  emptyText: { width: '100%', fontSize: 14, color: '#94a3b8' },
+  galleryEmpty: { alignItems: 'center', paddingTop: 24, paddingHorizontal: 12 },
+  galleryEmptyTitle: { fontSize: 16, fontWeight: '500', color: '#0f172a', marginTop: 12, textAlign: 'center' },
+  galleryEmptySub: { fontSize: 13, color: '#64748b', marginTop: 6, lineHeight: 19, textAlign: 'center', maxWidth: 280 },
 
   // Modal
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 },

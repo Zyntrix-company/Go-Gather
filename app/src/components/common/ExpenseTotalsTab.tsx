@@ -126,7 +126,10 @@ export default function ExpenseTotalsTab({
                     return (
                       <View key={chip.currency} style={[local.chip, isLent ? local.chipLent : local.chipOwe]}>
                         <Text style={[local.chipText, isLent ? local.chipTextLent : local.chipTextOwe]}>
-                          {isLent ? 'You lent ' : 'You owe '}
+                          {/* Your own card is your net balance with the group, not money lent to yourself. */}
+                          {isYou
+                            ? (isLent ? "You'll receive " : "You'll pay ")
+                            : (isLent ? 'You lent ' : 'You owe ')}
                           {formatCurrencyFull(Math.abs(chip.amount), chip.currency)}
                         </Text>
                       </View>

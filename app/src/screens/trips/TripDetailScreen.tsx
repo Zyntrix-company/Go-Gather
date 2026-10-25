@@ -2184,7 +2184,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   </View>
                 )
                 : upcomingActs.length === 0
-                  ? <Text style={styles.activitiesEmpty}>No activities yet</Text>
+                  ? <Text style={styles.activitiesEmpty}>No activity</Text>
                   : (
                     <View style={styles.activityCard}>
                       <ActivityGroupsList
@@ -2213,7 +2213,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                   <ActivityIndicator size="small" color="#0d9488" />
                 </View>
               ) : activities.length === 0 ? (
-                <Text style={styles.activitiesEmpty}>No activities yet</Text>
+                <Text style={styles.activitiesEmpty}>No activity</Text>
               ) : (
                 <View style={styles.activityCard}>
                   <ActivityGroupsList
@@ -2243,7 +2243,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
                     <ActivityIndicator size="small" color="#0d9488" />
                   </View>
                 ) : completed.length === 0 ? (
-                  <Text style={styles.activitiesEmpty}>No activities yet</Text>
+                  <Text style={styles.activitiesEmpty}>No activity</Text>
                 ) : (
                   <View style={styles.activityCard}>
                     <ActivityGroupsList
@@ -3925,7 +3925,7 @@ const styles = StyleSheet.create({
   timelineRow: { flexDirection: 'row', alignItems: 'center' },
   timelineRail: { width: 16, alignItems: 'center', justifyContent: 'center' },
   timelineDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0d9488' },
-  timelineConnectorDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#99f6e4' },
+  timelineConnectorDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#0d9488' },
   timelineContent: { flex: 1 },
 
   actDateRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 4, marginBottom: 2 },

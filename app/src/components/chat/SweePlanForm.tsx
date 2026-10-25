@@ -50,8 +50,8 @@ import {
 const PRIMARY = '#0d9488';
 
 // ─── Option sets (mirror the mockups) ────────────────────────────────────────
-const TRIP_GROUP_TYPES = ['Couple', 'Friends', 'Family', 'Colleagues', 'Others'];
-const EVENT_GROUP_TYPES = ['Friends', 'Family', 'Colleagues', 'Couple', 'Others'];
+const TRIP_GROUP_TYPES = ['Couple', 'Friends', 'Family', 'Work', 'Others'];
+const EVENT_GROUP_TYPES = ['Friends', 'Family', 'Work', 'Couple', 'Others'];
 const BUDGET_TIERS = ['Saver', 'Comfort', 'Premium', 'Luxury'];
 const TRAVEL_FOCUS = [
   { key: 'Food', label: '🍜  Food' },
@@ -230,7 +230,8 @@ export function TripPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
   const [adults, setAdults] = useState<number>(Number(draft.adults) > 0 ? Number(draft.adults) : 1);
   const [kids, setKids] = useState<number>(Number(draft.kids) || 0);
   const [seniors, setSeniors] = useState<number>(Number(draft.seniors) || 0);
-  const [groupType, setGroupType] = useState<string>(draft.groupType || '');
+  // The chip is labelled "Work"; Swee may still pre-fill the older "Colleagues".
+  const [groupType, setGroupType] = useState<string>(draft.groupType === 'Colleagues' ? 'Work' : draft.groupType || '');
   const [budget, setBudget] = useState<string>(draft.budgetTier || draft.budget || '');
   const [focus, setFocus] = useState<string[]>(Array.isArray(draft.travelFocus) ? draft.travelFocus : []);
   const [currency, setCurrency] = useState<string>(draft.currency || 'USD');
@@ -408,7 +409,8 @@ export function EventPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
   const [name, setName] = useState<string>(draft.name || '');
   const [eventDate, setEventDate] = useState<string>(draft.eventDate || '');
   const [eventTime, setEventTime] = useState<string>(draft.eventTime || '');
-  const [groupType, setGroupType] = useState<string>(draft.groupType || '');
+  // The chip is labelled "Work"; Swee may still pre-fill the older "Colleagues".
+  const [groupType, setGroupType] = useState<string>(draft.groupType === 'Colleagues' ? 'Work' : draft.groupType || '');
   const [location, setLocation] = useState<string>(draft.location || '');
   const [description, setDescription] = useState<string>(draft.description || '');
 

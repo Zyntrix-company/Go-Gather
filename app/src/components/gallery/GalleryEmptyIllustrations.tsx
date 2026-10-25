@@ -234,3 +234,80 @@ export function EventAlbumsEmptyIllustration({ width = 250 }: { width?: number }
     </Svg>
   );
 }
+
+/** Friend's gallery with no trips or events: suitcase with stickers, flight path and clouds (640×440 art). */
+export function FriendGalleryEmptyIllustration({ width = 260 }: { width?: number }) {
+  return (
+    <Svg width={width} height={(width * 440) / 640} viewBox="0 0 640 440" fill="none">
+      <Defs>
+        <LinearGradient id="fgeCase" x1="246" y1="174" x2="393" y2="354" gradientUnits="userSpaceOnUse">
+          <Stop stopColor="#A8E3DA" />
+          <Stop offset="1" stopColor="#66C8BD" />
+        </LinearGradient>
+        <LinearGradient id="fgeWing" x1="430" y1="86" x2="480" y2="145" gradientUnits="userSpaceOnUse">
+          <Stop stopColor="#9DDCD5" />
+          <Stop offset="1" stopColor="#5DBFB5" />
+        </LinearGradient>
+      </Defs>
+      {/* clouds */}
+      <Path d="M88 173c-17 0-30-12-30-27 0-14 11-25 25-27 6-22 26-36 49-31 17 4 29 18 32 35 15 2 26 13 26 27 0 13-11 23-25 23H88Z" fill="#E8F8F5" />
+      <Path d="M452 218c-16 0-29-11-29-25 0-13 10-23 24-25 6-20 24-33 45-29 16 3 27 16 30 32 14 2 24 12 24 25 0 12-10 22-23 22H452Z" fill="#E5F6F3" />
+      <Path d="M218 107c-13 0-23-9-23-20s9-19 20-20c5-16 19-26 36-23 13 3 22 13 24 26 11 1 19 10 19 20s-8 17-18 17h-58Z" fill="#F1FBF9" />
+      {/* ground glow */}
+      <Ellipse cx="313" cy="359" rx="182" ry="20" fill="#DFF4F0" opacity={0.85} />
+      <Ellipse cx="311" cy="365" rx="139" ry="10" fill="#BCEAE3" opacity={0.5} />
+      {/* dotted flight path */}
+      <Path d="M111 294c-37-46-12-91 38-112 31-13 57-9 75-1" stroke="#A5DDD6" strokeWidth={5} strokeLinecap="round" strokeDasharray="10 14" />
+      <Path d="M383 245c40-17 68-42 73-83 2-16 0-27-5-39" stroke="#A5DDD6" strokeWidth={5} strokeLinecap="round" strokeDasharray="10 14" />
+      {/* airplane */}
+      <G transform="translate(447 66) rotate(32)">
+        <Path d="M24 0c4 0 7 4 7 9v27l31 26c3 3 2 8-3 8H31v26c0 4-3 7-7 7s-7-3-7-7V70H-5c-5 0-6-5-3-8l31-26V9c0-5 3-9 7-9Z" fill="url(#fgeWing)" />
+        <Path d="M24 9v83" stroke="#DDF7F3" strokeWidth={3} strokeLinecap="round" opacity={0.8} />
+      </G>
+      {/* suitcase handle */}
+      <Path d="M267 185v-27c0-10 8-18 18-18h47c10 0 18 8 18 18v27" stroke="#46536D" strokeWidth={13} strokeLinecap="round" />
+      <Path d="M282 181v-22c0-2 2-4 4-4h45c2 0 4 2 4 4v22" stroke="#7D8AA0" strokeWidth={5} strokeLinecap="round" />
+      {/* suitcase body */}
+      <Rect x="220" y="177" width="190" height="179" rx="29" fill="#D4F1EC" />
+      <Rect x="229" y="183" width="172" height="165" rx="23" fill="url(#fgeCase)" />
+      <Path d="M258 185v160M371 185v160" stroke="#48B6AB" strokeWidth={8} opacity={0.8} />
+      <Path d="M242 207c0-7 6-13 13-13h118c7 0 13 6 13 13v114c0 7-6 13-13 13H255c-7 0-13-6-13-13V207Z" stroke="#B6E9E2" strokeWidth={3} opacity={0.9} />
+      {/* photo sticker */}
+      <G transform="translate(254 226) rotate(-13)">
+        <Rect width="70" height="57" rx="9" fill="#F9FFFE" />
+        <Rect x="7" y="7" width="56" height="43" rx="5" fill="#E9F8F5" />
+        <Circle cx="48" cy="17" r="5" fill="#F5DCA0" />
+        <Path d="M9 43 25 25l10 10 8-9 12 17H9Z" fill="#8ED2C8" />
+        <Path d="M9 43 25 25l10 10 8-9 12 17" stroke="#55BDB2" strokeWidth={2.5} strokeLinejoin="round" />
+      </G>
+      {/* globe sticker */}
+      <G transform="translate(331 286)">
+        <Circle cx="23" cy="23" r="23" fill="#F8FFFE" />
+        <Circle cx="23" cy="23" r="17" fill="#2EA99F" />
+        <Path d="M12 13c6-3 9 1 10 5l-5 4 2 6-5 5-4-8 2-5-3-4 3-3Zm17-1 5 4-1 5-5 1-3 6-5-2 2-7 4-3-1-4Z" fill="#B8EAE3" />
+        <Ellipse cx="23" cy="23" rx="8" ry="17" stroke="#E1F8F4" strokeWidth={1.8} opacity={0.9} />
+        <Path d="M7 23h32" stroke="#E1F8F4" strokeWidth={1.8} opacity={0.9} />
+      </G>
+      {/* luggage tag */}
+      <G transform="translate(244 297) rotate(23)">
+        <Path d="M0 9c0-5 4-9 9-9h22l17 17v27H9c-5 0-9-4-9-9V9Z" fill="#FFFDF4" />
+        <Circle cx="10" cy="10" r="3" fill="#F2D99B" />
+      </G>
+      {/* wheels */}
+      <Rect x="247" y="347" width="18" height="21" rx="8" fill="#46536D" />
+      <Rect x="367" y="347" width="18" height="21" rx="8" fill="#46536D" />
+      <Rect x="251" y="349" width="9" height="13" rx="4" fill="#7F8CA3" />
+      <Rect x="371" y="349" width="9" height="13" rx="4" fill="#7F8CA3" />
+      {/* leaves */}
+      <G transform="translate(141 302)">
+        <Path d="M15 54C-3 31-6 10 3 0c19 16 23 34 12 54Z" fill="#8FD5CB" />
+        <Path d="M18 58C15 32 28 12 43 10c4 21-5 39-25 48Z" fill="#6CC8BD" />
+        <Path d="M15 61 17 24M17 47 5 31M18 52 33 29" stroke="#48B7AC" strokeWidth={3} strokeLinecap="round" />
+      </G>
+      {/* sparkles */}
+      <Path d="M386 126l-8 18M408 139l-15 7M390 105l-2 15" stroke="#F4D27D" strokeWidth={7} strokeLinecap="round" />
+      <Circle cx="493" cy="178" r="5" fill="#F4D27D" opacity={0.8} />
+      <Circle cx="179" cy="158" r="4" fill="#A7DED7" />
+    </Svg>
+  );
+}

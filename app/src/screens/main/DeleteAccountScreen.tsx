@@ -171,9 +171,9 @@ const styles = StyleSheet.create({
   bulletDot: { fontSize: 13, color: '#94a3b8', width: 16, lineHeight: 19 },
   bulletText: { flex: 1, fontSize: 13, color: '#475569', lineHeight: 19 },
 
-  // Primary button style, as used across the app.
+  // Red, so the irreversible action reads as a warning.
   deleteBtn: {
-    backgroundColor: colors.buttonPrimary,
+    backgroundColor: colors.error,
     borderRadius: 12,
     paddingVertical: 13,
     paddingHorizontal: 24,
