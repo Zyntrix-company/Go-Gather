@@ -176,6 +176,7 @@ module.exports = {
     authOtpVerifyPerEmail:     parseInt(process.env.AUTH_OTP_VERIFY_LIMIT_PER_EMAIL, 10) || 10, // / 15 min, failures only
     authSocialPerIp:           parseInt(process.env.AUTH_SOCIAL_LIMIT_PER_IP, 10) || 100,   // / 15 min
     contactPerIp:              parseInt(process.env.CONTACT_LIMIT_PER_IP, 10) || 5,         // / hour
+    userSearchPerMinute:       parseInt(process.env.USER_SEARCH_LIMIT_PER_MINUTE, 10) || 60, // per signed-in user
   },
 
   // Hops of reverse proxy in front of the API (nginx = 1). Never `true`:

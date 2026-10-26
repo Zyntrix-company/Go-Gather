@@ -61,9 +61,9 @@ const searchUsersValidation = [
   query('q')
     .notEmpty()
     .withMessage('q (search query) is required')
-    .isLength({ max: 100 })
-    .withMessage('Search query too long')
-    .trim(),
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Search query must be 2–100 characters'),
 ];
 
 const albumIdParam = [

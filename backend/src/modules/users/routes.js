@@ -4,6 +4,7 @@ const userDocsCtrl = require('./userDocs.controller');
 const validators = require('./validators');
 const validate = require('../../middleware/validate');
 const authenticateJWT = require('../../middleware/authenticate');
+const { userSearchLimits } = require('../../middleware/rateLimits');
 const { avatarUpload, photoUpload, docUpload, handleMulterError } = require('../../middleware/upload.middleware');
 const { limits } = require('../../config/uploadLimits');
 
@@ -43,6 +44,7 @@ router.put(
 router.get(
   '/search',
   authenticateJWT,
+  ...userSearchLimits,
   validators.searchUsersValidation,
   validate,
   controller.searchUsers,
@@ -306,9 +308,10 @@ router.get(
   controller.getUserPhotos,
 );
 
-// GET /users/:id — Get public user profile (no auth required — legacy endpoint)
+// GET /users/:id — Basic public profile (signed-in users; legacy endpoint)
 router.get(
   '/:id',
+  authenticateJWT,
   validators.getPublicProfileValidation,
   validate,
   controller.getPublicProfile,

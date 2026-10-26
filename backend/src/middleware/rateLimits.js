@@ -64,6 +64,11 @@ const socialAuthLimits = [
   limiter({ windowMs: 15 * MINUTE, max: r.authSocialPerIp, keyGenerator: byIp }),
 ];
 
+// Signed-in user directory search: bounds scraping of the user list.
+const userSearchLimits = [
+  limiter({ windowMs: MINUTE, max: r.userSearchPerMinute, keyGenerator: (req) => `user:${req.user.id}` }),
+];
+
 const contactLimits = [
   limiter({ windowMs: HOUR, max: r.contactPerIp, keyGenerator: byIp }),
 ];
@@ -75,4 +80,5 @@ module.exports = {
   otpVerifyLimits,
   socialAuthLimits,
   contactLimits,
+  userSearchLimits,
 };

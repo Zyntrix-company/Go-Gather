@@ -47,7 +47,7 @@ const uploadPhoto = async (req, res, next) => {
  */
 const getPublicProfile = async (req, res, next) => {
   try {
-    const user = await usersService.getPublicProfile(req.params.id);
+    const user = await usersService.getPublicProfile(req.params.id, req.user.id);
 
     return res.status(200).json({
       message: 'User profile fetched',
@@ -99,6 +99,8 @@ const getUserProfile = async (req, res, next) => {
  */
 const getUserGallery = async (req, res, next) => {
   try {
+    // Galleries are friends-only (same rule as the gallery-items routes).
+    await galleryOverlayService.verifyViewerAccess(req.user.id, req.params.id);
     const gallery = await usersService.getUserGallery(req.params.id);
     return res.status(200).json(gallery);
   } catch (error) {
@@ -114,6 +116,7 @@ const getUserGallery = async (req, res, next) => {
 const getUserPhotos = async (req, res, next) => {
   try {
     const { parentType, parentId } = req.query;
+    await galleryOverlayService.verifyViewerAccess(req.user.id, req.params.id);
     const photos = await usersService.getUserPhotos(
       req.params.id,
       parentType || null,
@@ -272,6 +275,7 @@ const getMyGalleryAlbumPhotos = async (req, res, next) => {
 
 const getUserGalleryAlbumPhotos = async (req, res, next) => {
   try {
+    await galleryOverlayService.verifyViewerAccess(req.user.id, req.params.id);
     const result = await galleryAlbumsService.getAlbumPhotosForProfile(req.params.id, req.params.albumId);
     return res.status(200).json(result);
   } catch (error) {
