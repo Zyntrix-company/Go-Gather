@@ -163,7 +163,24 @@ module.exports = {
     sweeChatPerHour: parseInt(process.env.SWEE_CHAT_RATE_LIMIT_PER_HOUR, 10) || 30,
     sweeChatPerDay: parseInt(process.env.SWEE_CHAT_RATE_LIMIT_PER_DAY, 10) || 200,
     placesAutocompletePerMinute: parseInt(process.env.PLACES_AUTOCOMPLETE_RATE_LIMIT_PER_MINUTE, 10) || 60,
+
+    // Auth abuse limits (SEC-07). Per-IP caps stay generous because mobile
+    // carriers put many users behind one CGNAT address; the per-email caps
+    // and the per-code attempt counter are the real brute-force defence.
+    authLoginFailuresPerIp:    parseInt(process.env.AUTH_LOGIN_LIMIT_PER_IP, 10) || 30,     // / 15 min, failures only
+    authLoginFailuresPerEmail: parseInt(process.env.AUTH_LOGIN_LIMIT_PER_EMAIL, 10) || 10,  // / 15 min, failures only
+    authSignupPerIp:           parseInt(process.env.AUTH_SIGNUP_LIMIT_PER_IP, 10) || 20,    // / hour
+    authOtpSendPerIp:          parseInt(process.env.AUTH_OTP_SEND_LIMIT_PER_IP, 10) || 20,  // / hour
+    authOtpSendPerEmail:       parseInt(process.env.AUTH_OTP_SEND_LIMIT_PER_EMAIL, 10) || 5, // / hour
+    authOtpVerifyPerIp:        parseInt(process.env.AUTH_OTP_VERIFY_LIMIT_PER_IP, 10) || 30,    // / 15 min, failures only
+    authOtpVerifyPerEmail:     parseInt(process.env.AUTH_OTP_VERIFY_LIMIT_PER_EMAIL, 10) || 10, // / 15 min, failures only
+    authSocialPerIp:           parseInt(process.env.AUTH_SOCIAL_LIMIT_PER_IP, 10) || 100,   // / 15 min
+    contactPerIp:              parseInt(process.env.CONTACT_LIMIT_PER_IP, 10) || 5,         // / hour
   },
+
+  // Hops of reverse proxy in front of the API (nginx = 1). Never `true`:
+  // that trusts any client-supplied X-Forwarded-For and defeats IP limits.
+  trustProxy: parseInt(process.env.TRUST_PROXY_HOPS, 10) || 1,
 
   // ─── Universal Links ─────────────────────────
   universalLinks: {

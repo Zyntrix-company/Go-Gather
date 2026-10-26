@@ -3,6 +3,7 @@ const cors = require('cors');
 const { sendEmail } = require('../../utils/mailer');
 const { query } = require('../../config/database');
 const logger = require('../../utils/logger');
+const { contactLimits } = require('../../middleware/rateLimits');
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ const contactCors = cors({ origin: allowedOrigins, credentials: true });
 
 router.options('/', contactCors);
 
-router.post('/', contactCors, async (req, res, next) => {
+router.post('/', contactCors, ...contactLimits, async (req, res, next) => {
   const { name, email, subject, country, message } = req.body;
 
   if (!name || !email || !subject || !country || !message) {

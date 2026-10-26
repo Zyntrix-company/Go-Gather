@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { OAuth2Client } = require('google-auth-library');
 const db = require('../../config/database');
@@ -68,18 +69,35 @@ const issueTokenPair = async (user) => {
 };
 
 
+const OTP_MAX_ATTEMPTS = 5;
+const OTP_RESEND_COOLDOWN_SECONDS = 30; // matches the app's resend timer
+
 /**
- * Generate a 6-digit numeric OTP.
+ * Generate a 6-digit numeric OTP from a CSPRNG.
  */
-const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+const generateOTP = () => crypto.randomInt(0, 1000000).toString().padStart(6, '0');
+
+/**
+ * Keyed hash of an OTP, bound to its user and purpose. A plain SHA-256 of a
+ * 6-digit code can be reversed by trying all million values; an HMAC with a
+ * server secret cannot be checked offline from a database dump.
+ */
+const hashOTP = (userId, purpose, otp) => crypto
+  .createHmac('sha256', config.jwt.secret)
+  .update(`otp:${purpose}:${userId}:${otp}`)
+  .digest('hex');
+
+const invalidOtpError = () => {
+  const err = new Error('Invalid or expired OTP');
+  err.statusCode = 401;
+  return err;
 };
 
 /**
  * Store an OTP in the DB.
  */
 const storeOTP = async (userId, otp, purpose, client = db) => {
-  const otpHash = hashToken(otp); // Reuse hashToken (SHA-256)
+  const otpHash = hashOTP(userId, purpose, otp);
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
   // Delete previous OTPs for this user and purpose
@@ -90,6 +108,73 @@ const storeOTP = async (userId, otp, purpose, client = db) => {
      VALUES ($1, $2, $3, $4)`,
     [userId, otpHash, purpose, expiresAt],
   );
+};
+
+/**
+ * True when a code for this user/purpose was issued within the cooldown (30 s).
+ * Callers then skip sending another email but answer exactly as if they had.
+ */
+const isInResendCooldown = async (userId, purpose) => {
+  const result = await db.query(
+    `SELECT 1 FROM otps
+     WHERE user_id = $1 AND purpose = $2
+       AND created_at > NOW() - make_interval(secs => $3)`,
+    [userId, purpose, OTP_RESEND_COOLDOWN_SECONDS],
+  );
+  return result.rows.length > 0;
+};
+
+/**
+ * Check an OTP and consume it on success.
+ *
+ * Every guess first reserves one attempt with a single atomic UPDATE, so
+ * parallel requests cannot exceed OTP_MAX_ATTEMPTS. A code that runs out of
+ * attempts is deleted and the user must request a new one.
+ */
+const consumeOTP = async (userId, purpose, otp) => {
+  const reserved = await db.query(
+    `UPDATE otps SET attempts = attempts + 1
+     WHERE id = (
+       SELECT id FROM otps
+       WHERE user_id = $1 AND purpose = $2 AND expires_at > NOW()
+       ORDER BY created_at DESC LIMIT 1
+     ) AND attempts < $3
+     RETURNING id, otp_hash, attempts`,
+    [userId, purpose, OTP_MAX_ATTEMPTS],
+  );
+
+  const lockedOut = () => {
+    const err = new Error('Too many incorrect codes. Please request a new code.');
+    err.statusCode = 429;
+    err.error = 'OTP_LOCKED';
+    return err;
+  };
+
+  const row = reserved.rows[0];
+  if (!row) {
+    // Either there is no live code, or the latest one is out of attempts.
+    const spent = await db.query(
+      `DELETE FROM otps
+       WHERE user_id = $1 AND purpose = $2 AND attempts >= $3
+       RETURNING id`,
+      [userId, purpose, OTP_MAX_ATTEMPTS],
+    );
+    throw spent.rows.length > 0 ? lockedOut() : invalidOtpError();
+  }
+
+  const expected = Buffer.from(row.otp_hash, 'hex');
+  const received = Buffer.from(hashOTP(userId, purpose, otp), 'hex');
+  const matches = expected.length === received.length && crypto.timingSafeEqual(expected, received);
+
+  if (!matches) {
+    if (row.attempts >= OTP_MAX_ATTEMPTS) {
+      await db.query('DELETE FROM otps WHERE id = $1', [row.id]);
+      throw lockedOut();
+    }
+    throw invalidOtpError();
+  }
+
+  await db.query('DELETE FROM otps WHERE id = $1', [row.id]);
 };
 
 /**
@@ -508,6 +593,10 @@ const forgotPassword = async ({ email, phone }) => {
     return { message: 'If an account exists, a reset email has been sent.' };
   }
 
+  if (await isInResendCooldown(user.id, 'password-reset')) {
+    return { message: 'If an account exists, a reset code has been sent.' };
+  }
+
   const otp = generateOTP();
   await storeOTP(user.id, otp, 'password-reset');
   await sendPasswordResetOTPEmail(user.email, otp);
@@ -520,27 +609,13 @@ const forgotPassword = async ({ email, phone }) => {
  */
 const verifyEmail = async ({ email, otp, deviceToken, platform }) => {
   const userRow = await findUserByAuthEmail(email);
-  if (!userRow) {
-    const err = new Error('User not found');
-    err.statusCode = 404;
-    throw err;
-  }
+  // Same answer as a wrong code, so this endpoint can't confirm who has an account.
+  if (!userRow) throw invalidOtpError();
   const userId = userRow.id;
 
-  const otpHash = hashToken(otp);
-  const otpResult = await db.query(
-    'SELECT id FROM otps WHERE user_id = $1 AND otp_hash = $2 AND purpose = $3 AND expires_at > NOW()',
-    [userId, otpHash, 'email-verification'],
-  );
-
-  if (otpResult.rows.length === 0) {
-    const err = new Error('Invalid or expired OTP');
-    err.statusCode = 401;
-    throw err;
-  }
+  await consumeOTP(userId, 'email-verification', otp);
 
   await db.query('UPDATE users SET is_verified = true WHERE id = $1', [userId]);
-  await db.query('DELETE FROM otps WHERE id = $1', [otpResult.rows[0].id]);
 
   await registerDeviceToken(userId, deviceToken, platform);
   await attachPendingInvites(userId, { email: userRow.email, phone: userRow.phone });
@@ -560,30 +635,16 @@ const verifyEmail = async ({ email, otp, deviceToken, platform }) => {
  */
 const resetPassword = async ({ email, otp, password }) => {
   const userRow = await findUserByAuthEmail(email);
-  if (!userRow) {
-    const err = new Error('User not found');
-    err.statusCode = 404;
-    throw err;
-  }
+  // Same answer as a wrong code, so this endpoint can't confirm who has an account.
+  if (!userRow) throw invalidOtpError();
   const userId = userRow.id;
 
-  const otpHash = hashToken(otp);
-  const otpResult = await db.query(
-    'SELECT id FROM otps WHERE user_id = $1 AND otp_hash = $2 AND purpose = $3 AND expires_at > NOW()',
-    [userId, otpHash, 'password-reset'],
-  );
-
-  if (otpResult.rows.length === 0) {
-    const err = new Error('Invalid or expired OTP');
-    err.statusCode = 401;
-    throw err;
-  }
+  await consumeOTP(userId, 'password-reset', otp);
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
   await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
 
-  // Delete OTP and all refresh tokens for this user (security)
-  await db.query('DELETE FROM otps WHERE id = $1', [otpResult.rows[0].id]);
+  // Sign out every session for this user (security)
   await db.query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
 
   return { message: 'Password reset successful. Please login with your new password.' };
@@ -629,6 +690,10 @@ const resendOTP = async ({ email, purpose }) => {
 
   if (purpose === 'email-verification' && user.is_verified) {
     return { message: 'Email is already verified.' };
+  }
+
+  if (await isInResendCooldown(user.id, purpose)) {
+    return { message: 'A new code has been sent.' };
   }
 
   const otp = generateOTP();
@@ -699,6 +764,11 @@ const getMe = async (userId) => {
 };
 
 module.exports = {
+  // exported for tests
+  generateOTP,
+  hashOTP,
+  OTP_MAX_ATTEMPTS,
+
   signup,
   login,
   googleAuth,

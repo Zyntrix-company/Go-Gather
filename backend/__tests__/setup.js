@@ -82,3 +82,14 @@ jest.mock('../src/modules/admin/maintenance.service', () => ({
   getMaintenanceInfo: () => ({ active: false, reason: null }),
   setMaintenanceMode: jest.fn(),
 }));
+
+// ── Auth rate limits ─────────────────────────────────────────────────────────
+// All suites share one in-memory limiter per app instance and one client IP,
+// so general suites get very high caps. rateLimits.test.js sets its own low caps.
+for (const key of [
+  'AUTH_LOGIN_LIMIT_PER_IP', 'AUTH_LOGIN_LIMIT_PER_EMAIL', 'AUTH_SIGNUP_LIMIT_PER_IP',
+  'AUTH_OTP_SEND_LIMIT_PER_IP', 'AUTH_OTP_SEND_LIMIT_PER_EMAIL', 'AUTH_OTP_VERIFY_LIMIT_PER_IP',
+  'AUTH_OTP_VERIFY_LIMIT_PER_EMAIL', 'AUTH_SOCIAL_LIMIT_PER_IP', 'CONTACT_LIMIT_PER_IP',
+]) {
+  if (!process.env[key]) process.env[key] = '10000';
+}
