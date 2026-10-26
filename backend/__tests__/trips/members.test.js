@@ -117,5 +117,32 @@ describe('Members Routes', () => {
       expect(res.statusCode).toBe(200);
       expect(res.body.success).toBe(true);
     });
+
+    // SEC-05: the admin rule applies to removing *others*; members may still leave.
+    it('returns 200 when a plain member removes themselves (leaving)', async () => {
+      mockTripMember();
+      db.query
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ role: 'member', user_id: USER_ID }] }) // member found
+        .mockResolvedValueOnce({ rows: [{ count: '1' }] })                                     // adminCount
+        .mockResolvedValueOnce({ rowCount: 1 })                                                // DELETE member
+        .mockResolvedValueOnce({ rowCount: 0 });                                               // DELETE invites
+
+      const res = await request(app)
+        .delete(`/trips/${TRIP_ID}/members/${USER_ID}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('does not touch the database when a non-admin targets another member', async () => {
+      mockTripMember();
+
+      await request(app)
+        .delete(`/trips/${TRIP_ID}/members/${USER2_ID}`)
+        .set('Authorization', `Bearer ${token}`);
+
+      // Only the two tripMember middleware lookups ran.
+      expect(db.query).toHaveBeenCalledTimes(2);
+    });
   });
 });

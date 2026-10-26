@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 
 const authenticateJWT = require('../../middleware/authenticate');
 const eventMemberMW = require('../../middleware/eventMember.middleware');
+const eventAdminMW = require('../../middleware/eventAdmin.middleware');
 const validate = require('../../middleware/validate');
 const { docUpload, photoUpload, handleMulterError } = require('../../middleware/upload.middleware');
 const { limits } = require('../../config/uploadLimits');
@@ -36,7 +37,9 @@ router.post(
 router.get('/', validators.getEventsQuery, validate, ctrl.getEvents);
 router.get('/:eventId', validators.eventIdParam, validate, eventMemberMW, ctrl.getEventById);
 router.put('/:eventId', validators.updateEventValidation, validate, eventMemberMW, ctrl.updateEvent);
-router.delete('/:eventId', validators.eventIdParam, validate, eventMemberMW, ctrl.deleteEvent);
+// Deleting removes every member's docs/photos/expenses — admins only (D-1).
+// Editing and archiving stay open to all members.
+router.delete('/:eventId', validators.eventIdParam, validate, eventMemberMW, eventAdminMW, ctrl.deleteEvent);
 
 // ─── Description ──────────────────────────────────────────────────────────────
 router.post('/:eventId/description', validators.descriptionValidation, validate, eventMemberMW, ctrl.setDescription);

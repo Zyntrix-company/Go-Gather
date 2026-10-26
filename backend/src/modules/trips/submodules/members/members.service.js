@@ -29,7 +29,13 @@ const getMembers = async (tripId) => {
   return { members, total: members.length, adminCount };
 };
 
-const removeMember = async (tripId, targetUserId, requesterId) => {
+const removeMember = async (tripId, targetUserId, requesterId, requesterRole) => {
+  // Members may leave on their own; removing someone else is an admin action.
+  if (targetUserId !== requesterId && requesterRole !== 'admin') {
+    const e = new Error('Only trip admins can remove other members');
+    e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
+  }
+
   const memberResult = await db(
     'SELECT * FROM trip_members WHERE trip_id = $1 AND user_id = $2',
     [tripId, targetUserId],

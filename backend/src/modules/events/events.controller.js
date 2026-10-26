@@ -180,7 +180,12 @@ const getMembers = async (req, res, next) => {
 // ── DELETE /events/:eventId/members/:userId ───────────────────
 const removeMember = async (req, res, next) => {
   try {
-    await eventsService.removeEventMember(req.params.eventId, req.params.userId);
+    await eventsService.removeEventMember(
+      req.params.eventId,
+      req.params.userId,
+      req.user.id,
+      req.eventMember.role,
+    );
     res.status(200).json({ success: true });
   } catch (error) {
     if (error.statusCode) {
