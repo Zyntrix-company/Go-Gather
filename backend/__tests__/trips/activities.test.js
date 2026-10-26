@@ -20,7 +20,21 @@ jest.mock('../../src/utils/s3.util', () => ({
   sanitiseFilename: jest.fn((n) => n),
 }));
 
+// Reminder scheduling is a fire-and-forget side effect with its own DB calls.
+jest.mock('../../src/utils/reminders.cron', () => ({
+  scheduleActivityReminders: jest.fn().mockResolvedValue(undefined),
+}));
+
 const db = require('../../src/config/database');
+
+// Fire-and-forget ITINERARY_UPDATED lookups (members, trip, actor) — they run
+// before the service re-reads the activity, so they take the next three mocks.
+const mockNotificationLookups = () => {
+  db.query
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({ rows: [] });
+};
 
 const USER_ID  = '123e4567-e89b-12d3-a456-426614174000';
 const TRIP_ID  = 'aaaa0001-0000-4000-8000-000000000001';
@@ -96,7 +110,9 @@ describe('Activities Routes', () => {
 
     it('returns 201 on successful activity creation', async () => {
       mockTripMember();
-      db.query.mockResolvedValueOnce({ rows: [activityRow] });
+      db.query.mockResolvedValueOnce({ rows: [activityRow] });                 // INSERT ... RETURNING
+      mockNotificationLookups();
+      db.query.mockResolvedValueOnce({ rowCount: 1, rows: [activityRow] });   // getActivityById
 
       const res = await request(app)
         .post(`/trips/${TRIP_ID}/activities`)
@@ -136,8 +152,9 @@ describe('Activities Routes', () => {
       mockTripMember();
       db.query
         .mockResolvedValueOnce({ rowCount: 1, rows: [{ ...activityRow, created_by: USER_ID }] }) // find activity
-        .mockResolvedValueOnce({ rowCount: 1 })                                                   // UPDATE
-        .mockResolvedValueOnce({ rowCount: 1, rows: [{ ...activityRow, title: 'Updated' }] });   // getActivityById
+        .mockResolvedValueOnce({ rowCount: 1 });                                                  // UPDATE
+      mockNotificationLookups();
+      db.query.mockResolvedValueOnce({ rowCount: 1, rows: [{ ...activityRow, title: 'Updated' }] }); // getActivityById
 
       const res = await request(app)
         .put(`/trips/${TRIP_ID}/activities/${ACT_ID}`)

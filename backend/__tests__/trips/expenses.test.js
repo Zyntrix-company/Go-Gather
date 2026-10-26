@@ -182,45 +182,45 @@ describe('Expense Routes', () => {
   // ── GET /trips/:id/balances ────────────────────────────────────────────────
 
   describe('GET /trips/:id/balances', () => {
-    it('returns 200 with empty outstanding when no expenses', async () => {
+    it('returns 200 with no debts when there are no expenses', async () => {
       mockTripMember();
+      // getBalances: fetchCurrencyGroups (splits, settlements) then totals — all in one Promise.all
       db.query
-        .mockResolvedValueOnce({ rows: [{ total_paid: '0' }] })   // total_paid (Promise.all[0])
-        .mockResolvedValueOnce({ rows: [{ total_share: '0' }] })  // total_share (Promise.all[1])
-        .mockResolvedValueOnce({ rows: [{ total: '0' }] })        // total (Promise.all[2])
-        .mockResolvedValueOnce({ rows: [] })                      // computeSimplifiedDebts: splits
-        .mockResolvedValueOnce({ rows: [] });                     // computeSimplifiedDebts: settlements
+        .mockResolvedValueOnce({ rows: [] })   // expense splits
+        .mockResolvedValueOnce({ rows: [] })   // settlements
+        .mockResolvedValueOnce({ rows: [] });  // totals by currency
 
       const res = await request(app)
         .get(`/trips/${TRIP_ID}/balances`)
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body.outstanding).toEqual([]);
+      expect(res.body.debts).toEqual([]);
+      expect(res.body.myBalances).toEqual({});
     });
 
     it('returns simplified debts when expenses exist', async () => {
       mockTripMember();
       db.query
-        .mockResolvedValueOnce({ rows: [{ total_paid: '4000' }] })  // total_paid
-        .mockResolvedValueOnce({ rows: [{ total_share: '2000' }] }) // total_share
-        .mockResolvedValueOnce({ rows: [{ total: '6000' }] })       // total
         .mockResolvedValueOnce({
           rows: [
-            { user_id: USER2_ID, amount: '2000', paid_by: USER_ID },
-            { user_id: USER3_ID, amount: '2000', paid_by: USER_ID },
+            { user_id: USER2_ID, amount: '2000', paid_by: USER_ID, currency: 'INR' },
+            { user_id: USER3_ID, amount: '2000', paid_by: USER_ID, currency: 'INR' },
           ],
-        })                                                          // computeSimplifiedDebts: splits
-        .mockResolvedValueOnce({ rows: [] })                        // computeSimplifiedDebts: settlements
-        .mockResolvedValueOnce({ rows: [] });                       // fetchProfiles
+        })                                                                   // expense splits
+        .mockResolvedValueOnce({ rows: [] })                                 // settlements
+        .mockResolvedValueOnce({ rows: [{ currency: 'INR', total: '6000' }] }) // totals by currency
+        .mockResolvedValueOnce({ rows: [] });                                // fetchProfiles
 
       const res = await request(app)
         .get(`/trips/${TRIP_ID}/balances`)
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body.outstanding).toHaveLength(2);
-      expect(res.body.outstanding[0].direction).toBe('owes_you');
+      expect(res.body.debts).toHaveLength(2);
+      expect(res.body.debts.every((d) => d.to === USER_ID && d.toName === 'You')).toBe(true);
+      expect(res.body.myBalances.INR).toBe(4000);
+      expect(res.body.totalExpensesByCurrency.INR).toBe('6000');
     });
   });
 
@@ -242,6 +242,7 @@ describe('Expense Routes', () => {
     it('returns 200 after recording settlement', async () => {
       mockTripMember();
       db.query
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{}] })     // assertParentMember (recipient)
         .mockResolvedValueOnce({ rows: [{ id: 'settle-id' }] }) // INSERT settlement
         .mockResolvedValueOnce({ rows: [] })                    // splits for recompute
         .mockResolvedValueOnce({ rows: [] });                   // settlements for recompute

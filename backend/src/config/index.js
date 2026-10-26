@@ -1,8 +1,11 @@
 const dotenv = require('dotenv');
 const path = require('path');
 
-// Load .env from project root
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Load .env from project root. Never under Jest: backend/.env can hold
+// production credentials, and tests must only see __tests__/setup.js values.
+if (process.env.NODE_ENV !== 'test') {
+  dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+}
 
 module.exports = {
   // ─── Server ──────────────────────────────────

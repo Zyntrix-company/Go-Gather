@@ -52,6 +52,7 @@ describe('Users Routes', () => {
         query: jest.fn()
           .mockResolvedValueOnce() // BEGIN
           .mockResolvedValueOnce() // UPSERT profile
+          .mockResolvedValueOnce({ rows: [{ username: 'testuser' }] }) // SELECT username (already set)
           .mockResolvedValueOnce() // UPDATE users
           .mockResolvedValueOnce(), // COMMIT
         release: jest.fn(),
