@@ -121,7 +121,8 @@ describe('Docs Routes', () => {
     it('returns 201 when a valid PDF is uploaded', async () => {
       mockTripMember();
       db.query
-        .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // COUNT existing docs
+        .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // COUNT existing docs (uploadDocs batch cap)
+        .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // COUNT existing docs (per-file cap in uploadDoc)
         .mockResolvedValueOnce({ rows: [docRow] })           // INSERT doc
         .mockResolvedValueOnce({ rows: [{ full_name: 'Alice', avatar_url: null }] }); // profile fetch
 

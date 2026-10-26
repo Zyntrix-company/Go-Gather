@@ -34,6 +34,10 @@ const placesRoutes       = require('./modules/places/places.routes');
 
 const app = express();
 
+// Behind nginx: take the client IP from X-Forwarded-For, trusting only the
+// configured number of proxy hops (rate limiting depends on a real req.ip).
+app.set('trust proxy', config.trustProxy);
+
 /* ───────────────────────────────────────────
  * Universal Links / App Links — BEFORE any auth middleware
  * Must be served as application/json without a .json extension in the URL.

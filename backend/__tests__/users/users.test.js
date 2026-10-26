@@ -52,6 +52,7 @@ describe('Users Routes', () => {
         query: jest.fn()
           .mockResolvedValueOnce() // BEGIN
           .mockResolvedValueOnce() // UPSERT profile
+          .mockResolvedValueOnce({ rows: [{ username: 'testuser' }] }) // SELECT username (already set)
           .mockResolvedValueOnce() // UPDATE users
           .mockResolvedValueOnce(), // COMMIT
         release: jest.fn(),
@@ -92,40 +93,75 @@ describe('Users Routes', () => {
     });
   });
 
+  // SEC-04: GET /users/:id now requires sign-in, honours blocks, and no longer
+  // returns email or gender (it used to be public and include both).
   describe('GET /users/:id', () => {
+    const OTHER_ID = '323e4567-e89b-12d3-a456-426614174999';
+
+    it('should return 401 without auth', async () => {
+      const res = await request(app).get(`/users/${OTHER_ID}`);
+
+      expect(res.statusCode).toBe(401);
+    });
+
     it('should return 422 for invalid UUID', async () => {
-      const res = await request(app).get('/users/not-a-uuid');
+      const res = await request(app)
+        .get('/users/not-a-uuid')
+        .set('Authorization', `Bearer ${validToken}`);
 
       expect(res.statusCode).toBe(422);
     });
 
     it('should return 404 if user not found', async () => {
-      db.query.mockResolvedValueOnce({ rows: [] });
+      db.query
+        .mockResolvedValueOnce({ rows: [] })  // block check: not blocked
+        .mockResolvedValueOnce({ rows: [] }); // profile lookup: none
 
-      const res = await request(app).get(`/users/${mockUserId}`);
+      const res = await request(app)
+        .get(`/users/${OTHER_ID}`)
+        .set('Authorization', `Bearer ${validToken}`);
 
       expect(res.statusCode).toBe(404);
     });
 
-    it('should return 200 with public profile', async () => {
-      db.query.mockResolvedValueOnce({
-        rows: [{
-          id: mockUserId,
-          email: 'test@test.com',
-          created_at: new Date().toISOString(),
-          full_name: 'Test User',
-          gender: 'male',
-          country: 'India',
-          bio: 'Hello world',
-          avatar_url: 'https://cdn.example.com/avatar.jpg',
-        }],
-      });
+    it('should return 403 when the target has blocked the viewer', async () => {
+      db.query.mockResolvedValueOnce({ rows: [{ '?column?': 1 }] }); // block row exists
 
-      const res = await request(app).get(`/users/${mockUserId}`);
+      const res = await request(app)
+        .get(`/users/${OTHER_ID}`)
+        .set('Authorization', `Bearer ${validToken}`);
+
+      expect(res.statusCode).toBe(403);
+      expect(res.body.error).toBe('BLOCKED');
+    });
+
+    it('should return 200 with a minimal public profile (no email, no gender)', async () => {
+      db.query
+        .mockResolvedValueOnce({ rows: [] }) // block check: not blocked
+        .mockResolvedValueOnce({
+          rows: [{
+            id: OTHER_ID,
+            created_at: new Date().toISOString(),
+            full_name: 'Test User',
+            country: 'India',
+            bio: 'Hello world',
+            avatar_url: 'https://cdn.example.com/avatar.jpg',
+          }],
+        });
+
+      const res = await request(app)
+        .get(`/users/${OTHER_ID}`)
+        .set('Authorization', `Bearer ${validToken}`);
 
       expect(res.statusCode).toBe(200);
       expect(res.body.user.profile.fullName).toBe('Test User');
       expect(res.body.user.profile.avatarUrl).toBe('https://cdn.example.com/avatar.jpg');
+      expect(res.body.user).not.toHaveProperty('email');
+      expect(res.body.user.profile).not.toHaveProperty('gender');
+      // The SQL itself no longer selects them either.
+      const profileSql = db.query.mock.calls[1][0];
+      expect(profileSql).not.toMatch(/u\.email/);
+      expect(profileSql).not.toMatch(/p\.gender/);
     });
   });
 

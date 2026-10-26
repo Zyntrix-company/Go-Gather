@@ -32,6 +32,7 @@ jest.mock('../../src/utils/sns', () => ({
 }));
 
 const db = require('../../src/config/database');
+const { hashOTP } = require('../../src/modules/auth/service');
 
 const VALID_USER_ID = '123e4567-e89b-12d3-a456-426614174000';
 
@@ -184,7 +185,11 @@ describe('Auth Routes', () => {
     it('returns 401 when OTP is invalid', async () => {
       db.query
         .mockResolvedValueOnce({ rows: [{ id: VALID_USER_ID, email: 'test@test.com' }] })
-        .mockResolvedValueOnce({ rows: [] });
+        .mockResolvedValueOnce({ rows: [{ // reserve attempt — stored code is a different one
+          id: 'otp-row-id',
+          otp_hash: hashOTP(VALID_USER_ID, 'email-verification', '123456'),
+          attempts: 1,
+        }] });
 
       const res = await request(app)
         .post('/auth/verify-email')
@@ -196,7 +201,11 @@ describe('Auth Routes', () => {
     it('returns 200 with tokens after valid OTP', async () => {
       db.query
         .mockResolvedValueOnce({ rows: [{ id: VALID_USER_ID, email: 'test@test.com' }] })
-        .mockResolvedValueOnce({ rows: [{ id: 'otp-row-id' }] })
+        .mockResolvedValueOnce({ rows: [{ // reserve attempt — matching code
+          id: 'otp-row-id',
+          otp_hash: hashOTP(VALID_USER_ID, 'email-verification', '123456'),
+          attempts: 1,
+        }] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [] });

@@ -817,7 +817,13 @@ const getEventMembers = async (eventId) => {
   return { members, total: members.length, adminCount };
 };
 
-const removeEventMember = async (eventId, targetUserId) => {
+const removeEventMember = async (eventId, targetUserId, requesterId, requesterRole) => {
+  // Members may leave on their own; removing someone else is an admin action.
+  if (targetUserId !== requesterId && requesterRole !== 'admin') {
+    const e = new Error('Only event admins can remove other members');
+    e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
+  }
+
   const memberResult = await db(
     'SELECT * FROM event_members WHERE event_id = $1 AND user_id = $2',
     [eventId, targetUserId],

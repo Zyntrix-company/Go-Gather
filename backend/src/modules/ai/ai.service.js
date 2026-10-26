@@ -98,13 +98,13 @@ async function findUserTrip(userId, { tripId, targetTripName }) {
   let params;
 
   if (tripId) {
-    sql = `SELECT t.id, t.name, t.start_date, t.end_date, t.location_name
+    sql = `SELECT t.id, t.name, t.start_date, t.end_date, t.location_name, tm.role
            FROM trips t
            JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = $1
            WHERE t.id = $2 AND t.archived_at IS NULL`;
     params = [userId, tripId];
   } else if (targetTripName) {
-    sql = `SELECT t.id, t.name, t.start_date, t.end_date, t.location_name
+    sql = `SELECT t.id, t.name, t.start_date, t.end_date, t.location_name, tm.role
            FROM trips t
            JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = $1
            WHERE t.archived_at IS NULL
@@ -615,6 +615,10 @@ const executeAction = async (userId, pendingAction) => {
 
     const tripsService = require('../trips/trips.service');
     const targetTrip = trips[0];
+    // Same rule as PUT /trips/:id (tripAdmin middleware).
+    if (targetTrip.role !== 'admin') {
+      throw Object.assign(new Error('Only trip admins can change trip details.'), { statusCode: 403 });
+    }
     const updates = {};
     if (draft.startDate) updates.startDate = requireIsoDate(draft.startDate, 'Start date');
     if (draft.endDate) updates.endDate = requireIsoDate(draft.endDate, 'End date');
@@ -680,11 +684,21 @@ const executeAction = async (userId, pendingAction) => {
     const sharedNotes = require('../shared/notes/notes.service');
     // Determine parent type: tripId present → trip, else event
     const parentType = pendingAction.tripId ? 'trip' : 'event';
-    const parentId = pendingAction.tripId || pendingAction.eventId;
+    const requestedId = pendingAction.tripId || pendingAction.eventId;
 
-    if (!parentId) {
+    if (!requestedId) {
       throw badRequest('Trip or event ID required to add a note');
     }
+
+    // The id comes from the client: only write into a trip/event the caller belongs to.
+    const { trips = [], events = [] } = parentType === 'trip'
+      ? await findUserTrip(userId, { tripId: requestedId })
+      : await findUserEvent(userId, { eventId: requestedId });
+    const parent = parentType === 'trip' ? trips[0] : events[0];
+    if (!parent) {
+      throw Object.assign(new Error(`${parentType === 'trip' ? 'Trip' : 'Event'} not found.`), { statusCode: 404 });
+    }
+    const parentId = parent.id;
 
     const content = requireNonEmptyString(noteContent || draft.notes, 'Note content');
 

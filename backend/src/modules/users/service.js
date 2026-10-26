@@ -209,12 +209,27 @@ const uploadPhoto = async (userId, file) => {
 };
 
 /**
- * GET /users/:id — Get a public user profile.
+ * GET /users/:id — Get a public user profile (signed-in viewers only).
+ * No email or gender: this is visible to any user who knows the id.
  */
-const getPublicProfile = async (userId) => {
+const getPublicProfile = async (userId, viewerId) => {
+  if (viewerId !== userId) {
+    const blocked = await db.query(
+      `SELECT 1 FROM friend_connections
+       WHERE requester_id = $1 AND addressee_id = $2 AND status = 'blocked'`,
+      [userId, viewerId],
+    );
+    if (blocked.rows.length > 0) {
+      const err = new Error('Profile not available');
+      err.statusCode = 403;
+      err.error = 'BLOCKED';
+      throw err;
+    }
+  }
+
   const result = await db.query(
-    `SELECT u.id, u.email, u.created_at,
-            p.full_name, p.gender, p.country, p.bio, p.avatar_url
+    `SELECT u.id, u.created_at,
+            p.full_name, p.country, p.bio, p.avatar_url
      FROM users u
      LEFT JOIN profiles p ON p.user_id = u.id
      WHERE u.id = $1`,
@@ -232,11 +247,9 @@ const getPublicProfile = async (userId) => {
 
   return {
     id: row.id,
-    email: row.email,
     createdAt: row.created_at,
     profile: {
       fullName: row.full_name,
-      gender: row.gender,
       country: row.country,
       bio: row.bio,
       avatarUrl: normalizeAvatarUrl(row.avatar_url),

@@ -66,3 +66,31 @@ process.env.ANDROID_SHA256_CERT = 'AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:
 // ── Rate limits ───────────────────────────────────────────────────────────────
 process.env.FRIEND_INVITE_RATE_LIMIT_PER_HOUR = '10';
 process.env.FRIEND_REQUEST_RATE_LIMIT_PER_DAY = '20';
+
+// ── Keys config/index.js would otherwise leave undefined ─────────────────────
+// backend/.env is not loaded under Jest (see config/index.js), so anything a
+// module needs at load time must be defined here with a test-only value.
+process.env.TOKEN_ENCRYPTION_KEY = '0'.repeat(64);
+process.env.GEMINI_API_KEY = 'test-gemini-key';
+
+// ── Maintenance-mode cache ───────────────────────────────────────────────────
+// The real service polls system_settings via db.query on load and every 5 s.
+// Under mocked databases that poll consumes queued mockResolvedValueOnce
+// results and shifts every later mock — so it is stubbed for all suites.
+jest.mock('../src/modules/admin/maintenance.service', () => ({
+  isMaintenanceActive: () => false,
+  getMaintenanceInfo: () => ({ active: false, reason: null }),
+  setMaintenanceMode: jest.fn(),
+}));
+
+// ── Auth rate limits ─────────────────────────────────────────────────────────
+// All suites share one in-memory limiter per app instance and one client IP,
+// so general suites get very high caps. rateLimits.test.js sets its own low caps.
+for (const key of [
+  'AUTH_LOGIN_LIMIT_PER_IP', 'AUTH_LOGIN_LIMIT_PER_EMAIL', 'AUTH_SIGNUP_LIMIT_PER_IP',
+  'AUTH_OTP_SEND_LIMIT_PER_IP', 'AUTH_OTP_SEND_LIMIT_PER_EMAIL', 'AUTH_OTP_VERIFY_LIMIT_PER_IP',
+  'AUTH_OTP_VERIFY_LIMIT_PER_EMAIL', 'AUTH_SOCIAL_LIMIT_PER_IP', 'CONTACT_LIMIT_PER_IP',
+  'USER_SEARCH_LIMIT_PER_MINUTE',
+]) {
+  if (!process.env[key]) process.env[key] = '10000';
+}

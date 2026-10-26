@@ -9,7 +9,7 @@ const getMembers = async (req, res, next) => {
 
 const removeMember = async (req, res, next) => {
   try {
-    await service.removeMember(req.tripMember.tripId, req.params.userId, req.user.id);
+    await service.removeMember(req.tripMember.tripId, req.params.userId, req.user.id, req.tripMember.role);
     res.status(200).json({ success: true });
   } catch (e) {
     if (e.statusCode) return res.status(e.statusCode).json({ error: e.error, message: e.message, statusCode: e.statusCode });

@@ -1915,7 +1915,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
                         </View>
                         {m.role === 'admin'
                           ? <View style={styles.ownerBadge}><Text style={styles.ownerTxt}>Admin</Text></View>
-                          : m.userId !== currentUserId
+                          : myMemberRole === 'admin' && m.userId !== currentUserId
                             ? <TouchableOpacity onPress={() => {
                               showConfirm({
                                 title: 'Remove member?',

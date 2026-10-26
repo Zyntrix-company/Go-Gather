@@ -3,12 +3,16 @@ const controller = require('./controller');
 const validators = require('./validators');
 const validate = require('../../middleware/validate');
 const authenticateJWT = require('../../middleware/authenticate');
+const {
+  loginLimits, signupLimits, otpSendLimits, otpVerifyLimits, socialAuthLimits,
+} = require('../../middleware/rateLimits');
 
 const router = Router();
 
 // POST /auth/signup — Email/password registration
 router.post(
   '/signup',
+  ...signupLimits,
   validators.signupValidation,
   validate,
   controller.signup,
@@ -17,6 +21,7 @@ router.post(
 // POST /auth/login — Email/password login
 router.post(
   '/login',
+  ...loginLimits,
   validators.loginValidation,
   validate,
   controller.login,
@@ -25,6 +30,7 @@ router.post(
 // POST /auth/google — Google OAuth token exchange
 router.post(
   '/google',
+  ...socialAuthLimits,
   validators.googleAuthValidation,
   validate,
   controller.googleAuth,
@@ -33,6 +39,7 @@ router.post(
 // POST /auth/apple — Sign in with Apple (iOS)
 router.post(
   '/apple',
+  ...socialAuthLimits,
   validators.appleAuthValidation,
   validate,
   controller.appleAuth,
@@ -58,6 +65,7 @@ router.post(
 // POST /auth/forgot-password — Send reset session via SES
 router.post(
   '/forgot-password',
+  ...otpSendLimits,
   validators.forgotPasswordValidation,
   validate,
   controller.forgotPassword,
@@ -66,6 +74,7 @@ router.post(
 // POST /auth/verify-email — Verify registration OTP
 router.post(
   '/verify-email',
+  ...otpVerifyLimits,
   validators.verifyEmailValidation,
   validate,
   controller.verifyEmail,
@@ -74,6 +83,7 @@ router.post(
 // POST /auth/reset-password — Reset password using OTP code
 router.post(
   '/reset-password',
+  ...otpVerifyLimits,
   validators.resetPasswordValidation,
   validate,
   controller.resetPassword,
@@ -91,6 +101,7 @@ router.post(
 // POST /auth/resend-otp — Resend code
 router.post(
   '/resend-otp',
+  ...otpSendLimits,
   validators.resendOTPValidation,
   validate,
   controller.resendOTP,

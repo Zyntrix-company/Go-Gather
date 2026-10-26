@@ -155,6 +155,7 @@ describe('Polls Routes', () => {
       db.query
         .mockResolvedValueOnce({ rows: [{ ...pollRow, id: POLL_ID }], rowCount: 1 }) // verify poll
         .mockResolvedValueOnce({ rows: [{ id: OPT1_ID }], rowCount: 1 })             // verify option
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 })                             // existing vote (toggle check)
         .mockResolvedValueOnce({ rows: [] })                                          // INSERT ON CONFLICT vote
         // getPollById for updated state
         .mockResolvedValueOnce({ rows: [pollRow] })                                   // SELECT poll by id
