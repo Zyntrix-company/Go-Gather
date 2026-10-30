@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, ActivityIndicator, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
-import { useAlbumPhotosOverlay, useAlbumPhotosPageWidth } from './AlbumPhotosContext';
-import { ALBUM_HERO_H_PAD, ALBUM_HERO_RADIUS, GALLERY_HERO_CONTENT_MIN } from '../../constants/albumPhotosLayout';
+import { AlbumHeroScrollLockContext, useAlbumPhotosOverlay, useAlbumPhotosPageWidth } from './AlbumPhotosContext';
+import { ALBUM_HERO_H_PAD, ALBUM_HERO_RADIUS, GALLERY_HERO_CONTENT_MIN, fitPortraitFrame } from '../../constants/albumPhotosLayout';
 import AlbumPhotosEmptyHero, { type AlbumEmptyVariant, type AlbumEmptyKind } from './AlbumPhotosEmptyHero';
 const MAX_DOTS = 15;
 
@@ -109,8 +109,31 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
   showPagerDots = true,
 }: AlbumPhotosHeroCarouselProps<T>) {
   const [heroH, setHeroH] = useState(fixedHeight ?? 0);
+  const [heroScrollLocked, setHeroScrollLocked] = useState(false);
+  const scrollLockOwner = useRef<string | null>(null);
+  const listRef = useRef<FlatList<T> | null>(null);
   const heroOverlay = useAlbumPhotosOverlay();
   const pageWidth = useAlbumPhotosPageWidth();
+  const setListNode = useCallback((node: FlatList<T> | null) => {
+    listRef.current = node;
+    if (heroRef) {
+      (heroRef as React.MutableRefObject<FlatList<T> | null>).current = node;
+    }
+  }, [heroRef]);
+  const setHeroScrollLock = useCallback((ownerId: string, locked: boolean) => {
+    // Native prop first: React state lands a frame later, after the list can steal a pinch.
+    if (locked) {
+      scrollLockOwner.current = ownerId;
+      listRef.current?.setNativeProps?.({ scrollEnabled: false });
+      setHeroScrollLocked(true);
+      return;
+    }
+    if (scrollLockOwner.current === ownerId || scrollLockOwner.current == null) {
+      scrollLockOwner.current = null;
+      listRef.current?.setNativeProps?.({ scrollEnabled });
+      setHeroScrollLocked(false);
+    }
+  }, [scrollEnabled]);
   const lightChrome = galleryChrome || fixedHeight != null;
   const rounded = fixedHeight != null;
   const richEmpty = !loading && photos.length === 0 && (emptyVariant === 'own' || emptyVariant === 'friend');
@@ -163,11 +186,17 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
       );
     }
 
-    const frameSize = { width: slideContentW, height: slideContentH };
+    const frameSize = galleryChrome
+      ? fitPortraitFrame(slideContentW, slideContentH)
+      : { width: slideContentW, height: slideContentH };
 
     return (
       <TouchableOpacity
-        style={[styles.heroSlideRounded, { width: pageWidth, height: slideH }]}
+        style={[
+          styles.heroSlideRounded,
+          galleryChrome && styles.heroSlideCenter,
+          { width: pageWidth, height: slideH },
+        ]}
         activeOpacity={0.95}
         onPress={() => onPhotoPress?.(index)}
         disabled={!onPhotoPress}
@@ -190,6 +219,7 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
   };
 
   return (
+    <AlbumHeroScrollLockContext.Provider value={setHeroScrollLock}>
     <View
       style={slotStyle}
       onLayout={fixedHeight != null ? undefined : (e) => {
@@ -204,12 +234,12 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
       ) : photos.length > 0 ? (
         displayH > 0 ? (
         <FlatList
-          ref={heroRef}
+          ref={setListNode}
           style={{ height: displayH, width: '100%' }}
           data={photos}
           horizontal
           pagingEnabled
-          scrollEnabled={scrollEnabled}
+          scrollEnabled={scrollEnabled && !heroScrollLocked}
           showsHorizontalScrollIndicator={false}
           removeClippedSubviews={false}
           windowSize={Math.min(photos.length, 5) + 2}
@@ -221,7 +251,7 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
               heroRef?.current?.scrollToIndex({ index: info.index, animated: false });
             }, 50);
           }}
-          extraData={heroIndex}
+          extraData={heroIndex + (heroScrollLocked ? ':locked' : '')}
           renderItem={({ item, index }) => renderHeroPhoto(item, index)}
           keyExtractor={(item) => item.id}
         />
@@ -279,6 +309,7 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
         />
       ) : null}
     </View>
+    </AlbumHeroScrollLockContext.Provider>
   );
 }
 
@@ -305,6 +336,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: ALBUM_HERO_H_PAD,
     paddingTop: 4,
     paddingBottom: 6,
+  },
+  heroSlideCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   heroFrameOuter: {
     flex: 1,

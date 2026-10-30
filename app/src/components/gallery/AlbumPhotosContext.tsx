@@ -7,6 +7,10 @@ export const AlbumPhotosOverlayContext = createContext<React.ReactNode>(null);
 export const AlbumPhotosPageWidthContext = createContext<number | null>(null);
 export const AlbumPhotosScrollContext = createContext<RefObject<ScrollView | null> | null>(null);
 
+/** Active hero calls this so a pinch or zoom can pause horizontal paging. */
+export type AlbumHeroScrollLock = (ownerId: string, locked: boolean) => void;
+const AlbumHeroScrollLockContext = createContext<AlbumHeroScrollLock>(() => {});
+
 export function useAlbumPhotosOverlay() {
   return useContext(AlbumPhotosOverlayContext);
 }
@@ -21,3 +25,9 @@ export function useAlbumPhotosPageWidth() {
 export function useAlbumPhotosScroll() {
   return useContext(AlbumPhotosScrollContext);
 }
+
+export function useAlbumHeroScrollLock() {
+  return useContext(AlbumHeroScrollLockContext);
+}
+
+export { AlbumHeroScrollLockContext };

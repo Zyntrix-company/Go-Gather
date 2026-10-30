@@ -30,6 +30,26 @@ export const GALLERY_HERO_CONTENT_MAX = 320;
 export const GALLERY_HERO_CONTENT_MIN = 200;
 export const GALLERY_HERO_SLIDE_V_PAD = 10;
 
+/** Phone-portrait frame (width / height) used by the gallery album hero. */
+export const GALLERY_HERO_PORTRAIT_ASPECT = 3 / 4;
+
+/**
+ * Largest 3:4 rectangle that fits in the hero slot. The slot height is unchanged;
+ * the frame is centered by the caller.
+ */
+export function fitPortraitFrame(slotW: number, slotH: number): { width: number; height: number } {
+  const w = Math.max(0, slotW);
+  const h = Math.max(0, slotH);
+  if (w === 0 || h === 0) return { width: 0, height: 0 };
+  let height = h;
+  let width = height * GALLERY_HERO_PORTRAIT_ASPECT;
+  if (width > w) {
+    width = w;
+    height = width / GALLERY_HERO_PORTRAIT_ASPECT;
+  }
+  return { width, height };
+}
+
 /** Fixed chrome heights used by useGalleryViewportHeroHeight. */
 export const GALLERY_CHROME = {
   appHeader: 56,

@@ -1,11 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Animated, Dimensions } from 'react-native';
+import { fitPortraitFrame } from '../../constants/albumPhotosLayout';
 
 /** Pulse placeholder for a gallery album — while photos load, or while the first upload runs. */
 export default function GalleryAlbumSkeleton({ heroH }: { heroH: number }) {
   const pulse = useRef(new Animated.Value(0.5)).current;
   const pageW = Dimensions.get('window').width;
-  const innerW = pageW - 32;
+  const slotW = pageW - 32;
+  const slotH = Math.max(0, heroH - 10);
+  const frame = fitPortraitFrame(slotW, slotH);
 
   useEffect(() => {
     const anim = Animated.loop(
@@ -24,8 +27,8 @@ export default function GalleryAlbumSkeleton({ heroH }: { heroH: number }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ paddingHorizontal: 16, paddingTop: 4 }}>
-        <B w={innerW} h={Math.max(heroH - 10, 200)} r={18} />
+      <View style={{ height: heroH, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 6, alignItems: 'center', justifyContent: 'center' }}>
+        <B w={frame.width} h={frame.height} r={18} />
       </View>
       <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingVertical: 5 }}>
         {[0, 1, 2, 3, 4].map(i => <B key={i} w={64} h={50} r={8} />)}
