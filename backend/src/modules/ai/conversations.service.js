@@ -86,6 +86,7 @@ function inferCategory(tripContext, pendingAction) {
   const intent = pendingAction?.intent || '';
   if (intent.includes('trip')) return 'trip';
   if (intent.includes('event')) return 'event';
+  if (intent === 'add_activities') return 'trip';
   if (intent === 'add_note') return 'content';
   return 'general';
 }
@@ -257,6 +258,24 @@ async function loadHistoryForGemini(conversationId, maxRecent = 10) {
     memoryBlock = buildMemoryBlock(older);
   }
   return { history, memoryBlock, total };
+}
+
+/**
+ * Swee's most recent message, INCLUDING a refused turn that is hidden from Gemini history.
+ * Used so a short follow-up ("yes do that") is judged against what Swee actually just said.
+ * @returns {Promise<{content: string, refused: boolean}|null>}
+ */
+async function loadLastAssistantMessage(conversationId) {
+  const result = await db(
+    `SELECT content, metadata FROM ai_messages
+     WHERE conversation_id = $1 AND role = 'assistant'
+     ORDER BY ${MESSAGE_ORDER_DESC}
+     LIMIT 1`,
+    [conversationId],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return { content: row.content, refused: row.metadata?.scope === 'out' };
 }
 
 async function loadMessageHistory(conversationId, limit = 10) {
@@ -433,6 +452,7 @@ module.exports = {
   countMessages,
   countGeminiMessages,
   loadHistoryForGemini,
+  loadLastAssistantMessage,
   listConversations,
   createConversation,
   getConversation,

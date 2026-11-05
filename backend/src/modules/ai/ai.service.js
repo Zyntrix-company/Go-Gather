@@ -19,8 +19,11 @@ const {
   parseEventTime,
   badRequest,
   requireIsoDate,
+  toIsoDateString,
+  isUuid,
   requireNonEmptyString,
   buildPlanningMetadata,
+  MAX_ADD_ACTIVITIES,
 } = require('./ai.helpers');
 const conversationsService = require('./conversations.service');
 const circuitBreaker = require('./swee.circuitBreaker');
@@ -186,22 +189,42 @@ async function writePlanningNote(parentType, parentId, userId, planningData) {
 
 // ─── Activity bulk creator ────────────────────────────────────────────────────
 
-async function bulkCreateActivities(tripId, userId, activities) {
+const BULK_ACTIVITY_CONCURRENCY = 5;
+
+/**
+ * Creates each activity (a few at a time — the list is shown sorted by date/time, so insert
+ * order doesn't matter). A failing one is counted, not fatal. Returns { added, failed }.
+ * `notify:false` suppresses the per-activity "Itinerary Updated" notification so the caller can
+ * send a single summary.
+ */
+async function bulkCreateActivities(tripId, userId, activities, { notify = true } = {}) {
   const activitiesService = require('../trips/submodules/activities/activities.service');
-  for (const act of activities) {
-    if (!act.title) continue;
+  let added = 0;
+  let failed = 0;
+  let firstId = null;
+
+  const createOne = async (act) => {
+    if (!act || !act.title) { failed += 1; return; }
     try {
-      await activitiesService.createActivity(tripId, userId, {
+      const created = await activitiesService.createActivity(tripId, userId, {
         title: shortenActivityTitle(act.title),
         date: act.date || null,
         time: parseActivityTime(act.time),
         locationName: act.locationName || null,
         description: act.description || null,
-      });
+      }, { notify });
+      added += 1;
+      if (!firstId) firstId = created?.id || null;
     } catch (err) {
+      failed += 1;
       logger.warn('bulkCreateActivities: activity skipped', { title: act.title, error: err.message });
     }
+  };
+
+  for (let i = 0; i < activities.length; i += BULK_ACTIVITY_CONCURRENCY) {
+    await Promise.all(activities.slice(i, i + BULK_ACTIVITY_CONCURRENCY).map(createOne));
   }
+  return { added, failed, firstId };
 }
 
 /**
@@ -397,14 +420,27 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
   const history = trimHistory(loaded.history);
   const memoryBlock = loaded.memoryBlock;
 
+  // Swee's latest message, even if it was a refused turn (those are hidden from history).
+  // Best-effort: failing to read it must never break the chat.
+  const lastAssistantLookup = conversationId
+    ? Promise.resolve(conversationsService.loadLastAssistantMessage(resolvedConversationId)).catch((err) => {
+      logger.warn('Swee loadLastAssistantMessage failed', { conversationId: resolvedConversationId, error: err.message });
+      return null;
+    })
+    : Promise.resolve(null);
+
   const historyLength = history.length;
-  const [userContext] = await Promise.all([loadUserContext(userId)]);
+  const [userContext, lastAssistantRow] = await Promise.all([
+    loadUserContext(userId),
+    lastAssistantLookup,
+  ]);
 
   const systemPrompt = buildSweetSystemPrompt(
     userContext,
     resolvedTripContext,
     historyLength,
     memoryBlock,
+    lastAssistantRow?.refused ? lastAssistantRow.content : '',
   );
 
   const startedAt = Date.now();
@@ -421,7 +457,7 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
   const scopePromise = scopeGuard.checkScope({
     message,
     attachments,
-    lastAssistantMessage: lastAssistant?.content,
+    lastAssistantMessage: lastAssistantRow?.content ?? lastAssistant?.content,
     tripContext: resolvedTripContext,
   });
 
@@ -510,7 +546,7 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
 };
 
 /**
- * Execute a confirmed Swee action (create_trip, create_event, update_trip, update_event, add_note).
+ * Execute a confirmed Swee action (create_trip, create_event, update_trip, update_event, add_note, add_activities).
  * Called after user taps "Yes" / "Confirm" in the chat UI.
  * Returns { reply, created: { id, type, name } }.
  */
@@ -645,7 +681,7 @@ const executeAction = async (userId, pendingAction) => {
 
     return {
       reply: `Done! ${targetTrip.name} updated.`,
-      created: { id: targetTrip.id, type: 'trip', name: targetTrip.name },
+      created: { id: targetTrip.id, type: 'trip', name: targetTrip.name, action: 'updated' },
     };
   }
 
@@ -675,7 +711,75 @@ const executeAction = async (userId, pendingAction) => {
 
     return {
       reply: `Done! ${targetEvent.name} updated.`,
-      created: { id: targetEvent.id, type: 'event', name: targetEvent.name },
+      created: { id: targetEvent.id, type: 'event', name: targetEvent.name, action: 'updated' },
+    };
+  }
+
+  // ── add_activities ────────────────────────────────────────────────────────────
+  if (intent === 'add_activities') {
+    const requested = Array.isArray(draft.activities) ? draft.activities : [];
+    if (requested.length === 0) throw badRequest('There are no activities to add');
+    if (requested.length > MAX_ADD_ACTIVITIES) {
+      throw badRequest(`I can add up to ${MAX_ADD_ACTIVITIES} activities at a time — ask me for fewer days.`);
+    }
+
+    // The id comes from the client/model: only write into a trip the caller belongs to.
+    // Same rule as POST /trips/:id/activities (any trip member, not just admins).
+    // A non-UUID id (the model sometimes writes a name there) would make Postgres throw.
+    const safeTripId = isUuid(tripId) ? tripId : undefined;
+    if (!safeTripId && !targetTripName) throw badRequest('Which trip should I add these to?');
+    const { trips } = await findUserTrip(userId, { tripId: safeTripId, targetTripName });
+    if (trips.length === 0) {
+      throw Object.assign(new Error('Trip not found. Please go to your Trips tab to find it.'), { statusCode: 404 });
+    }
+    if (trips.length > 1) {
+      const list = trips.map((t) => `• ${t.name} (${t.location_name || 'TBD'})`).join('\n');
+      throw Object.assign(
+        new Error(`Found multiple trips matching that name. Which one?\n${list}`),
+        { statusCode: 409 },
+      );
+    }
+    const targetTrip = trips[0];
+    const tripStart = toIsoDateString(targetTrip.start_date);
+    const tripEnd = toIsoDateString(targetTrip.end_date);
+
+    const valid = [];
+    let rejected = 0;
+    for (const act of requested) {
+      const title = typeof act?.title === 'string' ? act.title.trim() : '';
+      const date = typeof act?.date === 'string' ? act.date.trim() : '';
+      const inFormat = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(new Date(`${date}T12:00:00`).getTime());
+      const inRange = inFormat
+        && (!tripStart || date >= tripStart)
+        && (!tripEnd || date <= tripEnd);
+      if (!title || !inRange) { rejected += 1; continue; }
+      valid.push({ ...act, title, date });
+    }
+    if (valid.length === 0) {
+      throw badRequest(
+        tripStart && tripEnd
+          ? `Those activities fall outside ${targetTrip.name}'s dates (${tripStart} to ${tripEnd}).`
+          : 'None of those activities had a valid date.',
+      );
+    }
+
+    // One summary notification for the whole batch instead of one per activity.
+    const { added, failed, firstId } = await bulkCreateActivities(targetTrip.id, userId, valid, { notify: false });
+    if (added === 0) {
+      throw badRequest('I couldn\'t save those activities. Please try again in a moment.');
+    }
+    require('../trips/submodules/activities/activities.service')
+      .notifyItineraryUpdated(targetTrip.id, userId, firstId, added);
+
+    const noun = (n) => `${n} activit${n === 1 ? 'y' : 'ies'}`;
+    const notes = [];
+    if (rejected > 0) notes.push(`${noun(rejected)} left out (date outside the trip or invalid)`);
+    if (failed > 0) notes.push(`${noun(failed)} couldn't be saved`);
+    const reply = `Added ${noun(added)} to ${targetTrip.name}.${notes.length ? ` ${notes.join('; ')}.` : ''}`;
+
+    return {
+      reply,
+      created: { id: targetTrip.id, type: 'trip', name: targetTrip.name, action: 'updated' },
     };
   }
 

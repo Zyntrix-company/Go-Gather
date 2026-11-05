@@ -60,7 +60,36 @@ const formatActivity = (a) => ({
 
 // ── Activity CRUD ─────────────────────────────────────────────────────────────
 
-const createActivity = async (tripId, userId, body) => {
+/**
+ * Tell the other trip members the itinerary changed — fire-and-forget.
+ * `count` > 1 sends one summary instead of one notification per activity (bulk adds).
+ */
+const notifyItineraryUpdated = (tripId, userId, activityId, count = 1) => {
+  (async () => {
+    try {
+      const [membersResult, tripResult, actorResult] = await Promise.all([
+        db('SELECT u.id, u.fcm_token FROM trip_members tm JOIN users u ON u.id = tm.user_id WHERE tm.trip_id = $1 AND tm.user_id != $2', [tripId, userId]),
+        db('SELECT name FROM trips WHERE id = $1', [tripId]),
+        db('SELECT full_name FROM profiles WHERE user_id = $1', [userId]),
+      ]);
+      if (membersResult.rows.length === 0) return;
+      const tripName = tripResult.rows[0]?.name || 'Your trip';
+      const actorName = actorResult.rows[0]?.full_name || 'Someone';
+      const what = count > 1 ? `${count} activities` : 'an activity';
+      createAndSendNotifications(
+        membersResult.rows,
+        { title: 'Itinerary Updated', body: `${actorName} added ${what} to "${tripName}".` },
+        'ITINERARY_UPDATED',
+        { tripId, tripName, activityId },
+        { batched: true },
+      );
+    } catch (err) {
+      logger.error('ITINERARY_UPDATED notification failed', { tripId, error: err.message });
+    }
+  })();
+};
+
+const createActivity = async (tripId, userId, body, { notify = true } = {}) => {
   const { title, date, time, locationName, description, expenseId } = body;
 
   // Validate time object
@@ -95,28 +124,8 @@ const createActivity = async (tripId, userId, body) => {
 
   const activityId = result.rows[0].id;
 
-  // Notify other trip members — fire-and-forget
-  (async () => {
-    try {
-      const [membersResult, tripResult, actorResult] = await Promise.all([
-        db('SELECT u.id, u.fcm_token FROM trip_members tm JOIN users u ON u.id = tm.user_id WHERE tm.trip_id = $1 AND tm.user_id != $2', [tripId, userId]),
-        db('SELECT name FROM trips WHERE id = $1', [tripId]),
-        db('SELECT full_name FROM profiles WHERE user_id = $1', [userId]),
-      ]);
-      if (membersResult.rows.length === 0) return;
-      const tripName = tripResult.rows[0]?.name || 'Your trip';
-      const actorName = actorResult.rows[0]?.full_name || 'Someone';
-      createAndSendNotifications(
-        membersResult.rows,
-        { title: 'Itinerary Updated', body: `${actorName} added an activity to "${tripName}".` },
-        'ITINERARY_UPDATED',
-        { tripId, tripName, activityId },
-        { batched: true },
-      );
-    } catch (err) {
-      logger.error('ITINERARY_UPDATED notification failed', { tripId, error: err.message });
-    }
-  })();
+  // Notify other trip members (bulk callers pass notify:false and send one summary)
+  if (notify) notifyItineraryUpdated(tripId, userId, activityId);
 
   // Schedule lock-screen reminders (10/30/60 min before) — fire-and-forget
   scheduleActivityReminders(activityId, tripId, date, timeToString(time)).catch((err) =>
@@ -366,6 +375,7 @@ const reorderActivityPhotos = async (tripId, actId, items) => {
 
 module.exports = {
   createActivity,
+  notifyItineraryUpdated,
   updateActivity,
   deleteActivity,
   getActivities,

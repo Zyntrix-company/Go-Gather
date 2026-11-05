@@ -1595,6 +1595,7 @@ export default function EventDetailScreen({ route, navigation }: any) {
         <SweeFab
           onPress={() => navigation.navigate('ChatDetail', {
             tripContext: {
+              id: event?.id,
               name: event?.name,
               destination: formatLocationsLabelFull(event),
               startDate: event?.dateLine ?? undefined,

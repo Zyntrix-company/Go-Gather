@@ -234,6 +234,27 @@ describe('conversations.service scope handling', () => {
     expect(result.memoryBlock).toContain('Plan Goa');
   });
 
+  it('loadLastAssistantMessage returns the latest Swee message even when it was refused', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ content: 'Outside what I do.', metadata: { scope: 'out' } }] });
+
+    await expect(conversationsService.loadLastAssistantMessage(CONV_ID))
+      .resolves.toEqual({ content: 'Outside what I do.', refused: true });
+
+    const [sql, params] = db.query.mock.calls[0];
+    expect(sql).toMatch(/role = 'assistant'/);
+    expect(sql).not.toMatch(/scope/); // deliberately NOT filtered
+    expect(params).toEqual([CONV_ID]);
+  });
+
+  it('loadLastAssistantMessage: normal message → refused false; empty thread → null', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ content: 'Goa is lovely.', metadata: {} }] });
+    await expect(conversationsService.loadLastAssistantMessage(CONV_ID))
+      .resolves.toEqual({ content: 'Goa is lovely.', refused: false });
+
+    db.query.mockResolvedValueOnce({ rows: [] });
+    await expect(conversationsService.loadLastAssistantMessage(CONV_ID)).resolves.toBeNull();
+  });
+
   it('listMessages (what the app shows) does not filter out-of-scope turns', async () => {
     db.query
       .mockResolvedValueOnce({ rows: [convRow] })

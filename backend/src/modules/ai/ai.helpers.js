@@ -12,7 +12,19 @@ const VALID_INTENTS = new Set([
   'update_event',
   'identify_update',
   'add_note',
+  'add_activities',
 ]);
+
+/** Most activities Swee may add to an existing trip in one confirmed action. */
+const MAX_ADD_ACTIVITIES = 20;
+
+const TOO_MANY_ACTIVITIES_REPLY = `That's more than I can add at once — I can add up to ${MAX_ADD_ACTIVITIES} activities at a time. Which days should I start with?`;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuid(value) {
+  return typeof value === 'string' && UUID_RE.test(value);
+}
 
 const ACTION_FALLBACK_REPLY = 'I had a hiccup processing that — could you say it again in a few words?';
 
@@ -125,6 +137,20 @@ function validatePendingAction(action) {
       return { valid: false, reason: 'create_event_missing_draft' };
     }
   }
+  if (action.readyToCreate && action.intent === 'add_activities') {
+    const acts = action.draft?.activities;
+    if (!Array.isArray(acts) || acts.length === 0) {
+      return { valid: false, reason: 'add_activities_missing_activities' };
+    }
+    if (acts.length > MAX_ADD_ACTIVITIES) {
+      return { valid: false, reason: 'add_activities_too_many' };
+    }
+    // The model sometimes writes a trip name where the id belongs — accept a name as a fallback.
+    const hasName = typeof action.targetTripName === 'string' && action.targetTripName.trim();
+    if (!isUuid(action.tripId) && !hasName) {
+      return { valid: false, reason: 'add_activities_missing_trip' };
+    }
+  }
   if (action.showForm != null && action.showForm !== 'trip' && action.showForm !== 'event') {
     return { valid: false, reason: 'invalid_showForm' };
   }
@@ -197,6 +223,8 @@ function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
           preview: jsonStr.slice(0, 200),
         });
       }
+      // The proposal table can't be saved as written — don't leave it on screen with no way to act on it.
+      if (validation.reason === 'add_activities_too_many') visibleReply = TOO_MANY_ACTIVITIES_REPLY;
       if (!visibleReply) visibleReply = ACTION_FALLBACK_REPLY;
       return {
         reply: visibleReply,
@@ -314,6 +342,26 @@ function requireIsoDate(value, label) {
   return value.trim();
 }
 
+/**
+ * Normalise a DATE column value to "YYYY-MM-DD". pg returns DATE as a JS Date at local
+ * midnight (no type parser is registered), so read local components — never toISOString().
+ * Returns null when the value can't be read as a date.
+ */
+function toIsoDateString(value) {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const m = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    return m ? m[1] : null;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const y = value.getFullYear();
+    const mo = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${d}`;
+  }
+  return null;
+}
+
 function requireNonEmptyString(value, label) {
   const v = typeof value === 'string' ? value.trim() : '';
   if (!v) throw badRequest(`${label} is required`);
@@ -367,7 +415,10 @@ module.exports = {
   parseEventTime,
   badRequest,
   requireIsoDate,
+  toIsoDateString,
+  isUuid,
   requireNonEmptyString,
+  MAX_ADD_ACTIVITIES,
   inferBudgetTier,
   buildPlanningMetadata,
 };

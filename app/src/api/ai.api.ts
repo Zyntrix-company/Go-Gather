@@ -7,6 +7,8 @@ export type ConversationMessage = {
 };
 
 export type TripContext = {
+  /** Id of the trip/event Swee was opened from — lets Swee act on exactly that one. */
+  id?: string;
   name?: string;
   destination?: string;
   startDate?: string;
@@ -16,7 +18,7 @@ export type TripContext = {
 };
 
 export type PendingAction = {
-  intent: 'create_trip' | 'create_event' | 'update_trip' | 'update_event' | 'add_note' | 'identify_update' | 'none';
+  intent: 'create_trip' | 'create_event' | 'update_trip' | 'update_event' | 'add_note' | 'add_activities' | 'identify_update' | 'none';
   readyToCreate: boolean;
   /** When set, the app renders the structured trip/event planning card inline. */
   showForm?: 'trip' | 'event';
@@ -38,7 +40,8 @@ export type ChatAttachment = {
 
 export type ExecuteResult = {
   reply: string;
-  created: { id: string; type: 'trip' | 'event'; name: string } | null;
+  /** `action: 'updated'` = an existing trip/event was changed (not newly created). */
+  created: { id: string; type: 'trip' | 'event'; name: string; action?: 'created' | 'updated' } | null;
 };
 
 export type ConversationCategory = 'trip' | 'event' | 'general' | 'content';

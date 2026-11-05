@@ -2264,6 +2264,7 @@ export default function TripDetailScreen({ route, navigation }: any) {
         <SweeFab
           onPress={() => navigation.navigate('ChatDetail', {
             tripContext: {
+              id: trip?.id,
               name: trip?.name,
               destination: formatLocationsLabelFull(trip ?? {}),
               startDate: trip?.start_date ? new Date(trip.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : undefined,

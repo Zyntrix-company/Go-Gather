@@ -37,7 +37,9 @@ function scopeReminderText() {
   return '[Scope check — do not mention this note] Judge the message above on its own. '
     + 'Help only with trips, events, destinations, travel and GatherrGo — this includes event ideas '
     + '(gifts, menu, décor), messages inviting people to a trip or event, useful travel phrases, and '
-    + 'saying honestly what the app can or can\'t do (all "scope":"in"). '
+    + 'planning or suggesting activities for the user\'s own trip, saying honestly what the app can or can\'t do, '
+    + 'and short answers to your own previous question such as "yes" (all "scope":"in"). '
+    + 'Never refuse something just because the app does not support it — say so plainly instead. '
     + 'If any part is outside that, do not do that part at all: refuse it in one or two short sentences, '
     + 'offer trip/event help, and set "scope":"out" with intent "none" in the ###ACTION line.';
 }

@@ -42,6 +42,17 @@ describe('swee.scopeGuard', () => {
       expect(skipReason({ message })).toBe('short_reply');
     });
 
+    it.each([
+      'Yes do that', 'yes, do that!', 'ok go ahead', 'sure, please', 'yes please do it', 'okay sounds good',
+    ])('skips pure agreement %p', (message) => {
+      expect(skipReason({ message })).toBe('short_reply');
+    });
+
+    it('does not let agreement words smuggle in a new request', () => {
+      expect(skipReason({ message: 'yes, and write python code to split expenses' })).toBeNull();
+      expect(skipReason({ message: 'sure do that and also write my essay' })).toBeNull();
+    });
+
     it('skips attachment turns', () => {
       expect(skipReason({ message: 'what is in this file please', attachments: [{ mimeType: 'application/pdf' }] }))
         .toBe('attachments');

@@ -11,9 +11,106 @@ const {
   inferBudgetTier,
   buildPlanningMetadata,
   badRequest,
+  toIsoDateString,
+  isUuid,
 } = require('../../src/modules/ai/ai.helpers');
 
 describe('ai.helpers', () => {
+
+  describe('add_activities action', () => {
+    const block = (action) => `Here you go.\n###ACTION${JSON.stringify(action)}`;
+    const good = {
+      intent: 'add_activities',
+      readyToCreate: true,
+      scope: 'in',
+      tripId: 'aaaa0001-0000-4000-8000-000000000001',
+      draft: { activities: [{ title: 'Hagia Sophia visit', date: '2026-12-27', time: '09:00' }] },
+    };
+
+    it('is a recognised intent and is kept as a pending action', () => {
+      const parsed = parseActionBlock(block(good));
+      expect(parsed.actionParseError).toBeUndefined();
+      expect(parsed.pendingAction).toMatchObject({ intent: 'add_activities', tripId: 'aaaa0001-0000-4000-8000-000000000001' });
+    });
+
+    it('drops the action (keeping the reply) when activities or tripId are missing', () => {
+      const noActs = parseActionBlock(block({ ...good, draft: { activities: [] } }));
+      expect(noActs.pendingAction).toBeNull();
+      expect(noActs.actionParseError).toBe('add_activities_missing_activities');
+      expect(noActs.reply).toBe('Here you go.');
+
+      const noTrip = parseActionBlock(block({ ...good, tripId: undefined }));
+      expect(noTrip.pendingAction).toBeNull();
+      expect(noTrip.actionParseError).toBe('add_activities_missing_trip');
+    });
+
+    it('rejects more than 20 activities at parse time and replaces the unusable table', () => {
+      const many = Array.from({ length: 21 }, (_, i) => ({ title: `Act ${i}`, date: '2026-12-27' }));
+      const parsed = parseActionBlock(`| Day | Time | Activity |
+|---|---|---|
+| Sun | 09:00 | x |
+###ACTION${JSON.stringify({ ...good, draft: { activities: many } })}`);
+      expect(parsed.pendingAction).toBeNull();
+      expect(parsed.actionParseError).toBe('add_activities_too_many');
+      expect(parsed.reply).toMatch(/up to 20 activities at a time/);
+      expect(parsed.reply).not.toContain('| Day |');
+    });
+
+    it('accepts exactly 20', () => {
+      const twenty = Array.from({ length: 20 }, (_, i) => ({ title: `Act ${i}`, date: '2026-12-27' }));
+      expect(parseActionBlock(block({ ...good, draft: { activities: twenty } })).pendingAction).not.toBeNull();
+    });
+
+    it('needs a UUID tripId or a trip name; a name-as-id is not enough on its own', () => {
+      const byName = parseActionBlock(block({ ...good, tripId: 'Turkey trip', targetTripName: 'Turkey' }));
+      expect(byName.pendingAction).not.toBeNull();
+
+      const nameAsId = parseActionBlock(block({ ...good, tripId: 'Turkey trip' }));
+      expect(nameAsId.pendingAction).toBeNull();
+      expect(nameAsId.actionParseError).toBe('add_activities_missing_trip');
+    });
+
+    it('shortens long activity titles like create_trip does', () => {
+      const long = { ...good, draft: { activities: [{ title: 'A very long guided walking tour through the old city bazaar', date: '2026-12-27' }] } };
+      expect(parseActionBlock(block(long)).pendingAction.draft.activities[0].title.length).toBeLessThanOrEqual(35);
+    });
+
+    it('keeps a Day | Time | Activity proposal table three-column (not rewritten as Field | Details)', () => {
+      const raw = [
+        'Here is a plan:',
+        '| Day | Time | Activity |',
+        '|---|---|---|',
+        '| Sat 27 Dec | 09:00 | Hagia Sophia visit |',
+        '| Sat 27 Dec | 18:30 | Bosphorus dinner |',
+      ].join('\n');
+      const out = normalizeSweeReply(raw);
+      expect(out).toContain('| Day | Time | Activity |');
+      expect(out).toContain('| Sat 27 Dec | 09:00 | Hagia Sophia visit |');
+      expect(out).not.toContain('Field');
+    });
+  });
+
+  describe('isUuid', () => {
+    it('accepts UUIDs only', () => {
+      expect(isUuid('aaaa0001-0000-4000-8000-000000000001')).toBe(true);
+      expect(isUuid('e1')).toBe(false);
+      expect(isUuid("1' OR '1'='1")).toBe(false);
+      expect(isUuid(null)).toBe(false);
+    });
+  });
+
+  describe('toIsoDateString', () => {
+    it('reads strings, ISO timestamps and local-midnight Dates', () => {
+      expect(toIsoDateString('2026-11-05')).toBe('2026-11-05');
+      expect(toIsoDateString('2026-11-05T00:00:00.000Z')).toBe('2026-11-05');
+      expect(toIsoDateString(new Date(2026, 10, 5))).toBe('2026-11-05');
+    });
+    it('returns null for junk', () => {
+      expect(toIsoDateString(null)).toBeNull();
+      expect(toIsoDateString('soon')).toBeNull();
+      expect(toIsoDateString(new Date('nope'))).toBeNull();
+    });
+  });
 
   describe('normalizeSweeReply', () => {
     it('strips HTML table tags and fixes brand name', () => {

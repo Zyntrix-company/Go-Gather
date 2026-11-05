@@ -777,7 +777,8 @@ export default function ChatDetailScreen({ route, navigation }: any) {
     // letting the user create a duplicate).
     if (formType) {
       const idx = messages.findIndex((m) => m.id === item.id);
-      if (idx >= 0 && messages.slice(idx + 1).some((m) => m.createdResult)) {
+      // Only a real creation counts — editing/adding to an existing trip must not hide the card.
+      if (idx >= 0 && messages.slice(idx + 1).some((m) => m.createdResult && m.createdResult.action !== 'updated')) {
         formType = undefined;
       }
     }
@@ -853,7 +854,9 @@ export default function ChatDetailScreen({ route, navigation }: any) {
                       ? 'Save changes'
                       : item.pendingAction?.intent === 'add_note'
                         ? 'Save note'
-                        : 'Yes, create it'}
+                        : item.pendingAction?.intent === 'add_activities'
+                          ? 'Add to itinerary'
+                          : 'Yes, create it'}
                   </Text>
                 )}
               </TouchableOpacity>

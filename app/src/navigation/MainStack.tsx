@@ -36,6 +36,7 @@ export type MainStackParamList = {
   ChatDetail: {
     conversationId?: string;
     tripContext?: {
+      id?: string;
       name?: string;
       destination?: string;
       startDate?: string;

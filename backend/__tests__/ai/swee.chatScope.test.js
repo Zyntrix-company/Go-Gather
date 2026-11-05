@@ -4,10 +4,11 @@
 
 const mockSendMessage = jest.fn();
 const mockStartChat = jest.fn(() => ({ sendMessage: mockSendMessage }));
+const mockGetGenerativeModel = jest.fn(() => ({ startChat: mockStartChat }));
 
 jest.mock('@google/generative-ai', () => ({
   GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-    getGenerativeModel: jest.fn(() => ({ startChat: mockStartChat })),
+    getGenerativeModel: mockGetGenerativeModel,
   })),
 }));
 
@@ -21,6 +22,7 @@ jest.mock('../../src/modules/ai/conversations.service', () => ({
   getConversation: jest.fn(),
   createConversation: jest.fn(),
   loadHistoryForGemini: jest.fn(),
+  loadLastAssistantMessage: jest.fn(),
   appendMessages: jest.fn(),
 }));
 
@@ -72,6 +74,8 @@ describe('ai.service chat — scope guard', () => {
       total: 2,
     });
     conversationsService.appendMessages.mockResolvedValue({ id: MSG_ID });
+    conversationsService.loadLastAssistantMessage.mockReset();
+    conversationsService.loadLastAssistantMessage.mockResolvedValue(null);
     scopeGuard.checkScope.mockResolvedValue({ scope: 'in' });
   });
 
@@ -208,6 +212,64 @@ describe('ai.service chat — scope guard', () => {
     // The reminder is never persisted.
     const saved = conversationsService.appendMessages.mock.calls[0][2];
     expect(saved.userContent).toBe('what should we pack');
+  });
+
+  describe('follow-up to a refused turn ("Yes do that" regression)', () => {
+    const REFUSAL = 'That request falls outside of what I can assist with. Would you like to start adding specific activities?';
+
+    it('gives the classifier and the main prompt the refused message the history hides', async () => {
+      conversationsService.loadLastAssistantMessage.mockResolvedValue({ content: REFUSAL, refused: true });
+      geminiReplies('Which days would you like to plan?\n###ACTION{"intent":"none","readyToCreate":false,"scope":"in"}');
+
+      await aiService.chat(USER_ID, 'Yes do that', { conversationId: CONV_ID });
+
+      expect(conversationsService.loadLastAssistantMessage).toHaveBeenCalledWith(CONV_ID);
+      expect(scopeGuard.checkScope).toHaveBeenCalledWith(expect.objectContaining({ lastAssistantMessage: REFUSAL }));
+
+      const systemPrompt = mockGetGenerativeModel.mock.calls[0][0].systemInstruction;
+      expect(systemPrompt).toMatch(/PREVIOUS MESSAGE WAS A REFUSAL/);
+      expect(systemPrompt).toContain('falls outside of what I can assist with');
+    });
+
+    it('an ordinary (non-refused) last message adds no refusal note', async () => {
+      conversationsService.loadLastAssistantMessage.mockResolvedValue({ content: 'Goa is lovely.', refused: false });
+      geminiReplies('Great.\n###ACTION{"intent":"none","readyToCreate":false,"scope":"in"}');
+
+      await aiService.chat(USER_ID, 'Yes do that', { conversationId: CONV_ID });
+
+      const systemPrompt = mockGetGenerativeModel.mock.calls[0][0].systemInstruction;
+      expect(systemPrompt).not.toMatch(/PREVIOUS MESSAGE WAS A REFUSAL/);
+      expect(scopeGuard.checkScope).toHaveBeenCalledWith(expect.objectContaining({ lastAssistantMessage: 'Goa is lovely.' }));
+    });
+
+    it('a failure reading the last message never breaks the chat', async () => {
+      conversationsService.loadLastAssistantMessage.mockRejectedValue(new Error('db blip'));
+      geminiReplies('Sure.\n###ACTION{"intent":"none","readyToCreate":false,"scope":"in"}');
+
+      const result = await aiService.chat(USER_ID, 'what should we pack', { conversationId: CONV_ID });
+      expect(result.reply).toBe('Sure.');
+    });
+
+    it('a new conversation never looks up a previous message', async () => {
+      conversationsService.loadHistoryForGemini.mockResolvedValueOnce({ history: [], memoryBlock: '', total: 0 });
+      geminiReplies('Hi!\n###ACTION{"intent":"none","readyToCreate":false,"scope":"in"}');
+
+      await aiService.chat(USER_ID, 'hello there', {});
+      expect(conversationsService.loadLastAssistantMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  it('add_activities proposal comes back as a confirmable pending action', async () => {
+    const action = {
+      intent: 'add_activities', readyToCreate: true, scope: 'in', tripId: 'aaaa0001-0000-4000-8000-000000000001',
+      draft: { activities: [{ title: 'Hagia Sophia visit', date: '2026-12-27', time: '09:00' }] },
+    };
+    geminiReplies(`Here is day one:\n| Day | Time | Activity |\n|---|---|---|\n| Sun 27 Dec | 09:00 | Hagia Sophia visit |\nAdd these to your itinerary?\n###ACTION${JSON.stringify(action)}`);
+
+    const result = await aiService.chat(USER_ID, 'Yes do that', { conversationId: CONV_ID });
+
+    expect(result.pendingAction).toEqual(action);
+    expect(result.reply).toContain('| Day | Time | Activity |');
   });
 
   it('new conversation: history comes from the server (empty), not the client', async () => {
