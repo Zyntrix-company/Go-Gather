@@ -185,6 +185,7 @@ function CustomAlbumPhotosModal({
     hasMetaCard: true,
     hasPhotos: photos.length > 0,
     emptyHero: photosEmpty,
+    commentRows: engagement.comments.length,
   });
 
   useEffect(() => {
@@ -216,7 +217,7 @@ function CustomAlbumPhotosModal({
         photoTotal={photos.length}
         footer={<AlbumPhotosFooter viewOnly aboveTabBar />}
       >
-        <View style={[fpGalleryStyles.albumBody, photosEmpty && fpGalleryStyles.albumBodyEmpty]}>
+        <View style={photosEmpty ? fpGalleryStyles.albumBodyEmpty : undefined}>
           <AlbumPhotosHeroCarousel
             galleryChrome
             photos={photos}
@@ -263,7 +264,7 @@ function CustomAlbumPhotosModal({
             likeCount={engagement.likeCount}
             likedByMe={engagement.likedByMe}
             comments={engagement.comments}
-            scrollableComments
+            embedded
             onToggleLike={engagement.handleToggleLike}
             onAddComment={engagement.handleAddComment}
             onEditComment={engagement.handleEditComment}
@@ -361,6 +362,7 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
     hasDescription,
     hasPhotos: photos.length > 0,
     emptyHero: photosEmpty,
+    commentRows: engagement.comments.length,
   });
 
   return (
@@ -380,7 +382,7 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
           />
         }
       >
-        <View style={[fpGalleryStyles.albumBody, photosEmpty && fpGalleryStyles.albumBodyEmpty]}>
+        <View style={photosEmpty ? fpGalleryStyles.albumBodyEmpty : undefined}>
           <AlbumPhotosHeroCarousel
             galleryChrome
             photos={photos}
@@ -391,13 +393,18 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
             fixedHeight={photosEmpty ? undefined : heroHeight}
             emptyCentered={photosEmpty}
             showPagerDots={false}
+            fillWidth={showTravelersRow}
             renderActivityLabel={(item) => (item as PhotoItem).activityTitle?.trim() || null}
             emptyVariant={photosEmpty ? 'friend' : 'simple'}
             emptyAlbumKind={parentType}
             emptyFriendName={friendName}
             emptyLocationLabel={location?.trim() || title}
             renderPhoto={(item, index) => (
-              <GalleryHeroMedia photo={item} active={index === heroIndex} />
+              <GalleryHeroMedia
+                photo={item}
+                active={index === heroIndex}
+                fit={showTravelersRow ? 'fillCrop' : 'contain'}
+              />
             )}
           />
           <AlbumPhotosThumbStrip
@@ -420,7 +427,7 @@ function PhotosModal({ visible, title, location, onClose, parentId, parentType, 
             likedByMe={engagement.likedByMe}
             comments={engagement.comments}
             canModerateComments={canModerateComments}
-            scrollableComments
+            embedded
             onToggleLike={engagement.handleToggleLike}
             onAddComment={engagement.handleAddComment}
             onEditComment={engagement.handleEditComment}
@@ -666,10 +673,6 @@ export default function FriendProfileScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const fpGalleryStyles = StyleSheet.create({
-  albumBody: {
-    flex: 1,
-    minHeight: 0,
-  },
   albumBodyEmpty: {
     flexGrow: 1,
   },

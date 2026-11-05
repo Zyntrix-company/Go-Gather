@@ -296,8 +296,8 @@ function PhotoThumb({ photo, onPress }: { photo: PhotoItem; onPress: () => void 
 
 // ─── Full-size hero media for album view ─────────────────────────────────────
 
-function renderGalleryHero(photo: PhotoItem, index: number, heroIndex: number) {
-  return <GalleryHeroMedia photo={photo} active={index === heroIndex} />;
+function renderGalleryHero(photo: PhotoItem, index: number, heroIndex: number, fillCrop = false) {
+  return <GalleryHeroMedia photo={photo} active={index === heroIndex} fit={fillCrop ? 'fillCrop' : 'contain'} />;
 }
 
 // ─── Photos modal (trip/event cards — owner can edit, viewers read-only) ──────
@@ -687,14 +687,18 @@ function PhotosModal({
   const showSkeleton = loading || ((uploading || driveImporting) && photos.length === 0);
   const photosEmpty = photos.length === 0 && !showSkeleton;
   const displaySubtitle = editMode ? subtitleDraft : (initialSubtitle?.trim() ?? '');
+  // The Members row shortens the hero, which would leave side gaps around a 3:4 photo. In that case
+  // the frame spans the page and photos are widened to its borders (small, capped crop). Not while
+  // the keyboard is up (the hero collapses to a short strip then).
+  const fillHeroWidth = (showTravelersInView || showTravelersInEdit) && !keyboardVisible;
   const heroHeight = useGalleryViewportHeroHeight({
     hasTravelers: showTravelersInView || showTravelersInEdit,
-    hasDescription: !userId && photos.length > 0,
     hasPhotos: photos.length > 0,
     emptyHero: photosEmpty && !userId,
     editMode,
     viewOnly: !!userId,
     keyboardVisible,
+    commentRows: engagement.comments.length,
   });
 
   return (
@@ -729,7 +733,7 @@ function PhotosModal({
             />
           }
         >
-          <View style={[styles.galleryAlbumBody, photosEmpty && styles.galleryAlbumBodyEmpty]}>
+          <View style={photosEmpty ? styles.galleryAlbumBodyEmpty : undefined}>
             {showSkeleton ? (
               <GalleryAlbumSkeleton heroH={heroHeight} />
             ) : (
@@ -744,13 +748,14 @@ function PhotosModal({
                   fixedHeight={photosEmpty ? undefined : heroHeight}
                   emptyCentered={photosEmpty && !userId}
                   showPagerDots={false}
+                  fillWidth={fillHeroWidth}
                   renderActivityLabel={(item) => (item as PhotoItem).activityTitle?.trim() || null}
                   emptyVariant={photosEmpty && !userId ? 'own' : 'simple'}
                   emptyAlbumKind={parentType}
                   emptyAlbumName={title}
                   emptyLocationLabel={location?.trim() || title}
                   onEmptyUpload={!userId ? () => setShowUploadSheet(true) : undefined}
-                  renderPhoto={(item, index) => renderGalleryHero(item, index, heroIndex)}
+                  renderPhoto={(item, index) => renderGalleryHero(item, index, heroIndex, fillHeroWidth)}
                 />
                 {!keyboardVisible ? (
                 <AlbumPhotosThumbStrip
@@ -812,7 +817,7 @@ function PhotosModal({
                     likedByMe={engagement.likedByMe}
                     comments={engagement.comments}
                     canModerateComments
-                    scrollableComments
+                    embedded
                     onToggleLike={engagement.handleToggleLike}
                     onAddComment={engagement.handleAddComment}
                     onEditComment={engagement.handleEditComment}
@@ -1582,10 +1587,6 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 0,
     flexShrink: 0,
-  },
-  galleryAlbumBody: {
-    flex: 1,
-    minHeight: 0,
   },
   galleryAlbumBodyEmpty: {
     flexGrow: 1,

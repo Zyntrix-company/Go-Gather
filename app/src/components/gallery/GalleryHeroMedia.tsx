@@ -6,7 +6,7 @@ import Video, { type OnLoadData, type OnProgressData, type VideoRef } from 'reac
 import { Play, Pause, Volume2, VolumeX } from 'lucide-react-native';
 import CachedImage from '../common/CachedImage';
 import { isVideoMime } from '../../api/uploadLimits.api';
-import { ALBUM_HERO_RADIUS } from '../../constants/albumPhotosLayout';
+import { ALBUM_HERO_RADIUS, fitFillCropBox } from '../../constants/albumPhotosLayout';
 import { useAlbumHeroScrollLock } from './AlbumPhotosContext';
 
 export type GalleryHeroMediaItem = {
@@ -18,6 +18,8 @@ export type GalleryHeroMediaItem = {
 
 const MAX_ZOOM = 4;
 const FIT_SCALE = 1.01;
+/** Soft corner on the fitted photo or video, including landscape media that does not fill the frame. */
+const MEDIA_CORNER = 12;
 
 function formatVideoTime(seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -80,13 +82,20 @@ type GalleryHeroMediaProps = {
   photo: GalleryHeroMediaItem;
   /** When false, video playback pauses (carousel swiped away). */
   active?: boolean;
+  /**
+   * `contain` (default): the photo keeps its own shape inside the frame.
+   * `fillCrop`: photos are widened toward the frame's side borders by cropping at most
+   * GALLERY_FILL_MAX_CROP of their height. Images only — videos are never cropped.
+   */
+  fit?: 'contain' | 'fillCrop';
 };
 
-export default function GalleryHeroMedia({ photo, active = true }: GalleryHeroMediaProps) {
+export default function GalleryHeroMedia({ photo, active = true, fit = 'contain' }: GalleryHeroMediaProps) {
   const videoRef = useRef<VideoRef>(null);
   const setScrollLock = useAlbumHeroScrollLock();
   const [loading, setLoading] = useState(true);
   const [localUriFailed, setLocalUriFailed] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const [paused, setPaused] = useState(!active);
   const [muted, setMuted] = useState(true);
   const [duration, setDuration] = useState(0);
@@ -188,7 +197,11 @@ export default function GalleryHeroMedia({ photo, active = true }: GalleryHeroMe
     },
   };
 
-  const box = aspect != null ? containBox(frame.w, frame.h, aspect) : null;
+  const fillCrop = fit === 'fillCrop' && !isVideo;
+  const fill = fillCrop && aspect != null ? fitFillCropBox(frame.w, frame.h, aspect) : null;
+  const box = aspect != null
+    ? (fillCrop ? fill : containBox(frame.w, frame.h, aspect))
+    : null;
   aspectRef.current = aspect;
   if (box) {
     metricsRef.current = { frameW: frame.w, frameH: frame.h, containW: box.w, containH: box.h };
@@ -212,6 +225,7 @@ export default function GalleryHeroMedia({ photo, active = true }: GalleryHeroMe
     if (prevId.current !== photo.id) {
       prevId.current = photo.id;
       setLocalUriFailed(false);
+      setImageFailed(false);
       setLoading(true);
       setPaused(!active);
       setCurrentTime(0);
@@ -369,6 +383,8 @@ export default function GalleryHeroMedia({ photo, active = true }: GalleryHeroMe
     height: box.h,
     left: (frame.w - box.w) / 2,
     top: (frame.h - box.h) / 2,
+    borderRadius: MEDIA_CORNER,
+    overflow: 'hidden' as const,
     transform: [
       { translateX: transXAnim },
       { translateY: transYAnim },
@@ -410,15 +426,19 @@ export default function GalleryHeroMedia({ photo, active = true }: GalleryHeroMe
         }
       }}
     />
+  ) : imageFailed ? (
+    <View style={styles.imagePlaceholder} />
   ) : (
     <CachedImage
       uri={uri}
       style={styles.media}
-      resizeMode="contain"
+      resizeMode={fill?.cover ? 'cover' : 'contain'}
       blurUp
       onError={() => {
         if (photo.localUri && !localUriFailed) {
           setLocalUriFailed(true);
+        } else {
+          setImageFailed(true);
         }
       }}
     />
@@ -522,6 +542,11 @@ const styles = StyleSheet.create({
   media: {
     width: '100%',
     height: '100%',
+    borderRadius: MEDIA_CORNER,
+  },
+  imagePlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#e2e8f0',
   },
   loader: {
     ...StyleSheet.absoluteFillObject,

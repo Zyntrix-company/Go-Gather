@@ -222,6 +222,8 @@ export default function AlbumPhotosThumbStrip<T extends ThumbPhoto>({
         ref={stripRef}
         data={photos}
         horizontal
+        nestedScrollEnabled
+        directionalLockEnabled
         scrollEnabled={scrollEnabled}
         showsHorizontalScrollIndicator={false}
         removeClippedSubviews={false}

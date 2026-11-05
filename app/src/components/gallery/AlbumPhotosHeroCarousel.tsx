@@ -81,6 +81,11 @@ type AlbumPhotosHeroCarouselProps<T extends AlbumHeroPhoto> = {
   renderActivityLabel?: (item: T) => string | null;
   /** Show pager dots under hero (default true). */
   showPagerDots?: boolean;
+  /**
+   * Gallery chrome only: make the photo frame as wide as the page (border to border) instead of the
+   * largest 3:4 portrait that fits the hero height. Used where the Members row shortens the hero.
+   */
+  fillWidth?: boolean;
 };
 
 /** Flex-grow hero pager — height follows available space (no fixed % of screen). */
@@ -107,6 +112,7 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
   activityLabel,
   renderActivityLabel,
   showPagerDots = true,
+  fillWidth = false,
 }: AlbumPhotosHeroCarouselProps<T>) {
   const [heroH, setHeroH] = useState(fixedHeight ?? 0);
   const [heroScrollLocked, setHeroScrollLocked] = useState(false);
@@ -186,7 +192,7 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
       );
     }
 
-    const frameSize = galleryChrome
+    const frameSize = galleryChrome && !fillWidth
       ? fitPortraitFrame(slideContentW, slideContentH)
       : { width: slideContentW, height: slideContentH };
 
@@ -239,6 +245,8 @@ export default function AlbumPhotosHeroCarousel<T extends AlbumHeroPhoto>({
           data={photos}
           horizontal
           pagingEnabled
+          nestedScrollEnabled
+          directionalLockEnabled
           scrollEnabled={scrollEnabled && !heroScrollLocked}
           showsHorizontalScrollIndicator={false}
           removeClippedSubviews={false}

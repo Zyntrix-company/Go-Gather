@@ -1,6 +1,7 @@
-import React from 'react';
-import { View } from 'react-native';
-import { useChromeInsets } from '../common/ChromeSafeAreaView';
+import React, { useRef, useState } from 'react';
+import { ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { androidStatusBarPad, useChromeInsets } from '../common/ChromeSafeAreaView';
 import AppScreenLayout, { TAB_BAR_BASE_HEIGHT } from '../common/AppScreenLayout';
 import { KeyboardAvoider } from '../common/KeyboardAvoider';
 import type { TabType } from '../common/FloatingTabBar';
@@ -45,6 +46,8 @@ export default function AlbumPhotosScreenLayout({
   scrollable = false,
 }: AlbumPhotosScreenLayoutProps) {
   const insets = useChromeInsets();
+  const rawInsets = useSafeAreaInsets();
+  const statusPad = androidStatusBarPad(rawInsets.top);
   const tabBarPad = TAB_BAR_BASE_HEIGHT + insets.bottom + 6;
 
   // Track keyboard so we can hide the tab bar while typing.
@@ -52,15 +55,33 @@ export default function AlbumPhotosScreenLayout({
   // tab bar floats just above the keyboard — hiding it fixes that.
   // On iOS the tab bar naturally goes under the keyboard, but hiding it is harmless.
   const keyboardVisible = useKeyboardVisible();
+  const scrollRef = useRef<ScrollView>(null);
+  const [scrollViewportH, setScrollViewportH] = useState(0);
 
-  // Use a plain View (not ScrollView) so that flex layout works correctly inside:
-  // a ScrollView gives children unbounded height, which breaks flex: 1 on the
-  // nested comment list and causes the whole screen to shift on compose open.
-  // Keyboard avoidance is handled once, below, for both platforms — the window
-  // no longer resizes itself on Android (see KeyboardProvider in App.tsx), so
-  // there is no double-shrink to guard against.
+  // Gallery albums scroll as one page so members, likes, and comments stay
+  // reachable under a tall portrait photo. Comments are in that same scroll.
+  // The content is at least as tall as the viewport, and taller when the
+  // column needs it. Avoid flexGrow here: on iOS it locks the scroll height
+  // to the screen and clips the likes row. directionalLockEnabled is what
+  // lets a vertical drag on the photo scroll the page on both platforms;
+  // nestedScrollEnabled is the Android half of that same gesture.
   const body = scrollable ? (
-    <View style={{ flex: 1 }}>{children}</View>
+    <ScrollView
+      ref={scrollRef}
+      style={{ flex: 1 }}
+      contentContainerStyle={scrollViewportH > 0 ? { minHeight: scrollViewportH } : undefined}
+      onLayout={(e) => {
+        const h = Math.round(e.nativeEvent.layout.height);
+        if (h > 0 && h !== scrollViewportH) setScrollViewportH(h);
+      }}
+      keyboardShouldPersistTaps="handled"
+      nestedScrollEnabled
+      directionalLockEnabled
+      contentInsetAdjustmentBehavior="never"
+      showsVerticalScrollIndicator={false}
+    >
+      {children}
+    </ScrollView>
   ) : (
     <View style={{ flex: 1, overflow: 'hidden' }}>{children}</View>
   );
@@ -72,9 +93,10 @@ export default function AlbumPhotosScreenLayout({
       onLogoPress={onClose}
       showFooter={!keyboardVisible}
       edges={ALBUM_SAFE_AREA_EDGES}
+      additionalTopInset={statusPad}
     >
       <AlbumPhotosOverlayContext.Provider value={heroOverlay ?? null}>
-        <AlbumPhotosScrollContext.Provider value={null}>
+        <AlbumPhotosScrollContext.Provider value={scrollable ? scrollRef : null}>
           {/*
            * Bottom space is max(tabBarPad, keyboardHeight): the tab-bar padding
            * is reclaimed as the keyboard rises rather than dropped in one step,

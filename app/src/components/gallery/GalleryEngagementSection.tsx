@@ -50,6 +50,8 @@ type GalleryEngagementSectionProps = {
   viewOnly?: boolean;
   canModerateComments?: boolean;
   scrollableComments?: boolean;
+  /** Lay comments out in the parent scroll instead of a nested flex list. */
+  embedded?: boolean;
   style?: object;
   onToggleLike: () => void;
   onAddComment: (text: string) => Promise<void>;
@@ -117,6 +119,7 @@ export default function GalleryEngagementSection({
   viewOnly = false,
   canModerateComments = false,
   scrollableComments = true,
+  embedded = false,
   style,
   onToggleLike,
   onAddComment,
@@ -235,7 +238,7 @@ export default function GalleryEngagementSection({
   const canSubmit = composerText.trim().length > 0 && !posting;
 
   return (
-    <View style={[styles.wrap, style]}>
+    <View style={[embedded ? styles.wrapEmbedded : styles.wrap, style]}>
       <View style={styles.statsRow}>
         <TouchableOpacity style={styles.stat} onPress={onToggleLike} activeOpacity={0.7}>
           <HeartIcon filled={likedByMe} />
@@ -253,7 +256,7 @@ export default function GalleryEngagementSection({
         </TouchableOpacity>
       </View>
 
-      {scrollableComments ? (
+      {scrollableComments && !embedded ? (
         // Only the comment list scrolls — the album screen behind stays fixed.
         // Composing/editing happens in the keyboard-anchored Modal below, so this
         // list never needs to shift to keep an input above the keyboard.
@@ -398,6 +401,11 @@ const styles = StyleSheet.create({
   wrap: {
     flex: 1,
     minHeight: 0,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  wrapEmbedded: {
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 8,

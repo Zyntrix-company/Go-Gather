@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, StatusBar, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // iOS reports generous insets: the status-bar inset includes a margin below the
@@ -20,6 +20,12 @@ const IOS_HOME_INDICATOR_RESERVE = 5;
  * raw `useSafeAreaInsets()` for anything sized against the header or tab bar so
  * every screen agrees on where the chrome sits.
  */
+/** Android album modals draw under the status bar and often report a 0 top inset. */
+export function androidStatusBarPad(topInset: number): number {
+  if (Platform.OS !== 'android' || topInset > 0) return 0;
+  return StatusBar.currentHeight ?? 0;
+}
+
 export function useChromeInsets() {
   const insets = useSafeAreaInsets();
   if (Platform.OS !== 'ios') return insets;
@@ -37,10 +43,11 @@ type ChromeSafeAreaViewProps = {
    *  already sits over the home indicator and pads for it, so padding here as
    *  well would reserve that space twice. */
   includeBottom?: boolean;
+  additionalTopInset?: number;
 };
 
 /** Root container for screens that render AppHeader (and usually the tab bar). */
-export default function ChromeSafeAreaView({ children, style, includeBottom = false }: ChromeSafeAreaViewProps) {
+export default function ChromeSafeAreaView({ children, style, includeBottom = false, additionalTopInset = 0 }: ChromeSafeAreaViewProps) {
   const insets = useSafeAreaInsets();
   const chrome = useChromeInsets();
   return (
@@ -48,7 +55,7 @@ export default function ChromeSafeAreaView({ children, style, includeBottom = fa
       style={[
         {
           flex: 1,
-          paddingTop: chrome.top,
+          paddingTop: chrome.top + additionalTopInset,
           paddingLeft: insets.left,
           paddingRight: insets.right,
           paddingBottom: includeBottom ? insets.bottom : 0,

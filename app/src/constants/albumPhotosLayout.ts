@@ -50,6 +50,39 @@ export function fitPortraitFrame(slotW: number, slotH: number): { width: number;
   return { width, height };
 }
 
+/**
+ * Most of a photo's height that "fill" mode may crop away (top + bottom combined) to make the
+ * photo reach the frame's side borders. Beyond this the photo is kept uncropped and just gets as
+ * wide as the cap allows, so tall/narrow photos are never butchered.
+ */
+export const GALLERY_FILL_MAX_CROP = 0.18;
+
+/**
+ * Box a photo is drawn in inside a frame, for "fill" mode (trip/event albums that show the
+ * Members row, where the frame is as wide as the page but shorter than a 3:4 portrait).
+ *
+ * - Photo as wide as the frame (or wider): fitted to the frame width, no crop.
+ * - Narrower photo: the box is made wider than the photo, up to the full frame width, by
+ *   cropping at most `maxCrop` of its height. `cover` is true when any crop happens.
+ *
+ * The box always has the frame's height unless the photo is wide, and is never wider than the frame.
+ */
+export function fitFillCropBox(
+  frameW: number,
+  frameH: number,
+  aspect: number,
+  maxCrop: number = GALLERY_FILL_MAX_CROP,
+): { w: number; h: number; cover: boolean } | null {
+  if (!(frameW > 0) || !(frameH > 0) || !(aspect > 0)) return null;
+  const frameAspect = frameW / frameH;
+  if (aspect >= frameAspect) {
+    return { w: frameW, h: frameW / aspect, cover: false };
+  }
+  const crop = Math.min(Math.max(0, maxCrop), 1 - aspect / frameAspect);
+  const w = Math.min(frameW, (frameH * aspect) / (1 - crop));
+  return { w, h: frameH, cover: crop > 0 };
+}
+
 /** Fixed chrome heights used by useGalleryViewportHeroHeight. */
 export const GALLERY_CHROME = {
   appHeader: 56,
@@ -57,8 +90,8 @@ export const GALLERY_CHROME = {
   subHeaderEdit: 48,
   thumbStrip: 58,
   description: 36,
-  travelers: 62,
-  stats: 34,
+  travelers: 82,
+  stats: 44,
   composeGhost: 0,
   footer: 60,
   metaCard: 52,

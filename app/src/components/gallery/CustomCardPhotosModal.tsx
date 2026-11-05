@@ -89,11 +89,11 @@ export default function CustomCardPhotosModal({
   const uploadingFirst = uploading && photos.length === 0;
   const photosEmpty = photos.length === 0 && !loading && !uploadingFirst;
   const heroHeight = useGalleryViewportHeroHeight({
-    hasDescription: photos.length > 0,
     hasPhotos: photos.length > 0,
     emptyHero: photosEmpty,
     editMode,
     keyboardVisible,
+    commentRows: engagement.comments.length,
   });
 
   const loadPhotos = () => {
@@ -280,7 +280,7 @@ export default function CustomCardPhotosModal({
             />
           }
         >
-          <View style={[styles.galleryAlbumBody, photosEmpty && styles.galleryAlbumBodyEmpty]}>
+          <View style={photosEmpty ? styles.galleryAlbumBodyEmpty : undefined}>
             {uploadingFirst ? (
               <GalleryAlbumSkeleton heroH={heroHeight} />
             ) : (
@@ -360,7 +360,7 @@ export default function CustomCardPhotosModal({
                 likedByMe={engagement.likedByMe}
                 comments={engagement.comments}
                 canModerateComments
-                scrollableComments
+                embedded
                 onToggleLike={engagement.handleToggleLike}
                 onAddComment={engagement.handleAddComment}
                 onEditComment={engagement.handleEditComment}
@@ -388,10 +388,6 @@ export default function CustomCardPhotosModal({
 }
 
 const styles = StyleSheet.create({
-  galleryAlbumBody: {
-    flex: 1,
-    minHeight: 0,
-  },
   galleryAlbumBodyEmpty: {
     flexGrow: 1,
   },

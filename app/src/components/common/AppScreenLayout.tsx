@@ -38,6 +38,8 @@ type AppScreenLayoutProps = {
    *  bottom spacing (e.g. a keyboard-tracking composer) pass ['top','left','right']
    *  so the bottom stays unpadded even while the footer is hidden. */
   edges?: readonly Edge[];
+  /** Extra top pad. Album modals use this for the Android status bar. */
+  additionalTopInset?: number;
 };
 
 export default function AppScreenLayout({
@@ -54,13 +56,14 @@ export default function AppScreenLayout({
   safeAreaStyle,
   showFooter = true,
   edges,
+  additionalTopInset = 0,
 }: AppScreenLayoutProps) {
   const handleMenuPress = onMenuPress ?? (() => navigation.navigate('Menu'));
   const includeBottom = edges ? edges.includes('bottom') : !showFooter;
 
   return (
     <BlobBackground>
-      <ChromeSafeAreaView style={[styles.container, safeAreaStyle]} includeBottom={includeBottom}>
+      <ChromeSafeAreaView style={[styles.container, safeAreaStyle]} includeBottom={includeBottom} additionalTopInset={additionalTopInset}>
         <AppHeader
           title={onBack ? undefined : title}
           subtitle={onBack ? undefined : subtitle}

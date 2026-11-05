@@ -193,7 +193,7 @@ export function UnifiedCard({
               : daysToGo && daysToGo > 0
                 ? <>
                     <Text style={s.daysNum}>{daysToGo}</Text>
-                    <Text style={s.daysLbl}>DAYS TO GO</Text>
+                    <Text style={s.daysLbl}>{daysToGo === 1 ? 'DAY TO GO' : 'DAYS TO GO'}</Text>
                   </>
                 : null
             }
