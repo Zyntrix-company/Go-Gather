@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Linkedin, Twitter, Github, Users, Target, Heart, MapPin } from 'lucide-react';
-import ankanImage from '../../assets/3d50851ea3a7044f8fbcb90a8e61eb6b754774e3.png';
-import akashImage from '../../assets/878f090182ab234a55dac737db84e4fad1d4c7ae.png';
+import ankanImage from '../../assets/ankan-nandi.png';
+import akashImage from '../../assets/akash-yadav.png';
 import SEO from '../components/SEO';
 
 const teamMembers = [

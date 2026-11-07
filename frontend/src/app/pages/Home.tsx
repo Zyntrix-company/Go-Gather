@@ -11,8 +11,8 @@ import sweeAvatarIcon from '../../assets/32aaf81826658483566c7e0c6e49568473964d0
 import organizeImage from '../../assets/23f3ba64d412985f40b1c229908cae4d3247693d.png';
 import expensesImage from '../../assets/b9b19f824c62d7d6261dbc98e5722b85466ac468.png';
 import balancesImage from '../../assets/df7fabf4ec70bc6b64296646e5bb8685aa6833d6.png';
-import profileImage1 from '../../assets/99410f13f9d94e3bde83452943e0c6f6dcc4eace.png';
-import profileImage2 from '../../assets/044b6feab45444c11604dc4cf5cb9943e8487615.png';
+import profileImage1 from '../../assets/yuki-tanaka.png';
+import profileImage2 from '../../assets/ahmed.png';
 import feed1 from '../../assets/c9cd1b820be0a46a5b4ed487873eef62796e8d5b.png';
 import feed2 from '../../assets/e9ecf5d5f09461d2bc15158749019ab1d38dfdb2.png';
 import feed3 from '../../assets/f21a1ba61f871e75788befbcbbebd88882801765.png';

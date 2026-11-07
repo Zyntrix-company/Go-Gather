@@ -8,7 +8,7 @@ export const PhoneMockup = () => {
 
        {/* Screen Content - Fits the frame to the image */}
        <img
-          src="/image.png"
+          src="/get-started.jpg"
           alt="App Interface"
           className="w-full h-auto block"
        />
