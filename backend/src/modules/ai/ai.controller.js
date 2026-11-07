@@ -117,7 +117,19 @@ const executeAction = async (req, res, next) => {
       return res.status(400).json({ error: 'BadRequest', message: 'conversationId must be a valid UUID' });
     }
 
-    const result = await aiService.executeAction(req.user.id, pendingAction);
+    // Background follow-ups (e.g. "itinerary ready") post to the chat only after the confirm exchange is saved.
+    let markChatReady;
+    const chatReady = new Promise((resolve) => { markChatReady = resolve; });
+    let result;
+    try {
+      result = await aiService.executeAction(req.user.id, pendingAction, {
+        conversationId: conversationId || null,
+        chatReady,
+      });
+    } catch (err) {
+      markChatReady();
+      throw err;
+    }
 
     if (conversationId) {
       try {
@@ -129,6 +141,7 @@ const executeAction = async (req, res, next) => {
         logger.warn('executeAction persist failed', { error: persistErr.message });
       }
     }
+    markChatReady();
 
     return res.status(200).json(result);
   } catch (error) {

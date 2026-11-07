@@ -28,6 +28,7 @@ const {
 const conversationsService = require('./conversations.service');
 const circuitBreaker = require('./swee.circuitBreaker');
 const scopeGuard = require('./swee.scopeGuard');
+const itinerary = require('./swee.itinerary');
 const {
   geminiRateLimitMessage,
   serviceBusyMessage,
@@ -292,6 +293,213 @@ async function writePlanningMetadata(parentType, parentId, draft) {
   }
 }
 
+// ─── Itinerary planning ───────────────────────────────────────────────────────
+
+const ITINERARY_FAILED_REPLY = 'I couldn\'t plan the itinerary just now — please ask me again in a moment.';
+
+/** Dates that already have activities, plus the places on them (so a new plan doesn't repeat them). */
+async function loadTripActivitySummary(tripId) {
+  const result = await db(
+    `SELECT activity_date, title, location_name FROM trip_activities WHERE trip_id = $1`,
+    [tripId],
+  );
+  const busyDates = new Set();
+  const places = [];
+  for (const row of result.rows) {
+    const date = toIsoDateString(row.activity_date);
+    if (date) busyDates.add(date);
+    places.push(row.location_name || row.title);
+  }
+  return { busyDates, places: places.filter(Boolean) };
+}
+
+async function loadTripPlanningMetadata(tripId) {
+  try {
+    const result = await db('SELECT planning_metadata FROM trips WHERE id = $1', [tripId]);
+    return result.rows[0]?.planning_metadata || {};
+  } catch (err) {
+    logger.warn('loadTripPlanningMetadata failed (non-critical)', { tripId, error: err.message });
+    return {};
+  }
+}
+
+function travellersFrom(source = {}) {
+  const n = (v) => (Number(v) > 0 ? Number(v) : 0);
+  return { adults: n(source.adults), kids: n(source.kids), seniors: n(source.seniors) };
+}
+
+/**
+ * Turn Swee's plan_itinerary request for an EXISTING trip into a confirmable add_activities
+ * proposal: the server plans every requested (or still-empty) day, 3 activities each.
+ * Returns { ok, text, pendingAction }. `text` is the preview (ok) or a plain message (not ok).
+ */
+async function buildItineraryProposal(userId, action) {
+  const draft = action.draft && typeof action.draft === 'object' ? action.draft : {};
+  const safeTripId = isUuid(action.tripId) ? action.tripId : undefined;
+  const { trips } = await findUserTrip(userId, {
+    tripId: safeTripId,
+    targetTripName: safeTripId ? undefined : action.targetTripName,
+  });
+  if (trips.length === 0) {
+    return { ok: false, text: 'I couldn\'t find that trip. Which trip should I plan?' };
+  }
+  if (trips.length > 1) {
+    const list = trips.map((t) => `- ${t.name} (${t.location_name || 'TBD'})`).join('\n');
+    return { ok: false, text: `Which trip should I plan?\n${list}` };
+  }
+
+  const trip = trips[0];
+  const tripStart = toIsoDateString(trip.start_date);
+  const tripEnd = toIsoDateString(trip.end_date);
+  const allDates = itinerary.enumerateDates(tripStart, tripEnd);
+  if (allDates.length === 0) {
+    return { ok: false, text: `${trip.name} doesn't have dates yet — set its dates first and I'll plan every day.` };
+  }
+
+  const requested = Array.isArray(draft.dates)
+    ? [...new Set(draft.dates.filter((d) => allDates.includes(d)))]
+    : [];
+  const [{ busyDates, places }, meta] = await Promise.all([
+    loadTripActivitySummary(trip.id),
+    loadTripPlanningMetadata(trip.id),
+  ]);
+  // Specific days the user asked for are planned even if they have activities; otherwise only empty days.
+  const dates = requested.length ? requested : allDates.filter((d) => !busyDates.has(d));
+  if (dates.length === 0) {
+    return {
+      ok: false,
+      text: `Every day of ${trip.name} already has activities. Tell me which day you'd like more ideas for and I'll plan it.`,
+    };
+  }
+
+  const plan = await itinerary.generateItinerary({
+    destination: trip.location_name || trip.name,
+    dates,
+    travellers: travellersFrom(meta),
+    groupType: meta.groupType,
+    travelFocus: meta.travelFocus,
+    budgetTier: meta.budgetTier,
+    preferences: typeof draft.preferences === 'string' ? draft.preferences : meta.itineraryPrefs,
+    avoidPlaces: places,
+    tripStart,
+    tripEnd,
+  });
+  if (plan.activities.length === 0) return { ok: false, text: ITINERARY_FAILED_REPLY };
+
+  const notes = [];
+  if (plan.truncated) {
+    notes.push(`That's the first ${itinerary.MAX_ITINERARY_DAYS} days — save these and ask me for the rest.`);
+  }
+  if (plan.missing.length > 0) {
+    notes.push('A few slots are still open — you can add your own in the trip\'s Activities tab.');
+  }
+  const preview = itinerary.formatItineraryPreview(plan.activities);
+  return {
+    ok: true,
+    text: `${preview}${notes.length ? `\n\n${notes.join(' ')}` : ''}\n\nAdd these to your itinerary?`,
+    pendingAction: {
+      intent: 'add_activities',
+      readyToCreate: true,
+      scope: 'in',
+      tripId: trip.id,
+      draft: { activities: plan.activities },
+    },
+  };
+}
+
+// Background itinerary jobs for newly created trips. Tracked so tests (and shutdown) can wait.
+const backgroundJobs = new Set();
+
+function runInBackground(fn) {
+  const job = Promise.resolve().then(fn).catch((err) => {
+    logger.error('Swee background job failed', { error: err.message });
+  });
+  backgroundJobs.add(job);
+  job.finally(() => backgroundJobs.delete(job));
+  return job;
+}
+
+function waitForBackgroundJobs() {
+  return Promise.all([...backgroundJobs]);
+}
+
+/**
+ * Plan and save a full itinerary for a trip Swee just created, using the form's final
+ * dates and preferences. Tells the creator when it's ready (push + a message in the chat).
+ */
+async function planNewTripItinerary({
+  userId, trip, draft, startDate, endDate, skipDates, conversationId, chatReady = Promise.resolve(),
+}) {
+  const { createAndSendNotifications } = require('../../utils/fcm.util');
+  const activitiesService = require('../trips/submodules/activities/activities.service');
+  const dates = itinerary.enumerateDates(startDate, endDate).filter((d) => !skipDates.has(d));
+
+  const tell = async (title, body, chatText) => {
+    try {
+      await createAndSendNotifications(
+        [{ id: userId }],
+        { title, body },
+        'ITINERARY_UPDATED',
+        { tripId: trip.id, tripName: trip.name },
+      );
+    } catch (err) {
+      logger.warn('Swee itinerary notification failed', { tripId: trip.id, error: err.message });
+    }
+    if (conversationId) {
+      try {
+        // Wait until the controller has saved the "Trip created" exchange so this message lands after it.
+        await chatReady;
+        await conversationsService.appendAssistantMessage(userId, conversationId, chatText);
+      } catch (err) {
+        logger.warn('Swee itinerary chat message failed', { tripId: trip.id, error: err.message });
+      }
+    }
+  };
+
+  if (dates.length === 0) return;
+
+  let added = 0;
+  let plan = null;
+  try {
+    plan = await itinerary.generateItinerary({
+      destination: draft.destination,
+      dates,
+      travellers: travellersFrom(draft),
+      groupType: draft.groupType,
+      travelFocus: draft.travelFocus,
+      budgetTier: draft.budgetTier,
+      preferences: typeof draft.itineraryPrefs === 'string' ? draft.itineraryPrefs : undefined,
+      tripStart: startDate,
+      tripEnd: endDate,
+    });
+    if (plan.activities.length > 0) {
+      ({ added } = await bulkCreateActivities(trip.id, userId, plan.activities, { notify: false }));
+    }
+  } catch (err) {
+    logger.warn('Swee new-trip itinerary failed', { tripId: trip.id, error: err.message });
+  }
+
+  if (added === 0) {
+    await tell(
+      'Itinerary not ready',
+      `Swee couldn't plan "${trip.name}" this time. Ask Swee to plan it again.`,
+      `I couldn't plan the itinerary for ${trip.name} this time. Just ask me "plan my ${trip.name} itinerary" and I'll try again.`,
+    );
+    return;
+  }
+
+  activitiesService.notifyItineraryUpdated(trip.id, userId, null, added);
+  const days = new Set(plan.activities.map((a) => a.date)).size;
+  const rest = plan.truncated
+    ? ` I planned the first ${itinerary.MAX_ITINERARY_DAYS} days — ask me for the rest.`
+    : '';
+  await tell(
+    'Your itinerary is ready',
+    `Swee planned ${added} activities across ${days} days for "${trip.name}".`,
+    `Your ${trip.name} itinerary is ready — ${added} activities across ${days} days. Open the trip's Activities to see it.${rest}`,
+  );
+}
+
 // ─── Gemini chat ──────────────────────────────────────────────────────────────
 
 function classifyGeminiError(err) {
@@ -517,6 +725,20 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
     reply = outOfScopeMessage(resolvedTripContext);
     pendingAction = null;
   }
+
+  // "Plan my itinerary" for an existing trip: the server plans every day and shows a preview
+  // the user confirms. plan_itinerary itself never reaches the app.
+  if (pendingAction?.intent === 'plan_itinerary') {
+    try {
+      const proposal = await buildItineraryProposal(userId, pendingAction);
+      reply = proposal.ok ? `${reply ? `${reply}\n\n` : ''}${proposal.text}` : proposal.text;
+      pendingAction = proposal.ok ? proposal.pendingAction : null;
+    } catch (err) {
+      logger.warn('Swee plan_itinerary failed', { userId, conversationId: resolvedConversationId, error: err.message });
+      reply = ITINERARY_FAILED_REPLY;
+      pendingAction = null;
+    }
+  }
   // Keep refused turns out of future Gemini history. Outside enforce mode only Swee's own
   // refusals are flagged, so a classifier false positive never costs the user context.
   const persistedScope = enforceBlock || parsed.scope === 'out' ? 'out' : 'in';
@@ -550,7 +772,7 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
  * Called after user taps "Yes" / "Confirm" in the chat UI.
  * Returns { reply, created: { id, type, name } }.
  */
-const executeAction = async (userId, pendingAction) => {
+const executeAction = async (userId, pendingAction, { conversationId = null, chatReady } = {}) => {
   if (!pendingAction || !pendingAction.intent) {
     throw Object.assign(new Error('No pending action to execute'), { statusCode: 400 });
   }
@@ -587,13 +809,41 @@ const executeAction = async (userId, pendingAction) => {
     // createTrip returns the enriched trip object directly
     const trip = await tripsService.createTrip(userId, body);
 
-    // Create suggested activities if Swee collected them during the conversation
-    if (Array.isArray(draft.activities) && draft.activities.length > 0) {
-      await bulkCreateActivities(trip.id, userId, draft.activities);
+    // Activities Swee already has (e.g. read from an attached itinerary) — only those that fall
+    // inside the dates chosen on the card; they were drafted before the dates were picked.
+    const provided = (Array.isArray(draft.activities) ? draft.activities : [])
+      .filter((a) => a && typeof a.date === 'string' && a.date >= startDate && a.date <= endDate)
+      .slice(0, MAX_ADD_ACTIVITIES);
+    if (provided.length > 0) {
+      await bulkCreateActivities(trip.id, userId, provided, { notify: false });
     }
 
     await writeAllNotes('trip', trip.id, userId, draft);
     await writePlanningMetadata('trip', trip.id, draft);
+
+    // The user asked Swee to plan the itinerary: plan it in the background with the card's final
+    // dates and preferences, so the card doesn't wait on a long Gemini call.
+    const planItinerary = draft.planItinerary === true || draft.planItinerary === 'true';
+    if (planItinerary) {
+      const skipDates = new Set(provided.map((a) => a.date));
+      const days = itinerary.enumerateDates(startDate, endDate).filter((d) => !skipDates.has(d)).length;
+      if (days > 0) {
+        runInBackground(() => planNewTripItinerary({
+          userId,
+          trip: { id: trip.id, name: trip.name },
+          draft: { ...draft, destination },
+          startDate,
+          endDate,
+          skipDates,
+          conversationId,
+          chatReady,
+        }));
+        return {
+          reply: `Trip created! I'm planning your ${days}-day itinerary now — it'll appear in the trip's Activities in about a minute, and I'll let you know when it's ready.`,
+          created: { id: trip.id, type: 'trip', name: trip.name },
+        };
+      }
+    }
 
     return {
       reply: 'Trip created! Add places and invite friends now.',
@@ -829,4 +1079,10 @@ const reportIssue = async (userId, messageId, reason) => {
   );
 };
 
-module.exports = { chat, executeAction, reportIssue, buildMessageParts };
+module.exports = {
+  chat,
+  executeAction,
+  reportIssue,
+  buildMessageParts,
+  waitForBackgroundJobs,
+};

@@ -17,6 +17,26 @@ const {
 
 describe('ai.helpers', () => {
 
+  describe('plan_itinerary action', () => {
+    const block = (action) => `Here's a plan for your trip:\n###ACTION${JSON.stringify(action)}`;
+    const TRIP_ID = 'aaaa0001-0000-4000-8000-000000000001';
+
+    it('is passed on (for the server to plan) with a trip id or trip name', () => {
+      const withId = parseActionBlock(block({ intent: 'plan_itinerary', readyToCreate: false, scope: 'in', tripId: TRIP_ID }));
+      expect(withId.pendingAction).toMatchObject({ intent: 'plan_itinerary', tripId: TRIP_ID });
+      expect(withId.reply).toBe('Here\'s a plan for your trip:');
+
+      const withName = parseActionBlock(block({ intent: 'plan_itinerary', readyToCreate: false, targetTripName: 'Goa' }));
+      expect(withName.pendingAction).toMatchObject({ intent: 'plan_itinerary', targetTripName: 'Goa' });
+    });
+
+    it('is rejected without a usable trip', () => {
+      const parsed = parseActionBlock(block({ intent: 'plan_itinerary', readyToCreate: false, tripId: 'Goa trip' }));
+      expect(parsed.pendingAction).toBeNull();
+      expect(parsed.actionParseError).toBe('plan_itinerary_missing_trip');
+    });
+  });
+
   describe('add_activities action', () => {
     const block = (action) => `Here you go.\n###ACTION${JSON.stringify(action)}`;
     const good = {
@@ -44,20 +64,20 @@ describe('ai.helpers', () => {
       expect(noTrip.actionParseError).toBe('add_activities_missing_trip');
     });
 
-    it('rejects more than 20 activities at parse time and replaces the unusable table', () => {
-      const many = Array.from({ length: 21 }, (_, i) => ({ title: `Act ${i}`, date: '2026-12-27' }));
+    it('rejects more than 90 activities at parse time and replaces the unusable table', () => {
+      const many = Array.from({ length: 91 }, (_, i) => ({ title: `Act ${i}`, date: '2026-12-27' }));
       const parsed = parseActionBlock(`| Day | Time | Activity |
 |---|---|---|
 | Sun | 09:00 | x |
 ###ACTION${JSON.stringify({ ...good, draft: { activities: many } })}`);
       expect(parsed.pendingAction).toBeNull();
       expect(parsed.actionParseError).toBe('add_activities_too_many');
-      expect(parsed.reply).toMatch(/up to 20 activities at a time/);
+      expect(parsed.reply).toMatch(/up to 90 activities at a time/);
       expect(parsed.reply).not.toContain('| Day |');
     });
 
-    it('accepts exactly 20', () => {
-      const twenty = Array.from({ length: 20 }, (_, i) => ({ title: `Act ${i}`, date: '2026-12-27' }));
+    it('accepts exactly 90 (a 30-day trip, 3 per day)', () => {
+      const twenty = Array.from({ length: 90 }, (_, i) => ({ title: `Act ${i}`, date: '2026-12-27' }));
       expect(parseActionBlock(block({ ...good, draft: { activities: twenty } })).pendingAction).not.toBeNull();
     });
 

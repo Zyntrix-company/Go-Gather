@@ -66,7 +66,11 @@ const CASES = [
   {
     kind: 'regression',
     name: 'Create trip → form',
-    turns: [['Plan a trip to Bali', 'in'], ['yes, set it up as a trip please', 'in', { intent: 'create_trip', showForm: 'trip' }]],
+    turns: [
+      ['Plan a trip to Bali', 'in'],
+      ['yes, set it up as a trip please', 'in'], // Swee first asks whether to plan an itinerary
+      ['yes, plan the itinerary too — we love temples and beaches', 'in', { intent: 'create_trip', showForm: 'trip' }],
+    ],
   },
   {
     kind: 'regression',

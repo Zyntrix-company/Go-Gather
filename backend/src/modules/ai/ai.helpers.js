@@ -13,10 +13,11 @@ const VALID_INTENTS = new Set([
   'identify_update',
   'add_note',
   'add_activities',
+  'plan_itinerary',
 ]);
 
-/** Most activities Swee may add to an existing trip in one confirmed action. */
-const MAX_ADD_ACTIVITIES = 20;
+/** Most activities Swee may add to an existing trip in one confirmed action (30 days × 3). */
+const MAX_ADD_ACTIVITIES = 90;
 
 const TOO_MANY_ACTIVITIES_REPLY = `That's more than I can add at once — I can add up to ${MAX_ADD_ACTIVITIES} activities at a time. Which days should I start with?`;
 
@@ -151,6 +152,12 @@ function validatePendingAction(action) {
       return { valid: false, reason: 'add_activities_missing_trip' };
     }
   }
+  if (action.intent === 'plan_itinerary') {
+    const hasName = typeof action.targetTripName === 'string' && action.targetTripName.trim();
+    if (!isUuid(action.tripId) && !hasName) {
+      return { valid: false, reason: 'plan_itinerary_missing_trip' };
+    }
+  }
   if (action.showForm != null && action.showForm !== 'trip' && action.showForm !== 'event') {
     return { valid: false, reason: 'invalid_showForm' };
   }
@@ -237,8 +244,10 @@ function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
 
     shortenDraftActivityTitles(action);
 
+    // plan_itinerary is never shown to the app — the server turns it into an add_activities proposal.
     const meaningful = action.readyToCreate
       || action.intent === 'identify_update'
+      || action.intent === 'plan_itinerary'
       || action.showForm === 'trip'
       || action.showForm === 'event';
     return {
@@ -385,7 +394,7 @@ function inferBudgetTier(avgAmount) {
 const PLANNING_META_KEYS = [
   'groupType', 'travelFocus', 'budgetTier', 'currency',
   'adults', 'kids', 'seniors', 'notes', 'budget', 'numPeople', 'activities',
-  'eventType', 'eventTime', 'description',
+  'eventType', 'eventTime', 'description', 'planItinerary', 'itineraryPrefs',
 ];
 
 function buildPlanningMetadata(draft = {}) {

@@ -102,19 +102,39 @@ describe('swee.config buildSweetSystemPrompt', () => {
   it('lists exactly what Swee can do and forbids inventing limits', () => {
     const prompt = buildSweetSystemPrompt(baseContext, null, 1);
     expect(prompt).toMatch(/WHAT YOU CAN ACTUALLY DO/);
-    expect(prompt).toMatch(/Add activities to the itinerary of an EXISTING trip\s+→ add_activities/);
+    expect(prompt).toMatch(/Plan a full day-by-day itinerary for an EXISTING trip\s+→ plan_itinerary/);
+    expect(prompt).toMatch(/Add specific activities the user listed to an EXISTING trip\s+→ add_activities/);
     expect(prompt).toMatch(/NEVER offer, promise or ask about an action that is not in this list/);
     expect(prompt).toMatch(/NEVER invent limits/);
     expect(prompt).toMatch(/fixed blocks/); // named only as something not to say
   });
 
-  it('defines the add-activities flow with the proposal table and 20 cap', () => {
+  it('hands full itineraries to the planner and keeps the table for specific activities', () => {
     const prompt = buildSweetSystemPrompt(baseContext, null, 1);
-    expect(prompt).toMatch(/ADD ACTIVITIES FLOW — EXISTING TRIPS/);
+    expect(prompt).toMatch(/PLAN ITINERARY FLOW — EXISTING TRIPS/);
+    expect(prompt).toMatch(/"intent":"plan_itinerary","readyToCreate":false/);
+    expect(prompt).toMatch(/do not write the itinerary yourself/i);
+    expect(prompt).toMatch(/ADD SPECIFIC ACTIVITIES — EXISTING TRIPS/);
     expect(prompt).toMatch(/"intent":"add_activities","readyToCreate":true/);
     expect(prompt).toMatch(/\| Day \| Time \| Activity \|/);
-    expect(prompt).toMatch(/more than 20 activities/);
-    expect(prompt).toMatch(/"identify_update" \| "add_note" \| "add_activities"/);
+    expect(prompt).toMatch(/Max 90 per add_activities action/);
+    expect(prompt).toMatch(/"add_note" \| "add_activities" \| "plan_itinerary"/);
+  });
+
+  it('asks about an itinerary before the trip card and passes it through the draft', () => {
+    const prompt = buildSweetSystemPrompt(baseContext, null, 1);
+    expect(prompt).toMatch(/Want me to plan a day-by-day itinerary too/);
+    expect(prompt).toMatch(/"planItinerary":true/);
+    expect(prompt).toMatch(/itineraryPrefs/);
+    expect(prompt).toMatch(/do NOT write activities yourself/);
+    expect(prompt).not.toMatch(/Tanah Lot sunset visit/); // the old self-written example is gone
+  });
+
+  it('scales the length limit for itineraries with the number of days', () => {
+    const prompt = buildSweetSystemPrompt(baseContext, null, 1);
+    expect(prompt).toMatch(/cover EVERY day asked for, never just the first days/);
+    expect(prompt).toMatch(/Exactly 3 activities per day/);
+    expect(prompt).toMatch(/about 45 words per day/);
   });
 
   it('forbids offers inside a refusal and says unsupported ≠ out of scope', () => {

@@ -233,8 +233,8 @@ describe('Swee executeAction authorization (SEC-06)', () => {
       expect(db.query).not.toHaveBeenCalled();
     });
 
-    it('caps a single action at 20 activities, before touching the database', async () => {
-      const many = Array.from({ length: 21 }, (_, i) => ({ title: `Act ${i}`, date: '2026-11-02', time: '09:00' }));
+    it('caps a single action at 90 activities, before touching the database', async () => {
+      const many = Array.from({ length: 91 }, (_, i) => ({ title: `Act ${i}`, date: '2026-11-02', time: '09:00' }));
 
       await expect(executeAction(USER, action(many))).rejects.toMatchObject({ statusCode: 400 });
       expect(db.query).not.toHaveBeenCalled();
