@@ -86,12 +86,17 @@ function GridCard({ item, onPress }: { item: any; onPress: () => void }) {
 
 // ─── Profile skeleton ─────────────────────────────────────────────────────────
 
+// Header row: photo pinned PROFILE_ROW_INSET from the content edge (36pt from the screen
+// edge with the 20pt page padding) for every name; the info column takes the rest.
+const PROFILE_ROW_INSET = 16;
+const PROFILE_ROW_MAX_W = 360 + PROFILE_ROW_INSET * 2;
+
 const fpSkStyles = StyleSheet.create({
   profileCard: { marginTop: 14, marginBottom: 28, alignItems: 'center' },
   // Same centred row as the loaded profile card (and GalleryTab), so nothing jumps when it loads.
-  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32 },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32, width: '100%', maxWidth: PROFILE_ROW_MAX_W, paddingHorizontal: PROFILE_ROW_INSET },
   avatar: { width: 112, height: 112, borderRadius: 56, backgroundColor: '#e2e8f0' },
-  profileInfo: { alignItems: 'center', gap: 8 },
+  profileInfo: { flex: 1, alignItems: 'center', gap: 8 },
   nameBar: { width: 160, height: 20, borderRadius: 6, backgroundColor: '#e2e8f0' },
   handleBar: { width: 100, height: 16, borderRadius: 5, backgroundColor: '#e2e8f0' },
   locationBar: { width: 80, height: 14, borderRadius: 5, backgroundColor: '#e2e8f0' },
@@ -698,9 +703,12 @@ const styles = StyleSheet.create({
 
   // Profile card — typography and spacing aligned with GalleryTab (friend-only chrome kept)
   profileCard: { marginTop: 14, marginBottom: 28, alignItems: 'center' },
-  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32 },
+  // Fixed-width row (screen width, capped on big phones) with the info column filling the
+  // rest: the photo sits in the same place for every name, and a long name wraps (up to
+  // 2 lines) inside its column instead of shifting the photo or pushing past the edges.
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32, width: '100%', maxWidth: PROFILE_ROW_MAX_W, paddingHorizontal: PROFILE_ROW_INSET },
   avatarWrap: { position: 'relative' },
-  profileInfo: { justifyContent: 'center', gap: 4 },
+  profileInfo: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 4 },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   removeFriendBtn: { alignItems: 'center', justifyContent: 'center' },
   nameSpacer: { width: 15 },

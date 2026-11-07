@@ -1207,7 +1207,7 @@ export default function GalleryTab({
                 <View style={styles.nameRow}>
                   {/* Same width as the edit icon on the other side, so the name itself is centred. */}
                   <View style={styles.nameSpacer} />
-                  <Text style={styles.name}>{displayName}</Text>
+                  <Text style={[styles.name, { flexShrink: 1 }]} numberOfLines={2}>{displayName}</Text>
                   <TouchableOpacity style={styles.editBtn} onPress={onEditProfile} activeOpacity={0.8}>
                     <Pen size={15} color="#64748b" />
                   </TouchableOpacity>
@@ -1338,15 +1338,23 @@ export default function GalleryTab({
   );
 }
 
+// Header row: photo pinned PROFILE_ROW_INSET from the content edge (36pt from the screen
+// edge with the 20pt page padding) for every name; the info column takes the rest.
+const PROFILE_ROW_INSET = 16;
+const PROFILE_ROW_MAX_W = 360 + PROFILE_ROW_INSET * 2;
+
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: 20, paddingBottom: 100, paddingTop: 4 },
 
   profileCard: { marginTop: 14, marginBottom: 28, alignItems: 'center' },
-  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32 },
+  // Fixed-width row (screen width, capped on big phones) with the info column filling the
+  // rest: the photo sits in the same place for every name, and a long name wraps (up to
+  // 2 lines) inside its column instead of shifting the photo or pushing past the edges.
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 32, width: '100%', maxWidth: PROFILE_ROW_MAX_W, paddingHorizontal: PROFILE_ROW_INSET },
   avatarWrap: { position: 'relative' },
-  profileInfo: { justifyContent: 'center', gap: 4 },
+  profileInfo: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 4 },
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 2, borderColor: '#0d9488' },
   avatarPlaceholder: { backgroundColor: '#f0fdfa', alignItems: 'center', justifyContent: 'center' },
   avatarInitial: { fontSize: 38, fontWeight: '600', color: '#0d9488' },
