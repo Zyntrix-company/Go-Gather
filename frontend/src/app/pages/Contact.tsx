@@ -121,7 +121,7 @@ export default function Contact() {
                       onChange={handleChange}
                       required
                       className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/50 border border-teal-100 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all outline-none text-slate-700 placeholder:text-slate-400"
-                      placeholder="Jane Doe"
+                      placeholder="Meera Iyer"
                     />
                   </div>
                 </div>
@@ -140,7 +140,7 @@ export default function Contact() {
                       onChange={handleChange}
                       required
                       className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/50 border border-teal-100 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all outline-none text-slate-700 placeholder:text-slate-400"
-                      placeholder="jane@example.com"
+                      placeholder="meera.iyer@outlook.com"
                     />
                   </div>
                 </div>
@@ -160,7 +160,7 @@ export default function Contact() {
                     onChange={handleChange}
                     required
                     className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/50 border border-teal-100 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all outline-none text-slate-700 placeholder:text-slate-400"
-                    placeholder="Issue type"
+                    placeholder="e.g. Trip invite link not opening"
                   />
                 </div>
               </div>
@@ -206,7 +206,7 @@ export default function Contact() {
                     required
                     rows={5}
                     className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/50 border border-teal-100 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all outline-none text-slate-700 placeholder:text-slate-400 resize-none"
-                    placeholder="How can we help you?"
+                    placeholder="Tell us what happened and which screen you were on"
                   />
                 </div>
               </div>
