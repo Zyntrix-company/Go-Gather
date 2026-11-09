@@ -370,7 +370,7 @@ const s = StyleSheet.create({
   },
   name: {
     fontSize: 15,
-    fontWeight: '400',
+    fontWeight: '500',
     color: '#009788',
     flexShrink: 1,
     // Trim the text box's built-in space above the letters so the name's top lines up with the
