@@ -50,6 +50,7 @@ import {
   type EmailAttachment,
 } from '../../api/trips.api';
 import { showAlert, showConfirm } from '../../store/alertStore';
+import useAppLimits from '../../hooks/useAppLimits';
 import { promptConnectEmail } from '../../utils/drivePickerFlow';
 import { EmailProviderPickerRow } from '../../components/common/EmailProviderUI';
 import {
@@ -426,6 +427,7 @@ export function CreateTripModal({
   setBannerCropFraction,
   initialFriendIds,
 }: CreateTripModalProps) {
+  const { tripNameMax } = useAppLimits();
   const [name, setName] = useState('');
   const [locations, setLocations] = useState<LocationPoint[]>([]);
   const [startDateObj, setStartDateObj] = useState<Date | undefined>(undefined);
@@ -703,9 +705,9 @@ export function CreateTripModal({
             {/* Trip Name */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.ctLabel}>Trip Name</Text>
-              <Text style={{ fontSize: 11, color: name.length >= 20 ? '#ef4444' : '#94a3b8' }}>{name.length}/20</Text>
+              <Text style={{ fontSize: 11, color: name.length >= tripNameMax ? '#ef4444' : '#94a3b8' }}>{name.length}/{tripNameMax}</Text>
             </View>
-            <TextInput style={styles.ctInput} placeholder="e.g., Tokyo Getaway" placeholderTextColor="#94a3b8" value={name} onChangeText={setName} maxLength={20} />
+            <TextInput style={styles.ctInput} placeholder="e.g., Tokyo Getaway" placeholderTextColor="#94a3b8" value={name} onChangeText={setName} maxLength={tripNameMax} />
 
             {/* Start / End Date row */}
             <View style={styles.ctDateRow}>

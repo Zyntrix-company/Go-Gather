@@ -30,6 +30,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import InviteFriendsPicker from '../../components/common/InviteFriendsPicker';
 import colors from '../../theme/colors';
 import { showAlert, showConfirm } from '../../store/alertStore';
+import useAppLimits from '../../hooks/useAppLimits';
 import { promptConnectEmail } from '../../utils/drivePickerFlow';
 import { EmailProviderPickerRow } from '../../components/common/EmailProviderUI';
 import {
@@ -295,6 +296,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
   visible: boolean; onClose: () => void; onSave: (ev: EventItem) => void;
   initialFriendIds?: string[];
 }) {
+  const { eventNameMax } = useAppLimits();
   const [name, setName] = useState('');
   const [type, setType] = useState('Other');
   const [showTypeDrop, setShowTypeDrop] = useState(false);
@@ -603,7 +605,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
             {/* Event Name */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={modal.label}>Event Name</Text>
-              <Text style={{ fontSize: 11, color: name.length >= 20 ? '#ef4444' : '#94a3b8' }}>{name.length}/20</Text>
+              <Text style={{ fontSize: 11, color: name.length >= eventNameMax ? '#ef4444' : '#94a3b8' }}>{name.length}/{eventNameMax}</Text>
             </View>
             <TextInput
               style={modal.input}
@@ -611,7 +613,7 @@ export function CreateEventModal({ visible, onClose, onSave, initialFriendIds }:
               placeholderTextColor="#94a3b8"
               value={name}
               onChangeText={setName}
-              maxLength={20}
+              maxLength={eventNameMax}
             />
 
             {/* Event Type */}

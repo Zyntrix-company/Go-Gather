@@ -39,6 +39,7 @@ import AppDatePicker from '../common/AppDatePicker';
 import CurrencyPickerDropdown from '../common/CurrencyPickerDropdown';
 import { getCurrencyDef } from '../../utils/currency';
 import colors from '../../theme/colors';
+import useAppLimits from '../../hooks/useAppLimits';
 import type { PendingAction } from '../../api/ai.api';
 import {
   endAfterStartChange,
@@ -61,7 +62,6 @@ const TRAVEL_FOCUS = [
   { key: 'Adventure', label: '🧗  Adventure' },
   { key: 'Shopping', label: '🛍️  Shopping' },
 ];
-const MAX_FOCUS = 3;
 // Travel Focus renders as two even rows of 3 so it always matches the width
 // (and row count) of the Group Type / Budget rows, regardless of screen size.
 const TRAVEL_FOCUS_ROWS = [TRAVEL_FOCUS.slice(0, 3), TRAVEL_FOCUS.slice(3, 6)];
@@ -225,6 +225,7 @@ type FormProps = {
 
 // ─── Trip planning card ──────────────────────────────────────────────────────
 export function TripPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
+  const { sweeTravelFocusMax } = useAppLimits();
   const [startDate, setStartDate] = useState<string>(draft.startDate || '');
   const [endDate, setEndDate] = useState<string>(draft.endDate || '');
   const [adults, setAdults] = useState<number>(Number(draft.adults) > 0 ? Number(draft.adults) : 1);
@@ -247,7 +248,7 @@ export function TripPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
   const toggleFocus = (key: string) => {
     setFocus((prev) => {
       if (prev.includes(key)) return prev.filter((f) => f !== key);
-      if (prev.length >= MAX_FOCUS) return prev;
+      if (prev.length >= sweeTravelFocusMax) return prev;
       return [...prev, key];
     });
   };
@@ -364,7 +365,7 @@ export function TripPlanForm({ draft = {}, submitting, onSubmit }: FormProps) {
                 fill
                 selected={focus.includes(f.key)}
                 onPress={() => toggleFocus(f.key)}
-                disabled={focus.length >= MAX_FOCUS}
+                disabled={focus.length >= sweeTravelFocusMax}
               />
             ))}
           </View>

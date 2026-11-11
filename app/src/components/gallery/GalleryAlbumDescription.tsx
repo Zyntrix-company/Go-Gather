@@ -1,9 +1,7 @@
 import React from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
-import {
-  GALLERY_ALBUM_DESCRIPTION_MAX,
-  GALLERY_ALBUM_DESCRIPTION_PLACEHOLDER,
-} from '../../constants/albumPhotosLayout';
+import { GALLERY_ALBUM_DESCRIPTION_PLACEHOLDER } from '../../constants/albumPhotosLayout';
+import useAppLimits from '../../hooks/useAppLimits';
 
 type GalleryAlbumDescriptionProps = {
   value: string;
@@ -16,6 +14,7 @@ export default function GalleryAlbumDescription({
   editMode = false,
   onChange,
 }: GalleryAlbumDescriptionProps) {
+  const { galleryAlbumDescriptionMax } = useAppLimits();
   // Only show saved caption when photos exist (never the empty placeholder).
   const trimmed = value.trim();
   if (!editMode && !trimmed) return null;
@@ -25,11 +24,11 @@ export default function GalleryAlbumDescription({
       <View style={styles.wrap}>
         <TextInput
           value={value}
-          onChangeText={(t) => onChange?.(t.slice(0, GALLERY_ALBUM_DESCRIPTION_MAX))}
+          onChangeText={(t) => onChange?.(t.slice(0, galleryAlbumDescriptionMax))}
           placeholder={GALLERY_ALBUM_DESCRIPTION_PLACEHOLDER}
           placeholderTextColor="#94a3b8"
           style={styles.input}
-          maxLength={GALLERY_ALBUM_DESCRIPTION_MAX}
+          maxLength={galleryAlbumDescriptionMax}
           multiline
           numberOfLines={2}
           textAlignVertical="top"

@@ -21,6 +21,7 @@ import { z } from 'zod';
 import useAuth from '../../hooks/useAuth';
 import useAuthStore from '../../store/authStore';
 import useUploadLimits from '../../hooks/useUploadLimits';
+import useAppLimits from '../../hooks/useAppLimits';
 import { rejectOversizedFile } from '../../utils/uploadLimits';
 
 type FormData = {
@@ -40,7 +41,7 @@ const editProfileSchema = z.object({
     .regex(/^[a-z0-9_]+$/, 'Lowercase, numbers & underscores only'),
   gender: z.string().min(1, 'Required'),
   country: z.string().min(1, 'Required'),
-  bio: z.string().max(100, 'Max 100 characters').optional(),
+  bio: z.string().optional(),
   dob: z.string().min(1, 'Required'),
 });
 
@@ -144,6 +145,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const isLoading = useAuthStore((s) => s.isLoading);
   const user = useAuthStore((s) => s.user);
   const uploadLimits = useUploadLimits();
+  const { bioMax } = useAppLimits();
 
   const initialGender   = user?.gender   ? (GENDER_FROM_API[user.gender] ?? '') : '';
   const initialCountry  = user?.country  || '';
@@ -403,7 +405,7 @@ export default function EditProfileScreen({ navigation }: any) {
                     placeholderTextColor="#94a3b8"
                     value={value}
                     onFocus={() => setFocusedField('bio')} onBlur={() => setFocusedField(null)}
-                    multiline numberOfLines={3} maxLength={100}
+                    multiline numberOfLines={3} maxLength={bioMax}
                     textAlignVertical="top" underlineColorAndroid="transparent"
                     selectionColor="#0d9488" editable={!busy}
                     onChangeText={(v) => { onChange(v); if (apiError) setApiError(null); }}

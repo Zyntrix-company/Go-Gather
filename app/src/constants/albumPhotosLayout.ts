@@ -21,9 +21,7 @@ export const GALLERY_ALBUM_HERO_CONTENT = Math.min(SCREEN_W - ALBUM_HERO_H_PAD *
 export const GALLERY_ALBUM_HERO_H = GALLERY_ALBUM_HERO_CONTENT + 10;
 
 /** Gallery viewport layout — comment list and hero sizing. */
-export const GALLERY_COMMENT_MAX = 30;
-export const GALLERY_COMMENT_ROW_H = 58;
-export const GALLERY_ALBUM_DESCRIPTION_MAX = 80;
+export const GALLERY_COMMENT_ROW_H = 76;
 export const GALLERY_ALBUM_DESCRIPTION_PLACEHOLDER = 'Add a short caption for this album…';
 export const GALLERY_MAX_VISIBLE_COMMENTS = 3;
 export const GALLERY_HERO_CONTENT_MAX = 320;

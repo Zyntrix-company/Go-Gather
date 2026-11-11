@@ -13,7 +13,7 @@ import type { GalleryComment } from '../../api/gallery.api';
 import useAuthStore from '../../store/authStore';
 import { showConfirm } from '../../store/alertStore';
 import { KeyboardAvoider, KeyboardProvider } from '../common/KeyboardAvoider';
-import { GALLERY_COMMENT_MAX } from '../../constants/albumPhotosLayout';
+import useAppLimits from '../../hooks/useAppLimits';
 
 function HeartIcon({ filled }: { filled: boolean }) {
   return (
@@ -106,7 +106,7 @@ function CommentRow({
             </View>
           ) : null}
         </View>
-        <Text style={styles.commentText} numberOfLines={1} ellipsizeMode="tail">{c.text}</Text>
+        <Text style={styles.commentText} numberOfLines={2} ellipsizeMode="tail">{c.text}</Text>
       </View>
     </View>
   );
@@ -126,6 +126,7 @@ export default function GalleryEngagementSection({
   onEditComment,
   onDeleteComment,
 }: GalleryEngagementSectionProps) {
+  const { galleryCommentMax } = useAppLimits();
   const currentUser = useAuthStore((s) => s.user);
   const insets = useSafeAreaInsets();
   const commentScrollRef = useRef<ScrollView>(null);
@@ -307,8 +308,8 @@ export default function GalleryEngagementSection({
                 <Text style={styles.composerTitle}>
                   {composerMode === 'edit' ? 'Edit comment' : 'Add a comment'}
                 </Text>
-                <Text style={[styles.charCount, composerText.length >= GALLERY_COMMENT_MAX && styles.charCountLimit]}>
-                  {composerText.length}/{GALLERY_COMMENT_MAX}
+                <Text style={[styles.charCount, composerText.length >= galleryCommentMax && styles.charCountLimit]}>
+                  {composerText.length}/{galleryCommentMax}
                 </Text>
               </View>
               <View style={styles.composerInputRow}>
@@ -322,11 +323,11 @@ export default function GalleryEngagementSection({
                 <TextInput
                   ref={composerRef}
                   value={composerText}
-                  onChangeText={(t) => setComposerText(t.slice(0, GALLERY_COMMENT_MAX))}
+                  onChangeText={(t) => setComposerText(t.slice(0, galleryCommentMax))}
                   placeholder="Write a comment…"
                   placeholderTextColor="#94a3b8"
                   style={styles.composerInput}
-                  maxLength={GALLERY_COMMENT_MAX}
+                  maxLength={galleryCommentMax}
                   multiline={false}
                   numberOfLines={1}
                   returnKeyType="send"

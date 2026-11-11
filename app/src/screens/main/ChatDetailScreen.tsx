@@ -28,6 +28,7 @@ import MarkdownText from '../../components/common/MarkdownText';
 import SweeIcon from '../../components/common/SweeIcon';
 import { TripPlanForm, EventPlanForm } from '../../components/chat/SweePlanForm';
 import { useKeyboardVisible } from '../../hooks/useKeyboardVisible';
+import useAppLimits from '../../hooks/useAppLimits';
 import { KeyboardAvoider } from '../../components/common/KeyboardAvoider';
 import useChatStore from '../../store/chatStore';
 import useAuthStore from '../../store/authStore';
@@ -273,6 +274,7 @@ function TypingIndicator() {
 export default function ChatDetailScreen({ route, navigation }: any) {
   const insets = useChromeInsets();
   const keyboardVisible = useKeyboardVisible();
+  const { sweeMessageMax, reportReasonMax } = useAppLimits();
   const initialMessageParam = route?.params?.initialMessage;
 
   // Space the container always reserves below the composer: the floating tab
@@ -1019,7 +1021,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
             value={inputText}
             onChangeText={setInputText}
             multiline
-            maxLength={1000}
+            maxLength={sweeMessageMax}
             selectionColor="#0d9488"
             editable={!isTyping && !isWelcomeTyping}
           />
@@ -1104,7 +1106,7 @@ export default function ChatDetailScreen({ route, navigation }: any) {
                   value={reportReason}
                   onChangeText={setReportReason}
                   multiline
-                  maxLength={500}
+                  maxLength={reportReasonMax}
                   selectionColor="#0d9488"
                 />
                 <TouchableOpacity

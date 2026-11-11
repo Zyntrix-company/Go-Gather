@@ -19,6 +19,7 @@ import messaging from '@react-native-firebase/messaging';
 import ThemedAlert from './src/components/common/ThemedAlert';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { loadUploadLimits } from './src/utils/uploadLimits';
+import { loadAppLimits } from './src/hooks/useAppLimits';
 import useAuthStore from './src/store/authStore';
 import usePendingInviteStore, { PendingInvite } from './src/store/pendingInviteStore';
 import { applyInstallReferrer } from './src/utils/installReferrer';
@@ -225,6 +226,7 @@ function App() {
 
   useEffect(() => {
     loadUploadLimits();
+    loadAppLimits();
   }, []);
 
   return (

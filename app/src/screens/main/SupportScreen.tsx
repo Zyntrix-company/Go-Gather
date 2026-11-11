@@ -9,6 +9,7 @@ import { X } from 'lucide-react-native';
 import AppScreenLayout, { TAB_BAR_SCROLL_PADDING } from '../../components/common/AppScreenLayout';
 import colors from '../../theme/colors';
 import { showAlert } from '../../store/alertStore';
+import useAppLimits from '../../hooks/useAppLimits';
 import { submitFeedback } from '../../api/feedback.api';
 
 function Chevron() {
@@ -37,6 +38,7 @@ const REPORT_OPTIONS = [
 ];
 
 export default function SupportScreen({ navigation }: { navigation: any }) {
+  const { reportReasonMax } = useAppLimits();
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [reportDetails, setReportDetails] = useState('');
@@ -145,7 +147,7 @@ export default function SupportScreen({ navigation }: { navigation: any }) {
                   value={reportDetails}
                   onChangeText={setReportDetails}
                   multiline
-                  maxLength={500}
+                  maxLength={reportReasonMax}
                   selectionColor="#0d9488"
                 />
                 <TouchableOpacity

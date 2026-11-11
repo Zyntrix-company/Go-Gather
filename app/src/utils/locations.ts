@@ -109,5 +109,3 @@ export function toLocationPayload(locations: LocationPoint[]) {
     sortOrder: loc.sortOrder ?? index,
   }));
 }
-
-export const MAX_LOCATIONS = 10;

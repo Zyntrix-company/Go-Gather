@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import LocationAutocomplete from './LocationAutocomplete';
 import type { LocationPoint } from '../../utils/locations';
-import { MAX_LOCATIONS } from '../../utils/locations';
+import useAppLimits from '../../hooks/useAppLimits';
 
 interface Props {
   value: LocationPoint[];
@@ -15,10 +15,12 @@ interface Props {
 export default function LocationMultiPicker({
   value,
   onChange,
-  maxLocations = MAX_LOCATIONS,
+  maxLocations: maxLocationsProp,
   placeholder = 'Search and add location...',
   variant = 'create',
 }: Props) {
+  const appLimits = useAppLimits();
+  const maxLocations = maxLocationsProp ?? appLimits.maxLocations;
   const [draft, setDraft] = useState('');
   const [pickerKey, setPickerKey] = useState(0);
 
