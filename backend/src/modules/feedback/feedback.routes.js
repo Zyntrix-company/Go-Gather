@@ -7,6 +7,7 @@ const express = require('express');
 const authenticateJWT = require('../../middleware/authenticate');
 const { query: db } = require('../../config/database');
 const logger = require('../../utils/logger');
+const { limits } = require('../../config/appLimits');
 
 const router = express.Router();
 
@@ -15,6 +16,10 @@ router.post('/', authenticateJWT, async (req, res, next) => {
 
   if (!message || typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'message is required', statusCode: 400 });
+  }
+
+  if (message.trim().length > limits.reportReasonMax) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: `message must be at most ${limits.reportReasonMax} characters`, statusCode: 400 });
   }
 
   try {

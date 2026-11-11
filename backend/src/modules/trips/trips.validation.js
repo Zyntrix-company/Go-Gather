@@ -1,5 +1,6 @@
 const { body, param, query } = require('express-validator');
 const { MAX_LOCATIONS } = require('../../utils/locations.util');
+const { limits } = require('../../config/appLimits');
 
 // ── Helpers ───────────────────────────────────────────────────
 const isUUID = (value) =>
@@ -7,7 +8,7 @@ const isUUID = (value) =>
 
 // ── Trip CRUD ─────────────────────────────────────────────────
 const createTripValidation = [
-  body('name').trim().notEmpty().withMessage('Trip name is required').isLength({ min: 3, max: 255 }),
+  body('name').trim().notEmpty().withMessage('Trip name is required').isLength({ min: 3, max: limits.tripNameMax }),
   body('startDate')
     .isISO8601().withMessage('startDate must be a valid ISO 8601 date (YYYY-MM-DD)')
     .custom((val) => {

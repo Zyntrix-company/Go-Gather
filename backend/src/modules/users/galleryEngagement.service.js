@@ -2,6 +2,7 @@ const db = require('../../config/database');
 const { notifyGalleryLiked, notifyGalleryComment } = require('./galleryEngagementNotifications');
 const { verifyViewerAccess } = require('./galleryOverlay.service');
 const galleryAlbumsService = require('./galleryAlbums.service');
+const { limits } = require('../../config/appLimits');
 
 const PARENT_TYPE_GALLERY_ALBUM = 'gallery_album';
 
@@ -156,8 +157,8 @@ const addComment = async (userId, parentType, parentId, text, { galleryOwnerId }
   await verifyEngagementAccess(userId, parentType, parentId, { galleryOwnerId });
 
   const clean = (text ?? '').trim();
-  if (!clean || clean.length > 30) {
-    const e = new Error('Comment must be 1–30 characters');
+  if (!clean || clean.length > limits.galleryCommentMax) {
+    const e = new Error(`Comment must be 1–${limits.galleryCommentMax} characters`);
     e.statusCode = 400;
     e.error = 'VALIDATION_ERROR';
     throw e;
@@ -184,8 +185,8 @@ const addComment = async (userId, parentType, parentId, text, { galleryOwnerId }
 
 const updateComment = async (userId, commentId, text) => {
   const clean = (text ?? '').trim();
-  if (!clean || clean.length > 30) {
-    const e = new Error('Comment must be 1–30 characters');
+  if (!clean || clean.length > limits.galleryCommentMax) {
+    const e = new Error(`Comment must be 1–${limits.galleryCommentMax} characters`);
     e.statusCode = 400;
     e.error = 'VALIDATION_ERROR';
     throw e;

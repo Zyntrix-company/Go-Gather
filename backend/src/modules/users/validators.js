@@ -1,4 +1,5 @@
 const { body, param, query } = require('express-validator');
+const { limits } = require('../../config/appLimits');
 
 const saveProfileValidation = [
   body('fullName')
@@ -22,8 +23,8 @@ const saveProfileValidation = [
     .trim(),
   body('bio')
     .optional()
-    .isLength({ max: 500 })
-    .withMessage('Bio must be at most 500 characters')
+    .isLength({ max: limits.bioMax })
+    .withMessage(`Bio must be at most ${limits.bioMax} characters`)
     .trim(),
 ];
 
@@ -46,8 +47,8 @@ const updateProfileValidation = [
     .withMessage('Username must be 3–20 chars, lowercase letters, numbers, and underscores only'),
   body('bio')
     .optional()
-    .isLength({ max: 500 })
-    .withMessage('Bio must be at most 500 characters')
+    .isLength({ max: limits.bioMax })
+    .withMessage(`Bio must be at most ${limits.bioMax} characters`)
     .trim(),
   body('country')
     .optional()
@@ -81,14 +82,14 @@ const createGalleryAlbumValidation = [
     .withMessage('section must be trip or event'),
   body('subtitle')
     .optional()
-    .isLength({ max: 80 })
+    .isLength({ max: limits.galleryAlbumDescriptionMax })
     .trim(),
 ];
 
 const updateGalleryAlbumValidation = [
   ...albumIdParam,
   body('name').optional().isLength({ min: 1, max: 120 }).trim(),
-  body('subtitle').optional().isLength({ max: 80 }).trim(),
+  body('subtitle').optional().isLength({ max: limits.galleryAlbumDescriptionMax }).trim(),
   body('bannerImageUrl').optional().isString(),
 ];
 
@@ -121,9 +122,9 @@ const galleryCommentIdParam = [
 
 const galleryCommentBody = [
   body('text')
-    .isLength({ min: 1, max: 30 })
+    .isLength({ min: 1, max: limits.galleryCommentMax })
     .trim()
-    .withMessage('Comment must be 1–30 characters'),
+    .withMessage(`Comment must be 1–${limits.galleryCommentMax} characters`),
 ];
 
 const galleryOwnerIdQuery = [

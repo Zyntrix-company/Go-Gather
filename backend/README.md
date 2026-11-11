@@ -37,7 +37,7 @@ src/
 │   ├── requests/      Pending invite requests
 │   ├── places/        Google Places autocomplete proxy (rate limited)
 │   ├── legal/         Public Privacy Policy / Terms (`/legal`)
-│   ├── config/        Public runtime config (`/config/upload-limits`)
+│   ├── config/        Public runtime config (`/config/upload-limits`, `/config/app-limits`)
 │   ├── deals/         Deals shown in app + website (DB-backed, managed from admin)
 │   ├── blogs/         Blog posts (DB-backed, managed from admin)
 │   ├── promo-video/   Landing-page promo video
@@ -487,6 +487,7 @@ curl -s $BASE/.well-known/assetlinks.json | jq .[0].relation
 | `GEMINI_MODEL` | No | Override the Gemini model |
 | `SWEE_*` | No | Swee rate limits, circuit breaker, alert thresholds, scope guard (`SWEE_SCOPE_GUARD`) |
 | `UPLOAD_*` | No | Media size / count limits (see `docs/upload-limits.md`) |
+| `LIMIT_*` | No | Text / count limits (comment, name, bio, Swee message, report, locations…); see `.env.example` |
 | `STORAGE_QUOTA_BYTES` | No | Capacity used by admin storage analytics |
 | `BREVO_API_KEY`, `BREVO_FROM_EMAIL`, `BREVO_FROM_NAME` | No | Brevo transactional email |
 | `CLIENT_URL`, `WEBSITE_URL`, `PASSWORD_RESET_URL`, `ALLOWED_ORIGINS`, `CONTACT_ALLOWED_ORIGINS` | Yes | URLs / CORS |
@@ -680,6 +681,7 @@ Pending invite requests for the current user (`GET /requests`, plus accept/decli
 | POST | `/feedback` | Yes | In-app feedback |
 | GET | `/places/autocomplete` | Yes | Google Places autocomplete proxy |
 | GET | `/config/upload-limits` | No | Server-side media limits used by the app |
+| GET | `/config/app-limits` | No | Server-side text / count limits used by the app |
 | GET | `/legal/privacy`, `/legal/terms` | No | Current legal documents |
 | GET | `/blogs`, `/blogs/:idOrSlug` | No | Blog posts |
 | GET | `/deals` | No | Deals |

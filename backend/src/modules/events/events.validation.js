@@ -1,12 +1,13 @@
 const { body, param, query } = require('express-validator');
 const { MAX_LOCATIONS } = require('../../utils/locations.util');
+const { limits } = require('../../config/appLimits');
 
 const isUUID = (value) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
 // ── Event CRUD ────────────────────────────────────────────────
 const createEventValidation = [
-  body('name').trim().notEmpty().withMessage('Event name is required').isLength({ min: 2, max: 255 }),
+  body('name').trim().notEmpty().withMessage('Event name is required').isLength({ min: 2, max: limits.eventNameMax }),
   body('eventDate')
     .isISO8601().withMessage('eventDate must be a valid ISO 8601 date (YYYY-MM-DD)')
     .custom((val) => {

@@ -4,6 +4,7 @@ const sweeMetrics = require('./swee.metrics');
 const aiUsageService = require('./aiUsage.service');
 const { geminiRateLimitMessage, serviceBusyMessage } = require('./swee.messages');
 const logger = require('../../utils/logger');
+const { limits } = require('../../config/appLimits');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,6 +50,10 @@ const chat = async (req, res, next) => {
 
     if (!hasText && attachmentList.length === 0) {
       return res.status(400).json({ error: 'BadRequest', message: 'message or an attachment is required' });
+    }
+
+    if (hasText && message.trim().length > limits.sweeMessageMax) {
+      return res.status(400).json({ error: 'BadRequest', message: `message must be at most ${limits.sweeMessageMax} characters` });
     }
 
     if (conversationId && !isUuid(conversationId)) {
@@ -159,6 +164,10 @@ const reportIssue = async (req, res, next) => {
 
     if (!reason || typeof reason !== 'string' || !reason.trim()) {
       return res.status(400).json({ error: 'BadRequest', message: 'reason is required' });
+    }
+
+    if (reason.trim().length > limits.reportReasonMax) {
+      return res.status(400).json({ error: 'BadRequest', message: `reason must be at most ${limits.reportReasonMax} characters` });
     }
 
     await aiService.reportIssue(req.user.id, messageId, reason.trim());

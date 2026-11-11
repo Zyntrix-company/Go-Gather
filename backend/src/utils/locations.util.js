@@ -1,4 +1,4 @@
-const MAX_LOCATIONS = 10;
+const { maxLocations: MAX_LOCATIONS } = require('../config/appLimits').limits;
 
 const formatLocationRow = (row) => ({
   id: row.id,
