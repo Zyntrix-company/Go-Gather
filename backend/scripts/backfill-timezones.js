@@ -10,8 +10,9 @@
  *
  * Idempotent: only NULL time zones are filled, and a reminder is updated only when its
  * corrected time differs from the stored one — a second run reports 0 changes.
- * Sent reminders and reminders already due (scheduled in the past) are never touched; a
- * reminder whose corrected time has already passed is left as is (it still fires once).
+ * Sent reminders and reminders already due (scheduled in the past) are never touched; an
+ * unsent future reminder whose corrected time has already passed is deleted, so it can't
+ * fire late at its old time (same rule as the app when a time zone changes).
  *
  * Time zone resolution matches the app (src/utils/localTime.js): coordinates → creator's
  * users.timezone → Asia/Kolkata. Reminder times always use the TRIP_TIMEZONES=on rules,
@@ -37,15 +38,15 @@ const bump = (counts, ...keys) => {
  * @param {{ query: Function, apply?: boolean, now?: Date }} opts
  *   query: (sql, params) => Promise<{ rows, rowCount }>
  * @returns counts { timezones: { trips: {zone:n}, events: {zone:n} },
- *                   reminders: { activity|trip|event: { rescheduled: {zone:n}, unchanged, skippedPast } } }
+ *                   reminders: { activity|trip|event: { rescheduled: {zone:n}, unchanged, droppedPast, skippedInvalid } } }
  */
 const run = async ({ query, apply = false, now = new Date() }) => {
   const counts = {
     timezones: { trips: {}, events: {} },
     reminders: {
-      activity: { rescheduled: {}, unchanged: 0, skippedPast: 0 },
-      trip: { rescheduled: {}, unchanged: 0, skippedPast: 0 },
-      event: { rescheduled: {}, unchanged: 0, skippedPast: 0 },
+      activity: { rescheduled: {}, unchanged: 0, droppedPast: 0, skippedInvalid: 0 },
+      trip: { rescheduled: {}, unchanged: 0, droppedPast: 0, skippedInvalid: 0 },
+      event: { rescheduled: {}, unchanged: 0, droppedPast: 0, skippedInvalid: 0 },
     },
   };
 
@@ -74,11 +75,22 @@ const run = async ({ query, apply = false, now = new Date() }) => {
 
   const reschedule = async (kind, table, row, zone, target) => {
     const bucket = counts.reminders[kind];
-    if (!target || !(target > now)) { bucket.skippedPast += 1; return; }
+    if (!target) { bucket.skippedInvalid += 1; return; }
+    const column = kind === 'activity' ? 'remind_at' : 'scheduled_at';
+    if (!(target > now)) {
+      // Corrected time has passed but the old one is still ahead: drop it rather than fire late
+      bucket.droppedPast += 1;
+      if (apply) {
+        await query(
+          `DELETE FROM ${table} WHERE id = $1 AND sent_at IS NULL AND ${column} > NOW()`,
+          [row.id],
+        );
+      }
+      return;
+    }
     if (sameInstant(target, row.current)) { bucket.unchanged += 1; return; }
     bump(bucket, 'rescheduled', zone);
     if (apply) {
-      const column = kind === 'activity' ? 'remind_at' : 'scheduled_at';
       await query(
         `UPDATE ${table} SET ${column} = $2 WHERE id = $1 AND sent_at IS NULL AND ${column} > NOW()`,
         [row.id, target.toISOString()],
@@ -142,7 +154,9 @@ const printCounts = (counts, apply) => {
   for (const kind of ['activity', 'trip', 'event']) {
     const r = counts.reminders[kind];
     const total = Object.values(r.rescheduled).reduce((a, b) => a + b, 0);
-    console.log(`\n${kind} reminders — ${verb.toLowerCase()} ${total}, unchanged ${r.unchanged}, left as is (corrected time already passed) ${r.skippedPast}`);
+    console.log(`\n${kind} reminders — ${verb.toLowerCase()} ${total}, unchanged ${r.unchanged}, `
+      + `${apply ? 'deleted' : 'would delete'} (corrected time already passed) ${r.droppedPast}, `
+      + `left as is (time could not be computed) ${r.skippedInvalid}`);
     for (const [zone, n] of Object.entries(r.rescheduled).sort()) console.log(`  ${zone.padEnd(32)} ${n}`);
   }
   /* eslint-enable no-console */

@@ -95,6 +95,12 @@ const fakeDb = (store) => {
       if (row && row.sent_at === null && row[m[2]] > NOW) { row[m[2]] = new Date(params[1]); return { rowCount: 1, rows: [] }; }
       return { rowCount: 0, rows: [] };
     }
+    if ((m = sql.match(/^DELETE FROM (trip_reminders|event_reminders|activity_reminders) WHERE id = \$1 AND sent_at IS NULL AND (scheduled_at|remind_at) > NOW\(\)$/))) {
+      writes.push([sql, params]);
+      const i = store[m[1]].findIndex((r) => r.id === params[0] && r.sent_at === null && r[m[2]] > NOW);
+      if (i >= 0) { store[m[1]].splice(i, 1); return { rowCount: 1, rows: [] }; }
+      return { rowCount: 0, rows: [] };
+    }
     throw new Error(`unexpected SQL: ${sql}`);
   });
   return { query, writes };
@@ -118,10 +124,10 @@ describe('backfill-timezones', () => {
     });
     // London trip: start + 1d move (sent 1w untouched); Goa unchanged; already-set NY trip moves
     expect(counts.reminders.trip).toEqual({
-      rescheduled: { 'Europe/London': 2, 'America/New_York': 1 }, unchanged: 1, skippedPast: 0,
+      rescheduled: { 'Europe/London': 2, 'America/New_York': 1 }, unchanged: 1, droppedPast: 0, skippedInvalid: 0,
     });
-    expect(counts.reminders.event).toEqual({ rescheduled: { 'America/New_York': 1 }, unchanged: 0, skippedPast: 0 });
-    expect(counts.reminders.activity).toEqual({ rescheduled: { 'Europe/London': 1 }, unchanged: 1, skippedPast: 0 });
+    expect(counts.reminders.event).toEqual({ rescheduled: { 'America/New_York': 1 }, unchanged: 0, droppedPast: 0, skippedInvalid: 0 });
+    expect(counts.reminders.activity).toEqual({ rescheduled: { 'Europe/London': 1 }, unchanged: 1, droppedPast: 0, skippedInvalid: 0 });
   });
 
   it('real run fills zones and moves only unsent future reminders to the local time', async () => {
@@ -174,15 +180,59 @@ describe('backfill-timezones', () => {
     for (const kind of ['activity', 'trip', 'event']) expect(total(counts.reminders[kind].rescheduled)).toBe(0);
   });
 
-  it('a reminder whose corrected time has already passed is left as is', async () => {
+  const tokyoStore = () => {
     const store = makeStore();
     // Tokyo is ahead of India: 09:00 JST = 00:00Z, before the stored 03:30Z
     store.trips = [{ id: 't-tyo', location_lat: '35.6762', location_lng: '139.6503', created_by: 'u-ist', timezone: null, start_date: '2026-01-10', created_at: 1 }];
     store.trip_reminders = [{ id: 'tr-tyo', trip_id: 't-tyo', reminder_type: 'trip_start', scheduled_at: new Date('2026-01-10T03:30:00Z'), sent_at: null }];
-    store.events = []; store.event_reminders = []; store.activity_reminders = [];
+    store.trip_activities = [{ id: 'a-tyo', trip_id: 't-tyo', activity_date: '2026-01-10', activity_time: '09:05:00' }];
+    // 09:05 JST - 10 min = 23:55Z on 9 Jan (passed); the stored IST time 03:25Z is still ahead
+    store.activity_reminders = [{ id: 'ar-tyo', activity_id: 'a-tyo', trip_id: 't-tyo', reminder_minutes: 10, remind_at: new Date('2026-01-10T03:25:00Z'), sent_at: null }];
+    store.events = []; store.event_reminders = [];
+    return store;
+  };
+
+  it('an unsent reminder whose corrected time has already passed is deleted, not fired late', async () => {
+    const store = tokyoStore();
     const { query, writes } = fakeDb(store);
     const counts = await run({ query, apply: true, now: NOW }); // now = 2026-01-10T00:00Z: 00:00Z is not in the future
-    expect(counts.reminders.trip.skippedPast).toBe(1);
+    expect(counts.reminders.trip).toMatchObject({ droppedPast: 1, skippedInvalid: 0 });
+    expect(counts.reminders.activity).toMatchObject({ droppedPast: 1, skippedInvalid: 0 });
+    expect(store.trip_reminders).toHaveLength(0);
+    expect(store.activity_reminders).toHaveLength(0);
+    expect(writes.filter(([sql]) => /^DELETE/.test(sql)).map(([sql]) => sql)).toEqual([
+      'DELETE FROM trip_reminders WHERE id = $1 AND sent_at IS NULL AND scheduled_at > NOW()',
+      'DELETE FROM activity_reminders WHERE id = $1 AND sent_at IS NULL AND remind_at > NOW()',
+    ]);
+  });
+
+  it('dry run only counts reminders it would delete', async () => {
+    const store = tokyoStore();
+    const before = JSON.stringify(store);
+    const { query, writes } = fakeDb(store);
+    const counts = await run({ query, now: NOW });
+    expect(counts.reminders.trip.droppedPast).toBe(1);
+    expect(counts.reminders.activity.droppedPast).toBe(1);
+    expect(writes).toHaveLength(0);
+    expect(JSON.stringify(store)).toBe(before);
+  });
+
+  it('sent and already-due reminders are never deleted, even when their corrected time has passed', async () => {
+    const store = tokyoStore();
+    store.trip_reminders.push(
+      { id: 'tr-tyo-sent', trip_id: 't-tyo', reminder_type: '1_day_before', scheduled_at: new Date('2026-01-10T03:30:00Z'), sent_at: new Date('2026-01-09T00:00:00Z') },
+      { id: 'tr-tyo-due', trip_id: 't-tyo', reminder_type: '3_days_before', scheduled_at: new Date('2026-01-07T03:30:00Z'), sent_at: null },
+    );
+    await run({ query: fakeDb(store).query, apply: true, now: NOW });
+    expect(store.trip_reminders.map((r) => r.id)).toEqual(['tr-tyo-sent', 'tr-tyo-due']);
+  });
+
+  it('a reminder whose time cannot be computed is left as is', async () => {
+    const store = tokyoStore();
+    store.trip_reminders[0].reminder_type = 'unknown_type';
+    const { query, writes } = fakeDb(store);
+    const counts = await run({ query, apply: true, now: NOW });
+    expect(counts.reminders.trip).toMatchObject({ droppedPast: 0, skippedInvalid: 1 });
     expect(writes.filter(([sql]) => /trip_reminders/.test(sql))).toHaveLength(0);
   });
 
