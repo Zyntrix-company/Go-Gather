@@ -8,6 +8,7 @@
  */
 const { DateTime, IANAZone } = require('luxon');
 const tzLookup = require('tz-lookup');
+const logger = require('./logger');
 
 // Today's behaviour everywhere: India time.
 const DEFAULT_TIME_ZONE = 'Asia/Kolkata';
@@ -50,10 +51,40 @@ const localToUtc = (date, time, timeZone) => {
   return dt.isValid ? dt.toJSDate() : null;
 };
 
+// Zone names this Postgres recognises, loaded once from pg_timezone_names. Stored
+// zones are used in `AT TIME ZONE` list queries, where an unknown name is an error,
+// and Node's ICU tz data can be newer than the server's (e.g. Europe/Kyiv).
+let pgZones = null;
+let pgZonesLoading = null;
+const loadPgZones = () => {
+  if (pgZones) return Promise.resolve(pgZones);
+  if (!pgZonesLoading) {
+    pgZonesLoading = (async () => {
+      try {
+        const { query } = require('../config/database'); // lazy: keeps this module DB-free until needed
+        const result = await query('SELECT name FROM pg_timezone_names', []);
+        const names = new Set((result?.rows || []).map((r) => r.name));
+        if (names.size > 0) pgZones = names;
+      } catch (err) {
+        logger.warn('pg_timezone_names load failed', { error: err.message });
+      }
+      return pgZones; // null on failure → retried on the next call
+    })().finally(() => { pgZonesLoading = null; }); // async, so it runs even after a synchronous throw
+  }
+  return pgZonesLoading;
+};
+
+// Valid IANA zone that Postgres also knows (Luxon-only check if the list can't be loaded).
+const isStorableZone = async (zone) => {
+  if (!isValidZone(zone)) return false;
+  const zones = await loadPgZones();
+  return !zones || zones.has(zone);
+};
+
 /**
  * IANA zone for a trip/event: from its coordinates, else the zone returned by
  * `getFallbackZone` (the creator's users.timezone — only called when needed),
- * else Asia/Kolkata.
+ * else Asia/Kolkata. Only zones Postgres recognises are returned.
  */
 const resolveTimeZone = async (lat, lng, getFallbackZone) => {
   const hasCoords = lat !== null && lat !== undefined && lat !== ''
@@ -64,12 +95,12 @@ const resolveTimeZone = async (lat, lng, getFallbackZone) => {
     if (Number.isFinite(la) && Number.isFinite(lo) && Math.abs(la) <= 90 && Math.abs(lo) <= 180) {
       try {
         const zone = tzLookup(la, lo);
-        if (isValidZone(zone)) return zone;
+        if (await isStorableZone(zone)) return zone;
       } catch { /* fall through to fallback */ }
     }
   }
   const fallback = getFallbackZone ? await getFallbackZone() : null;
-  return isValidZone(fallback) ? fallback : DEFAULT_TIME_ZONE;
+  return (await isStorableZone(fallback)) ? fallback : DEFAULT_TIME_ZONE;
 };
 
 module.exports = { DEFAULT_TIME_ZONE, localToUtc, resolveTimeZone, toIsoDate };

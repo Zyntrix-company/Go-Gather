@@ -232,6 +232,43 @@ describe('trip-local reminder times (TRIP_TIMEZONES on)', () => {
       expect(sql).not.toMatch(/INSERT/);
     }
   });
+
+  // London → Tokyo on the start day at 05:00Z: old 09:00 London (08:00Z) is still
+  // ahead, new 09:00 Tokyo (00:00Z) has passed — the reminder must not fire late.
+  it('onlyExisting (flag on): a time zone change into the past drops the unsent row instead of firing late', async () => {
+    setFlag(true);
+    jest.setSystemTime(new Date('2026-04-02T05:00:00.000Z'));
+    const ex = executor();
+    const changed = await scheduleTripReminders(ex, 'trip-1', '2026-04-02', 'Asia/Tokyo', { onlyExisting: true });
+    expect(changed).toBe(0);
+    const calls = ex.query.mock.calls;
+    expect(calls.map(([, p]) => p[1])).toEqual(['trip_start', '1_day_before', '3_days_before', '1_week_before']);
+    for (const [sql, p] of calls) {
+      expect(sql).toBe('DELETE FROM trip_reminders WHERE trip_id = $1 AND reminder_type = $2 AND sent_at IS NULL');
+      expect(p[0]).toBe('trip-1');
+    }
+  });
+
+  it('onlyExisting (flag on): only the passed reminder is dropped; future ones still move', async () => {
+    setFlag(true);
+    jest.setSystemTime(new Date('2026-04-02T05:00:00.000Z'));
+    const ex = executor();
+    await scheduleEventReminders(ex, 'event-1', '2026-04-03', 'Asia/Tokyo', { onlyExisting: true });
+    // event_start 2026-04-03 00:00Z is ahead → moved; 1 day before (2026-04-02 00:00Z) has passed → dropped
+    expect(ex.query.mock.calls.map(([sql, p]) => [sql.split(' ')[0], p[1]])).toEqual([
+      ['UPDATE', 'event_start'], ['DELETE', '1_day_before'], ['DELETE', '3_days_before'], ['DELETE', '1_week_before'],
+    ]);
+    expect(ex.query.mock.calls[1][0]).toBe('DELETE FROM event_reminders WHERE event_id = $1 AND reminder_type = $2 AND sent_at IS NULL');
+  });
+
+  it('flag off: passed reminders are skipped without deleting anything (unchanged)', async () => {
+    setFlag(false);
+    jest.setSystemTime(new Date('2026-04-02T05:00:00.000Z'));
+    const ex = executor();
+    await scheduleTripReminders(ex, 'trip-1', '2026-04-02', 'Asia/Tokyo', { onlyExisting: true });
+    await scheduleTripReminders(ex, 'trip-1', '2026-04-01', null);
+    expect(ex.query.mock.calls.filter(([sql]) => /DELETE/.test(sql))).toHaveLength(0);
+  });
 });
 
 // ── Quiet hours: unchanged ────────────────────────────────────────────────────

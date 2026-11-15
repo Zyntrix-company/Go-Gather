@@ -21,6 +21,8 @@ const db = require('../../src/config/database');
 const config = require('../../src/config');
 const trips = require('../../src/modules/trips/trips.service');
 const events = require('../../src/modules/events/events.service');
+const home = require('../../src/modules/home/home.service');
+const users = require('../../src/modules/users/service');
 
 // ── Oracle: today's day-reminder rule, copied verbatim ───────────────────────
 const legacyDayReminders = (startDate, startType) => {
@@ -367,5 +369,51 @@ describe('local "today"', () => {
   it('flag on: timezone is included in the trip API response', async () => {
     setFlag(true);
     expect((await daysToGo('Europe/London')).timezone).toBe('Europe/London');
+  });
+
+  const LOCAL_T = "(NOW() AT TIME ZONE COALESCE(t.timezone, 'Asia/Kolkata'))::date";
+  const LOCAL_E = "(NOW() AT TIME ZONE COALESCE(e.timezone, 'Asia/Kolkata'))::date";
+  const homeCalls = () => state.calls.filter(([sql]) => /FROM trips t\s+JOIN trip_members tm/.test(sql));
+
+  it('Home flag off: days to go / upcoming / ongoing exactly as before (server date, date param)', async () => {
+    await home.getHomeDashboard(USER_ID);
+    const [upcoming, ongoing] = homeCalls();
+    expect(upcoming[0]).toContain('(t.start_date::date - CURRENT_DATE) AS "daysToGo"');
+    expect(upcoming[0]).toContain('WHERE t.start_date > $2::date');
+    expect(ongoing[0]).toContain('WHERE t.start_date <= $2::date AND t.end_date >= $2::date');
+    expect(upcoming[1]).toEqual([USER_ID, '2026-01-10']);
+    expect(ongoing[1]).toEqual([USER_ID, '2026-01-10']);
+    for (const [sql] of homeCalls()) expect(sql).not.toMatch(/AT TIME ZONE/);
+  });
+
+  it('Home flag on: days to go / upcoming / ongoing use the trip-local date (same as GET /trips)', async () => {
+    setFlag(true);
+    await home.getHomeDashboard(USER_ID);
+    const [upcoming, ongoing] = homeCalls();
+    expect(upcoming[0]).toContain(`(t.start_date::date - ${LOCAL_T}) AS "daysToGo"`);
+    expect(upcoming[0]).toContain(`WHERE t.start_date > ${LOCAL_T}`);
+    expect(ongoing[0]).toContain(`WHERE t.start_date <= ${LOCAL_T} AND t.end_date >= ${LOCAL_T}`);
+    for (const [sql, params] of homeCalls()) {
+      expect(sql).not.toMatch(/CURRENT_DATE|\$2/);
+      expect(params).toEqual([USER_ID]); // no unused $2 parameter
+    }
+  });
+
+  const galleryCalls = () => state.calls.filter(([sql]) => /user_gallery_item_meta m/.test(sql));
+
+  it('profile gallery flag off: past lists use the server date', async () => {
+    await users.getUserGallery(USER_ID);
+    const [tripsSql, eventsSql] = galleryCalls().map(([sql]) => sql);
+    expect(tripsSql).toContain('AND t.end_date < CURRENT_DATE');
+    expect(eventsSql).toContain('AND e.event_date < CURRENT_DATE');
+  });
+
+  it('profile gallery flag on: past lists use each trip and event local date', async () => {
+    setFlag(true);
+    await users.getUserGallery(USER_ID);
+    const [tripsSql, eventsSql] = galleryCalls().map(([sql]) => sql);
+    expect(tripsSql).toContain(`AND t.end_date < ${LOCAL_T}`);
+    expect(eventsSql).toContain(`AND e.event_date < ${LOCAL_E}`);
+    expect(tripsSql + eventsSql).not.toMatch(/CURRENT_DATE/);
   });
 });

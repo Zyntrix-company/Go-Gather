@@ -163,9 +163,9 @@ const scheduleStartReminders = async (executor, table, idColumn, startType, id, 
   let changed = 0;
   for (const r of startReminderTimes(startDate, timeZone, startType)) {
     if (!(r.date > new Date())) {
-      // TRIP_TIMEZONES: dates moved so this reminder's day has passed — drop the stale
-      // unsent row so it can't fire at its old time (flag off keeps today's behaviour).
-      if (r.date && !onlyExisting && config.featureFlags.tripTimezones) {
+      // TRIP_TIMEZONES: dates or time zone moved so this reminder's time has passed — drop
+      // the stale unsent row so it can't fire late at its old time (flag off keeps today's behaviour).
+      if (r.date && config.featureFlags.tripTimezones) {
         await executor.query(
           `DELETE FROM ${table} WHERE ${idColumn} = $1 AND reminder_type = $2 AND sent_at IS NULL`,
           [id, r.type],

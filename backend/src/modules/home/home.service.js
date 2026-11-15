@@ -1,5 +1,7 @@
 const { query } = require('../../config/database');
+const config = require('../../config');
 const logger = require('../../utils/logger');
+const { DEFAULT_TIME_ZONE } = require('../../utils/localTime');
 
 /**
  * Get personalised home dashboard data for the authenticated user.
@@ -8,6 +10,11 @@ const logger = require('../../utils/logger');
  */
 const getHomeDashboard = async (userId) => {
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  // TRIP_TIMEZONES: "today" = the trip's local date (same as GET /trips), else as before
+  const local = config.featureFlags.tripTimezones;
+  const localToday = `(NOW() AT TIME ZONE COALESCE(t.timezone, '${DEFAULT_TIME_ZONE}'))::date`;
+  const todaySql = local ? localToday : '$2::date';
+  const params = local ? [userId] : [userId, today];
 
   // ── Upcoming trips (startDate > today), with member avatars ──
   const upcomingTripsResult = await query(`
@@ -18,7 +25,7 @@ const getHomeDashboard = async (userId) => {
       t.start_date          AS "startDate",
       t.end_date            AS "endDate",
       t.cover_photo_url     AS "coverPhotoUrl",
-      (t.start_date::date - CURRENT_DATE) AS "daysToGo",
+      (t.start_date::date - ${local ? localToday : 'CURRENT_DATE'}) AS "daysToGo",
       COALESCE(
         (
           SELECT json_agg(avatar)
@@ -40,10 +47,10 @@ const getHomeDashboard = async (userId) => {
       ) AS "memberAvatars"
     FROM trips t
     JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = $1
-    WHERE t.start_date > $2::date
+    WHERE t.start_date > ${todaySql}
     ORDER BY t.start_date ASC
     LIMIT 10
-  `, [userId, today]);
+  `, params);
 
   // ── Ongoing trip (startDate <= today <= endDate), prioritise trips ──
   const ongoingResult = await query(`
@@ -55,10 +62,10 @@ const getHomeDashboard = async (userId) => {
       'trip'          AS type
     FROM trips t
     JOIN trip_members tm ON tm.trip_id = t.id AND tm.user_id = $1
-    WHERE t.start_date <= $2::date AND t.end_date >= $2::date
+    WHERE t.start_date <= ${todaySql} AND t.end_date >= ${todaySql}
     ORDER BY t.start_date ASC
     LIMIT 1
-  `, [userId, today]);
+  `, params);
 
   // ── User info + pending friend requests count (single query) ──
   const userResult = await query(`

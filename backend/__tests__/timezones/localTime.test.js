@@ -1,5 +1,13 @@
 require('../setup');
 
+// resolveTimeZone checks names against pg_timezone_names; never reach a real DB here.
+const PG_ZONES = ['Asia/Kolkata', 'Europe/London', 'America/New_York', 'Europe/Berlin', 'Europe/Paris', 'Europe/Kiev'];
+jest.mock('../../src/config/database', () => ({
+  query: jest.fn(async () => ({ rows: PG_ZONES.map((name) => ({ name })) })),
+  getClient: jest.fn(),
+  pool: { connect: jest.fn(), end: jest.fn() },
+}));
+
 const { localToUtc, resolveTimeZone, DEFAULT_TIME_ZONE } = require('../../src/utils/localTime');
 
 const iso = (d) => (d ? d.toISOString() : d);
@@ -101,5 +109,63 @@ describe('resolveTimeZone', () => {
   it('out-of-range or half-missing coordinates fall back', async () => {
     await expect(resolveTimeZone(100, 10, async () => 'Europe/Paris')).resolves.toBe('Europe/Paris');
     await expect(resolveTimeZone(51.5, null, async () => 'Europe/Paris')).resolves.toBe('Europe/Paris');
+  });
+});
+
+describe('resolveTimeZone — only zones Postgres recognises are returned', () => {
+  // Fresh module per test so the once-per-process zone cache starts empty.
+  const load = (impl) => {
+    let mod; let db;
+    jest.isolateModules(() => {
+      db = require('../../src/config/database');
+      db.query.mockReset();
+      db.query.mockImplementation(impl);
+      mod = require('../../src/utils/localTime');
+    });
+    return { ...mod, db };
+  };
+  const pgKnows = (names) => async () => ({ rows: names.map((name) => ({ name })) });
+
+  it('a user zone Postgres does not know (newer ICU name) falls back to Asia/Kolkata', async () => {
+    const { resolveTimeZone: resolve } = load(pgKnows(PG_ZONES)); // has Europe/Kiev, not Europe/Kyiv
+    await expect(resolve(null, null, async () => 'Europe/Kyiv')).resolves.toBe('Asia/Kolkata');
+    await expect(resolve(null, null, async () => 'Europe/Kiev')).resolves.toBe('Europe/Kiev');
+  });
+
+  it('a coordinate zone Postgres does not know falls back to the user zone, then Asia/Kolkata', async () => {
+    const { resolveTimeZone: resolve } = load(pgKnows(['Asia/Kolkata', 'Europe/Berlin']));
+    await expect(resolve(51.5074, -0.1278, async () => 'Europe/Berlin')).resolves.toBe('Europe/Berlin');
+    await expect(resolve(51.5074, -0.1278, async () => 'Europe/Paris')).resolves.toBe('Asia/Kolkata');
+  });
+
+  it('loads pg_timezone_names once and reuses it (also for concurrent calls)', async () => {
+    const { resolveTimeZone: resolve, db } = load(pgKnows(PG_ZONES));
+    await Promise.all([resolve(51.5074, -0.1278), resolve(40.7128, -74.006)]);
+    await resolve(null, null, async () => 'Europe/Berlin');
+    expect(db.query).toHaveBeenCalledTimes(1);
+    expect(db.query.mock.calls[0][0]).toBe('SELECT name FROM pg_timezone_names');
+  });
+
+  it('if the list cannot be loaded, falls back to the IANA check and retries next time', async () => {
+    const { resolveTimeZone: resolve, db } = load(async () => { throw new Error('db down'); });
+    await expect(resolve(null, null, async () => 'Europe/Kyiv')).resolves.toBe('Europe/Kyiv');
+    await expect(resolve(null, null, async () => 'Not/AZone')).resolves.toBe('Asia/Kolkata'); // no lookup needed
+    await expect(resolve(51.5074, -0.1278)).resolves.toBe('Europe/London');
+    expect(db.query).toHaveBeenCalledTimes(2); // not cached on failure
+    db.query.mockImplementation(pgKnows(PG_ZONES));
+    await expect(resolve(null, null, async () => 'Europe/Kyiv')).resolves.toBe('Asia/Kolkata');
+  });
+
+  it('a synchronous throw from query is also retried next time', async () => {
+    const { resolveTimeZone: resolve, db } = load(() => { throw new Error('sync'); });
+    await expect(resolve(51.5074, -0.1278)).resolves.toBe('Europe/London');
+    db.query.mockImplementation(pgKnows(['Asia/Kolkata']));
+    await expect(resolve(51.5074, -0.1278)).resolves.toBe('Asia/Kolkata');
+    expect(db.query).toHaveBeenCalledTimes(2);
+  });
+
+  it('an empty list is treated as a failed load, not "no zone is valid"', async () => {
+    const { resolveTimeZone: resolve } = load(pgKnows([]));
+    await expect(resolve(51.5074, -0.1278)).resolves.toBe('Europe/London');
   });
 });

@@ -1,6 +1,7 @@
 const db = require('../../config/database');
 const config = require('../../config');
 const logger = require('../../utils/logger');
+const { DEFAULT_TIME_ZONE } = require('../../utils/localTime');
 const { sendWelcomeEmail } = require('../../utils/mailer');
 const { createAndSendNotification, registerDeviceToken } = require('../../utils/fcm.util');
 const legalService = require('../legal/legal.service');
@@ -512,6 +513,11 @@ const getUserGallery = async (targetId) => {
     }
   };
 
+  // TRIP_TIMEZONES: "past" = before the trip's/event's local date, else the DB server's date
+  const localToday = (alias) => (config.featureFlags.tripTimezones
+    ? `(NOW() AT TIME ZONE COALESCE(${alias}.timezone, '${DEFAULT_TIME_ZONE}'))::date`
+    : 'CURRENT_DATE');
+
   const [tripsResult, eventsResult] = await Promise.all([
     db.query(
       `SELECT
@@ -528,7 +534,7 @@ const getUserGallery = async (targetId) => {
        LEFT JOIN user_gallery_item_meta m
          ON m.user_id = $1 AND m.parent_type = 'trip' AND m.parent_id = t.id
        WHERE t.archived_at IS NULL
-         AND t.end_date < CURRENT_DATE
+         AND t.end_date < ${localToday('t')}
        ORDER BY t.end_date DESC
        LIMIT 50`,
       [targetId],
@@ -548,7 +554,7 @@ const getUserGallery = async (targetId) => {
        LEFT JOIN user_gallery_item_meta m
          ON m.user_id = $1 AND m.parent_type = 'event' AND m.parent_id = e.id
        WHERE e.archived_at IS NULL
-         AND e.event_date < CURRENT_DATE
+         AND e.event_date < ${localToday('e')}
        ORDER BY e.event_date DESC
        LIMIT 50`,
       [targetId],
