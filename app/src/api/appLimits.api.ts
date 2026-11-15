@@ -11,6 +11,7 @@ export type AppLimits = {
   reportReasonMax: number;
   maxLocations: number;
   sweeTravelFocusMax: number;
+  homeCityMax: number;
 };
 
 /** Fallback when offline or before first fetch — mirrors server defaults in appLimits.js */
@@ -24,6 +25,7 @@ export const DEFAULT_APP_LIMITS: AppLimits = {
   reportReasonMax: 500,
   maxLocations: 10,
   sweeTravelFocusMax: 3,
+  homeCityMax: 120,
 };
 
 export async function fetchAppLimits(): Promise<AppLimits> {

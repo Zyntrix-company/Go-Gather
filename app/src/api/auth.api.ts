@@ -344,6 +344,7 @@ const authApi = {
     bio?: string;
     dob?: string;
     username?: string;
+    homeCity?: string;
   }): Promise<User> => {
     const { data } = await client.put('/users/profile', payload);
     // Backend returns: { message, user: { id, username, profile: { fullName, bio, country, avatarUrl, updatedAt } } }

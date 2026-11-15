@@ -262,7 +262,9 @@ const getPublicProfile = async (userId, viewerId) => {
  * PUT /users/profile — Update profile fields including optional username.
  */
 const updateProfile = async (userId, updates) => {
-  const { fullName, username, bio, country, gender, dob } = updates;
+  const { fullName, username, bio, country, gender, dob, homeCity } = updates;
+  // home_city exists only after migration 078 — never read or written with the flag off.
+  const travelPrefs = config.featureFlags.profileTravelPrefs;
 
   // Username uniqueness check
   if (username) {
@@ -307,6 +309,10 @@ const updateProfile = async (userId, updates) => {
     setClauses.push(`dob = $${paramIdx++}`);
     params.push(dob);
   }
+  if (travelPrefs && homeCity !== undefined) {
+    setClauses.push(`home_city = $${paramIdx++}`);
+    params.push(typeof homeCity === 'string' && homeCity.trim() ? homeCity.trim() : null);
+  }
 
   if (setClauses.length > 0) {
     setClauses.push('updated_at = NOW()');
@@ -320,7 +326,7 @@ const updateProfile = async (userId, updates) => {
   // Return updated profile
   const result = await db.query(
     `SELECT u.id, u.username,
-            p.full_name, p.dob, p.gender, p.bio, p.country, p.avatar_url, p.updated_at
+            p.full_name, p.dob, p.gender, p.bio, p.country, p.avatar_url, p.updated_at${travelPrefs ? ', p.home_city' : ''}
      FROM users u
      LEFT JOIN profiles p ON p.user_id = u.id
      WHERE u.id = $1`,
@@ -339,6 +345,7 @@ const updateProfile = async (userId, updates) => {
       country: row.country,
       avatarUrl: normalizeAvatarUrl(row.avatar_url),
       updatedAt: row.updated_at,
+      ...(travelPrefs ? { homeCity: row.home_city || null } : {}),
     },
   };
 };

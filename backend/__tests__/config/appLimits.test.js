@@ -29,6 +29,7 @@ const DEFAULTS = {
   sweeTravelFocusMax: 3,
   itineraryMaxDays: 30,
   itineraryMaxActivities: 150,
+  homeCityMax: 120,
 };
 
 const ENV_KEYS = [
@@ -43,6 +44,7 @@ const ENV_KEYS = [
   'LIMIT_SWEE_TRAVEL_FOCUS_MAX',
   'LIMIT_ITINERARY_MAX_DAYS',
   'LIMIT_ITINERARY_MAX_ACTIVITIES',
+  'LIMIT_HOME_CITY_MAX',
 ];
 
 describe('GET /config/app-limits', () => {

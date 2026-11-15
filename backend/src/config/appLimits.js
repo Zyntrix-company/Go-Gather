@@ -13,6 +13,7 @@
  * LIMIT_SWEE_TRAVEL_FOCUS_MAX         — travel-focus picks on the Swee trip card (default 3)
  * LIMIT_ITINERARY_MAX_DAYS            — days Swee plans in one go (default 30)
  * LIMIT_ITINERARY_MAX_ACTIVITIES      — activities in one Swee plan / add_activities action (default 150)
+ * LIMIT_HOME_CITY_MAX                 — profile home city length (default 120; DB column is a 120 ceiling)
  */
 
 const envInt = (name, fallback) => {
@@ -32,6 +33,7 @@ const limits = {
   sweeTravelFocusMax: envInt('LIMIT_SWEE_TRAVEL_FOCUS_MAX', 3),
   itineraryMaxDays: envInt('LIMIT_ITINERARY_MAX_DAYS', 30),
   itineraryMaxActivities: envInt('LIMIT_ITINERARY_MAX_ACTIVITIES', 150),
+  homeCityMax: Math.min(envInt('LIMIT_HOME_CITY_MAX', 120), 120), // DB column ceiling
 };
 
 const getPublicAppLimits = () => ({ ...limits });

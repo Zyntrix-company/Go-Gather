@@ -21,6 +21,15 @@ const VALID_INTENTS = new Set([
 /** Planning-journey intents (SWEE_PLANNER_V2): handled on the server, never sent to the app. */
 const PLANNER_INTENTS = new Set(['plan_trip', 'confirm_trip']);
 
+/** "Remember this" (PROFILE_TRAVEL_PREFS): the only profile fields Swee may write. */
+const PROFILE_DETAIL_FIELDS = {
+  homeCity: { column: 'home_city', label: 'your home city', max: limits.homeCityMax },
+  travelMode: { column: 'travel_mode_pref', label: 'how you usually travel', max: 16 },
+  interests: { column: 'interests', label: 'your interests' },
+  dietaryNeeds: { column: 'dietary_needs', label: 'your dietary needs', max: 200 },
+  accessibilityNeeds: { column: 'accessibility_needs', label: 'your accessibility needs', max: 200 },
+};
+
 /** Most activities Swee may add to an existing trip in one confirmed action (30 days × 3). */
 const MAX_ADD_ACTIVITIES = 90;
 
@@ -128,7 +137,8 @@ function validatePendingAction(action) {
     return { valid: false, reason: 'not_object' };
   }
   const plannerIntent = config.featureFlags.sweePlannerV2 && PLANNER_INTENTS.has(action.intent);
-  if (!VALID_INTENTS.has(action.intent) && !plannerIntent) {
+  const profileIntent = config.featureFlags.profileTravelPrefs && action.intent === 'save_profile_detail';
+  if (!VALID_INTENTS.has(action.intent) && !plannerIntent && !profileIntent) {
     return { valid: false, reason: 'invalid_intent' };
   }
   if (typeof action.readyToCreate !== 'boolean') {
@@ -174,6 +184,14 @@ function validatePendingAction(action) {
     const iso = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
     if (typeof d.destination !== 'string' || !d.destination.trim() || !iso(d.startDate) || !iso(d.endDate)) {
       return { valid: false, reason: 'plan_trip_missing_facts' };
+    }
+  }
+  if (action.intent === 'save_profile_detail') {
+    const d = action.draft || {};
+    const known = Object.prototype.hasOwnProperty.call(PROFILE_DETAIL_FIELDS, d.field);
+    const okValue = typeof d.value === 'string' || (d.field === 'interests' && Array.isArray(d.value));
+    if (!known || !okValue) {
+      return { valid: false, reason: 'save_profile_detail_invalid' };
     }
   }
   if (action.showForm != null && action.showForm !== 'trip' && action.showForm !== 'event') {
@@ -450,6 +468,7 @@ module.exports = {
   MAX_ADD_ACTIVITIES,
   maxAddActivities,
   PLANNER_INTENTS,
+  PROFILE_DETAIL_FIELDS,
   inferBudgetTier,
   buildPlanningMetadata,
 };

@@ -26,6 +26,7 @@ const {
   buildPlanningMetadata,
   maxAddActivities,
   ACTION_FALLBACK_REPLY,
+  PROFILE_DETAIL_FIELDS,
 } = require('./ai.helpers');
 const { limits } = require('../../config/appLimits');
 const conversationsService = require('./conversations.service');
@@ -1284,6 +1285,39 @@ const executeAction = async (userId, pendingAction, { conversationId = null, cha
     return {
       reply,
       created: { id: targetTrip.id, type: 'trip', name: targetTrip.name, action: 'updated' },
+    };
+  }
+
+  // ── save_profile_detail ("remember this", PROFILE_TRAVEL_PREFS) ────────────────
+  // Writes ONE whitelisted field of the CURRENT user's profile; an empty value clears it.
+  if (intent === 'save_profile_detail' && config.featureFlags.profileTravelPrefs) {
+    const spec = Object.prototype.hasOwnProperty.call(PROFILE_DETAIL_FIELDS, draft.field)
+      ? PROFILE_DETAIL_FIELDS[draft.field] : null;
+    if (!spec) {
+      throw badRequest('I can only remember your home city, usual way of travelling, interests, and dietary or accessibility needs.');
+    }
+    const clean = (v) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
+    let value;
+    if (draft.field === 'interests') {
+      const list = (Array.isArray(draft.value) ? draft.value : clean(draft.value).split(',')).map(clean).filter(Boolean);
+      if (list.length > 10 || list.some((i) => i.length > 40)) {
+        throw badRequest('That\'s a lot to remember — keep it to a few short interests.');
+      }
+      value = list.length ? JSON.stringify(list) : null;
+    } else {
+      // A list for a text field would clean to '' and silently clear it — reject instead.
+      if (typeof draft.value !== 'string') throw badRequest('I can only remember that as a short piece of text.');
+      const text = clean(draft.value);
+      if (text.length > spec.max) throw badRequest(`That's too long to remember (max ${spec.max} characters).`);
+      if (draft.field === 'travelMode' && text && !['flight', 'train', 'road'].includes(text.toLowerCase())) {
+        throw badRequest('I can remember flight, train or road as your usual way of travelling.');
+      }
+      value = text ? (draft.field === 'travelMode' ? text.toLowerCase() : text) : null;
+    }
+    await db(`UPDATE profiles SET ${spec.column} = $1, updated_at = NOW() WHERE user_id = $2`, [value, userId]);
+    return {
+      reply: value ? `Saved — I'll remember ${spec.label} for next time.` : `Done — I've forgotten ${spec.label}.`,
+      created: null,
     };
   }
 

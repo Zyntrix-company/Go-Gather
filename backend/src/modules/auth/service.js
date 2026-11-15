@@ -712,10 +712,12 @@ const resendOTP = async ({ email, purpose }) => {
  * GET /auth/me — Return the current user from access token.
  */
 const getMe = async (userId) => {
+  // home_city exists only after migration 078 (PROFILE_TRAVEL_PREFS).
+  const travelPrefs = config.featureFlags.profileTravelPrefs;
   const result = await db.query(
     `SELECT u.id, u.email, u.phone, u.username, u.google_id, u.facebook_id, u.is_profile_complete, u.is_verified,
             u.sns_endpoint_arn, u.created_at, u.updated_at,
-            p.full_name, p.dob, p.gender, p.country, p.bio, p.avatar_url
+            p.full_name, p.dob, p.gender, p.country, p.bio, p.avatar_url${travelPrefs ? ', p.home_city' : ''}
      FROM users u
      LEFT JOIN profiles p ON p.user_id = u.id
      WHERE u.id = $1`,
@@ -759,6 +761,7 @@ const getMe = async (userId) => {
       country: row.country,
       bio: row.bio,
       avatarUrl,
+      ...(travelPrefs ? { homeCity: row.home_city || null } : {}),
     },
   };
 };

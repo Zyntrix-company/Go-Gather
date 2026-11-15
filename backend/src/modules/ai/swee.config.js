@@ -71,10 +71,14 @@ async function loadUserContext(userId) {
   const { query: db } = require('../../config/database');
   const logger = require('../../utils/logger');
   const { inferBudgetTier } = require('./ai.helpers');
+  // Profile travel details exist only after migration 078 (PROFILE_TRAVEL_PREFS).
+  const travelCols = config.featureFlags?.profileTravelPrefs
+    ? ', p.home_city, p.travel_mode_pref, p.interests, p.dietary_needs, p.accessibility_needs'
+    : '';
   try {
     const [profileRes, tripsRes, eventsRes, companionsRes, budgetRes] = await Promise.all([
       db(
-        `SELECT p.full_name, p.country, u.timezone
+        `SELECT p.full_name, p.country, u.timezone${travelCols}
          FROM profiles p JOIN users u ON u.id = p.user_id
          WHERE p.user_id = $1`,
         [userId],
@@ -254,6 +258,24 @@ const LEGACY_SHOWFORM = `- showForm: "trip" | "event" — set this (with intent 
 const PLANNER_SHOWFORM = `- showForm: "event" — set this (with intent create_event and readyToCreate:false) ONLY when the user has agreed to create an event. Pre-fill known values in draft. For trips, never set showForm yourself: confirm_trip shows the trip form, pre-filled from the plan.
 `;
 
+// ─── Profile travel details (PROFILE_TRAVEL_PREFS) — added only with the flag on ──
+
+const PROFILE_CANDO = `- Remember a travel detail the user agreed to save (home city, usual way of travelling, interests, dietary or accessibility needs) → save_profile_detail
+`;
+const PROFILE_INTENT = `- save_profile_detail: readyToCreate true, draft {"field": "homeCity" | "travelMode" | "interests" | "dietaryNeeds" | "accessibilityNeeds", "value": ...} — see REMEMBER THIS. The app shows a Save button.
+`;
+const PROFILE_RULES = `
+- Home city: when it is in the user context below, confirm it in passing whenever travel matters ("Starting from Pune, right?") — never ask for it from scratch; the trip may still start somewhere else. When it is NOT known and the trip needs travel, ask "Where will you be travelling from?".
+- Use the saved usual way of travelling, interests and dietary/accessibility needs when planning; don't ask about them again.
+
+REMEMBER THIS (save_profile_detail):
+- When the user mentions a lasting detail that isn't saved yet — where they travel from, how they usually travel (flight / train / road), interests, dietary needs, accessibility needs — offer ONCE, in one short line, to remember it, and attach the action to that same message so the app shows a Save button: "Want me to save Pune as your home city for next time?" / "Want me to remember that you're vegetarian?"
+  ###ACTION{"intent":"save_profile_detail","readyToCreate":true,"scope":"in","draft":{"field":"homeCity","value":"Pune"}}
+- field: "homeCity" | "travelMode" ("flight" | "train" | "road") | "interests" (array of short strings) | "dietaryNeeds" | "accessibilityNeeds". One field per action.
+- "Forget that I'm vegetarian" / "remove my home city" → the same action with "value": "" — ask "Want me to forget that?" with it.
+- Only offer in a message that would otherwise have intent "none" — never in the same message as plan_trip, confirm_trip, a form or another action; offer in the next message instead. Keep helping with the trip in the same message.
+- Never save anything the user didn't agree to, and never say it's saved yourself — the app saves it when they tap Save.`;
+
 // ─── System Prompt Builder ─────────────────────────────────────────────────────
 
 /**
@@ -267,6 +289,7 @@ function buildSweetSystemPrompt(userContext, tripContext, historyLength = 0, mem
   const {
     profile, trips = [], events = [], frequentCompanions = [], budgetTier,
   } = userContext || {};
+  const prefs = Boolean(config.featureFlags?.profileTravelPrefs);
 
   // ── User context block ──
   let userBlock = '';
@@ -274,6 +297,15 @@ function buildSweetSystemPrompt(userContext, tripContext, historyLength = 0, mem
     userBlock += `\nUser: ${profile.full_name}`;
     if (profile.country) userBlock += ` · Home country: ${profile.country}`;
     if (profile.timezone) userBlock += ` · Timezone: ${profile.timezone}`;
+  }
+  if (prefs && profile) {
+    // Stored user text: quoted safely, never as instructions.
+    if (profile.home_city) userBlock += `\nHome city: ${quoteSafe(profile.home_city, 120)}`;
+    if (profile.travel_mode_pref) userBlock += `\nUsual way of travelling: ${quoteSafe(profile.travel_mode_pref, 16)}`;
+    const interests = Array.isArray(profile.interests) ? profile.interests.join(', ') : '';
+    if (interests) userBlock += `\nInterests: ${quoteSafe(interests, 300)}`;
+    if (profile.dietary_needs) userBlock += `\nDietary needs: ${quoteSafe(profile.dietary_needs, 200)}`;
+    if (profile.accessibility_needs) userBlock += `\nAccessibility needs: ${quoteSafe(profile.accessibility_needs, 200)}`;
   }
   if (budgetTier) {
     userBlock += `\nTypical spending tier (from past trip expenses): ${budgetTier}`;
@@ -331,6 +363,9 @@ function buildSweetSystemPrompt(userContext, tripContext, historyLength = 0, mem
 
   const todaySection = buildTodayContext(profile);
   const v2 = Boolean(config.featureFlags?.sweePlannerV2);
+  const profileCanDo = prefs ? PROFILE_CANDO : '';
+  const profileIntent = prefs ? PROFILE_INTENT : '';
+  const profileRules = prefs ? PROFILE_RULES : '';
 
   return `You are Swee — a female AI travel and event planning assistant built into ${APP_BRAND_NAME}. Use she/her tone and personality naturally.
 
@@ -383,7 +418,7 @@ ${v2 ? PLANNER_CANDO : LEGACY_CANDO}- Create an event                           
 - Save a note on a trip or event                                 → add_note
 - Plan a full day-by-day itinerary for an EXISTING trip          → plan_itinerary
 - Add specific activities the user listed to an EXISTING trip    → add_activities
-
+${profileCanDo}
 Everything else is chat only: suggestions, ideas, advice, answers.
 - NEVER offer, promise or ask about an action that is not in this list (no editing, moving, reordering or deleting existing activities, no deleting trips/events, no booking, no inviting people for the user).
 - NEVER invent limits or app terms. Do not say things like "fixed blocks", "I can only add individual activities" or "you must add these yourself" when add_activities does the job. If something truly isn't supported, say so in one plain sentence and point to where the user can do it in ${APP_BRAND_NAME} (e.g. the trip's Activities tab).
@@ -598,7 +633,7 @@ Use only data from the user context below. Never invent data.
 - Mention frequent companions when relevant ("You've travelled with Priya before — invite her?").
 - Use typical spending tier to calibrate price ranges (see TYPE B rules).
 - Avoid suggesting duplicate destinations the user already has upcoming trips for.
-- Use timezone for scheduling activity times.
+- Use timezone for scheduling activity times.${profileRules}
 
 ────────────────────────────────────────────
 TODAY'S DATE (use for all relative scheduling)
@@ -614,7 +649,7 @@ After EVERY response, append ONE line on a new line in this exact format:
 
 Rules:
 - scope: "in" | "out" — include it in EVERY action line. "out" ONLY when you declined an out-of-scope request (see SCOPE); intent must then be "none". Explaining that a travel feature isn't supported (booking, calendar sync) is "in". Example: ###ACTION{"intent":"none","readyToCreate":false,"scope":"out"}
-${v2 ? PLANNER_INTENTS : LEGACY_INTENTS}- plan_itinerary: readyToCreate false, with "tripId" (or "targetTripName") and optional draft.preferences / draft.dates — the app plans and shows the itinerary itself (see PLAN ITINERARY FLOW).
+${v2 ? PLANNER_INTENTS : LEGACY_INTENTS}${profileIntent}- plan_itinerary: readyToCreate false, with "tripId" (or "targetTripName") and optional draft.preferences / draft.dates — the app plans and shows the itinerary itself (see PLAN ITINERARY FLOW).
 - Keep intent "none" while you are answering questions, chatting, or just offering to help. Switch to a create_/update_ intent only once the user has agreed to that action — never while they are only asking or exploring.
 - readyToCreate: for create_trip / create_event this stays FALSE — the app's card handles the final confirmation and execution. Use readyToCreate:true only for update_trip / update_event / add_note / add_activities recap-and-save steps.
 ${v2 ? PLANNER_SHOWFORM : LEGACY_SHOWFORM}- NEVER say a trip/event was created or updated in chat — the app handles execution and shows the result
