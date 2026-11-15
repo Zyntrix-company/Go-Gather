@@ -142,17 +142,19 @@ describe('Docs Routes', () => {
   // ── DELETE /trips/:id/docs/:docId ──────────────────────────────────────────
 
   describe('DELETE /trips/:id/docs/:docId', () => {
-    it('returns 403 when non-uploader non-admin tries to delete', async () => {
+    // The uploader/admin-only delete check was removed on purpose in 5fd6314 —
+    // any trip member can delete any doc (rename/replace still check the uploader).
+    it('returns 200 when a member deletes someone else\'s doc', async () => {
       mockTripMember();
-      db.query.mockResolvedValueOnce({
-        rows: [{ ...docRow, uploaded_by: USER2_ID }], // uploaded by someone else
-      });
+      db.query
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ ...docRow, uploaded_by: USER2_ID }] }) // find doc
+        .mockResolvedValueOnce({ rowCount: 1 });                                               // DELETE
 
       const res = await request(app)
         .delete(`/trips/${TRIP_ID}/docs/${DOC_ID}`)
         .set('Authorization', `Bearer ${token}`);
 
-      expect(res.statusCode).toBe(403);
+      expect(res.statusCode).toBe(200);
     });
 
     it('returns 404 when doc not found', async () => {

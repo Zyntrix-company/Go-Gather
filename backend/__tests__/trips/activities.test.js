@@ -134,18 +134,23 @@ describe('Activities Routes', () => {
   // ── PUT /trips/:id/activities/:actId ──────────────────────────────────────
 
   describe('PUT /trips/:id/activities/:actId', () => {
-    it('returns 403 when non-creator non-admin tries to update', async () => {
+    // The creator/admin-only edit check was removed on purpose in 5fd6314 —
+    // any trip member can edit any activity. This test locks that behaviour.
+    it('returns 200 when a member updates someone else\'s activity', async () => {
       mockTripMember();
-      db.query.mockResolvedValueOnce({
-        rows: [{ ...activityRow, created_by: 'other-user-id' }], // someone else's activity
-      });
+      db.query
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ ...activityRow, created_by: 'other-user-id' }] }) // find activity
+        .mockResolvedValueOnce({ rowCount: 1 });                                                           // UPDATE
+      mockNotificationLookups();
+      db.query.mockResolvedValueOnce({ rowCount: 1, rows: [{ ...activityRow, created_by: 'other-user-id', title: 'Updated' }] }); // getActivityById
 
       const res = await request(app)
         .put(`/trips/${TRIP_ID}/activities/${ACT_ID}`)
         .set('Authorization', `Bearer ${token}`)
         .send({ title: 'Updated' });
 
-      expect(res.statusCode).toBe(403);
+      expect(res.statusCode).toBe(200);
+      expect(res.body.activity.title).toBe('Updated');
     });
 
     it('returns 200 when creator updates own activity', async () => {
