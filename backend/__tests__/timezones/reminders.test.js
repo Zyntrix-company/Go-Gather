@@ -51,7 +51,9 @@ const NOW = new Date('2026-01-10T00:00:00.000Z');
 
 const executor = () => ({ query: jest.fn().mockResolvedValue({ rowCount: 1, rows: [] }) });
 // [type, iso] for each INSERT the executor received
-const inserted = (ex) => ex.query.mock.calls.map(([, params]) => [params[1], params[2]]);
+const inserted = (ex) => ex.query.mock.calls
+  .filter(([sql]) => /^\s*INSERT INTO/.test(sql))
+  .map(([, params]) => [params[1], params[2]]);
 
 // Route db.query for scheduleActivityReminders; returns the INSERTed [remindAt, minutes] pairs.
 const runActivity = async (date, time, tripTimeZone) => {
@@ -209,7 +211,12 @@ describe('trip-local reminder times (TRIP_TIMEZONES on)', () => {
   it('skips reminders whose time has passed and invalid dates', async () => {
     const ex = executor();
     await scheduleTripReminders(ex, 'trip-1', '2026-01-12', 'Europe/London'); // 1w and 3d before are past
-    expect(inserted(ex).map(([t]) => t)).toEqual(['trip_start', '1_day_before']);
+    const inserts = ex.query.mock.calls.filter(([sql]) => /INSERT/.test(sql));
+    expect(inserts.map(([, p]) => p[1])).toEqual(['trip_start', '1_day_before']);
+    // stale unsent rows for the passed days are dropped (a trip moved earlier can't send "1 week to go" late)
+    const deletes = ex.query.mock.calls.filter(([sql]) => /^DELETE FROM trip_reminders/.test(sql));
+    expect(deletes.map(([, p]) => p[1])).toEqual(['3_days_before', '1_week_before']);
+    for (const [sql] of deletes) expect(sql).toMatch(/sent_at IS NULL$/);
     const ex2 = executor();
     await scheduleTripReminders(ex2, 'trip-1', 'nonsense', 'Europe/London');
     expect(ex2.query).not.toHaveBeenCalled();

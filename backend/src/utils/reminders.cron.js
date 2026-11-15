@@ -162,7 +162,17 @@ const startReminderTimes = (startDate, timeZone, startType, { useLocalTime = con
 const scheduleStartReminders = async (executor, table, idColumn, startType, id, startDate, timeZone, { onlyExisting = false } = {}) => {
   let changed = 0;
   for (const r of startReminderTimes(startDate, timeZone, startType)) {
-    if (!(r.date > new Date())) continue; // invalid date, or already in the past
+    if (!(r.date > new Date())) {
+      // TRIP_TIMEZONES: dates moved so this reminder's day has passed — drop the stale
+      // unsent row so it can't fire at its old time (flag off keeps today's behaviour).
+      if (r.date && !onlyExisting && config.featureFlags.tripTimezones) {
+        await executor.query(
+          `DELETE FROM ${table} WHERE ${idColumn} = $1 AND reminder_type = $2 AND sent_at IS NULL`,
+          [id, r.type],
+        );
+      }
+      continue; // invalid date, or already in the past
+    }
     if (onlyExisting) {
       // Time zone changed: move only reminders that already exist, are unsent and still ahead.
       const result = await executor.query(
