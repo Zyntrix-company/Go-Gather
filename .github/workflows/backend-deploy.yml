@@ -7,6 +7,11 @@ on:
     paths:
       - 'backend/**'
       - '!backend/README.md'
+  # PRs run the test job only (deploy is skipped below), so a phase PR gets a green/red signal.
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '!backend/README.md'
   workflow_dispatch: {}
 
 jobs:
@@ -41,6 +46,7 @@ jobs:
 
   deploy:
     needs: test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     defaults:
       run:

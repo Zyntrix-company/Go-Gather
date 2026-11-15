@@ -36,9 +36,15 @@ jobs:
         TSC_ERROR_BASELINE: '51'
       run: |
         set +e
-        npx tsc --noEmit > tsc-output.txt 2>&1
+        npx --no-install tsc --noEmit > tsc-output.txt 2>&1
+        TSC_EXIT=$?
         set -e
         COUNT=$(grep -c 'error TS' tsc-output.txt || true)
+        if [ "$TSC_EXIT" -ne 0 ] && [ "$COUNT" -eq 0 ]; then
+          cat tsc-output.txt
+          echo "::error::tsc failed to run (exit $TSC_EXIT) without reporting type errors"
+          exit 1
+        fi
         echo "TypeScript errors: $COUNT (baseline $TSC_ERROR_BASELINE)"
         if [ "$COUNT" -gt "$TSC_ERROR_BASELINE" ]; then
           cat tsc-output.txt
