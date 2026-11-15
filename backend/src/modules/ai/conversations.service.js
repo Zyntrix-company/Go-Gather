@@ -438,7 +438,19 @@ async function appendAssistantMessage(userId, conversationId, content, metadata 
   return formatMessage(result.rows[0]);
 }
 
+/** Store Swee's working trip plan on the conversation (metadata.plan) — owner only. */
+async function savePlan(userId, conversationId, plan) {
+  await getConversationForUser(userId, conversationId);
+  await db(
+    `UPDATE ai_conversations
+     SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{plan}', $1::jsonb)
+     WHERE id = $2 AND user_id = $3`,
+    [JSON.stringify(plan), conversationId, userId],
+  );
+}
+
 module.exports = {
+  savePlan,
   CATEGORIES,
   DEFAULT_TITLE,
   formatConversation,

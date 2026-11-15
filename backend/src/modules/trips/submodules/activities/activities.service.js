@@ -44,6 +44,9 @@ const formatActivity = (a) => ({
   time: parseTime(a.activity_time),
   locationName: a.location_name,
   description: a.description || null,
+  // Planner v2 (migration 077): additive; older apps ignore them.
+  durationMinutes: a.duration_minutes ?? null,
+  kind: a.kind || 'activity',
   isCompleted: a.is_completed,
   photoCount: parseInt(a.photo_count ?? 0, 10),
   linkedExpense: a.expense_id_linked
@@ -90,7 +93,9 @@ const notifyItineraryUpdated = (tripId, userId, activityId, count = 1) => {
 };
 
 const createActivity = async (tripId, userId, body, { notify = true } = {}) => {
-  const { title, date, time, locationName, description, expenseId } = body;
+  const {
+    title, date, time, locationName, description, expenseId, durationMinutes, kind,
+  } = body;
 
   // Validate time object
   if (time !== undefined && time !== null) {
@@ -114,12 +119,22 @@ const createActivity = async (tripId, userId, body, { notify = true } = {}) => {
     }
   }
 
+  // duration_minutes / kind (Swee Planner v2) are only written when given, so every other
+  // insert is exactly the same statement as before migration 077.
+  // Anything else (e.g. stray values in a REST body) is ignored, never written.
+  const extraCols = [];
+  const extraVals = [];
+  if (Number.isInteger(durationMinutes) && durationMinutes > 0 && durationMinutes <= 4320) {
+    extraCols.push('duration_minutes'); extraVals.push(durationMinutes);
+  }
+  if (kind === 'activity' || kind === 'travel') { extraCols.push('kind'); extraVals.push(kind); }
+  const params = [tripId, userId, title, date, timeToString(time), locationName || null, description || null, expenseId || null, ...extraVals];
   const result = await db(
     `INSERT INTO trip_activities
-       (trip_id, created_by, title, activity_date, activity_time, location_name, description, expense_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       (trip_id, created_by, title, activity_date, activity_time, location_name, description, expense_id${extraCols.map((c) => `, ${c}`).join('')})
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8${extraVals.map((_, i) => `, $${9 + i}`).join('')})
      RETURNING *`,
-    [tripId, userId, title, date, timeToString(time), locationName || null, description || null, expenseId || null],
+    params,
   );
 
   const activityId = result.rows[0].id;

@@ -11,6 +11,8 @@
  * LIMIT_REPORT_REASON_MAX             — Swee report / support report details length (default 500)
  * LIMIT_MAX_LOCATIONS                 — locations per trip/event (default 10)
  * LIMIT_SWEE_TRAVEL_FOCUS_MAX         — travel-focus picks on the Swee trip card (default 3)
+ * LIMIT_ITINERARY_MAX_DAYS            — days Swee plans in one go (default 30)
+ * LIMIT_ITINERARY_MAX_ACTIVITIES      — activities in one Swee plan / add_activities action (default 150)
  */
 
 const envInt = (name, fallback) => {
@@ -28,6 +30,8 @@ const limits = {
   reportReasonMax: envInt('LIMIT_REPORT_REASON_MAX', 500),
   maxLocations: envInt('LIMIT_MAX_LOCATIONS', 10),
   sweeTravelFocusMax: envInt('LIMIT_SWEE_TRAVEL_FOCUS_MAX', 3),
+  itineraryMaxDays: envInt('LIMIT_ITINERARY_MAX_DAYS', 30),
+  itineraryMaxActivities: envInt('LIMIT_ITINERARY_MAX_ACTIVITIES', 150),
 };
 
 const getPublicAppLimits = () => ({ ...limits });

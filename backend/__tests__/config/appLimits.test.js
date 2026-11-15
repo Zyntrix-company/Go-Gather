@@ -27,6 +27,8 @@ const DEFAULTS = {
   reportReasonMax: 500,
   maxLocations: 10,
   sweeTravelFocusMax: 3,
+  itineraryMaxDays: 30,
+  itineraryMaxActivities: 150,
 };
 
 const ENV_KEYS = [
@@ -39,6 +41,8 @@ const ENV_KEYS = [
   'LIMIT_REPORT_REASON_MAX',
   'LIMIT_MAX_LOCATIONS',
   'LIMIT_SWEE_TRAVEL_FOCUS_MAX',
+  'LIMIT_ITINERARY_MAX_DAYS',
+  'LIMIT_ITINERARY_MAX_ACTIVITIES',
 ];
 
 describe('GET /config/app-limits', () => {

@@ -3,6 +3,7 @@
  * April 2026 Configuration Guide — full implementation.
  */
 
+const { DateTime } = require('luxon');
 const { query: db } = require('../../config/database');
 const config = require('../../config');
 const logger = require('../../utils/logger');
@@ -23,8 +24,10 @@ const {
   isUuid,
   requireNonEmptyString,
   buildPlanningMetadata,
-  MAX_ADD_ACTIVITIES,
+  maxAddActivities,
+  ACTION_FALLBACK_REPLY,
 } = require('./ai.helpers');
+const { limits } = require('../../config/appLimits');
 const conversationsService = require('./conversations.service');
 const circuitBreaker = require('./swee.circuitBreaker');
 const scopeGuard = require('./swee.scopeGuard');
@@ -213,6 +216,9 @@ async function bulkCreateActivities(tripId, userId, activities, { notify = true 
         time: parseActivityTime(act.time),
         locationName: act.locationName || null,
         description: act.description || null,
+        // Planner v2 fields (validated in createActivity; absent for every other caller).
+        ...(act.kind ? { kind: act.kind } : {}),
+        ...(act.durationMinutes ? { durationMinutes: act.durationMinutes } : {}),
       }, { notify });
       added += 1;
       if (!firstId) firstId = created?.id || null;
@@ -372,6 +378,12 @@ async function buildItineraryProposal(userId, action) {
     };
   }
 
+  if (config.featureFlags.sweePlannerV2) {
+    return buildItineraryProposalV2({
+      trip, draft, meta, dates, places, tripStart, tripEnd, freshTrip: busyDates.size === 0,
+    });
+  }
+
   const plan = await itinerary.generateItinerary({
     destination: trip.location_name || trip.name,
     dates,
@@ -404,6 +416,202 @@ async function buildItineraryProposal(userId, action) {
       tripId: trip.id,
       draft: { activities: plan.activities },
     },
+  };
+}
+
+/**
+ * Planner v2 for an EXISTING trip: free-time windows, durations and travel time, the same
+ * rules as a new trip. Travel legs are only added to a trip that has no activities yet.
+ */
+async function buildItineraryProposalV2({
+  trip, draft, meta, dates, places, tripStart, tripEnd, freshTrip,
+}) {
+  const tz = await db('SELECT timezone FROM trips WHERE id = $1', [trip.id])
+    .then((r) => r.rows[0]?.timezone)
+    .catch(() => null);
+  const facts = itinerary.sanitizePlanFacts({
+    ...draft,
+    destination: trip.location_name || trip.name,
+    startDate: tripStart,
+    endDate: tripEnd,
+    timeZone: draft.timeZone || tz,
+    origin: freshTrip ? draft.origin || meta.origin : undefined,
+    travel: freshTrip ? draft.travel || (meta.travelMode ? { mode: meta.travelMode } : undefined) : undefined,
+    adults: meta.adults,
+    kids: meta.kids,
+    seniors: meta.seniors,
+    groupType: meta.groupType,
+    travelFocus: meta.travelFocus,
+    budgetTier: meta.budgetTier,
+    preferences: typeof draft.preferences === 'string' ? draft.preferences : meta.itineraryPrefs,
+  });
+  const plan = await itinerary.generatePlan(facts, { dates, avoidPlaces: places });
+  const wanted = new Set(dates);
+  const activities = plan.activities.filter((a) => wanted.has(a.date));
+  if (!activities.some((a) => a.kind === 'activity')) {
+    return {
+      ok: false,
+      text: plan.plannedDates.length === 0
+        ? `There's no free time left to plan on those days of ${trip.name}. Tell me when you're free and I'll plan around it.`
+        : ITINERARY_FAILED_REPLY,
+    };
+  }
+
+  const notes = [];
+  if (plan.truncated) notes.push(`That's the first ${limits.itineraryMaxDays} days — save these and ask me for the rest.`);
+  if (plan.droppedDates.length > 0) notes.push('A few days are still open — you can add your own in the trip\'s Activities tab.');
+  const preview = itinerary.formatPlanPreview({ ...plan, activities }, facts.destination);
+  return {
+    ok: true,
+    text: `${preview}${notes.length ? `\n\n${notes.join(' ')}` : ''}\n\nAdd these to your itinerary?`,
+    pendingAction: {
+      intent: 'add_activities',
+      readyToCreate: true,
+      scope: 'in',
+      tripId: trip.id,
+      draft: { activities },
+    },
+  };
+}
+
+// ─── Planning journey (SWEE_PLANNER_V2) ───────────────────────────────────────
+
+const REPLAN_BUDGET_MS = 20000;
+const daysBetween = (from, to) => Math.round(DateTime.fromISO(to, { zone: 'UTC' })
+  .diff(DateTime.fromISO(from, { zone: 'UTC' }), 'days').days);
+
+/** Chat text for a stored plan, with notes for truncated or open days. */
+function planPreviewText(plan) {
+  const notes = [];
+  if (plan.truncated) {
+    notes.push(`I've planned the first ${limits.itineraryMaxDays} days — once the trip is created, ask me to plan the rest.`);
+  }
+  const open = plan.droppedDates?.length || 0;
+  if (open > 0) {
+    notes.push(`I've left ${open === 1 ? 'one day' : `${open} days`} open — tell me what you'd like there and I'll fill ${open === 1 ? 'it' : 'them'}.`);
+  }
+  const preview = itinerary.formatPlanPreview(plan, plan.facts?.destination);
+  return `${preview}${notes.length ? `\n\n${notes.join(' ')}` : ''}`;
+}
+
+/** Run Planner v2 (whole trip, or only `refineDates`) and store it as the conversation's plan. */
+async function planAndStore(userId, conversationId, facts, prev, { refineDates = [], budgetMs } = {}) {
+  let activities;
+  let plan;
+  if (prev && refineDates.length > 0) {
+    // Refine: keep the other days as they are, re-plan only the dates asked for.
+    const kept = prev.activities.filter((a) => a.kind !== 'travel' && !refineDates.includes(a.date));
+    plan = await itinerary.generatePlan(facts, { dates: refineDates, avoidPlaces: kept.map((a) => a.locationName), budgetMs });
+    activities = [...plan.activities, ...kept].sort(itinerary.byDateTime);
+  } else {
+    plan = await itinerary.generatePlan(facts, { budgetMs });
+    activities = plan.activities;
+  }
+  if (!activities.some((a) => a.kind === 'activity')) return null;
+
+  const stored = {
+    version: (prev?.version || 0) + 1,
+    facts,
+    startDate: plan.startDate,
+    endDate: plan.endDate,
+    timeZone: plan.timeZone,
+    international: plan.international,
+    activities,
+    droppedDates: plan.droppedDates,
+    truncated: plan.truncated,
+    updatedAt: new Date().toISOString(),
+  };
+  await conversationsService.savePlan(userId, conversationId, stored);
+  return stored;
+}
+
+/** plan_trip: plan (or refine) the trip from the facts Swee gathered and show it in chat. */
+async function handlePlanTrip(userId, conversationId, action, lead) {
+  const draft = action.draft || {};
+  const facts = itinerary.sanitizePlanFacts(draft);
+  const conv = await conversationsService.getConversation(userId, conversationId);
+  const prev = conv.metadata?.plan || null;
+  // Refine only when nothing that shapes the windows or travel legs changed; otherwise kept
+  // days could clash with the new legs, so re-plan everything.
+  const shape = (f) => JSON.stringify([f?.destination, f?.startDate, f?.endDate, f?.timeZone, f?.origin, f?.travel, f?.busy]);
+  const sameTrip = prev && shape(prev.facts) === shape(facts);
+  const refineDates = sameTrip && Array.isArray(draft.dates) ? draft.dates.filter(itinerary.isIsoDate) : [];
+
+  const stored = await planAndStore(userId, conversationId, facts, prev, { refineDates });
+  if (!stored) return { reply: ITINERARY_FAILED_REPLY, pendingAction: null };
+  return {
+    reply: `${lead ? `${lead}\n\n` : ''}${planPreviewText(stored)}\n\nWant any changes? When it looks right, tell me and I'll set up the trip.`,
+    pendingAction: null,
+  };
+}
+
+/** confirm_trip: show today's trip form, pre-filled from the stored plan. */
+async function handleConfirmTrip(userId, conversationId, lead) {
+  const conv = await conversationsService.getConversation(userId, conversationId);
+  const plan = conv.metadata?.plan;
+  if (!plan) {
+    return { reply: lead || 'Let\'s plan the itinerary first — where are you going, and when?', pendingAction: null };
+  }
+  const f = plan.facts || {};
+  const t = f.travellers || {};
+  const draft = {
+    destination: f.destination,
+    name: generateTripName(f.destination, plan.startDate),
+    startDate: plan.startDate,
+    endDate: plan.endDate,
+    adults: t.adults || undefined,
+    kids: t.kids || undefined,
+    seniors: t.seniors || undefined,
+    groupType: f.groupType,
+    budgetTier: f.budgetTier,
+    travelFocus: f.travelFocus,
+    currency: f.currency,
+    planVersion: plan.version,
+  };
+  Object.keys(draft).forEach((k) => draft[k] === undefined && delete draft[k]);
+  return {
+    reply: lead || 'Here are your trip details — check them and tap Create My Trip.',
+    pendingAction: { intent: 'create_trip', readyToCreate: false, showForm: 'trip', scope: 'in', draft },
+  };
+}
+
+/**
+ * The form's dates differ from the plan: re-plan for the new dates (travel legs and booked
+ * times move with them), store it, and ask the user to confirm again. Nothing is created.
+ */
+async function replanForFormDates(userId, conversationId, plan, startDate, endDate) {
+  const f = plan.facts || {};
+  const startShift = daysBetween(plan.startDate, startDate);
+  const endShift = daysBetween(plan.endDate, endDate);
+  const shift = (leg, n) => leg && {
+    ...leg,
+    departDate: leg.departDate && itinerary.addDays(leg.departDate, n),
+    arriveDate: leg.arriveDate && itinerary.addDays(leg.arriveDate, n),
+  };
+  let facts = {
+    ...f,
+    startDate: itinerary.addDays(f.startDate, startShift),
+    endDate: itinerary.addDays(f.endDate, endShift),
+    travel: f.travel && { ...f.travel, outbound: shift(f.travel.outbound, startShift), return: shift(f.travel.return, endShift) },
+  };
+  if (facts.endDate < facts.startDate) facts = { ...facts, startDate, endDate };
+
+  let stored = null;
+  try {
+    // The app waits 30 s for /ai/execute.
+    stored = await planAndStore(userId, conversationId, facts, plan, { budgetMs: REPLAN_BUDGET_MS });
+  } catch (err) {
+    logger.warn('Swee re-plan for new dates failed', { userId, conversationId, error: err.message });
+  }
+  if (!stored) {
+    return {
+      reply: 'Your dates changed, but I couldn\'t update the itinerary just now. Tell me the dates you\'d like and I\'ll re-plan it before we create the trip.',
+      created: null,
+    };
+  }
+  return {
+    reply: `You changed the dates, so I've updated the itinerary to fit:\n\n${planPreviewText(stored)}\n\nTell me if it looks good and I'll bring the trip form back with the new dates.`,
+    created: null,
   };
 }
 
@@ -739,6 +947,21 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
       pendingAction = null;
     }
   }
+  // Planning journey: plan_trip / confirm_trip are handled here and never reach the app.
+  if (config.featureFlags.sweePlannerV2 && (pendingAction?.intent === 'plan_trip' || pendingAction?.intent === 'confirm_trip')) {
+    const { intent } = pendingAction;
+    // An action line with no text of its own gets the parser's "hiccup" fallback — not a lead-in.
+    const lead = reply === ACTION_FALLBACK_REPLY ? '' : reply;
+    try {
+      ({ reply, pendingAction } = intent === 'plan_trip'
+        ? await handlePlanTrip(userId, resolvedConversationId, pendingAction, lead)
+        : await handleConfirmTrip(userId, resolvedConversationId, lead));
+    } catch (err) {
+      logger.warn(`Swee ${intent} failed`, { userId, conversationId: resolvedConversationId, error: err.message });
+      reply = ITINERARY_FAILED_REPLY;
+      pendingAction = null;
+    }
+  }
   // Keep refused turns out of future Gemini history. Outside enforce mode only Swee's own
   // refusals are flagged, so a classifier false positive never costs the user context.
   const persistedScope = enforceBlock || parsed.scope === 'out' ? 'out' : 'in';
@@ -792,6 +1015,17 @@ const executeAction = async (userId, pendingAction, { conversationId = null, cha
       throw badRequest('End date must be on or after start date');
     }
 
+    // Planner v2: the form came from confirm_trip — read the agreed plan from the conversation
+    // (owner only; another user's conversation is a 404). Changed dates → re-plan, don't create.
+    let plan = null;
+    if (config.featureFlags.sweePlannerV2 && draft.planVersion != null && conversationId) {
+      const conv = await conversationsService.getConversation(userId, conversationId);
+      plan = conv.metadata?.plan || null;
+      if (plan && (plan.startDate !== startDate || plan.endDate !== endDate)) {
+        return replanForFormDates(userId, conversationId, plan, startDate, endDate);
+      }
+    }
+
     const tripsService = require('../trips/trips.service');
 
     let name = (draft.name || generateTripName(destination, startDate)).trim();
@@ -809,11 +1043,31 @@ const executeAction = async (userId, pendingAction, { conversationId = null, cha
     // createTrip returns the enriched trip object directly
     const trip = await tripsService.createTrip(userId, body);
 
+    if (plan) {
+      const planned = (plan.activities || [])
+        .filter((a) => a && typeof a.date === 'string' && a.date >= startDate && a.date <= endDate)
+        .slice(0, maxAddActivities());
+      const { added } = planned.length > 0
+        ? await bulkCreateActivities(trip.id, userId, planned, { notify: false })
+        : { added: 0 };
+      await writeAllNotes('trip', trip.id, userId, draft);
+      await writePlanningMetadata('trip', trip.id, {
+        ...draft, origin: plan.facts?.origin, travelMode: plan.facts?.travel?.mode,
+      });
+      const days = new Set(planned.map((a) => a.date)).size;
+      return {
+        reply: added > 0
+          ? `Trip created with your itinerary — ${added} activities across ${days} days. Invite friends from the trip page.`
+          : 'Trip created! Add places and invite friends now.',
+        created: { id: trip.id, type: 'trip', name: trip.name },
+      };
+    }
+
     // Activities Swee already has (e.g. read from an attached itinerary) — only those that fall
     // inside the dates chosen on the card; they were drafted before the dates were picked.
     const provided = (Array.isArray(draft.activities) ? draft.activities : [])
       .filter((a) => a && typeof a.date === 'string' && a.date >= startDate && a.date <= endDate)
-      .slice(0, MAX_ADD_ACTIVITIES);
+      .slice(0, maxAddActivities());
     if (provided.length > 0) {
       await bulkCreateActivities(trip.id, userId, provided, { notify: false });
     }
@@ -969,8 +1223,8 @@ const executeAction = async (userId, pendingAction, { conversationId = null, cha
   if (intent === 'add_activities') {
     const requested = Array.isArray(draft.activities) ? draft.activities : [];
     if (requested.length === 0) throw badRequest('There are no activities to add');
-    if (requested.length > MAX_ADD_ACTIVITIES) {
-      throw badRequest(`I can add up to ${MAX_ADD_ACTIVITIES} activities at a time — ask me for fewer days.`);
+    if (requested.length > maxAddActivities()) {
+      throw badRequest(`I can add up to ${maxAddActivities()} activities at a time — ask me for fewer days.`);
     }
 
     // The id comes from the client/model: only write into a trip the caller belongs to.
