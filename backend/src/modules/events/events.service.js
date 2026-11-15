@@ -20,6 +20,8 @@ const { phoneKey } = require('../../utils/phone.util');
 const { normalizeAuthEmail } = require('../../utils/email.util');
 const { getOrCreateShareLink } = require('../invites/shareLinks.service');
 const { ensureFriendRequestSafe } = require('../friends/friends.service');
+const { scheduleEventReminders } = require('../../utils/reminders.cron');
+const { DEFAULT_TIME_ZONE, resolveTimeZone } = require('../../utils/localTime');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -48,7 +50,20 @@ const formatEvent = (e, locations = null) => {
     createdBy: e.created_by,
     createdAt: e.created_at,
     updatedAt: e.updated_at,
+    ...(config.featureFlags.tripTimezones ? { timezone: e.timezone || null } : {}),
   };
+};
+
+// TRIP_TIMEZONES: (re)resolve an event's IANA zone from its primary location
+// (no coordinates -> creator's users.timezone -> Asia/Kolkata) and store it.
+const refreshEventTimeZone = async (executor, event) => {
+  const zone = await resolveTimeZone(event.location_lat, event.location_lng, async () => {
+    const result = await executor.query('SELECT timezone FROM users WHERE id = $1', [event.created_by]);
+    return result.rows[0]?.timezone;
+  });
+  if (zone === event.timezone) return { event, changed: false };
+  const result = await executor.query('UPDATE events SET timezone = $2 WHERE id = $1 RETURNING *', [event.id, zone]);
+  return { event: result.rows[0], changed: true };
 };
 
 // Returns true only for URLs stored in our own S3 bucket / CloudFront distribution
@@ -131,7 +146,8 @@ const createEvent = async (userId, body) => {
        RETURNING *`,
       [name, eventDate, eventType || null, description || null, primary.name, primary.lat, primary.lng, userId, resolvedBanner, bannerCropFraction ? JSON.stringify(bannerCropFraction) : null, eventTime || null],
     );
-    const event = eventResult.rows[0];
+    let event = eventResult.rows[0];
+    if (config.featureFlags.tripTimezones) ({ event } = await refreshEventTimeZone(client, event));
 
     await insertLocations(client, 'event_locations', 'event_id', event.id, normalizedLocations);
 
@@ -141,30 +157,9 @@ const createEvent = async (userId, body) => {
       [event.id, userId, 'admin'],
     );
 
-    // Schedule reminders at configurable UTC time (default 03:30 UTC = 09:00 IST)
+    // Event-day / 1-day / 3-day / 1-week reminders (09:00 IST today; event-local with TRIP_TIMEZONES)
     if (reminders) {
-      const HOUR = parseInt(process.env.REMINDER_HOUR_UTC ?? '3');
-      const MIN  = parseInt(process.env.REMINDER_MIN_UTC  ?? '30');
-      const start = new Date(eventDate);
-      start.setUTCHours(HOUR, MIN, 0, 0);
-
-      const remindersToCreate = [
-        { type: 'event_start',   date: new Date(start) },
-        { type: '1_day_before',  date: new Date(start.getTime() - 86400000) },
-        { type: '3_days_before', date: new Date(start.getTime() - 3 * 86400000) },
-        { type: '1_week_before', date: new Date(start.getTime() - 7 * 86400000) },
-      ];
-      for (const r of remindersToCreate) {
-        if (r.date > new Date()) {
-          await client.query(
-            `INSERT INTO event_reminders (event_id, reminder_type, scheduled_at)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (event_id, reminder_type) WHERE sent_at IS NULL
-             DO UPDATE SET scheduled_at = EXCLUDED.scheduled_at`,
-            [event.id, r.type, r.date.toISOString()],
-          );
-        }
-      }
+      await scheduleEventReminders(client, event.id, eventDate, event.timezone);
     }
 
     await client.query('COMMIT');
@@ -249,15 +244,19 @@ const getEvents = async (userId, { status, page = 1, limit = 20 } = {}) => {
   let dateFilter = '';
   let archivedFilter = 'AND e.archived_at IS NULL';
   let orderBy = 'ORDER BY e.event_date ASC';
+  // "Today" = the event's local date with TRIP_TIMEZONES, else the DB server's date
+  const today = config.featureFlags.tripTimezones
+    ? `(NOW() AT TIME ZONE COALESCE(e.timezone, '${DEFAULT_TIME_ZONE}'))::date`
+    : 'CURRENT_DATE';
 
   if (status === 'upcoming') {
-    dateFilter = 'AND e.event_date > CURRENT_DATE';
+    dateFilter = `AND e.event_date > ${today}`;
     orderBy = 'ORDER BY e.event_date ASC';
   } else if (status === 'past') {
-    dateFilter = 'AND e.event_date < CURRENT_DATE';
+    dateFilter = `AND e.event_date < ${today}`;
     orderBy = 'ORDER BY e.event_date DESC';
   } else if (status === 'ongoing') {
-    dateFilter = 'AND e.event_date = CURRENT_DATE';
+    dateFilter = `AND e.event_date = ${today}`;
     orderBy = 'ORDER BY e.event_date ASC';
   } else if (status === 'archived') {
     archivedFilter = 'AND e.archived_at IS NOT NULL';
@@ -497,32 +496,20 @@ const updateEvent = async (eventId, updates) => {
     client.release();
   }
 
+  // TRIP_TIMEZONES: a new primary location can mean a new time zone
+  let timeZoneChanged = false;
+  const locationChanged = normalizedLocations
+    || updates.location?.lat !== undefined || updates.location?.lng !== undefined;
+  if (config.featureFlags.tripTimezones && event && locationChanged) {
+    ({ event, changed: timeZoneChanged } = await refreshEventTimeZone({ query: db }, event));
+  }
+
   // Reschedule reminders if eventDate changed
   if (updates.eventDate) {
     const client = await getClient();
     try {
       await client.query('BEGIN');
-      const HOUR = parseInt(process.env.REMINDER_HOUR_UTC ?? '3');
-      const MIN  = parseInt(process.env.REMINDER_MIN_UTC  ?? '30');
-      const start = new Date(updates.eventDate);
-      start.setUTCHours(HOUR, MIN, 0, 0);
-      const remindersToCreate = [
-        { type: 'event_start',   date: new Date(start) },
-        { type: '1_day_before',  date: new Date(start.getTime() - 86400000) },
-        { type: '3_days_before', date: new Date(start.getTime() - 3 * 86400000) },
-        { type: '1_week_before', date: new Date(start.getTime() - 7 * 86400000) },
-      ];
-      for (const r of remindersToCreate) {
-        if (r.date > new Date()) {
-          await client.query(
-            `INSERT INTO event_reminders (event_id, reminder_type, scheduled_at)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (event_id, reminder_type) WHERE sent_at IS NULL
-             DO UPDATE SET scheduled_at = EXCLUDED.scheduled_at`,
-            [event.id, r.type, r.date.toISOString()],
-          );
-        }
-      }
+      await scheduleEventReminders(client, event.id, updates.eventDate, event.timezone);
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');
@@ -530,6 +517,9 @@ const updateEvent = async (eventId, updates) => {
     } finally {
       client.release();
     }
+  } else if (timeZoneChanged) {
+    // Same date, new zone: move the event's existing unsent future reminders only
+    await scheduleEventReminders({ query: db }, event.id, event.event_date, event.timezone, { onlyExisting: true });
   }
 
   const locations = await loadEventLocations(db, eventId);

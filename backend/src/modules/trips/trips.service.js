@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { DateTime } = require('luxon');
 const { query: db, getClient } = require('../../config/database');
 const { sendEmail, wrapEmail, sendTripCancelledEmail } = require('../../utils/mailer');
 const { createAndSendNotifications, createAndSendNotification, notifySafely } = require('../../utils/fcm.util');
@@ -21,10 +22,19 @@ const { phoneKey } = require('../../utils/phone.util');
 const { normalizeAuthEmail } = require('../../utils/email.util');
 const { getOrCreateShareLink } = require('../invites/shareLinks.service');
 const { ensureFriendRequestSafe } = require('../friends/friends.service');
+const { scheduleTripReminders, scheduleActivityReminders } = require('../../utils/reminders.cron');
+const { DEFAULT_TIME_ZONE, resolveTimeZone, toIsoDate } = require('../../utils/localTime');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const calcDaysToGo = (startDate) => {
+const calcDaysToGo = (startDate, timeZone) => {
+  if (config.featureFlags.tripTimezones) {
+    // Days between the trip's local "today" and its start date
+    const today = DateTime.now().setZone(timeZone || DEFAULT_TIME_ZONE).toISODate();
+    const start = toIsoDate(startDate instanceof Date ? startDate : String(startDate));
+    if (!start) return 0;
+    return Math.max(0, Math.round(DateTime.fromISO(start).diff(DateTime.fromISO(today), 'days').days));
+  }
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const start = new Date(startDate);
@@ -76,7 +86,34 @@ const formatTrip = (t, locations = null) => {
     createdBy: t.created_by,
     createdAt: t.created_at,
     updatedAt: t.updated_at,
+    ...(config.featureFlags.tripTimezones ? { timezone: t.timezone || null } : {}),
   };
+};
+
+// TRIP_TIMEZONES: (re)resolve a trip's IANA zone from its primary location
+// (no coordinates -> creator's users.timezone -> Asia/Kolkata) and store it.
+const refreshTripTimeZone = async (executor, trip) => {
+  const zone = await resolveTimeZone(trip.location_lat, trip.location_lng, async () => {
+    const result = await executor.query('SELECT timezone FROM users WHERE id = $1', [trip.created_by]);
+    return result.rows[0]?.timezone;
+  });
+  if (zone === trip.timezone) return { trip, changed: false };
+  const result = await executor.query('UPDATE trips SET timezone = $2 WHERE id = $1 RETURNING *', [trip.id, zone]);
+  return { trip: result.rows[0], changed: true };
+};
+
+// Re-run activity reminders after the trip's time zone changed. Unsent ones are
+// replaced in the new zone; sent ones are never touched. Fire-and-forget.
+const rescheduleTripActivityReminders = (tripId) => {
+  (async () => {
+    const result = await db(
+      'SELECT id, activity_date, activity_time FROM trip_activities WHERE trip_id = $1 AND activity_time IS NOT NULL',
+      [tripId],
+    );
+    for (const a of result.rows) {
+      await scheduleActivityReminders(a.id, tripId, a.activity_date, a.activity_time);
+    }
+  })().catch((err) => logger.error('rescheduleTripActivityReminders failed', { tripId, error: err.message }));
 };
 
 // Async wrapper — resolves presigned banner URL then merges into formatted trip
@@ -124,7 +161,8 @@ const createTrip = async (userId, body) => {
        RETURNING *`,
       [name, startDate, endDate, primary.name, primary.lat, primary.lng, userId, resolvedBanner, bannerCropFraction ? JSON.stringify(bannerCropFraction) : null],
     );
-    const trip = tripResult.rows[0];
+    let trip = tripResult.rows[0];
+    if (config.featureFlags.tripTimezones) ({ trip } = await refreshTripTimeZone(client, trip));
 
     await insertLocations(client, 'trip_locations', 'trip_id', trip.id, normalizedLocations);
 
@@ -134,30 +172,9 @@ const createTrip = async (userId, body) => {
       [trip.id, userId, 'admin'],
     );
 
-    // Schedule reminders at configurable UTC time (default 03:30 UTC = 09:00 IST)
+    // Start / 1-day / 3-day / 1-week reminders (09:00 IST today; trip-local with TRIP_TIMEZONES)
     if (reminders) {
-      const HOUR = parseInt(process.env.REMINDER_HOUR_UTC ?? '3');
-      const MIN  = parseInt(process.env.REMINDER_MIN_UTC  ?? '30');
-      const start = new Date(startDate);
-      start.setUTCHours(HOUR, MIN, 0, 0);
-
-      const remindersToCreate = [
-        { type: 'trip_start',    date: new Date(start) },
-        { type: '1_day_before',  date: new Date(start.getTime() - 86400000) },
-        { type: '3_days_before', date: new Date(start.getTime() - 3 * 86400000) },
-        { type: '1_week_before', date: new Date(start.getTime() - 7 * 86400000) },
-      ];
-      for (const r of remindersToCreate) {
-        if (r.date > new Date()) {
-          await client.query(
-            `INSERT INTO trip_reminders (trip_id, reminder_type, scheduled_at)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (trip_id, reminder_type) WHERE sent_at IS NULL
-             DO UPDATE SET scheduled_at = EXCLUDED.scheduled_at`,
-            [trip.id, r.type, r.date.toISOString()],
-          );
-        }
-      }
+      await scheduleTripReminders(client, trip.id, startDate, trip.timezone);
     }
 
     await client.query('COMMIT');
@@ -242,15 +259,19 @@ const getTrips = async (userId, { status, page = 1, limit = 20 } = {}) => {
   let dateFilter = '';
   let archiveFilter = 'AND t.archived_at IS NULL'; // exclude archived from all normal lists
   let orderBy = 'ORDER BY t.start_date ASC';
+  // "Today" = the trip's local date with TRIP_TIMEZONES, else the DB server's date
+  const today = config.featureFlags.tripTimezones
+    ? `(NOW() AT TIME ZONE COALESCE(t.timezone, '${DEFAULT_TIME_ZONE}'))::date`
+    : 'CURRENT_DATE';
 
   if (status === 'upcoming') {
-    dateFilter = 'AND t.start_date > CURRENT_DATE';
+    dateFilter = `AND t.start_date > ${today}`;
     orderBy = 'ORDER BY t.start_date ASC';
   } else if (status === 'past') {
-    dateFilter = 'AND t.end_date < CURRENT_DATE';
+    dateFilter = `AND t.end_date < ${today}`;
     orderBy = 'ORDER BY t.end_date DESC';
   } else if (status === 'ongoing') {
-    dateFilter = 'AND t.start_date <= CURRENT_DATE AND t.end_date >= CURRENT_DATE';
+    dateFilter = `AND t.start_date <= ${today} AND t.end_date >= ${today}`;
     orderBy = 'ORDER BY t.start_date ASC';
   } else if (status === 'archived') {
     archiveFilter = 'AND t.archived_at IS NOT NULL';
@@ -380,7 +401,7 @@ const getTripById = async (tripId, currentUserId) => {
   return {
     trip: {
       ...await enrichTrip(t, locations),
-      daysToGo: calcDaysToGo(t.start_date),
+      daysToGo: calcDaysToGo(t.start_date, t.timezone),
     },
     members: membersResult.rows.map((m) => ({
       userId: m.user_id,
@@ -474,105 +495,33 @@ const updateTrip = async (tripId, updates) => {
     return enrichTripWithLocations(existing.rows[0]);
   }
 
+  let trip;
   if (!normalizedLocations) {
     values.push(tripId);
     const result = await db(
       `UPDATE trips SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`,
       values,
     );
-    const trip = result.rows[0];
-
-    if (updates.startDate) {
-      const client = await getClient();
-      try {
-        await client.query('BEGIN');
-        const HOUR = parseInt(process.env.REMINDER_HOUR_UTC ?? '3');
-        const MIN  = parseInt(process.env.REMINDER_MIN_UTC  ?? '30');
-        const start = new Date(updates.startDate);
-        start.setUTCHours(HOUR, MIN, 0, 0);
-        const remindersToCreate = [
-          { type: 'trip_start',    date: new Date(start) },
-          { type: '1_day_before',  date: new Date(start.getTime() - 86400000) },
-          { type: '3_days_before', date: new Date(start.getTime() - 3 * 86400000) },
-          { type: '1_week_before', date: new Date(start.getTime() - 7 * 86400000) },
-        ];
-        for (const r of remindersToCreate) {
-          if (r.date > new Date()) {
-            await client.query(
-              `INSERT INTO trip_reminders (trip_id, reminder_type, scheduled_at)
-               VALUES ($1, $2, $3)
-               ON CONFLICT (trip_id, reminder_type) WHERE sent_at IS NULL
-               DO UPDATE SET scheduled_at = EXCLUDED.scheduled_at`,
-              [trip.id, r.type, r.date.toISOString()],
-            );
-          }
-        }
-        await client.query('COMMIT');
-      } catch (e) {
-        await client.query('ROLLBACK');
-        throw e;
-      } finally {
-        client.release();
-      }
-    }
-
-    return enrichTripWithLocations(trip);
-  }
-
-  const client = await getClient();
-  let trip;
-  try {
-    await client.query('BEGIN');
-
-    if (fields.length > 0) {
-      values.push(tripId);
-      const result = await client.query(
-        `UPDATE trips SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`,
-        values,
-      );
-      trip = result.rows[0];
-    } else {
-      const existing = await client.query('SELECT * FROM trips WHERE id = $1', [tripId]);
-      trip = existing.rows[0];
-    }
-
-    if (normalizedLocations) {
-      await replaceLocations(client, 'trip_locations', 'trip_id', tripId, normalizedLocations);
-    }
-
-    await client.query('COMMIT');
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
-  }
-
-  if (updates.startDate) {
+    trip = result.rows[0];
+  } else {
     const client = await getClient();
     try {
       await client.query('BEGIN');
-      const HOUR = parseInt(process.env.REMINDER_HOUR_UTC ?? '3');
-      const MIN  = parseInt(process.env.REMINDER_MIN_UTC  ?? '30');
-      const start = new Date(updates.startDate);
-      start.setUTCHours(HOUR, MIN, 0, 0);
-      const remindersToCreate = [
-        { type: 'trip_start',    date: new Date(start) },
-        { type: '1_day_before',  date: new Date(start.getTime() - 86400000) },
-        { type: '3_days_before', date: new Date(start.getTime() - 3 * 86400000) },
-        { type: '1_week_before', date: new Date(start.getTime() - 7 * 86400000) },
-      ];
-      for (const r of remindersToCreate) {
-        if (r.date > new Date()) {
-          await client.query(
-            `INSERT INTO trip_reminders (trip_id, reminder_type, scheduled_at)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (trip_id, reminder_type) WHERE sent_at IS NULL
-             DO UPDATE SET scheduled_at = EXCLUDED.scheduled_at`,
-            [trip.id, r.type, r.date.toISOString()],
-          );
-        }
+
+      if (fields.length > 0) {
+        values.push(tripId);
+        const result = await client.query(
+          `UPDATE trips SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING *`,
+          values,
+        );
+        trip = result.rows[0];
+      } else {
+        const existing = await client.query('SELECT * FROM trips WHERE id = $1', [tripId]);
+        trip = existing.rows[0];
       }
+
+      await replaceLocations(client, 'trip_locations', 'trip_id', tripId, normalizedLocations);
+
       await client.query('COMMIT');
     } catch (e) {
       await client.query('ROLLBACK');
@@ -582,8 +531,33 @@ const updateTrip = async (tripId, updates) => {
     }
   }
 
-  const locations = await loadTripLocations(db, tripId);
-  return enrichTrip(trip, locations);
+  // TRIP_TIMEZONES: a new primary location can mean a new time zone
+  let timeZoneChanged = false;
+  const locationChanged = normalizedLocations
+    || updates.location?.lat !== undefined || updates.location?.lng !== undefined;
+  if (config.featureFlags.tripTimezones && trip && locationChanged) {
+    ({ trip, changed: timeZoneChanged } = await refreshTripTimeZone({ query: db }, trip));
+  }
+
+  if (updates.startDate) {
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+      await scheduleTripReminders(client, trip.id, updates.startDate, trip.timezone);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } else if (timeZoneChanged) {
+    // Same dates, new zone: move the trip's existing unsent future reminders only
+    await scheduleTripReminders({ query: db }, trip.id, trip.start_date, trip.timezone, { onlyExisting: true });
+  }
+  if (timeZoneChanged) rescheduleTripActivityReminders(trip.id);
+
+  return enrichTripWithLocations(trip);
 };
 
 // ─── Delete Trip ──────────────────────────────────────────────────────────────

@@ -152,6 +152,12 @@ module.exports = {
     profileTravelPrefs: process.env.PROFILE_TRAVEL_PREFS === 'on',
   },
 
+  // Local time ("HH:MM") of trip/event day reminders in the trip's/event's time zone.
+  // Used when TRIP_TIMEZONES=on; when off, REMINDER_HOUR_UTC/REMINDER_MIN_UTC still apply.
+  reminderLocalTime: /^([01]\d|2[0-3]):[0-5]\d$/.test(process.env.REMINDER_LOCAL_TIME || '')
+    ? process.env.REMINDER_LOCAL_TIME
+    : '09:00',
+
   // ─── Invite & App Store Links ─────────────────
   invite: {
     baseUrl:          process.env.APP_INVITE_BASE_URL || 'https://gatherrgo.com/invite',
