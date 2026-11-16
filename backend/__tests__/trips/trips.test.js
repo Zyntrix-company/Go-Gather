@@ -109,6 +109,12 @@ describe('Trips Routes', () => {
   // ── POST /trips ───────────────────────────────────────────────────────────
 
   describe('POST /trips', () => {
+    // The mocked query sequence below is today's (TRIP_TIMEZONES off); time zones: timezones/services.test.js
+    const config = require('../../src/config');
+    const savedTz = config.featureFlags.tripTimezones;
+    beforeEach(() => { config.featureFlags.tripTimezones = false; });
+    afterAll(() => { config.featureFlags.tripTimezones = savedTz; });
+
     it('returns 401 without auth', async () => {
       const res = await request(app)
         .post('/trips')

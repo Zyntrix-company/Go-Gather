@@ -191,6 +191,7 @@ describe('Phase 3 — profile travel details (PROFILE_TRAVEL_PREFS)', () => {
       jest.useFakeTimers({ now: new Date('2026-11-15T06:00:00Z'), doNotFake: ['setTimeout', 'setImmediate', 'nextTick'] });
       config.featureFlags.profileTravelPrefs = false;
       config.featureFlags.sweePlannerV2 = false;
+      config.featureFlags.tripTimezones = false;
       try {
         expect(buildSweetSystemPrompt(null, null, 0, '', '')).toBe(fixture.empty);
       } finally {

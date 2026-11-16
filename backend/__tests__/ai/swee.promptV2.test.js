@@ -41,6 +41,8 @@ describe('Swee prompt — Planner v2 flag', () => {
 
   it('flag off: prompt is byte-identical to today\'s', () => {
     config.featureFlags.sweePlannerV2 = false;
+    config.featureFlags.tripTimezones = false;
+    config.featureFlags.profileTravelPrefs = false;
     const p = prompts();
     expect(p.empty).toBe(fixture.empty);
     expect(p.full).toBe(fixture.full);
