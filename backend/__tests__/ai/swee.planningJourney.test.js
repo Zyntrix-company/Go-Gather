@@ -850,6 +850,121 @@ describe('Swee planning journey (SWEE_PLANNER_V2)', () => {
     });
   });
 
+  // Live Round C (2 of 7 runs): "Looks good, let's create the trip" → no action, or plan_trip again.
+  describe('chat → "looks good" with a plan in the chat (SWEE_PLANNER_V2)', () => {
+    const withPlan = () => conversationsService.getConversation.mockResolvedValue({ id: CONV, metadata: { plan: storedPlan() } });
+
+    it('no action from the model → the pre-filled trip form', async () => {
+      withPlan();
+      geminiReplies(`Great!\n${action({ intent: 'none' })}`);
+      const result = await aiService.chat(USER, 'Looks good, let\'s create the trip.', { conversationId: CONV });
+      expect(result.pendingAction).toMatchObject({ intent: 'create_trip', showForm: 'trip', draft: { destination: 'Delhi', planVersion: 1 } });
+      expect(result.reply).toBe('Great!');
+    });
+
+    it('plan_trip re-sent with no change → the form, nothing re-planned', async () => {
+      withPlan();
+      geminiReplies(`Here it is again:\n${action({ intent: 'plan_trip', draft: FACTS })}`);
+      const result = await aiService.chat(USER, 'Perfect, create it', { conversationId: CONV });
+      expect(itinerary.generatePlan).not.toHaveBeenCalled();
+      expect(result.pendingAction).toMatchObject({ intent: 'create_trip', showForm: 'trip' });
+      expect(result.reply).toBe('Here are your trip details — check them and tap Create My Trip.');
+    });
+
+    it.each([
+      ['Looks good, but add the Red Fort on Monday'],
+      ['looks good — can you add one more museum?'],
+      ['Perfect, just move Place 2026-12-06-0 to 7 Dec'],
+    ])('a change in the same message is not a confirm — "%s"', async (message) => {
+      withPlan();
+      geminiReplies(`Sure:\n${action({ intent: 'plan_trip', draft: { ...FACTS, dates: ['2026-12-07'] } })}`);
+      const result = await aiService.chat(USER, message, { conversationId: CONV });
+      expect(result.pendingAction?.showForm).not.toBe('trip');
+    });
+
+    it('no plan in the chat → no confirm', async () => {
+      geminiReplies(`Glad you like it!\n${action({ intent: 'none' })}`);
+      const result = await aiService.chat(USER, 'looks good', { conversationId: CONV });
+      expect(result.pendingAction).toBeNull();
+    });
+
+    it('flag off → no confirm (the plan is never read)', async () => {
+      config.featureFlags.sweePlannerV2 = false;
+      withPlan();
+      geminiReplies(`Great!\n${action({ intent: 'none' })}`);
+      const result = await aiService.chat(USER, 'Looks good, let\'s create the trip.', { conversationId: CONV });
+      expect(result.pendingAction).toBeNull();
+      expect(result.reply).toBe('Great!');
+    });
+  });
+
+  // Live Round D: "forget that I'm vegetarian" → "I will not save that" with no action (still saved);
+  // saved interests never reached the planner.
+  describe('chat → profile rules, round 2 (PROFILE_TRAVEL_PREFS)', () => {
+    const { loadUserContext } = jest.requireMock('../../src/modules/ai/swee.config');
+    const profile = (p) => loadUserContext.mockResolvedValue({ profile: { first_name: 'Asha', ...p }, trips: [], events: [] });
+    beforeEach(() => { config.featureFlags.profileTravelPrefs = true; });
+    afterEach(() => {
+      config.featureFlags.profileTravelPrefs = false;
+      loadUserContext.mockResolvedValue({ profile: null, trips: [], events: [] });
+    });
+
+    it('"forget that I\'m vegetarian" with no action → the clear offer for the saved diet', async () => {
+      profile({ dietary_needs: 'vegetarian' });
+      geminiReplies(`Understood, I will not save that preference.\n${action({ intent: 'none' })}`);
+      const result = await aiService.chat(USER, 'Actually, forget that I\'m vegetarian.', { conversationId: CONV });
+      expect(result.pendingAction).toEqual({
+        intent: 'save_profile_detail', readyToCreate: true, scope: 'in', draft: { field: 'dietaryNeeds', value: '' },
+      });
+      expect(result.reply).toMatch(/^Want me to forget that\?/);
+    });
+
+    it('nothing saved for it → no clear offer', async () => {
+      profile({ dietary_needs: null });
+      geminiReplies(`Okay!\n${action({ intent: 'none' })}`);
+      const result = await aiService.chat(USER, 'forget that I\'m vegetarian', { conversationId: CONV });
+      expect(result.pendingAction).toBeNull();
+    });
+
+    it('"forget it, I don\'t like Goa" is not a profile clear', async () => {
+      profile({ interests: ['history'] });
+      geminiReplies(`No problem.\n${action({ intent: 'none' })}`);
+      const result = await aiService.chat(USER, 'forget it, I don\'t like Goa', { conversationId: CONV });
+      expect(result.pendingAction).toBeNull();
+    });
+
+    it('saved interests and diet go to the planner when the model leaves them out', async () => {
+      profile({ home_city: 'Pune', interests: ['history', 'street food'], dietary_needs: 'vegetarian' });
+      geminiReplies(`Planning:\n${action({ intent: 'plan_trip', draft: FACTS })}`);
+      await aiService.chat(USER, 'plan it', { conversationId: CONV });
+      expect(itinerary.generatePlan.mock.calls[0][0]).toMatchObject({ interests: ['history', 'street food'], dietaryNeeds: 'vegetarian' });
+    });
+
+    it('interests the model sent win', async () => {
+      profile({ home_city: 'Pune', interests: ['history'] });
+      geminiReplies(`Planning:\n${action({ intent: 'plan_trip', draft: { ...FACTS, interests: ['beaches'] } })}`);
+      await aiService.chat(USER, 'plan it, beaches please', { conversationId: CONV });
+      expect(itinerary.generatePlan.mock.calls[0][0].interests).toEqual(['beaches']);
+    });
+  });
+
+  // Live Round C (C4): Swee wrote "**Day 1** - Morning: …" AND sent plan_itinerary; the text was
+  // shown above the server's checked proposal.
+  describe('plan_itinerary: self-written days never shown', () => {
+    it('the lead-in with written days is dropped; the proposal is shown', async () => {
+      const trip = { id: TRIP, name: 'Goa Dec 2026', start_date: '2026-12-01', end_date: '2026-12-03', location_name: 'Goa', role: 'admin' };
+      db.query.mockImplementation(async (sql) => {
+        if (/FROM trips t\s+JOIN trip_members/.test(sql)) return { rows: [trip] };
+        return { rows: [] };
+      });
+      geminiReplies(`Here is a day-by-day plan:\n\n**Day 1**\n- Morning: Baga Beach\n- Afternoon: Fort Aguada\n- Evening: Shack dinner\n\n**Day 2**\n- Morning: Old Goa\n${action({ intent: 'plan_itinerary', tripId: TRIP })}`);
+      const result = await aiService.chat(USER, 'Plan my itinerary for the Goa trip.', { conversationId: CONV });
+      expect(result.pendingAction).toMatchObject({ intent: 'add_activities' });
+      expect(result.reply).not.toMatch(/Morning: Baga Beach/);
+      expect(result.reply).toMatch(/Add these to your itinerary\?$/);
+    });
+  });
+
   describe('plan_itinerary (existing trip) uses Planner v2', () => {
     const trip = {
       id: TRIP, name: 'Goa Dec 2026', start_date: '2026-12-01', end_date: '2026-12-03', location_name: 'Goa', role: 'admin',

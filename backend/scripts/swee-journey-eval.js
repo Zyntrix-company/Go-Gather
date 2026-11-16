@@ -186,7 +186,7 @@ async function say(session, message, opts = {}) {
       if (args.verbose) console.log(`    > ${message}\n    < ${r.reply.replace(/\n/g, ' ⏎ ').slice(0, 300)}\n      ${JSON.stringify(r.pendingAction)?.slice(0, 300)}`);
       return r;
     } catch (err) {
-      if (attempt < 2 && /503|overloaded|fetch failed|busy/i.test(err.message)) { await sleep(8000 * (attempt + 1)); continue; }
+      if (attempt < 2 && /50[023]|overloaded|fetch failed|busy/i.test(err.message)) { await sleep(8000 * (attempt + 1)); continue; }
       throw err;
     }
   }

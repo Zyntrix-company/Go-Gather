@@ -21,7 +21,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const config = require('../src/config');
 const { buildSweetSystemPrompt } = require('../src/modules/ai/swee.config');
 const { parseActionBlock } = require('../src/modules/ai/ai.helpers');
-const { buildMessageParts } = require('../src/modules/ai/ai.service');
+const { buildMessageParts, confirmsPlan } = require('../src/modules/ai/ai.service');
 const {
   generateItinerary, enumerateDates, generatePlan, sanitizePlanFacts, formatPlanPreview,
 } = require('../src/modules/ai/swee.itinerary');
@@ -120,7 +120,7 @@ async function turn(history, message, tripContext = null) {
       history.push({ role: 'user', content: message }, { role: 'assistant', content: stored });
       return { reply: parsed.reply, action };
     } catch (err) {
-      if (attempt < 2 && /429|503|overloaded|fetch failed/i.test(err.message)) {
+      if (attempt < 2 && /429|50[023]|overloaded|fetch failed/i.test(err.message)) {
         await new Promise((r) => setTimeout(r, 8000 * (attempt + 1)));
         continue;
       }
@@ -332,8 +332,15 @@ async function evalJourney() {
   check('journey: no invented preferences (the user gave none)', !/history|street food/i.test(d.preferences || ''), d.preferences);
   check('journey: no prices', !/₹|\$\s?\d|€\s?\d|INR|price/i.test(r.reply), r.reply.slice(0, 200));
 
-  r = await turn(h, 'Looks good, let\'s create the trip.');
-  check('journey: confirm_trip on "looks good"', r.action?.intent === 'confirm_trip', JSON.stringify(r.action));
+  const looksGood = 'Looks good, let\'s create the trip.';
+  r = await turn(h, looksGood);
+  // This part calls the model directly; /ai/chat also turns "looks good" with a stored plan into
+  // confirm_trip when the model sends nothing (or plan_trip with no change) — count both.
+  const rawConfirm = r.action?.intent === 'confirm_trip';
+  const serverConfirm = confirmsPlan(looksGood) && (!r.action
+    || (r.action.intent === 'plan_trip' && !r.action.draft?.move && !(r.action.draft?.dates || []).length));
+  if (!rawConfirm) console.log(`  (model sent ${r.action?.intent || 'no action'} — the server rule confirms: ${serverConfirm})`);
+  check('journey: confirm_trip on "looks good" (model or server rule)', rawConfirm || serverConfirm, JSON.stringify(r.action));
 
   const h2 = [];
   r = await turn(h2, 'What\'s Kerala like in March?');

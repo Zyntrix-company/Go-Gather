@@ -533,6 +533,18 @@ const SELF_WRITTEN_FAILED_REPLY = 'I couldn\'t build a checked itinerary just no
 const SELF_WRITTEN_NOTE = '[App note, not from the user: your last answer wrote a day-by-day itinerary as text, which the app can\'t check or save. Answer again with one short line and the plan_trip ACTION carrying the facts gathered so far — never write the days yourself.]';
 // "I'll remember that" / "I've saved your …" with no Save button is a claim the app never made true.
 const REMEMBER_CLAIM = /\b(?:I'll|I will|I've|I have|I'm going to|I am going to)\s+(?:remember\b|(?:save|saved|saving)\s+(?:that|this|it|your)\b|(?:note|noted|keep)\b[^.!?\n]*\bfor (?:next time|the future|future trips)\b)/i;
+// "Looks good, let's create the trip" with a plan in the chat is a confirm — unless they ask for a change.
+const CONFIRM_WORDS = /\b(?:looks? (?:good|great|perfect|fine|right)|sounds (?:good|great|perfect)|(?:that'?s|it'?s) perfect|perfect|let'?s (?:create|book|save|set up|do) (?:it|this|the trip)|create (?:it|the trip|my trip|this trip)|set (?:it|this|the trip) up|save (?:it|the trip)|go ahead and (?:create|set up|save))\b/i;
+const CHANGE_WORDS = /\b(?:add|change|instead|move|remove|drop|replace|swap|more|less|fewer|but|except|different|another|extra|without|day\s*\d|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i;
+// "Forget that I'm vegetarian" → which saved detail to clear.
+const FORGET_WORDS = /\b(?:forget|remove|delete|clear|unsave|don'?t (?:save|remember|keep))\b/i;
+const FORGET_FIELDS = [
+  ['dietaryNeeds', 'dietary_needs', /\b(?:vegetarian|vegan|veg|diet|dietary|halal|kosher|jain|gluten|allerg|eat)\w*/i],
+  ['accessibilityNeeds', 'accessibility_needs', /\b(?:wheelchair|accessib|mobility|disab|step-free)\w*/i],
+  ['homeCity', 'home_city', /\b(?:home city|home town|hometown|where i (?:live|travel from)|travel(?:l)?ing from)\b/i],
+  ['travelMode', 'travel_mode_pref', /\b(?:travel mode|usually travel|way of travel|prefer (?:to )?(?:fly|train|drive))\w*/i],
+  ['interests', 'interests', /\b(?:interest|hobb)\w*/i],
+];
 const TRAVEL_MODE_WORDS = /\b(?:fly|flying|flight|flights|plane|train|trains|rail|drive|driving|car|road trip|bus|by road)\b/i;
 const SHAPE_KEYS = ['destination', 'startDate', 'endDate', 'timeZone', 'origin', 'travel', 'busy'];
 
@@ -609,6 +621,14 @@ async function handlePlanTrip(userId, conversationId, action, lead, message = ''
       && facts.travel?.mode !== savedMode) {
       facts = { ...facts, travel: { ...(facts.travel || { booked: false }), mode: savedMode, onboardMinutes: undefined } };
     }
+    // Saved interests and needs shape every plan unless the model already sent them.
+    const has = (v) => (Array.isArray(v) ? v.length > 0 : typeof v === 'string' && v.trim() !== '');
+    const saved = itinerary.sanitizePlanFacts({
+      interests: profile?.interests, dietaryNeeds: profile?.dietary_needs, accessibilityNeeds: profile?.accessibility_needs,
+    });
+    ['interests', 'dietaryNeeds', 'accessibilityNeeds'].forEach((k) => {
+      if (!has(facts[k]) && has(saved[k])) facts = { ...facts, [k]: saved[k] };
+    });
   }
 
   // Refine only when nothing that shapes the windows or travel legs changed; otherwise kept
@@ -927,6 +947,14 @@ function originNamedIn(message) {
   return city.replace(/\b[a-z]/g, (c) => c.toUpperCase());
 }
 
+const hasSaved = (v) => (Array.isArray(v) ? v.length > 0 : v != null && String(v).trim() !== '');
+
+/** "Looks good, let's create the trip" — a confirmation that asks for no change. */
+function confirmsPlan(message) {
+  const text = String(message || '');
+  return CONFIRM_WORDS.test(text) && !CHANGE_WORDS.test(text);
+}
+
 /** The sentences of `text` that claim something was remembered or saved, removed. */
 function stripRememberClaims(text) {
   const lines = String(text || '').split('\n').map((line) => {
@@ -953,6 +981,14 @@ function applyProfileRules({
   let out = reply;
   let action = pendingAction;
 
+  // "Forget that I'm vegetarian" with no action → offer the clear for the saved detail it names.
+  if (!action && !actionRan && FORGET_WORDS.test(message)) {
+    const hit = FORGET_FIELDS.find(([, column, words]) => words.test(message) && hasSaved(profile?.[column]));
+    if (hit) {
+      action = { intent: 'save_profile_detail', readyToCreate: true, scope: 'in', draft: { field: hit[0], value: '' } };
+      return { reply: 'Want me to forget that? Tap the button and I\'ll remove it from your profile.', pendingAction: action };
+    }
+  }
   if (action?.intent !== 'save_profile_detail' && REMEMBER_CLAIM.test(out)) {
     out = stripRememberClaims(out) || 'Got it.';
   }
@@ -1131,6 +1167,15 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
     }
   }
 
+  // Planner v2: a plan exists and the user says it looks good → confirm_trip, whatever the model sent
+  // (it sometimes sends nothing, or re-sends plan_trip and the whole plan is re-planned).
+  if (currentPlan && !enforceBlock && confirmsPlan(message)
+    && (!pendingAction || (pendingAction.intent === 'plan_trip' && !pendingAction.draft?.move
+      && !(Array.isArray(pendingAction.draft?.dates) && pendingAction.draft.dates.length)))) {
+    if (pendingAction) reply = '';
+    pendingAction = { intent: 'confirm_trip', readyToCreate: false, scope: 'in' };
+  }
+
   const modelAction = pendingAction?.intent || null; // before the server turns it into a preview
 
   // "Plan my itinerary" for an existing trip: the server plans every day and shows a preview
@@ -1142,7 +1187,8 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
         // Not a saved trip — it's the plan in this chat: refine that instead.
         pendingAction = asPlanRefine({ ...pendingAction, tripId: undefined, targetTripName: undefined }, currentPlan);
       } else {
-        reply = proposal.ok ? `${reply ? `${reply}\n\n` : ''}${proposal.text}` : proposal.text;
+        const lead = config.featureFlags.sweePlannerV2 && looksSelfWritten(reply) ? '' : reply;
+        reply = proposal.ok ? `${lead ? `${lead}\n\n` : ''}${proposal.text}` : proposal.text;
         pendingAction = proposal.ok ? proposal.pendingAction : null;
       }
     } catch (err) {
@@ -1612,4 +1658,5 @@ module.exports = {
   reportIssue,
   buildMessageParts,
   waitForBackgroundJobs,
+  confirmsPlan,
 };
