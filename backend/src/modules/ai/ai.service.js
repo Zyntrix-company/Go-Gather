@@ -816,9 +816,11 @@ async function geminiChat(message, history, systemPrompt, attachments) {
 const chat = async (userId, message, { conversationId, tripContext, attachments = [] } = {}) => {
   let resolvedConversationId = conversationId;
   let resolvedTripContext = tripContext || null;
+  let currentPlan = null; // Planner v2: the plan stored on this conversation, shown to the model
 
   if (resolvedConversationId) {
     const conv = await conversationsService.getConversation(userId, resolvedConversationId);
+    if (config.featureFlags.sweePlannerV2) currentPlan = conv.metadata?.plan || null;
     if (!resolvedTripContext && conv.tripContext) {
       resolvedTripContext = conv.tripContext;
     }
@@ -858,6 +860,7 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
     historyLength,
     memoryBlock,
     lastAssistantRow?.refused ? lastAssistantRow.content : '',
+    ...(currentPlan ? [currentPlan] : []),
   );
 
   const startedAt = Date.now();

@@ -9,10 +9,14 @@
  */
 
 const mockSendMessage = jest.fn();
+const mockSystemPrompts = [];
 
 jest.mock('@google/generative-ai', () => ({
   GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-    getGenerativeModel: jest.fn(() => ({ startChat: jest.fn(() => ({ sendMessage: mockSendMessage })) })),
+    getGenerativeModel: jest.fn((opts) => {
+      mockSystemPrompts.push(opts?.systemInstruction);
+      return { startChat: jest.fn(() => ({ sendMessage: mockSendMessage })) };
+    }),
   })),
 }));
 
@@ -214,6 +218,38 @@ describe('Swee planning journey (SWEE_PLANNER_V2)', () => {
       expect(saved.activities.map((a) => a.locationName)).toEqual([
         'Flight Pune → Delhi', 'Place 2026-12-06-0', 'Place 2026-12-07-0', 'Flight Delhi → Pune', 'Place 2026-12-08-2',
       ]);
+    });
+
+    // Live Round C: history holds only the preview text, so on "refine" the model re-derived the
+    // facts (end date / flight time drifted) → full re-plan; or wrote the changed day itself.
+    it('the stored plan\'s facts are shown to the model, so a refine can copy them', async () => {
+      const prev = storedPlan();
+      conversationsService.getConversation.mockResolvedValue({ id: CONV, metadata: { plan: prev } });
+      geminiReplies(`Sure.\n${action({ intent: 'none' })}`);
+      mockSystemPrompts.length = 0;
+
+      await aiService.chat(USER, 'add Red Fort on Monday', { conversationId: CONV });
+
+      const prompt = mockSystemPrompts[mockSystemPrompts.length - 1];
+      expect(prompt).toContain(`THE PLAN ALREADY MADE IN THIS CHAT (version ${prev.version}`);
+      expect(prompt).toContain(JSON.stringify(prev.facts));
+      expect(prompt).toContain('Never write or describe the changed days yourself');
+    });
+
+    it('no stored plan → no plan section', async () => {
+      geminiReplies(`Sure.\n${action({ intent: 'none' })}`);
+      mockSystemPrompts.length = 0;
+      await aiService.chat(USER, 'hi', { conversationId: CONV });
+      expect(mockSystemPrompts[mockSystemPrompts.length - 1]).not.toContain('THE PLAN ALREADY MADE');
+    });
+
+    it('flag off: a stored plan is never shown (prompt unchanged)', async () => {
+      config.featureFlags.sweePlannerV2 = false;
+      conversationsService.getConversation.mockResolvedValue({ id: CONV, metadata: { plan: storedPlan() } });
+      geminiReplies(`Sure.\n${action({ intent: 'none' })}`);
+      mockSystemPrompts.length = 0;
+      await aiService.chat(USER, 'hi', { conversationId: CONV });
+      expect(mockSystemPrompts[mockSystemPrompts.length - 1]).not.toContain('THE PLAN ALREADY MADE');
     });
 
     it('changed travel is a full re-plan even when dates are given (kept days could clash with new legs)', async () => {

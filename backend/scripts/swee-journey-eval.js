@@ -146,6 +146,11 @@ fake('utils/fcm.util.js', {
 // ─── Real server code ─────────────────────────────────────────────────────────
 
 const config = require('../src/config');
+// Record the model's raw actions (plan_trip / confirm_trip never reach the caller) for --verbose.
+const helpers = require('../src/modules/ai/ai.helpers');
+const rawActions = [];
+const realParse = helpers.parseActionBlock;
+helpers.parseActionBlock = (...a) => { const r = realParse(...a); rawActions.push(r.pendingAction || null); return r; };
 const aiService = require('../src/modules/ai/ai.service');
 
 config.sweeScopeGuard.mode = 'off'; // scope is Round E (swee-scope-eval.js); saves one call per turn
@@ -171,6 +176,7 @@ async function say(session, message, opts = {}) {
       const r = await aiService.chat(USER, message, { conversationId: session.id, ...opts });
       session.id = r.conversationId;
       session.last = r;
+      if (args.verbose) console.log(`      raw: ${JSON.stringify(rawActions[rawActions.length - 1])?.slice(0, 500)}`);
       if (args.verbose) console.log(`    > ${message}\n    < ${r.reply.replace(/\n/g, ' ⏎ ').slice(0, 300)}\n      ${JSON.stringify(r.pendingAction)?.slice(0, 300)}`);
       return r;
     } catch (err) {
@@ -202,7 +208,7 @@ async function c1c2() {
   if (!plan1) return;
   check('C1: preview shown in chat', /\*\*.+\*\*/.test(r.reply) && /Want any changes/.test(r.reply), r.reply.slice(0, 200));
   check('C1: plan carries the destination zone (Europe/London)', plan1.facts?.timeZone === 'Europe/London', plan1.facts?.timeZone);
-  check('C1: international plan with origin Mumbai', plan1.international === true && /mumbai/i.test(plan1.facts?.origin || ''), JSON.stringify({ i: plan1.international, o: plan1.facts?.origin }));
+  check('C1: international plan with origin Mumbai', plan1.international === true && /mumbai/i.test(plan1.facts?.origin || ''), JSON.stringify({ i: plan1.international, o: plan1.facts?.origin, oz: plan1.facts?.originTimeZone, z: plan1.facts?.timeZone, fi: plan1.facts?.international }));
   check('C1: plan covers the travel days and has travel legs', plan1.activities.filter((a) => a.kind === 'travel').length === 2,
     plan1.activities.filter((a) => a.kind === 'travel').map((a) => `${a.date} ${a.title}`).join(' | '));
 
@@ -215,7 +221,8 @@ async function c1c2() {
     plan2?.activities.filter((a) => a.date === refineDay).map((a) => a.title).join('; '));
   const keptOther = plan2 && plan1.activities.filter((a) => a.kind === 'activity' && a.date !== refineDay)
     .every((a) => plan2.activities.some((b) => b.date === a.date && b.title === a.title));
-  check('C1: other days kept as they were', Boolean(keptOther));
+  const shape = (f) => JSON.stringify([f?.destination, f?.startDate, f?.endDate, f?.timeZone, f?.origin, f?.travel, f?.busy]);
+  check('C1: other days kept as they were', Boolean(keptOther), `same shape=${plan2 && shape(plan1.facts) === shape(plan2.facts)} · before ${shape(plan1.facts)} · after ${plan2 && shape(plan2.facts)}`);
 
   r = await say(s, 'Perfect, that looks good — let\'s create the trip.');
   const form = r.pendingAction;

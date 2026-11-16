@@ -460,6 +460,12 @@ function validZone(zone) {
   return typeof zone === 'string' && IANAZone.isValidZone(zone);
 }
 
+const INDIA_ZONES = new Set(['Asia/Kolkata', 'Asia/Calcutta']);
+function crossesIndianBorder(zone, originZone) {
+  return validZone(zone) && validZone(originZone)
+    && INDIA_ZONES.has(zone) !== INDIA_ZONES.has(originZone);
+}
+
 function addDays(date, n) {
   return DateTime.fromISO(date, { zone: 'UTC' }).plus({ days: n }).toISODate();
 }
@@ -734,7 +740,9 @@ function sanitizePlanFacts(draft = {}) {
     timeZone: validZone(draft.timeZone) ? draft.timeZone : undefined,
     origin: str(draft.origin, 120),
     originTimeZone: validZone(draft.originTimeZone) ? draft.originTimeZone : undefined,
-    international: draft.international === true,
+    // India has a single IANA zone, so Asia/Kolkata ↔ any other zone always crosses a border
+    // (the model sometimes leaves "international" out; it only adds the visa reminder line).
+    international: draft.international === true || crossesIndianBorder(draft.timeZone, draft.originTimeZone),
     purpose: PURPOSES.includes(draft.purpose) ? draft.purpose : undefined,
     pace: PACES.includes(draft.pace) ? draft.pace : undefined,
     busy,

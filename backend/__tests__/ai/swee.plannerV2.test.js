@@ -390,3 +390,22 @@ describe('Planner v2', () => {
     });
   });
 });
+
+// Live Round C: the model sent Mumbai → London without "international" → no visa line.
+describe('sanitizePlanFacts: international inferred across the Indian border', () => {
+  it.each([
+    ['Europe/London', 'Asia/Kolkata', true],
+    ['Asia/Kolkata', 'Asia/Dubai', true],
+    ['Asia/Kathmandu', 'Asia/Calcutta', true],
+    ['Asia/Kolkata', 'Asia/Kolkata', false],
+    ['Europe/Paris', 'Europe/London', false],
+    ['Europe/London', undefined, false],
+    ['Not/AZone', 'Asia/Kolkata', false],
+  ])('%s from %s → %p', (timeZone, originTimeZone, expected) => {
+    expect(sanitizePlanFacts({ destination: 'X', timeZone, originTimeZone }).international).toBe(expected);
+  });
+
+  it('an explicit international: true is kept', () => {
+    expect(sanitizePlanFacts({ timeZone: 'Europe/Paris', originTimeZone: 'Europe/London', international: true }).international).toBe(true);
+  });
+});
