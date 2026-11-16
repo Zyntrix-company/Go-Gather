@@ -159,6 +159,7 @@ describe('Swee planning journey (SWEE_PLANNER_V2)', () => {
     config.gemini.apiKey = 'test-key';
     config.sweeScopeGuard.mode = 'enforce';
     config.featureFlags.sweePlannerV2 = true;
+    config.featureFlags.tripTimezones = false; // time zone hints: own describe below
     scopeGuard.awaitVerdict.mockImplementation((p) => p);
     scopeGuard.checkScope.mockResolvedValue({ scope: 'in' });
     conversationsService.getConversation.mockResolvedValue({ id: CONV, tripContext: null, metadata: {} });
@@ -564,6 +565,8 @@ describe('Swee-created trips get the destination time zone (TRIP_TIMEZONES)', ()
     const { buildSweetSystemPrompt } = jest.requireActual('../../src/modules/ai/swee.config');
     const RULE = '→ Also put "timeZone" in the draft: the destination\'s IANA zone (e.g. "Europe/London", "America/New_York", "Asia/Kolkata").\n';
     const ctx = { profile: { full_name: 'Priya', timezone: 'Asia/Kolkata' }, trips: [], events: [] };
+    const withoutEventAndRenameRules = (p) => p
+      .replace(/→ If (you know where the event happens|the destination changes|the location changes), also put "timeZone" in the draft[^\n]*\n/g, '');
 
     it('flag off: no rule; flag on: the same prompt plus the rule', () => {
       config.featureFlags.sweePlannerV2 = false;
@@ -572,16 +575,17 @@ describe('Swee-created trips get the destination time zone (TRIP_TIMEZONES)', ()
       config.featureFlags.tripTimezones = true;
       const on = buildSweetSystemPrompt(ctx, null, 1);
       expect(off).not.toContain('"timeZone" in the draft');
-      expect(on.replace(RULE, '')).toBe(off);
+      expect(withoutEventAndRenameRules(on).replace(RULE, '')).toBe(off);
       expect(on).toContain(RULE);
     });
 
-    it('Planner v2 prompt is unchanged by TRIP_TIMEZONES', () => {
+    // The event / rename zone rules (runbook §3.1, §3.2) are covered in swee.timezoneHints.test.js.
+    it('Planner v2 trip flow is unchanged by TRIP_TIMEZONES (only the event / rename zone rules are added)', () => {
       config.featureFlags.sweePlannerV2 = true;
       config.featureFlags.tripTimezones = false;
       const off = buildSweetSystemPrompt(ctx, null, 1);
       config.featureFlags.tripTimezones = true;
-      expect(buildSweetSystemPrompt(ctx, null, 1)).toBe(off);
+      expect(withoutEventAndRenameRules(buildSweetSystemPrompt(ctx, null, 1))).toBe(off);
     });
   });
 });

@@ -21,7 +21,9 @@ const { normalizeAuthEmail } = require('../../utils/email.util');
 const { getOrCreateShareLink } = require('../invites/shareLinks.service');
 const { ensureFriendRequestSafe } = require('../friends/friends.service');
 const { scheduleEventReminders } = require('../../utils/reminders.cron');
-const { DEFAULT_TIME_ZONE, resolveTimeZone } = require('../../utils/localTime');
+const {
+  DEFAULT_TIME_ZONE, isStorableZone, resolveTimeZone,
+} = require('../../utils/localTime');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -55,9 +57,11 @@ const formatEvent = (e, locations = null) => {
 };
 
 // TRIP_TIMEZONES: (re)resolve an event's IANA zone from its primary location
-// (no coordinates -> creator's users.timezone -> Asia/Kolkata) and store it.
-const refreshEventTimeZone = async (executor, event) => {
+// (no coordinates -> `zoneHint` (Swee's place zone, if valid) -> creator's
+// users.timezone -> Asia/Kolkata) and store it.
+const refreshEventTimeZone = async (executor, event, zoneHint = null) => {
   const zone = await resolveTimeZone(event.location_lat, event.location_lng, async () => {
+    if (zoneHint && await isStorableZone(zoneHint)) return zoneHint;
     const result = await executor.query('SELECT timezone FROM users WHERE id = $1', [event.created_by]);
     return result.rows[0]?.timezone;
   });
@@ -122,7 +126,9 @@ const sanitizeAvatarUrl = (rawUrl, updatedAt, userId) => {
 
 // ─── Create Event ─────────────────────────────────────────────────────────────
 
-const createEvent = async (userId, body) => {
+// `timeZoneHint` (Swee only, not from the request body): the event place's IANA zone,
+// used with TRIP_TIMEZONES when the location has no coordinates.
+const createEvent = async (userId, body, { timeZoneHint = null } = {}) => {
   const {
     name, eventDate, eventTime, eventType, description, reminders,
     friendIds = [], emails = [], bannerImageUrl, bannerCropFraction = null,
@@ -147,7 +153,7 @@ const createEvent = async (userId, body) => {
       [name, eventDate, eventType || null, description || null, primary.name, primary.lat, primary.lng, userId, resolvedBanner, bannerCropFraction ? JSON.stringify(bannerCropFraction) : null, eventTime || null],
     );
     let event = eventResult.rows[0];
-    if (config.featureFlags.tripTimezones) ({ event } = await refreshEventTimeZone(client, event));
+    if (config.featureFlags.tripTimezones) ({ event } = await refreshEventTimeZone(client, event, timeZoneHint));
 
     await insertLocations(client, 'event_locations', 'event_id', event.id, normalizedLocations);
 
@@ -426,7 +432,8 @@ const getEventById = async (eventId, currentUserId) => {
 
 // ─── Update Event ─────────────────────────────────────────────────────────────
 
-const updateEvent = async (eventId, updates) => {
+// `timeZoneHint` (Swee only): the new place's IANA zone when Swee changes the location by name.
+const updateEvent = async (eventId, updates, { timeZoneHint = null } = {}) => {
   const hasLocationsArray = Array.isArray(updates.locations);
   const hasLegacyLocation = updates.location && typeof updates.location === 'object';
   const normalizedLocations = (hasLocationsArray || hasLegacyLocation)
@@ -467,6 +474,15 @@ const updateEvent = async (eventId, updates) => {
     return enrichEventWithLocations(existing.rows[0]);
   }
 
+  // TRIP_TIMEZONES: a new primary location can mean a new time zone. Remember the current
+  // place + zone so an event without coordinates (e.g. made by Swee) keeps its zone when its
+  // place is unchanged, instead of falling back to the creator's zone.
+  const locationChanged = normalizedLocations
+    || updates.location?.lat !== undefined || updates.location?.lng !== undefined;
+  const before = config.featureFlags.tripTimezones && locationChanged
+    ? (await db('SELECT location_name, timezone FROM events WHERE id = $1', [eventId])).rows[0]
+    : null;
+
   const client = await getClient();
   let event;
   try {
@@ -496,12 +512,10 @@ const updateEvent = async (eventId, updates) => {
     client.release();
   }
 
-  // TRIP_TIMEZONES: a new primary location can mean a new time zone
   let timeZoneChanged = false;
-  const locationChanged = normalizedLocations
-    || updates.location?.lat !== undefined || updates.location?.lng !== undefined;
   if (config.featureFlags.tripTimezones && event && locationChanged) {
-    ({ event, changed: timeZoneChanged } = await refreshEventTimeZone({ query: db }, event));
+    const keepZone = before && before.location_name === event.location_name ? before.timezone : timeZoneHint;
+    ({ event, changed: timeZoneChanged } = await refreshEventTimeZone({ query: db }, event, keepZone));
   }
 
   // Reschedule reminders if eventDate changed

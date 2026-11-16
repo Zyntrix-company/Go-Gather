@@ -80,6 +80,7 @@ const handle = async (sql, params = []) => {
   if (/SELECT timezone FROM users/.test(sql)) return one({ timezone: state.userTz });
   if (/SELECT timezone FROM trips/.test(sql)) return one({ timezone: state.trip?.timezone });
   if (/SELECT location_name, timezone FROM trips/.test(sql)) return one(state.trip);
+  if (/SELECT location_name, timezone FROM events/.test(sql)) return one(state.event);
   if (/^\s*UPDATE trips SET/.test(sql)) { state.trip = applyUpdate(state.trip, sql, params); return one(state.trip); }
   if (/^\s*UPDATE events SET/.test(sql)) { state.event = applyUpdate(state.event, sql, params); return one(state.event); }
   if (/^\s*SELECT \* FROM trips WHERE id/.test(sql) || /SELECT start_date, end_date FROM trips/.test(sql)) return one(state.trip);
@@ -100,6 +101,7 @@ const setFlag = (on) => { config.featureFlags.tripTimezones = on; };
 beforeEach(() => {
   jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'queueMicrotask'] });
   jest.setSystemTime(new Date('2026-01-10T00:00:00.000Z'));
+  setFlag(false); // flag off unless a test turns it on, whatever TRIP_TIMEZONES the env sets
   resetState();
   db.query.mockReset();
   db.query.mockImplementation(handle);
@@ -510,5 +512,151 @@ describe('createTrip with a Swee time zone hint (no coordinates)', () => {
     expect(dayReminderParams('trip_reminders')).toEqual(legacyDayReminders('2026-02-01', 'trip_start'));
     expect(timezoneSql()).toHaveLength(0);
     expect(trip).not.toHaveProperty('timezone');
+  });
+});
+
+// ── Swee events (§3.1) and Swee destination renames (§3.2): zone passed as a hint ─
+
+describe('createEvent / updateEvent with a Swee time zone hint (no coordinates)', () => {
+  const sweeEvent = (name, timeZoneHint) => events.createEvent(USER_ID, {
+    name: 'Event', eventDate: '2026-02-01', reminders: true,
+    ...(name ? { location: { name } } : {}), bannerImageUrl: BANNER,
+  }, timeZoneHint === undefined ? undefined : { timeZoneHint });
+  const firstReminder = () => dayReminderParams('event_reminders')[0];
+
+  it('flag on, London: Europe/London, event reminder at 09:00 London time', async () => {
+    setFlag(true);
+    const event = await sweeEvent('London', 'Europe/London');
+    expect(event.timezone).toBe('Europe/London');
+    expect(state.event.location_lat).toBeNull();
+    expect(firstReminder()).toEqual(['event_start', '2026-02-01T09:00:00.000Z']);
+  });
+
+  it('flag on, Dubai with no venue yet: hint still used', async () => {
+    setFlag(true);
+    const event = await sweeEvent(null, 'Asia/Dubai');
+    expect(event.timezone).toBe('Asia/Dubai');
+    expect(firstReminder()).toEqual(['event_start', '2026-02-01T05:00:00.000Z']);
+  });
+
+  it('flag on, Mumbai: Asia/Kolkata, same reminders as today (creator zone not read)', async () => {
+    setFlag(true);
+    state.userTz = 'Europe/Berlin';
+    const event = await sweeEvent('Mumbai', 'Asia/Kolkata');
+    expect(event.timezone).toBe('Asia/Kolkata');
+    expect(dayReminderParams('event_reminders')).toEqual(legacyDayReminders('2026-02-01', 'event_start'));
+    expect(state.calls.some(([sql]) => /SELECT timezone FROM users/.test(sql))).toBe(false);
+  });
+
+  it.each(['Mars/Olympus_Mons', 'not a zone', 'UTC+5'])('flag on, invalid hint %p falls back to the creator\'s zone', async (bad) => {
+    setFlag(true);
+    state.userTz = 'Europe/Paris';
+    expect((await sweeEvent('Somewhere', bad)).timezone).toBe('Europe/Paris');
+  });
+
+  it('flag on, coordinates win over the hint', async () => {
+    setFlag(true);
+    const event = await events.createEvent(USER_ID, {
+      name: 'Event', eventDate: '2026-02-01', reminders: true, locations: [LONDON], bannerImageUrl: BANNER,
+    }, { timeZoneHint: 'Asia/Tokyo' });
+    expect(event.timezone).toBe('Europe/London');
+  });
+
+  it('flag on, no hint or a hint in the request body: creator\'s zone (unchanged)', async () => {
+    setFlag(true);
+    state.userTz = 'Europe/Paris';
+    expect((await sweeEvent('London')).timezone).toBe('Europe/Paris');
+    resetState();
+    state.userTz = 'Europe/Paris';
+    const viaBody = await events.createEvent(USER_ID, {
+      name: 'Event', eventDate: '2026-02-01', reminders: true, location: { name: 'London' },
+      bannerImageUrl: BANNER, timeZoneHint: 'Europe/London', timeZone: 'Europe/London',
+    });
+    expect(viaBody.timezone).toBe('Europe/Paris');
+  });
+
+  it('flag on, later edit keeps the same place (no coordinates): zone kept, reminders not moved', async () => {
+    setFlag(true);
+    await sweeEvent('London', 'Europe/London');
+    state.calls = [];
+    const event = await events.updateEvent('event-1', { location: { name: 'London' }, description: 'x' });
+    expect(event.timezone).toBe('Europe/London');
+    expect(reminderWrites('event_reminders')).toHaveLength(0);
+  });
+
+  it('flag on, location renamed with a hint: zone moves, only unsent future reminders rescheduled', async () => {
+    setFlag(true);
+    await sweeEvent('Mumbai', 'Asia/Kolkata');
+    state.calls = [];
+    const event = await events.updateEvent('event-1', { location: { name: 'London' } }, { timeZoneHint: 'Europe/London' });
+    expect(event.timezone).toBe('Europe/London');
+    const writes = reminderWrites('event_reminders');
+    expect(writes.length).toBeGreaterThan(0);
+    expect(writes.map(([, p]) => p[2])[0]).toBe('2026-02-01T09:00:00.000Z');
+    for (const [sql] of writes) expect(sql).toMatch(/^UPDATE event_reminders[\s\S]*sent_at IS NULL AND scheduled_at > NOW\(\)/);
+  });
+
+  it('flag on, location renamed without a hint: falls back to the creator\'s zone as before', async () => {
+    setFlag(true);
+    await sweeEvent('London', 'Europe/London');
+    expect((await events.updateEvent('event-1', { location: { name: 'Tokyo' } })).timezone).toBe('Asia/Kolkata');
+  });
+
+  it('flag off: hint ignored — IST reminders, no time zone reads/writes (create and update)', async () => {
+    const event = await sweeEvent('London', 'Europe/London');
+    await events.updateEvent('event-1', { location: { name: 'Paris' } }, { timeZoneHint: 'Europe/Paris' });
+    expect(dayReminderParams('event_reminders')).toEqual(legacyDayReminders('2026-02-01', 'event_start'));
+    expect(timezoneSql()).toHaveLength(0);
+    expect(event).not.toHaveProperty('timezone');
+  });
+});
+
+describe('updateTrip with a Swee time zone hint (destination renamed, §3.2)', () => {
+  const seedSweeTrip = (name, timezone) => {
+    state.trip = {
+      id: 'trip-1', name: 'Trip', start_date: '2026-02-01', end_date: '2026-02-05', created_by: USER_ID,
+      location_name: name, location_lat: null, location_lng: null, timezone,
+    };
+  };
+
+  it('flag on, Goa → London: zone moves, unsent trip + activity reminders follow', async () => {
+    setFlag(true);
+    seedSweeTrip('Goa', 'Asia/Kolkata');
+    state.activities = [{ id: 'a1', activity_date: '2026-02-02', activity_time: '10:00:00' }];
+    const trip = await trips.updateTrip('trip-1', { location: { name: 'London' } }, { timeZoneHint: 'Europe/London' });
+    await flush();
+    expect(trip.timezone).toBe('Europe/London');
+    const writes = reminderWrites('trip_reminders');
+    expect(writes.length).toBeGreaterThan(0);
+    expect(writes.map(([, p]) => p[2])[0]).toBe('2026-02-01T09:00:00.000Z');
+    for (const [sql] of writes) expect(sql).toMatch(/^UPDATE trip_reminders[\s\S]*sent_at IS NULL AND scheduled_at > NOW\(\)/);
+    expect(reminderWrites('activity_reminders').length).toBeGreaterThan(0);
+  });
+
+  it('flag on, rename + new dates: day reminders rebuilt at 09:00 in the new zone', async () => {
+    setFlag(true);
+    seedSweeTrip('Goa', 'Asia/Kolkata');
+    await trips.updateTrip('trip-1', { startDate: '2026-03-01', endDate: '2026-03-04', location: { name: 'New York' } }, { timeZoneHint: 'America/New_York' });
+    expect(dayReminderParams('trip_reminders')[0]).toEqual(['trip_start', '2026-03-01T14:00:00.000Z']);
+  });
+
+  it('flag on, invalid hint: falls back to the creator\'s zone as before', async () => {
+    setFlag(true);
+    state.userTz = 'Europe/Paris';
+    seedSweeTrip('Goa', 'Asia/Kolkata');
+    expect((await trips.updateTrip('trip-1', { location: { name: 'London' } }, { timeZoneHint: 'nope' })).timezone).toBe('Europe/Paris');
+  });
+
+  it('flag on, same place: stored zone kept even with a hint', async () => {
+    setFlag(true);
+    seedSweeTrip('London', 'Europe/London');
+    expect((await trips.updateTrip('trip-1', { location: { name: 'London' } }, { timeZoneHint: 'Asia/Tokyo' })).timezone).toBe('Europe/London');
+  });
+
+  it('flag off: hint ignored, no time zone reads/writes', async () => {
+    seedSweeTrip('Goa', null);
+    await trips.updateTrip('trip-1', { location: { name: 'London' } }, { timeZoneHint: 'Europe/London' });
+    expect(timezoneSql()).toHaveLength(0);
+    expect(reminderWrites('trip_reminders')).toHaveLength(0);
   });
 });

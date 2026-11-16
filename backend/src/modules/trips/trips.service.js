@@ -440,7 +440,8 @@ const getTripById = async (tripId, currentUserId) => {
 
 // ─── Update Trip ──────────────────────────────────────────────────────────────
 
-const updateTrip = async (tripId, updates) => {
+// `timeZoneHint` (Swee only): the new destination's IANA zone when Swee changes it by name.
+const updateTrip = async (tripId, updates, { timeZoneHint = null } = {}) => {
   // Validate date ordering. Edits can be partial (only startDate or only endDate
   // sent), so resolve the effective start/end against the stored trip before
   // comparing — otherwise a new startDate after the existing endDate slips through.
@@ -548,7 +549,7 @@ const updateTrip = async (tripId, updates) => {
 
   let timeZoneChanged = false;
   if (config.featureFlags.tripTimezones && trip && locationChanged) {
-    const keepZone = before && before.location_name === trip.location_name ? before.timezone : null;
+    const keepZone = before && before.location_name === trip.location_name ? before.timezone : timeZoneHint;
     ({ trip, changed: timeZoneChanged } = await refreshTripTimeZone({ query: db }, trip, keepZone));
   }
 

@@ -1136,8 +1136,14 @@ const executeAction = async (userId, pendingAction, { conversationId = null, cha
       reminders: true,
     };
 
+    // TRIP_TIMEZONES: Swee events have no coordinates, so pass the place's zone from the draft;
+    // createEvent validates it and falls back as before.
+    const timeZoneHint = config.featureFlags.tripTimezones ? draft.timeZone : null;
+
     // createEvent returns the enriched event object directly
-    const event = await eventsService.createEvent(userId, body);
+    const event = typeof timeZoneHint === 'string' && timeZoneHint
+      ? await eventsService.createEvent(userId, body, { timeZoneHint })
+      : await eventsService.createEvent(userId, body);
 
     await writeAllNotes('event', event.id, userId, draft);
     await writePlanningMetadata('event', event.id, draft);
@@ -1184,7 +1190,14 @@ const executeAction = async (userId, pendingAction, { conversationId = null, cha
     }
 
     if (hasFieldUpdate) {
-      await tripsService.updateTrip(targetTrip.id, updates);
+      // TRIP_TIMEZONES: a destination renamed by Swee has no coordinates — pass its zone so the
+      // trip and its unsent reminders move to it (updateTrip validates it, falls back as before).
+      const timeZoneHint = config.featureFlags.tripTimezones && updates.location ? draft.timeZone : null;
+      if (typeof timeZoneHint === 'string' && timeZoneHint) {
+        await tripsService.updateTrip(targetTrip.id, updates, { timeZoneHint });
+      } else {
+        await tripsService.updateTrip(targetTrip.id, updates);
+      }
     }
 
     if (draft.notes || draft.travelFocus || draft.budgetTier) {
@@ -1219,7 +1232,13 @@ const executeAction = async (userId, pendingAction, { conversationId = null, cha
       throw badRequest('No changes to save');
     }
 
-    await eventsService.updateEvent(targetEvent.id, updates);
+    // TRIP_TIMEZONES: same as update_trip — a location changed by name carries its zone.
+    const timeZoneHint = config.featureFlags.tripTimezones && updates.location ? draft.timeZone : null;
+    if (typeof timeZoneHint === 'string' && timeZoneHint) {
+      await eventsService.updateEvent(targetEvent.id, updates, { timeZoneHint });
+    } else {
+      await eventsService.updateEvent(targetEvent.id, updates);
+    }
     await writePlanningMetadata('event', targetEvent.id, draft);
 
     return {
