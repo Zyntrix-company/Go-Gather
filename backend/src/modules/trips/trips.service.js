@@ -549,7 +549,7 @@ const updateTrip = async (tripId, updates, { timeZoneHint = null } = {}) => {
 
   let timeZoneChanged = false;
   if (config.featureFlags.tripTimezones && trip && locationChanged) {
-    const keepZone = before && before.location_name === trip.location_name ? before.timezone : timeZoneHint;
+    const keepZone = before && before.location_name === trip.location_name ? before.timezone || timeZoneHint : timeZoneHint;
     ({ trip, changed: timeZoneChanged } = await refreshTripTimeZone({ query: db }, trip, keepZone));
   }
 

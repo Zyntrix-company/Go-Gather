@@ -514,7 +514,7 @@ const updateEvent = async (eventId, updates, { timeZoneHint = null } = {}) => {
 
   let timeZoneChanged = false;
   if (config.featureFlags.tripTimezones && event && locationChanged) {
-    const keepZone = before && before.location_name === event.location_name ? before.timezone : timeZoneHint;
+    const keepZone = before && before.location_name === event.location_name ? before.timezone || timeZoneHint : timeZoneHint;
     ({ event, changed: timeZoneChanged } = await refreshEventTimeZone({ query: db }, event, keepZone));
   }
 

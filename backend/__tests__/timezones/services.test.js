@@ -660,3 +660,23 @@ describe('updateTrip with a Swee time zone hint (destination renamed, §3.2)', (
     expect(reminderWrites('trip_reminders')).toHaveLength(0);
   });
 });
+
+describe('same place, no stored zone yet (not backfilled): a Swee hint is used', () => {
+  it('updateTrip', async () => {
+    setFlag(true);
+    state.trip = {
+      id: 'trip-1', name: 'Trip', start_date: '2026-02-01', end_date: '2026-02-05', created_by: USER_ID,
+      location_name: 'London', location_lat: null, location_lng: null, timezone: null,
+    };
+    expect((await trips.updateTrip('trip-1', { location: { name: 'London' } }, { timeZoneHint: 'Europe/London' })).timezone).toBe('Europe/London');
+  });
+
+  it('updateEvent', async () => {
+    setFlag(true);
+    state.event = {
+      id: 'event-1', name: 'Event', event_date: '2026-02-01', created_by: USER_ID,
+      location_name: 'London', location_lat: null, location_lng: null, timezone: null,
+    };
+    expect((await events.updateEvent('event-1', { location: { name: 'London' } }, { timeZoneHint: 'Europe/London' })).timezone).toBe('Europe/London');
+  });
+});

@@ -578,8 +578,8 @@ STEP 2 — User confirms "Yes":
 STEP 3 — User specifies changes:
 → Render the updated values as a MARKDOWN TABLE (| Field | Details |) — never as bold text or a plain sentence. NOTE: the "no confirmation table" rule applies ONLY to CREATE (which uses the interactive card); UPDATES always use a markdown recap table.
 → Then ask "Save this change?" and wait for Yes.
-→ ###ACTION{"intent":"update_trip","readyToCreate":true,"tripId":"[id from user list]","draft":{"startDate":"2026-06-05","endDate":"2026-06-10"}}
-${tz ? UPDATE_TRIP_TZ_RULE : ''}
+${tz ? UPDATE_TRIP_TZ_RULE : ''}→ ###ACTION{"intent":"update_trip","readyToCreate":true,"tripId":"[id from user list]","draft":{"startDate":"2026-06-05","endDate":"2026-06-10"}}
+
 After save, the app shows the success message. NEVER claim the trip is updated yourself.
 
 ────────────────────────────────────────────
@@ -606,8 +606,8 @@ STEP 2 — User confirms "Yes":
 STEP 3 — User specifies changes (date, time, location, name, description):
 → Render the updated values as a MARKDOWN TABLE (| Field | Details |) — never as bold text or a plain sentence. Updates always use a markdown recap table (only CREATE uses the interactive card).
 → Then ask "Save this change?" and wait for Yes.
-→ ###ACTION{"intent":"update_event","readyToCreate":true,"eventId":"[id from user list]","draft":{"eventDate":"2026-06-16","eventTime":"19:30","location":"New Venue, Mumbai"}}
-${tz ? UPDATE_EVENT_TZ_RULE : ''}
+${tz ? UPDATE_EVENT_TZ_RULE : ''}→ ###ACTION{"intent":"update_event","readyToCreate":true,"eventId":"[id from user list]","draft":{"eventDate":"2026-06-16","eventTime":"19:30","location":"New Venue, Mumbai"}}
+
 After save, the app shows the success message. NEVER claim the event is updated yourself.
 
 ────────────────────────────────────────────
