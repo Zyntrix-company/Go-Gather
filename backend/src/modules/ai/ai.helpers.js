@@ -245,7 +245,12 @@ function shortenDraftActivityTitles(action) {
   }
 }
 
-function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
+/**
+ * @param {object} [opts]
+ * @param {Function} [opts.prepareAction]  rewrites the parsed action before it is validated
+ *   (Planner v2: a planning action on a chat that already has a plan becomes a refine of it)
+ */
+function parseActionBlock(rawText, { logInvalid = false, logger = null, prepareAction = null } = {}) {
   const normalized = normalizeSweeReply(rawText);
   const marker = '###ACTION';
   const idx = normalized.lastIndexOf(marker);
@@ -256,7 +261,8 @@ function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
   const hadMarker = true;
 
   try {
-    const action = JSON.parse(jsonStr);
+    let action = JSON.parse(jsonStr);
+    if (prepareAction) action = prepareAction(action);
     const validation = validatePendingAction(action);
     if (!validation.valid) {
       if (logInvalid && logger) {

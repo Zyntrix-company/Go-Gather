@@ -895,6 +895,138 @@ async function generatePlan(facts, { dates: onlyDates, avoidPlaces = [], budgetM
   };
 }
 
+// ─── Refining a stored plan ───────────────────────────────────────────────────
+
+const MONTHS = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+const NUMBER_WORDS = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  first: 1, second: 2, third: 3, fourth: 4, fifth: 5, sixth: 6, seventh: 7, eighth: 8, ninth: 9, tenth: 10,
+};
+const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+/**
+ * The trip days a user's message names, resolved against `dates` (the trip's days, in order):
+ * "2027-05-10", "10 May" / "May 10th", "day 2" / "2nd day" / "last day", "Saturday".
+ * Only days of the trip are returned, sorted. Deterministic — used when the model leaves
+ * "dates" out of a refine.
+ */
+function datesNamedIn(text, dates) {
+  if (typeof text !== 'string' || !Array.isArray(dates) || dates.length === 0) return [];
+  const s = text.toLowerCase();
+  const found = new Set();
+  const byMonthDay = (month, day) => dates
+    .filter((d) => Number(d.slice(5, 7)) === month && Number(d.slice(8, 10)) === day)
+    .forEach((d) => found.add(d));
+  const nth = (word) => (/^\d+$/.test(word) ? Number(word) : NUMBER_WORDS[word]);
+  const byIndex = (n) => { if (n >= 1 && n <= dates.length) found.add(dates[n - 1]); };
+
+  for (const m of s.matchAll(/\b(\d{4}-\d{2}-\d{2})\b/g)) if (dates.includes(m[1])) found.add(m[1]);
+  const mon = '(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?';
+  const day = '(\\d{1,2})(?:st|nd|rd|th)?';
+  for (const m of s.matchAll(new RegExp(`\\b${day}\\s+(?:of\\s+)?${mon}`, 'g'))) byMonthDay(MONTHS[m[2]], Number(m[1]));
+  for (const m of s.matchAll(new RegExp(`\\b${mon}\\s+${day}\\b`, 'g'))) byMonthDay(MONTHS[m[1]], Number(m[2]));
+  const word = `(\\d{1,2}|${Object.keys(NUMBER_WORDS).join('|')})`;
+  for (const m of s.matchAll(new RegExp(`\\bday\\s+${word}\\b`, 'g'))) byIndex(nth(m[1]));
+  for (const m of s.matchAll(new RegExp(`\\b${word}(?:st|nd|rd|th)?\\s+day\\b`, 'g'))) byIndex(nth(m[1]));
+  if (/\b(?:last|final)\s+day\b/.test(s)) found.add(dates[dates.length - 1]);
+  WEEKDAYS.forEach((name, i) => {
+    if (!new RegExp(`\\b${name}\\b`).test(s)) return;
+    dates.filter((d) => DateTime.fromISO(d, { zone: 'UTC' }).weekday === i + 1).forEach((d) => found.add(d));
+  });
+  return dates.filter((d) => found.has(d));
+}
+
+/** The planned stop (kind "activity") the text names — by place or title, longest match wins. */
+function findPlannedActivity(text, activities) {
+  if (typeof text !== 'string' || !Array.isArray(activities)) return null;
+  const norm = (v) => ` ${String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()} `;
+  const hay = norm(text);
+  let best = null;
+  let bestLen = 0;
+  for (const a of activities) {
+    if (!a || a.kind !== 'activity') continue;
+    for (const name of [a.locationName && a.locationName.split(',')[0], a.title]) {
+      const key = norm(name);
+      if (key.trim().length >= 3 && hay.includes(key) && key.length > bestLen) {
+        best = a;
+        bestLen = key.length;
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Move one planned stop to another day of a stored plan, without calling the model: it is
+ * taken off its old day and fitted into the new day's free time (earliest start that passes
+ * the same checks as a planned day — free-time windows, no overlaps, travel time). Both days
+ * are re-validated. Returns { ok: true, activities } or { ok: false, reason }.
+ */
+function moveActivity(plan, activity, toDate) {
+  const facts = plan.facts || {};
+  const zone = plan.timeZone || facts.timeZone || DEFAULT_PLAN_ZONE;
+  const { arrival, leaveBy } = buildTravelLegs(facts, zone);
+  if (!enumerateDates(plan.startDate, plan.endDate).includes(toDate) || activity.date === toDate) {
+    return { ok: false, reason: 'bad_date' };
+  }
+  const windowsOf = (date) => buildFreeWindows([date], { busy: facts.busy || [], arrival, leaveBy })[0].windows;
+  const asRaw = (a, time = a.time) => ({
+    time,
+    durationMinutes: a.durationMinutes,
+    travelMinutesFromPrevious: a.travelMinutesFromPrevious || 0,
+    title: a.title,
+    locationName: a.locationName,
+  });
+  const rest = plan.activities.filter((a) => a !== activity);
+  const stopsOn = (date) => rest.filter((a) => a.date === date && a.kind === 'activity');
+
+  // New day: try the start of each free window, then right after each stop (plus travel).
+  const windows = windowsOf(toDate);
+  const existing = stopsOn(toDate);
+  const travel = activity.travelMinutesFromPrevious || 30;
+  const roundUp = (m) => Math.ceil(m / 15) * 15;
+  const candidates = [...new Set([
+    ...windows.map((w) => w.from),
+    ...existing.map((a) => roundUp(toMinutes(a.time) + a.durationMinutes + travel)),
+  ])].filter((m) => m != null).sort((a, b) => a - b);
+  let fitted = null;
+  for (const start of candidates) {
+    // A stop that was first of its day has no travel time yet; assume the usual hop if the moved one lands before it.
+    const raw = [
+      ...existing.map((a) => ({ ...asRaw(a), travelMinutesFromPrevious: a.travelMinutesFromPrevious || 30 })),
+      { ...asRaw(activity, toHHMM(start)), travelMinutesFromPrevious: travel },
+    ];
+    const res = validateDay(toDate, windows, raw, new Set());
+    if (res.errors === 0 && res.activities.length === raw.length) { fitted = res.activities; break; }
+  }
+  if (!fitted) return { ok: false, reason: 'no_room' };
+
+  // Old day: the remaining stops, re-validated (the first stop no longer travels from the moved one).
+  const oldStops = stopsOn(activity.date);
+  const oldRes = validateDay(activity.date, windowsOf(activity.date), oldStops.map((a) => asRaw(a)), new Set());
+  const oldDay = oldRes.errors === 0 && oldRes.activities.length === oldStops.length ? oldRes.activities : oldStops;
+
+  const untouched = rest.filter((a) => a.kind !== 'activity' || (a.date !== toDate && a.date !== activity.date));
+  return { ok: true, activities: [...untouched, ...oldDay, ...fitted].sort(byDateTime) };
+}
+
+/**
+ * The stored plan's facts with the model's new facts on top: anything the model left out
+ * (or sent empty) keeps its stored value, so a refine never resets the trip.
+ */
+function mergePlanFacts(stored = {}, next = {}) {
+  const merged = { ...stored };
+  for (const [key, value] of Object.entries(next)) {
+    if (value === undefined || (Array.isArray(value) && value.length === 0)) continue;
+    if (key === 'travellers' && !(value.adults || value.kids || value.seniors)) continue;
+    if (key === 'international' && value !== true) continue;
+    merged[key] = value;
+  }
+  return merged;
+}
+
 /**
  * Chat preview of a v2 plan: a bold heading per day with one bullet per stop (duration and
  * travel note included); trips over 7 days get one compact line per day. International
@@ -945,4 +1077,8 @@ module.exports = {
   validateDay,
   addDays,
   byDateTime,
+  datesNamedIn,
+  findPlannedActivity,
+  moveActivity,
+  mergePlanFacts,
 };

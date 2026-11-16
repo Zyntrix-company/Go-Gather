@@ -224,6 +224,27 @@ async function c1c2() {
   const shape = (f) => JSON.stringify([f?.destination, f?.startDate, f?.endDate, f?.timeZone, f?.origin, f?.travel, f?.busy]);
   check('C1: other days kept as they were', Boolean(keptOther), `same shape=${plan2 && shape(plan1.facts) === shape(plan2.facts)} · before ${shape(plan1.facts)} · after ${plan2 && shape(plan2.facts)}`);
 
+  // Move a planned place to another day: moved (both days re-validated) or an honest "couldn't fit".
+  const base = plan2 || plan1;
+  const stops = base.activities.filter((a) => a.kind === 'activity');
+  const moving = stops.find((a) => a.date !== refineDay) || stops[0];
+  const toDay = stops.map((a) => a.date).find((d) => d !== moving?.date && d !== refineDay)
+    || stops.map((a) => a.date).find((d) => d !== moving?.date);
+  if (moving && toDay) {
+    const place = moving.locationName.split(',')[0];
+    const toLabel = new Date(`${toDay}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+    r = await say(s, `Could you move ${place} to ${toLabel}?`);
+    const plan3m = planOf(s);
+    const moved = plan3m && plan3m.version === base.version + 1
+      && plan3m.activities.some((a) => a.date === toDay && a.locationName === moving.locationName)
+      && !plan3m.activities.some((a) => a.date === moving.date && a.locationName === moving.locationName);
+    const honestNo = plan3m && plan3m.version === base.version && /nothing (was|has been) changed/i.test(r.reply);
+    check('C1: move → place on the new day and off the old one, or an honest "couldn\'t fit"', Boolean(moved || honestNo),
+      `${place} ${moving.date} → ${toDay} · v${base.version} → v${plan3m?.version} · ${r.reply.slice(0, 160)}`);
+    check('C1: move keeps every other stop', !moved || stops.filter((a) => a !== moving)
+      .every((a) => plan3m.activities.some((b) => b.date === a.date && b.locationName === a.locationName)));
+  }
+
   r = await say(s, 'Perfect, that looks good — let\'s create the trip.');
   const form = r.pendingAction;
   check('C1: confirm → pre-filled trip form', form?.intent === 'create_trip' && form?.showForm === 'trip', JSON.stringify(form));

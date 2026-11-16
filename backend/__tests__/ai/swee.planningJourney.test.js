@@ -291,7 +291,210 @@ describe('Swee planning journey (SWEE_PLANNER_V2)', () => {
       const result = await aiService.chat(USER, 'plan delhi', { conversationId: CONV });
       expect(itinerary.generatePlan).not.toHaveBeenCalled();
       expect(result.pendingAction).toBeNull();
-      expect(result.reply).toBe('Sure!');
+      // Rejected action → honest reply, never the model's "Sure!".
+      expect(result.reply).toBe('I couldn\'t make that change — nothing was updated. Could you try again?');
+    });
+  });
+
+  // Live Round C refine failures, and the fixes that make refine server-side deterministic.
+  describe('chat → refine an existing plan (Round C)', () => {
+    const NOT_DONE = 'I couldn\'t make that change — nothing was updated. Could you try again?';
+    const withPlan = (plan = storedPlan()) => {
+      conversationsService.getConversation.mockResolvedValue({ id: CONV, metadata: { plan } });
+      return plan;
+    };
+    const keptDays = (dates) => expect(itinerary.generatePlan).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ dates }),
+    );
+
+    // Failure 2: the facts were copied but "dates" left out → every day was re-planned.
+    it.each([
+      ['On 7 Dec, please add the Red Fort.'],
+      ['on december 7th add the Red Fort'],
+      ['Add the Red Fort on day 2'],
+      ['add the Red Fort on the second day'],
+      ['Add the Red Fort on Monday'],
+      ['add the Red Fort on 2026-12-07'],
+    ])('dates left out: the day comes from the user\'s message — "%s"', async (message) => {
+      withPlan();
+      geminiReplies(`Adding it:\n${action({ intent: 'plan_trip', draft: { ...FACTS, preferences: 'Red Fort' } })}`);
+
+      await aiService.chat(USER, message, { conversationId: CONV });
+
+      keptDays(['2026-12-07']);
+      const saved = conversationsService.savePlan.mock.calls[0][2];
+      expect(saved.activities.map((a) => a.locationName)).toEqual(expect.arrayContaining(['Place 2026-12-06-0', 'Place 2026-12-08-2']));
+    });
+
+    it('dates from the model win over the message; dates outside the trip are ignored', async () => {
+      withPlan();
+      geminiReplies(`Sure:\n${action({ intent: 'plan_trip', draft: { ...FACTS, dates: ['2026-12-08', '2027-01-01'] } })}`);
+      await aiService.chat(USER, 'on 7 Dec … actually the last day', { conversationId: CONV });
+      keptDays(['2026-12-08']);
+    });
+
+    it('no day named anywhere → the whole plan is re-planned (same facts)', async () => {
+      withPlan();
+      geminiReplies(`Sure:\n${action({ intent: 'plan_trip', draft: { ...FACTS, preferences: 'more food' } })}`);
+      await aiService.chat(USER, 'more food please', { conversationId: CONV });
+      expect(itinerary.generatePlan).toHaveBeenCalledWith(expect.objectContaining({ preferences: 'more food' }), { budgetMs: undefined });
+    });
+
+    it('a refine missing facts keeps the stored ones (the plan is the base)', async () => {
+      withPlan();
+      geminiReplies(`Sure:\n${action({ intent: 'plan_trip', draft: { preferences: 'Red Fort', dates: ['2026-12-07'] } })}`);
+
+      await aiService.chat(USER, 'add the Red Fort on Monday', { conversationId: CONV });
+
+      expect(itinerary.generatePlan).toHaveBeenCalledWith(
+        expect.objectContaining({ destination: 'Delhi', origin: 'Pune', travel: expect.objectContaining({ mode: 'flight' }), preferences: 'Red Fort' }),
+        expect.objectContaining({ dates: ['2026-12-07'] }),
+      );
+    });
+
+    // Failure 3: plan_itinerary with a placeholder trip id was rejected, and the model's
+    // "I've added it" text was shown although nothing changed.
+    it('plan_itinerary with a placeholder trip id refines the plan in this chat', async () => {
+      withPlan();
+      geminiReplies(`Adding it now.\n${action({
+        intent: 'plan_itinerary', tripId: '[id from user list]', draft: { preferences: 'Red Fort', dates: ['2026-12-07'] },
+      })}`);
+
+      const result = await aiService.chat(USER, 'On 7 Dec, please add the Red Fort.', { conversationId: CONV });
+
+      keptDays(['2026-12-07']);
+      expect(conversationsService.savePlan.mock.calls[0][2].version).toBe(2);
+      expect(result.pendingAction).toBeNull();
+      expect(result.reply).toMatch(/\*\*Mon 7 Dec\*\*/);
+    });
+
+    it('plan_itinerary naming a trip that isn\'t saved refines the plan in this chat', async () => {
+      withPlan();
+      geminiReplies(`On it.\n${action({ intent: 'plan_itinerary', targetTripName: 'Delhi Dec 2026', draft: { dates: ['2026-12-07'] } })}`);
+
+      const result = await aiService.chat(USER, 'add the Red Fort on Monday', { conversationId: CONV });
+
+      keptDays(['2026-12-07']);
+      expect(result.reply).not.toMatch(/couldn't find that trip/);
+    });
+
+    it('no plan in the chat: plan_itinerary with a placeholder id is still rejected, honestly', async () => {
+      geminiReplies(`I've added the Red Fort to your Monday.\n${action({ intent: 'plan_itinerary', tripId: '[id]' })}`);
+      const result = await aiService.chat(USER, 'add the Red Fort on Monday', { conversationId: CONV });
+      expect(itinerary.generatePlan).not.toHaveBeenCalled();
+      expect(result.reply).toBe(NOT_DONE);
+    });
+
+    // Failure 1: "move the British Museum to 10 May" — the place was already on another day,
+    // so a re-plan of the new day skipped it (no repeats). Now moved without the model.
+    it('move: takes the stop off its old day and fits it into the new day\'s free time', async () => {
+      const prev = withPlan();
+      geminiReplies(`Moving it.\n${action({ intent: 'plan_trip', draft: { ...FACTS, dates: ['2026-12-07'], move: 'Place 2026-12-06-0' } })}`);
+
+      const result = await aiService.chat(USER, 'Move Place 2026-12-06-0 to Monday', { conversationId: CONV });
+
+      expect(itinerary.generatePlan).not.toHaveBeenCalled();
+      const saved = conversationsService.savePlan.mock.calls[0][2];
+      expect(saved.version).toBe(prev.version + 1);
+      const on = (d) => saved.activities.filter((a) => a.date === d && a.kind === 'activity').map((a) => `${a.time} ${a.locationName}`);
+      expect(on('2026-12-06')).toEqual([]);
+      // Monday is a work day: free 18:00–22:00. 18:00–19:30 is taken; +30 min travel → 20:00.
+      expect(on('2026-12-07')).toEqual(['18:00 Place 2026-12-07-1', '20:00 Place 2026-12-06-0']);
+      expect(saved.activities.filter((a) => a.kind === 'travel')).toHaveLength(2);
+      expect(result.reply).toMatch(/^I've moved Place 2026-12-06-0 to Mon 7 Dec\./);
+      expect(result.pendingAction).toBeNull();
+    });
+
+    it('move: read from the user\'s words when the model sends neither "move" nor "dates"', async () => {
+      withPlan();
+      geminiReplies(`Sure.\n${action({ intent: 'plan_trip', draft: { ...FACTS } })}`);
+      await aiService.chat(USER, 'can you move Place 2026-12-06-0 to 7 Dec?', { conversationId: CONV });
+      expect(itinerary.generatePlan).not.toHaveBeenCalled();
+      expect(conversationsService.savePlan.mock.calls[0][2].activities
+        .find((a) => a.locationName === 'Place 2026-12-06-0').date).toBe('2026-12-07');
+    });
+
+    it('move: no free time on the new day → nothing changes and Swee says so', async () => {
+      withPlan();
+      geminiReplies(`Done!\n${action({ intent: 'plan_trip', draft: { ...FACTS, dates: ['2026-12-08'], move: 'Place 2026-12-06-0' } })}`);
+
+      // Tuesday: office until 17:00 (+1 h commute) and the flight home leaves mid-afternoon.
+      const result = await aiService.chat(USER, 'move Place 2026-12-06-0 to Tuesday', { conversationId: CONV });
+
+      expect(conversationsService.savePlan).not.toHaveBeenCalled();
+      expect(itinerary.generatePlan).not.toHaveBeenCalled();
+      expect(result.reply).toMatch(/^I couldn't fit Place 2026-12-06-0 into Tue 8 Dec .* nothing was changed/);
+    });
+
+    it('move: no day named → asks which day, nothing changes', async () => {
+      withPlan();
+      geminiReplies(`Sure.\n${action({ intent: 'plan_trip', draft: { ...FACTS, move: 'Place 2026-12-06-0', dates: ['2026-12-06'] } })}`);
+      const result = await aiService.chat(USER, 'move Place 2026-12-06-0 please, on 6 Dec it is too much', { conversationId: CONV });
+      expect(conversationsService.savePlan).not.toHaveBeenCalled();
+      expect(result.reply).toMatch(/^Which day should I move Place 2026-12-06-0 to\? Nothing has been changed yet\./);
+    });
+
+    it('the prompt tells the model how to move a place and not to claim changes', async () => {
+      withPlan();
+      geminiReplies(`Sure.\n${action({ intent: 'none' })}`);
+      mockSystemPrompts.length = 0;
+      await aiService.chat(USER, 'hi', { conversationId: CONV });
+      const prompt = mockSystemPrompts[mockSystemPrompts.length - 1];
+      expect(prompt).toContain('"move":"<the place, as named in the plan>"');
+      expect(prompt).toContain('never say a change is done');
+    });
+  });
+
+  // (c) Honest replies: a rejected action never leaves text that claims a change.
+  describe('chat → rejected actions (honest reply)', () => {
+    const NOT_DONE = 'I couldn\'t make that change — nothing was updated. Could you try again?';
+
+    it.each([
+      ['an unknown intent', { intent: 'delete_trip', readyToCreate: true }],
+      ['add_activities with no trip', { intent: 'add_activities', readyToCreate: true, draft: { activities: [{ title: 'x' }] } }],
+      ['create_trip with no draft', { intent: 'create_trip', readyToCreate: true, draft: {} }],
+    ])('%s → "nothing was updated", no action', async (_label, obj) => {
+      geminiReplies(`Done! I've updated it for you.\n${action(obj)}`);
+      const result = await aiService.chat(USER, 'do it', { conversationId: CONV });
+      expect(result.reply).toBe(NOT_DONE);
+      expect(result.pendingAction).toBeNull();
+    });
+
+    it('a broken ACTION line (bad JSON) → "nothing was updated"', async () => {
+      geminiReplies('All set — I\'ve added it.\n###ACTION{"intent":"update_trip",');
+      const result = await aiService.chat(USER, 'do it', { conversationId: CONV });
+      expect(result.reply).toBe(NOT_DONE);
+    });
+
+    it('an invalid "none" action keeps the text (no change was attempted)', async () => {
+      geminiReplies(`Paris is lovely in May.\n${action({ intent: 'none', readyToCreate: true })}`);
+      const result = await aiService.chat(USER, 'is paris nice?', { conversationId: CONV });
+      expect(result.reply).toBe('Paris is lovely in May.');
+    });
+
+    it('flag off: today\'s behaviour (the model\'s text is kept)', async () => {
+      config.featureFlags.sweePlannerV2 = false;
+      geminiReplies(`Done! I've updated it for you.\n${action({ intent: 'delete_trip', readyToCreate: true })}`);
+      const result = await aiService.chat(USER, 'do it', { conversationId: CONV });
+      expect(result.reply).toBe('Done! I\'ve updated it for you.');
+    });
+  });
+
+  describe('datesNamedIn', () => {
+    const trip = itinerary.enumerateDates('2027-05-08', '2027-05-12'); // Sat 8 … Wed 12 May
+    it.each([
+      ['On 10 May, add a cruise', ['2027-05-10']],
+      ['may 10th and the 11th of May', ['2027-05-10', '2027-05-11']],
+      ['day 3 please', ['2027-05-10']],
+      ['the first day and the last day', ['2027-05-08', '2027-05-12']],
+      ['on Saturday', ['2027-05-08']],
+      ['2027-05-09', ['2027-05-09']],
+      ['on 20 May', []],
+      ['day 9', []],
+      ['add a cruise', []],
+    ])('"%s"', (text, expected) => {
+      expect(itinerary.datesNamedIn(text, trip)).toEqual(expected);
     });
   });
 
