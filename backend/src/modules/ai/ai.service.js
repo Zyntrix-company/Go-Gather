@@ -943,7 +943,9 @@ function originNamedIn(message) {
   const m = String(message || '').match(/^\s*(?:(?:i'?m|i am|we'?re|we are)\s+)?(?:(?:travel+ing|flying|coming|starting|leaving|going)\s+)?from\s+([a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2})\s*(?:[.,!;]|$|\s+(?:and|but|not)\b)/i);
   if (!m) return null;
   const city = m[1].trim();
-  if (/^(?:home|here|there|my|the|a|an|india)$/i.test(city.split(/\s+/)[0])) return null;
+  // "From Monday I'm free", "from tomorrow", "from 9 am" — a time, not a place.
+  if (/^(?:home|here|there|my|the|a|an|india|now|today|tonight|tomorrow|next|then|monday|tuesday|wednesday|thursday|friday|saturday|sunday|jan\w*|feb\w*|march|april|may|june|july|aug\w*|sep\w*|oct\w*|nov\w*|dec\w*|morning|noon|evening)$/i.test(city.split(/\s+/)[0])
+    || /\b(?:i'?m|i|we|am|is|are|free|busy)\b/i.test(city)) return null;
   return city.replace(/\b[a-z]/g, (c) => c.toUpperCase());
 }
 
@@ -997,6 +999,8 @@ function applyProfileRules({
     action = { intent: 'save_profile_detail', readyToCreate: true, scope: 'in', draft: { field: 'homeCity', value: origin } };
     out = `${out}\n\nWant me to save ${origin} as your home city for next time?`;
   } else if (!action && !actionRan && !homeCity && /\bplan\b/i.test(message) && !userTurns.some(originNamedIn)
+    && userTurns.some((t) => /\b(?:trip|travel\w*|holiday|vacation|getaway|itinerar\w*)\b/i.test(t))
+    && !/\b(?:event|party|dinner|birthday|meeting|wedding|meetup)\b/i.test(message)
     && !userTurns.some((t) => /\bfrom\s+[a-z]/i.test(t)) && !/where .*from\?/i.test(out)) {
     out = `${out}\n\n${ORIGIN_QUESTION}`;
   }
@@ -1169,7 +1173,9 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
 
   // Planner v2: a plan exists and the user says it looks good → confirm_trip, whatever the model sent
   // (it sometimes sends nothing, or re-sends plan_trip and the whole plan is re-planned).
+  // Only right after Swee showed the plan — "sounds good" to another question is not a confirm.
   if (currentPlan && !enforceBlock && confirmsPlan(message)
+    && /When it looks right, tell me and I'll set up the trip\./.test(lastAssistantRow?.content ?? lastAssistant?.content ?? '')
     && (!pendingAction || (pendingAction.intent === 'plan_trip' && !pendingAction.draft?.move
       && !(Array.isArray(pendingAction.draft?.dates) && pendingAction.draft.dates.length)))) {
     if (pendingAction) reply = '';

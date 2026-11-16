@@ -598,6 +598,7 @@ describe('Swee planning journey (SWEE_PLANNER_V2)', () => {
     });
 
     it('"plan it" with no origin known anywhere → the origin question is added to Swee\'s reply', async () => {
+      history(['user', 'I want a 4-day trip to Udaipur in January'], ['assistant', 'Lovely! Shall I plan it?']);
       geminiReplies(`Happy to! Are you travelling alone or with others?\n${action({ intent: 'none' })}`);
       const result = await aiService.chat(USER, 'Yes please, plan it.', { conversationId: CONV });
       expect(result.reply).toBe('Happy to! Are you travelling alone or with others?\n\nWhere will you be travelling from?');
@@ -650,6 +651,18 @@ describe('Swee planning journey (SWEE_PLANNER_V2)', () => {
       })}`);
       const result = await aiService.chat(USER, 'I\'m vegetarian', { conversationId: CONV });
       expect(result.reply).toMatch(/I'll save it for next time\.$/);
+    });
+
+    it('"plan a birthday party" → no travel question', async () => {
+      geminiReplies(`Fun! How many guests?\n${action({ intent: 'none' })}`);
+      const result = await aiService.chat(USER, 'help me plan a birthday party', { conversationId: CONV });
+      expect(result.reply).toBe('Fun! How many guests?');
+    });
+
+    it.each([['From Monday I\'m free.'], ['from tomorrow'], ['From 9 am, not before.']])('"%s" is a time, not a home city', async (message) => {
+      geminiReplies(`Noted.\n${action({ intent: 'none' })}`);
+      const result = await aiService.chat(USER, message, { conversationId: CONV });
+      expect(result.pendingAction).toBeNull();
     });
 
     // D3: saved usual travel mode (train) ignored — the model picked a flight.
@@ -852,7 +865,18 @@ describe('Swee planning journey (SWEE_PLANNER_V2)', () => {
 
   // Live Round C (2 of 7 runs): "Looks good, let's create the trip" → no action, or plan_trip again.
   describe('chat → "looks good" with a plan in the chat (SWEE_PLANNER_V2)', () => {
-    const withPlan = () => conversationsService.getConversation.mockResolvedValue({ id: CONV, metadata: { plan: storedPlan() } });
+    const PREVIEW_END = 'Want any changes? When it looks right, tell me and I\'ll set up the trip.';
+    const withPlan = (lastSwee = `**Sun 6 Dec**\n- 06:00 Flight\n\n${PREVIEW_END}`) => {
+      conversationsService.getConversation.mockResolvedValue({ id: CONV, metadata: { plan: storedPlan() } });
+      conversationsService.loadLastAssistantMessage.mockResolvedValue({ content: lastSwee, refused: false });
+    };
+
+    it('"sounds good" to another question from Swee is not a confirm', async () => {
+      withPlan('Shall I add a museum on Monday evening?');
+      geminiReplies(`Adding it.\n${action({ intent: 'none' })}`);
+      const result = await aiService.chat(USER, 'sounds good', { conversationId: CONV });
+      expect(result.pendingAction).toBeNull();
+    });
 
     it('no action from the model → the pre-filled trip form', async () => {
       withPlan();
