@@ -923,13 +923,17 @@ function datesNamedIn(text, dates) {
   const byIndex = (n) => { if (n >= 1 && n <= dates.length) found.add(dates[n - 1]); };
 
   for (const m of s.matchAll(/\b(\d{4}-\d{2}-\d{2})\b/g)) if (dates.includes(m[1])) found.add(m[1]);
-  const mon = '(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?';
+  // Whole month names or their short forms only — "markets", "maybe" are not months.
+  const mon = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\b\\.?';
   const day = '(\\d{1,2})(?:st|nd|rd|th)?';
-  for (const m of s.matchAll(new RegExp(`\\b${day}\\s+(?:of\\s+)?${mon}`, 'g'))) byMonthDay(MONTHS[m[2]], Number(m[1]));
-  for (const m of s.matchAll(new RegExp(`\\b${mon}\\s+${day}\\b`, 'g'))) byMonthDay(MONTHS[m[1]], Number(m[2]));
+  const monthOf = (name) => MONTHS[name.slice(0, 3)];
+  for (const m of s.matchAll(new RegExp(`\\b${day}\\s+(?:of\\s+)?${mon}`, 'g'))) byMonthDay(monthOf(m[2]), Number(m[1]));
+  for (const m of s.matchAll(new RegExp(`\\b${mon}\\s+${day}\\b`, 'g'))) byMonthDay(monthOf(m[1]), Number(m[2]));
   const word = `(\\d{1,2}|${Object.keys(NUMBER_WORDS).join('|')})`;
   for (const m of s.matchAll(new RegExp(`\\bday\\s+${word}\\b`, 'g'))) byIndex(nth(m[1]));
-  for (const m of s.matchAll(new RegExp(`\\b${word}(?:st|nd|rd|th)?\\s+day\\b`, 'g'))) byIndex(nth(m[1]));
+  // "2nd day" / "second day" — but not "one day" / "a 2 day trip" (no ordinal).
+  const ordinal = `(\\d{1,2}(?:st|nd|rd|th)|${Object.keys(NUMBER_WORDS).filter((w) => NUMBER_WORDS[w] && /(?:st|nd|rd|th)$/.test(w)).join('|')})`;
+  for (const m of s.matchAll(new RegExp(`\\b${ordinal}\\s+day\\b`, 'g'))) byIndex(nth(/^\d/.test(m[1]) ? m[1].replace(/\D+$/, '') : m[1]));
   if (/\b(?:last|final)\s+day\b/.test(s)) found.add(dates[dates.length - 1]);
   WEEKDAYS.forEach((name, i) => {
     if (!new RegExp(`\\b${name}\\b`).test(s)) return;

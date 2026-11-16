@@ -527,7 +527,13 @@ async function planAndStore(userId, conversationId, facts, prev, { refineDates =
 }
 
 const ACTION_NOT_DONE_REPLY = 'I couldn\'t make that change — nothing was updated. Could you try again?';
-const MOVE_WORDS = /\b(?:move|moving|shift|reschedule|swap)\b/i;
+const MOVE_WORDS = /\b(?:move|moving|shift|reschedule)\b/i;
+const ORIGIN_QUESTION = 'Where will you be travelling from?';
+const SELF_WRITTEN_FAILED_REPLY = 'I couldn\'t build a checked itinerary just now — ask me again and I\'ll plan it day by day.';
+const SELF_WRITTEN_NOTE = '[App note, not from the user: your last answer wrote a day-by-day itinerary as text, which the app can\'t check or save. Answer again with one short line and the plan_trip ACTION carrying the facts gathered so far — never write the days yourself.]';
+// "I'll remember that" / "I've saved your …" with no Save button is a claim the app never made true.
+const REMEMBER_CLAIM = /\b(?:I'll|I will|I've|I have|I'm going to|I am going to)\s+(?:remember\b|(?:save|saved|saving)\s+(?:that|this|it|your)\b|(?:note|noted|keep)\b[^.!?\n]*\bfor (?:next time|the future|future trips)\b)/i;
+const TRAVEL_MODE_WORDS = /\b(?:fly|flying|flight|flights|plane|train|trains|rail|drive|driving|car|road trip|bus|by road)\b/i;
 const SHAPE_KEYS = ['destination', 'startDate', 'endDate', 'timeZone', 'origin', 'travel', 'busy'];
 
 /** "London, UK" and "london" are the same destination. */
@@ -555,8 +561,11 @@ async function movePlannedStop(userId, conversationId, prev, draft, message, nam
       pendingAction: null,
     };
   }
+  // Open days follow the move: the new day is no longer open; the old one is if it's now empty.
+  const oldEmpty = !moved.activities.some((a) => a.kind === 'activity' && a.date === act.date);
+  const droppedDates = [...new Set([...(prev.droppedDates || []).filter((d) => d !== targets[0]), ...(oldEmpty ? [act.date] : [])])].sort();
   const stored = {
-    ...prev, version: (prev.version || 0) + 1, activities: moved.activities, updatedAt: new Date().toISOString(),
+    ...prev, version: (prev.version || 0) + 1, activities: moved.activities, droppedDates, updatedAt: new Date().toISOString(),
   };
   await conversationsService.savePlan(userId, conversationId, stored);
   return {
@@ -566,27 +575,39 @@ async function movePlannedStop(userId, conversationId, prev, draft, message, nam
 }
 
 /** plan_trip: plan (or refine) the trip from the facts Swee gathered and show it in chat. */
-async function handlePlanTrip(userId, conversationId, action, lead, message = '') {
+async function handlePlanTrip(userId, conversationId, action, lead, message = '', { profile = null, userTexts = '' } = {}) {
   const draft = action.draft || {};
   let facts = itinerary.sanitizePlanFacts(draft);
   const conv = await conversationsService.getConversation(userId, conversationId);
   const prev = conv.metadata?.plan || null;
 
-  // A plan already exists: it is the base, and a change to named days refines only those days.
+  // A plan already exists for the same trip: it is the base, and a change to named days
+  // refines only those days. A different destination or dates is a new trip — nothing carried over.
   let named = [];
   if (prev?.facts) {
-    facts = itinerary.mergePlanFacts(prev.facts, facts);
     const basicsChanged = !sameDestination(facts.destination, prev.facts.destination)
       || facts.startDate !== prev.facts.startDate || facts.endDate !== prev.facts.endDate;
     if (!basicsChanged) {
+      facts = itinerary.mergePlanFacts(prev.facts, facts);
       const tripDates = itinerary.enumerateDates(prev.facts.startDate, prev.facts.endDate);
       const fromModel = Array.isArray(draft.dates) ? draft.dates.filter((d) => tripDates.includes(d)) : [];
       // The model sometimes leaves "dates" out — read the days from the user's own words.
       named = fromModel.length ? [...new Set(fromModel)].sort() : itinerary.datesNamedIn(message, tripDates);
+      if (typeof draft.move === 'string' || MOVE_WORDS.test(message)) {
+        const moved = await movePlannedStop(userId, conversationId, prev, draft, message, named);
+        if (moved) return moved;
+      }
     }
-    if (named.length > 0 && (typeof draft.move === 'string' || MOVE_WORDS.test(message))) {
-      const moved = await movePlannedStop(userId, conversationId, prev, draft, message, named);
-      if (moved) return moved;
+  }
+
+  if (config.featureFlags.profileTravelPrefs) {
+    // Don't plan travel from a guessed place: no origin and no saved home city → ask first.
+    if (!facts.origin && !profile?.home_city) return { reply: ORIGIN_QUESTION, pendingAction: null };
+    // The saved usual way of travelling is the default unless the user named one in this chat.
+    const savedMode = profile?.travel_mode_pref;
+    if (facts.origin && ['flight', 'train', 'road'].includes(savedMode) && !TRAVEL_MODE_WORDS.test(userTexts)
+      && facts.travel?.mode !== savedMode) {
+      facts = { ...facts, travel: { ...(facts.travel || { booked: false }), mode: savedMode, onboardMinutes: undefined } };
     }
   }
 
@@ -889,6 +910,63 @@ function asPlanRefine(action, plan) {
   };
 }
 
+/** A multi-day itinerary written as chat text (day headings + time slots), not a server preview. */
+function looksSelfWritten(text) {
+  const t = String(text || '');
+  const days = (t.match(/^\s*(?:#{1,4}\s*|\*\*)?(?:day\s*\d+\b|(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*,?\s+\d{1,2}\s+[a-z]{3,})/gim) || []).length;
+  const slots = (t.match(/\b(?:morning|afternoon|evening)\s*[:–-]|^\s*[-*•]\s*\d{1,2}[:.]\d{2}\b/gim) || []).length;
+  return days >= 2 && slots >= 3;
+}
+
+/** "From Pune." / "I'm travelling from New Delhi, not booked" → "Pune" / "New Delhi"; else null. */
+function originNamedIn(message) {
+  const m = String(message || '').match(/^\s*(?:(?:i'?m|i am|we'?re|we are)\s+)?(?:(?:travel+ing|flying|coming|starting|leaving|going)\s+)?from\s+([a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2})\s*(?:[.,!;]|$|\s+(?:and|but|not)\b)/i);
+  if (!m) return null;
+  const city = m[1].trim();
+  if (/^(?:home|here|there|my|the|a|an|india)$/i.test(city.split(/\s+/)[0])) return null;
+  return city.replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
+
+/** The sentences of `text` that claim something was remembered or saved, removed. */
+function stripRememberClaims(text) {
+  const lines = String(text || '').split('\n').map((line) => {
+    if (!REMEMBER_CLAIM.test(line)) return line;
+    const kept = line.split(/(?<=[.!?])\s+/).filter((sentence) => !REMEMBER_CLAIM.test(sentence)).join(' ');
+    return kept.trim() ? kept : null;
+  }).filter((line) => line !== null);
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * PROFILE_TRAVEL_PREFS, applied to the final reply:
+ *  - planning, no home city and no origin anywhere in the chat → ask where they travel from;
+ *  - the user just named where they travel from (not their saved home city) and nothing else is
+ *    pending → attach a save_profile_detail offer;
+ *  - "I'll remember that" with no save_profile_detail action → that claim is removed.
+ */
+function applyProfileRules({
+  reply, pendingAction, message, history, profile, actionRan = false,
+}) {
+  const homeCity = String(profile?.home_city || '').trim();
+  const origin = originNamedIn(message);
+  const userTurns = [...history.filter((m) => m.role === 'user').map((m) => m.content), message];
+  let out = reply;
+  let action = pendingAction;
+
+  if (action?.intent !== 'save_profile_detail' && REMEMBER_CLAIM.test(out)) {
+    out = stripRememberClaims(out) || 'Got it.';
+  }
+  // Offer only in a message with no other action (a plan preview offers in the next one).
+  if (!action && !actionRan && origin && origin.toLowerCase() !== homeCity.toLowerCase()) {
+    action = { intent: 'save_profile_detail', readyToCreate: true, scope: 'in', draft: { field: 'homeCity', value: origin } };
+    out = `${out}\n\nWant me to save ${origin} as your home city for next time?`;
+  } else if (!action && !actionRan && !homeCity && /\bplan\b/i.test(message) && !userTurns.some(originNamedIn)
+    && !userTurns.some((t) => /\bfrom\s+[a-z]/i.test(t)) && !/where .*from\?/i.test(out)) {
+    out = `${out}\n\n${ORIGIN_QUESTION}`;
+  }
+  return { reply: out, pendingAction: action };
+}
+
 /** The intent named in a reply's ACTION line, even when the line was rejected. */
 function attemptedIntent(rawReply) {
   const text = String(rawReply || '');
@@ -1035,6 +1113,26 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
     reply = ACTION_NOT_DONE_REPLY;
   }
 
+  // Planner v2: Swee wrote the days itself (unchecked, unsaved) — ask once more for plan_trip.
+  if (config.featureFlags.sweePlannerV2 && !enforceBlock && !pendingAction && looksSelfWritten(reply)) {
+    logger.warn('Swee self_written_itinerary', { userId, conversationId: resolvedConversationId });
+    try {
+      const retryRaw = await geminiChat(`${message}\n\n${SELF_WRITTEN_NOTE}`, history, systemPrompt, attachments);
+      const retry = currentPlan
+        ? parseActionBlock(retryRaw, { logInvalid: true, logger, prepareAction: (a) => asPlanRefine(a, currentPlan) })
+        : parseActionBlock(retryRaw, { logInvalid: true, logger });
+      const ok = ['plan_trip', 'plan_itinerary'].includes(retry.pendingAction?.intent) && !looksSelfWritten(retry.reply);
+      reply = ok ? retry.reply : SELF_WRITTEN_FAILED_REPLY;
+      pendingAction = ok ? retry.pendingAction : null;
+    } catch (err) {
+      logger.warn('Swee self_written retry failed', { userId, conversationId: resolvedConversationId, error: err.message });
+      reply = SELF_WRITTEN_FAILED_REPLY;
+      pendingAction = null;
+    }
+  }
+
+  const modelAction = pendingAction?.intent || null; // before the server turns it into a preview
+
   // "Plan my itinerary" for an existing trip: the server plans every day and shows a preview
   // the user confirms. plan_itinerary itself never reaches the app.
   if (pendingAction?.intent === 'plan_itinerary') {
@@ -1057,10 +1155,13 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
   if (config.featureFlags.sweePlannerV2 && (pendingAction?.intent === 'plan_trip' || pendingAction?.intent === 'confirm_trip')) {
     const { intent } = pendingAction;
     // An action line with no text of its own gets the parser's "hiccup" fallback — not a lead-in.
-    const lead = reply === ACTION_FALLBACK_REPLY ? '' : reply;
+    const lead = reply === ACTION_FALLBACK_REPLY || (config.featureFlags.sweePlannerV2 && looksSelfWritten(reply)) ? '' : reply;
     try {
       ({ reply, pendingAction } = intent === 'plan_trip'
-        ? await handlePlanTrip(userId, resolvedConversationId, pendingAction, lead, message)
+        ? await handlePlanTrip(userId, resolvedConversationId, pendingAction, lead, message, {
+          profile: userContext?.profile || null,
+          userTexts: [...history.filter((m) => m.role === 'user').map((m) => m.content), message].join('\n'),
+        })
         : await handleConfirmTrip(userId, resolvedConversationId, lead));
     } catch (err) {
       logger.warn(`Swee ${intent} failed`, { userId, conversationId: resolvedConversationId, error: err.message });
@@ -1068,6 +1169,12 @@ const chat = async (userId, message, { conversationId, tripContext, attachments 
       pendingAction = null;
     }
   }
+  if (config.featureFlags.profileTravelPrefs && !enforceBlock) {
+    ({ reply, pendingAction } = applyProfileRules({
+      reply, pendingAction, message, history, profile: userContext?.profile || null, actionRan: Boolean(modelAction),
+    }));
+  }
+
   // Keep refused turns out of future Gemini history. Outside enforce mode only Swee's own
   // refusals are flagged, so a classifier false positive never costs the user context.
   const persistedScope = enforceBlock || parsed.scope === 'out' ? 'out' : 'in';

@@ -170,12 +170,18 @@ const setFlags = (f) => Object.assign(config.featureFlags, { tripTimezones: fals
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** One /ai/chat turn through the real chat() handler. */
+// A day-by-day itinerary Swee wrote as text ("**Day 1** - Morning: …") — never checked or saved.
+// Server previews use date headings with "- 09:00" lines and never "Day N" or "Morning:".
+const selfWrittenReplies = [];
+const selfWritten = (t) => /\*\*\s*day\s*\d+/i.test(t) || /^\s*[-*•]?\s*(?:morning|afternoon|evening)\s*:/im.test(t);
+
 async function say(session, message, opts = {}) {
   for (let attempt = 0; ; attempt++) {
     try {
       const r = await aiService.chat(USER, message, { conversationId: session.id, ...opts });
       session.id = r.conversationId;
       session.last = r;
+      if (selfWritten(r.reply)) selfWrittenReplies.push(r.reply.slice(0, 160));
       if (args.verbose) console.log(`      raw: ${JSON.stringify(rawActions[rawActions.length - 1])?.slice(0, 500)}`);
       if (args.verbose) console.log(`    > ${message}\n    < ${r.reply.replace(/\n/g, ' ⏎ ').slice(0, 300)}\n      ${JSON.stringify(r.pendingAction)?.slice(0, 300)}`);
       return r;
@@ -443,6 +449,8 @@ async function main() {
     } catch (err) {
       check(`${n} run`, false, err.message);
     }
+    check(`${n}: no self-written itinerary shown`, selfWrittenReplies.length === 0, selfWrittenReplies.join(' || '));
+    selfWrittenReplies.length = 0;
     if (state.unknownSql.length) console.log(`    (fake db: unhandled ${[...new Set(state.unknownSql)].join(' | ')})`);
   }
   console.log(`\n${failures === 0 ? 'All checks passed' : `${failures} check(s) failed`}`);
