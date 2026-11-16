@@ -23,7 +23,9 @@ const { normalizeAuthEmail } = require('../../utils/email.util');
 const { getOrCreateShareLink } = require('../invites/shareLinks.service');
 const { ensureFriendRequestSafe } = require('../friends/friends.service');
 const { scheduleTripReminders, scheduleActivityReminders } = require('../../utils/reminders.cron');
-const { DEFAULT_TIME_ZONE, resolveTimeZone, toIsoDate } = require('../../utils/localTime');
+const {
+  DEFAULT_TIME_ZONE, isStorableZone, resolveTimeZone, toIsoDate,
+} = require('../../utils/localTime');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -91,9 +93,11 @@ const formatTrip = (t, locations = null) => {
 };
 
 // TRIP_TIMEZONES: (re)resolve a trip's IANA zone from its primary location
-// (no coordinates -> creator's users.timezone -> Asia/Kolkata) and store it.
-const refreshTripTimeZone = async (executor, trip) => {
+// (no coordinates -> `zoneHint` (Swee's destination zone, if valid) -> creator's
+// users.timezone -> Asia/Kolkata) and store it.
+const refreshTripTimeZone = async (executor, trip, zoneHint = null) => {
   const zone = await resolveTimeZone(trip.location_lat, trip.location_lng, async () => {
+    if (zoneHint && await isStorableZone(zoneHint)) return zoneHint;
     const result = await executor.query('SELECT timezone FROM users WHERE id = $1', [trip.created_by]);
     return result.rows[0]?.timezone;
   });
@@ -129,7 +133,9 @@ const enrichTripWithLocations = async (t) => {
 
 // ─── Create Trip ──────────────────────────────────────────────────────────────
 
-const createTrip = async (userId, body) => {
+// `timeZoneHint` (Swee only, not from the request body): the destination's IANA zone,
+// used with TRIP_TIMEZONES when the location has no coordinates.
+const createTrip = async (userId, body, { timeZoneHint = null } = {}) => {
   const {
     name, startDate, endDate, reminders,
     friendIds = [], emails = [], bannerImageUrl = null, bannerCropFraction = null,
@@ -162,7 +168,7 @@ const createTrip = async (userId, body) => {
       [name, startDate, endDate, primary.name, primary.lat, primary.lng, userId, resolvedBanner, bannerCropFraction ? JSON.stringify(bannerCropFraction) : null],
     );
     let trip = tripResult.rows[0];
-    if (config.featureFlags.tripTimezones) ({ trip } = await refreshTripTimeZone(client, trip));
+    if (config.featureFlags.tripTimezones) ({ trip } = await refreshTripTimeZone(client, trip, timeZoneHint));
 
     await insertLocations(client, 'trip_locations', 'trip_id', trip.id, normalizedLocations);
 
@@ -495,6 +501,15 @@ const updateTrip = async (tripId, updates) => {
     return enrichTripWithLocations(existing.rows[0]);
   }
 
+  // TRIP_TIMEZONES: a new primary location can mean a new time zone. Remember the current
+  // place + zone so a trip without coordinates (e.g. made by Swee) keeps its zone when its
+  // place is unchanged, instead of falling back to the creator's zone.
+  const locationChanged = normalizedLocations
+    || updates.location?.lat !== undefined || updates.location?.lng !== undefined;
+  const before = config.featureFlags.tripTimezones && locationChanged
+    ? (await db('SELECT location_name, timezone FROM trips WHERE id = $1', [tripId])).rows[0]
+    : null;
+
   let trip;
   if (!normalizedLocations) {
     values.push(tripId);
@@ -531,12 +546,10 @@ const updateTrip = async (tripId, updates) => {
     }
   }
 
-  // TRIP_TIMEZONES: a new primary location can mean a new time zone
   let timeZoneChanged = false;
-  const locationChanged = normalizedLocations
-    || updates.location?.lat !== undefined || updates.location?.lng !== undefined;
   if (config.featureFlags.tripTimezones && trip && locationChanged) {
-    ({ trip, changed: timeZoneChanged } = await refreshTripTimeZone({ query: db }, trip));
+    const keepZone = before && before.location_name === trip.location_name ? before.timezone : null;
+    ({ trip, changed: timeZoneChanged } = await refreshTripTimeZone({ query: db }, trip, keepZone));
   }
 
   if (updates.startDate) {

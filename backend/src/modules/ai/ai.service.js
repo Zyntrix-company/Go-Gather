@@ -1041,8 +1041,16 @@ const executeAction = async (userId, pendingAction, { conversationId = null, cha
       reminders: true,
     };
 
+    // TRIP_TIMEZONES: Swee trips have no coordinates, so pass the destination's zone (from the
+    // agreed plan, or the legacy draft); createTrip validates it and falls back as before.
+    const timeZoneHint = config.featureFlags.tripTimezones
+      ? (plan ? plan.facts?.timeZone : draft.timeZone)
+      : null;
+
     // createTrip returns the enriched trip object directly
-    const trip = await tripsService.createTrip(userId, body);
+    const trip = typeof timeZoneHint === 'string' && timeZoneHint
+      ? await tripsService.createTrip(userId, body, { timeZoneHint })
+      : await tripsService.createTrip(userId, body);
 
     if (plan) {
       const planned = (plan.activities || [])

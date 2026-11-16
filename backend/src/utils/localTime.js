@@ -103,4 +103,4 @@ const resolveTimeZone = async (lat, lng, getFallbackZone) => {
   return (await isStorableZone(fallback)) ? fallback : DEFAULT_TIME_ZONE;
 };
 
-module.exports = { DEFAULT_TIME_ZONE, localToUtc, resolveTimeZone, toIsoDate };
+module.exports = { DEFAULT_TIME_ZONE, isStorableZone, localToUtc, resolveTimeZone, toIsoDate };

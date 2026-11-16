@@ -461,3 +461,127 @@ describe('Swee planning journey (SWEE_PLANNER_V2)', () => {
     });
   });
 });
+
+describe('Swee-created trips get the destination time zone (TRIP_TIMEZONES)', () => {
+  const original = { ...config.featureFlags };
+  const lastCreateArgs = () => tripsService.createTrip.mock.calls[0];
+  const planFor = (destination, timeZone) => storedPlan({
+    facts: itinerary.sanitizePlanFacts({ ...FACTS, destination, timeZone }),
+    timeZone: timeZone || 'Asia/Kolkata',
+  });
+  const v2Form = (destination) => ({
+    intent: 'create_trip',
+    readyToCreate: true,
+    draft: { destination, startDate: '2026-12-06', endDate: '2026-12-08', planVersion: 1 },
+  });
+  const legacyForm = (destination, timeZone) => ({
+    intent: 'create_trip',
+    readyToCreate: true,
+    draft: { destination, startDate: '2026-12-06', endDate: '2026-12-08', ...(timeZone ? { timeZone } : {}) },
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    db.query.mockReset();
+    db.query.mockResolvedValue({ rows: [], rowCount: 0 });
+    tripsService.createTrip.mockResolvedValue({ id: TRIP, name: 'Trip' });
+  });
+  afterAll(() => { Object.assign(config.featureFlags, original); });
+
+  describe('Planner v2: zone from the agreed plan', () => {
+    beforeEach(() => { config.featureFlags.sweePlannerV2 = true; config.featureFlags.tripTimezones = true; });
+
+    it.each([
+      ['London', 'Europe/London'],
+      ['New York', 'America/New_York'],
+      ['Goa', 'Asia/Kolkata'],
+    ])('%s → createTrip gets timeZoneHint %s', async (destination, zone) => {
+      conversationsService.getConversation.mockResolvedValue({ id: CONV, metadata: { plan: planFor(destination, zone) } });
+      await aiService.executeAction(USER, v2Form(destination), { conversationId: CONV });
+      expect(lastCreateArgs()).toEqual([USER, expect.objectContaining({ location: { name: destination } }), { timeZoneHint: zone }]);
+    });
+
+    it('plan without a model-given zone → no hint (planner default Asia/Kolkata is not used)', async () => {
+      conversationsService.getConversation.mockResolvedValue({ id: CONV, metadata: { plan: planFor('London', undefined) } });
+      await aiService.executeAction(USER, v2Form('London'), { conversationId: CONV });
+      expect(lastCreateArgs()).toHaveLength(2);
+    });
+
+    it('a draft timeZone is ignored when a plan exists', async () => {
+      conversationsService.getConversation.mockResolvedValue({ id: CONV, metadata: { plan: planFor('London', 'Europe/London') } });
+      const form = v2Form('London');
+      form.draft.timeZone = 'Asia/Tokyo';
+      await aiService.executeAction(USER, form, { conversationId: CONV });
+      expect(lastCreateArgs()[2]).toEqual({ timeZoneHint: 'Europe/London' });
+    });
+  });
+
+  describe('legacy flow: zone from the trip card draft', () => {
+    beforeEach(() => { config.featureFlags.sweePlannerV2 = false; config.featureFlags.tripTimezones = true; });
+
+    it.each([
+      ['London', 'Europe/London'],
+      ['New York', 'America/New_York'],
+      ['Goa', 'Asia/Kolkata'],
+    ])('%s → createTrip gets timeZoneHint %s', async (destination, zone) => {
+      await aiService.executeAction(USER, legacyForm(destination, zone), { conversationId: CONV });
+      expect(lastCreateArgs()).toEqual([USER, expect.objectContaining({ location: { name: destination } }), { timeZoneHint: zone }]);
+    });
+
+    it('no zone in the draft → called exactly as before', async () => {
+      await aiService.executeAction(USER, legacyForm('London'), { conversationId: CONV });
+      expect(lastCreateArgs()).toHaveLength(2);
+    });
+
+    it('a non-string zone is not passed on', async () => {
+      const form = legacyForm('London');
+      form.draft.timeZone = { evil: true };
+      await aiService.executeAction(USER, form, { conversationId: CONV });
+      expect(lastCreateArgs()).toHaveLength(2);
+    });
+  });
+
+  describe('flag off: unchanged', () => {
+    beforeEach(() => { config.featureFlags.tripTimezones = false; });
+
+    it('legacy: a draft timeZone is not passed to createTrip', async () => {
+      config.featureFlags.sweePlannerV2 = false;
+      await aiService.executeAction(USER, legacyForm('London', 'Europe/London'), { conversationId: CONV });
+      expect(lastCreateArgs()).toEqual([USER, {
+        name: 'London Dec 2026', startDate: '2026-12-06', endDate: '2026-12-08', location: { name: 'London' }, reminders: true,
+      }]);
+    });
+
+    it('Planner v2: the plan zone is not passed to createTrip', async () => {
+      config.featureFlags.sweePlannerV2 = true;
+      conversationsService.getConversation.mockResolvedValue({ id: CONV, metadata: { plan: planFor('London', 'Europe/London') } });
+      await aiService.executeAction(USER, v2Form('London'), { conversationId: CONV });
+      expect(lastCreateArgs()).toHaveLength(2);
+    });
+  });
+
+  describe('legacy prompt asks for the zone only with TRIP_TIMEZONES', () => {
+    const { buildSweetSystemPrompt } = jest.requireActual('../../src/modules/ai/swee.config');
+    const RULE = '→ Also put "timeZone" in the draft: the destination\'s IANA zone (e.g. "Europe/London", "America/New_York", "Asia/Kolkata").\n';
+    const ctx = { profile: { full_name: 'Priya', timezone: 'Asia/Kolkata' }, trips: [], events: [] };
+
+    it('flag off: no rule; flag on: the same prompt plus the rule', () => {
+      config.featureFlags.sweePlannerV2 = false;
+      config.featureFlags.tripTimezones = false;
+      const off = buildSweetSystemPrompt(ctx, null, 1);
+      config.featureFlags.tripTimezones = true;
+      const on = buildSweetSystemPrompt(ctx, null, 1);
+      expect(off).not.toContain('"timeZone" in the draft');
+      expect(on.replace(RULE, '')).toBe(off);
+      expect(on).toContain(RULE);
+    });
+
+    it('Planner v2 prompt is unchanged by TRIP_TIMEZONES', () => {
+      config.featureFlags.sweePlannerV2 = true;
+      config.featureFlags.tripTimezones = false;
+      const off = buildSweetSystemPrompt(ctx, null, 1);
+      config.featureFlags.tripTimezones = true;
+      expect(buildSweetSystemPrompt(ctx, null, 1)).toBe(off);
+    });
+  });
+});
