@@ -234,6 +234,8 @@ describe('Swee planning journey (SWEE_PLANNER_V2)', () => {
       expect(prompt).toContain(`THE PLAN ALREADY MADE IN THIS CHAT (version ${prev.version}`);
       expect(prompt).toContain(JSON.stringify(prev.facts));
       expect(prompt).toContain('Never write or describe the changed days yourself');
+      // Live Round C: facts copied, but "dates" left out → every day re-planned.
+      expect(prompt).toMatch(/"dates" with those days \(YYYY-MM-DD\) is REQUIRED/);
     });
 
     it('no stored plan → no plan section', async () => {
