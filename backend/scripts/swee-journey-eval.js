@@ -214,10 +214,10 @@ async function c1c2() {
 
   const refineDay = plan1.activities.find((a) => a.kind === 'activity' && a.date > plan1.startDate)?.date || '2027-05-12';
   const dayLabel = new Date(`${refineDay}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' });
-  r = await say(s, `On ${dayLabel}, swap things around so we visit the British Museum that day.`);
+  r = await say(s, `On ${dayLabel}, please add a Thames river cruise.`);
   const plan2 = planOf(s);
   check('C1: refine re-plans and stores a new version', plan2 && plan2.version === plan1.version + 1, `v${plan1.version} → v${plan2?.version} · ${r.reply.slice(0, 160)}`);
-  check('C1: refined day includes the British Museum', plan2 && plan2.activities.some((a) => a.date === refineDay && /british museum/i.test(`${a.title} ${a.locationName}`)),
+  check('C1: refined day includes the Thames cruise', plan2 && plan2.activities.some((a) => a.date === refineDay && /thames|river cruise/i.test(`${a.title} ${a.locationName}`)),
     plan2?.activities.filter((a) => a.date === refineDay).map((a) => a.title).join('; '));
   const keptOther = plan2 && plan1.activities.filter((a) => a.kind === 'activity' && a.date !== refineDay)
     .every((a) => plan2.activities.some((b) => b.date === a.date && b.title === a.title));

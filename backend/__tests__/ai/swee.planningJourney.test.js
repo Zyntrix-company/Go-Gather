@@ -611,7 +611,8 @@ describe('Swee-created trips get the destination time zone (TRIP_TIMEZONES)', ()
       config.featureFlags.tripTimezones = true;
       const on = buildSweetSystemPrompt(ctx, null, 1);
       expect(off).not.toContain('"timeZone" in the draft');
-      expect(withoutEventAndRenameRules(on).replace(RULE, '')).toBe(off);
+      expect(withoutEventAndRenameRules(on).replace(RULE, '').replace('"timeZone":"Asia/Makassar",', '')).toBe(off);
+      expect(on).toContain('"draft":{"destination":"Bali","timeZone":"Asia/Makassar",');
       expect(on).toContain(RULE);
     });
 

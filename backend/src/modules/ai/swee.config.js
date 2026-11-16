@@ -185,8 +185,11 @@ STEP 4 — The user fills the card and taps "Create My Trip":
 // TRIP_TIMEZONES: the legacy trip card also carries the destination's zone (trips have no coordinates).
 const LEGACY_TRIP_TZ_RULE = '→ Also put "timeZone" in the draft: the destination\'s IANA zone (e.g. "Europe/London", "America/New_York", "Asia/Kolkata").\n';
 const LEGACY_TRIP_PREFILL = '→ Pre-fill what you know into draft: destination, a suggested name, adults/kids/seniors, groupType.\n';
+// The card example carries the zone too: the rule alone was skipped in live runs.
+const LEGACY_TRIP_CARD_EXAMPLE = '"showForm":"trip","scope":"in","draft":{"destination":"Bali",';
 const legacyTripCreateFlow = (tz) => (tz
   ? LEGACY_TRIP_CREATE_FLOW.replace(LEGACY_TRIP_PREFILL, LEGACY_TRIP_PREFILL + LEGACY_TRIP_TZ_RULE)
+    .replace(LEGACY_TRIP_CARD_EXAMPLE, `${LEGACY_TRIP_CARD_EXAMPLE}"timeZone":"Asia/Makassar",`)
   : LEGACY_TRIP_CREATE_FLOW);
 
 // TRIP_TIMEZONES: Swee events and renamed destinations have no coordinates either, so the
