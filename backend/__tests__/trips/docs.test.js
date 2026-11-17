@@ -142,19 +142,19 @@ describe('Docs Routes', () => {
   // ── DELETE /trips/:id/docs/:docId ──────────────────────────────────────────
 
   describe('DELETE /trips/:id/docs/:docId', () => {
-    // The uploader/admin-only delete check was removed on purpose in 5fd6314 —
-    // any trip member can delete any doc (rename/replace still check the uploader).
-    it('returns 200 when a member deletes someone else\'s doc', async () => {
+    // Deleting is limited to the uploader and trip admins (restored deliberately;
+    // it had been removed in 5fd6314). Same rule as rename/replace.
+    it('returns 403 when a plain member deletes someone else\'s doc', async () => {
       mockTripMember();
-      db.query
-        .mockResolvedValueOnce({ rowCount: 1, rows: [{ ...docRow, uploaded_by: USER2_ID }] }) // find doc
-        .mockResolvedValueOnce({ rowCount: 1 });                                               // DELETE
+      db.query.mockResolvedValueOnce({ rowCount: 1, rows: [{ ...docRow, uploaded_by: USER2_ID }] }); // find doc
 
       const res = await request(app)
         .delete(`/trips/${TRIP_ID}/docs/${DOC_ID}`)
         .set('Authorization', `Bearer ${token}`);
 
-      expect(res.statusCode).toBe(200);
+      expect(res.statusCode).toBe(403);
+      expect(s3Util.deleteFromS3).not.toHaveBeenCalled();
+      expect(db.query.mock.calls.some(([sql]) => /DELETE FROM docs/i.test(sql))).toBe(false);
     });
 
     it('returns 404 when doc not found', async () => {
