@@ -55,6 +55,14 @@ const updateProfileValidation = [
     .isLength({ min: 2, max: 100 })
     .withMessage('Country must be between 2 and 100 characters')
     .trim(),
+  // Phase 3 (PROFILE_TRAVEL_PREFS): optional home city; an empty value clears it.
+  body('homeCity')
+    .optional({ nullable: true })
+    .isString()
+    .withMessage('Home city must be text')
+    .trim()
+    .isLength({ max: limits.homeCityMax })
+    .withMessage(`Home city must be at most ${limits.homeCityMax} characters`),
 ];
 
 // GET /users/search

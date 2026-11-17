@@ -129,23 +129,80 @@ describe('Activities Routes', () => {
       expect(res.statusCode).toBe(201);
       expect(res.body.activity.title).toBe('Scuba Diving');
     });
+
+    // Migration 077 (duration_minutes, kind) — Planner v2
+    const postAndGetInsert = async (body) => {
+      mockTripMember();
+      db.query.mockResolvedValueOnce({ rows: [activityRow] });
+      mockNotificationLookups();
+      db.query.mockResolvedValueOnce({ rowCount: 1, rows: [activityRow] });
+      const res = await request(app)
+        .post(`/trips/${TRIP_ID}/activities`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ title: 'Flight', date: '2026-05-03', time: { hour: 6, minute: 0 }, ...body });
+      expect(res.statusCode).toBe(201);
+      return db.query.mock.calls.find(([sql]) => /INSERT INTO trip_activities/.test(sql));
+    };
+
+    it('without duration/kind the INSERT is exactly the pre-077 statement', async () => {
+      const [sql, params] = await postAndGetInsert({});
+      expect(sql.replace(/\s+/g, ' ')).toBe(
+        'INSERT INTO trip_activities (trip_id, created_by, title, activity_date, activity_time, location_name, description, expense_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      );
+      expect(params).toHaveLength(8);
+    });
+
+    it('writes duration_minutes and kind when valid', async () => {
+      const [sql, params] = await postAndGetInsert({ durationMinutes: 295, kind: 'travel' });
+      expect(sql).toMatch(/expense_id, duration_minutes, kind\)/);
+      expect(sql).toMatch(/\$8, \$9, \$10\)/);
+      expect(params.slice(8)).toEqual([295, 'travel']);
+    });
+
+    it('ignores invalid duration/kind instead of writing them', async () => {
+      const [sql, params] = await postAndGetInsert({ durationMinutes: '2h', kind: 'hotel' });
+      expect(sql).not.toMatch(/duration_minutes|kind/);
+      expect(params).toHaveLength(8);
+    });
+  });
+
+  describe('activity format (migration 077)', () => {
+    it('returns durationMinutes and kind; old rows read as kind "activity" with no duration', async () => {
+      mockTripMember();
+      db.query.mockResolvedValueOnce({
+        rows: [
+          activityRow,
+          { ...activityRow, id: 'x', title: 'Flight Pune → Delhi', duration_minutes: 295, kind: 'travel' },
+        ],
+      });
+      const res = await request(app)
+        .get(`/trips/${TRIP_ID}/activities`)
+        .set('Authorization', `Bearer ${token}`);
+      expect(res.body.upcoming[0]).toMatchObject({ durationMinutes: null, kind: 'activity', description: 'At Baga beach' });
+      expect(res.body.upcoming[1]).toMatchObject({ durationMinutes: 295, kind: 'travel' });
+    });
   });
 
   // ── PUT /trips/:id/activities/:actId ──────────────────────────────────────
 
   describe('PUT /trips/:id/activities/:actId', () => {
-    it('returns 403 when non-creator non-admin tries to update', async () => {
+    // The creator/admin-only edit check was removed on purpose in 5fd6314 —
+    // any trip member can edit any activity. This test locks that behaviour.
+    it('returns 200 when a member updates someone else\'s activity', async () => {
       mockTripMember();
-      db.query.mockResolvedValueOnce({
-        rows: [{ ...activityRow, created_by: 'other-user-id' }], // someone else's activity
-      });
+      db.query
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ ...activityRow, created_by: 'other-user-id' }] }) // find activity
+        .mockResolvedValueOnce({ rowCount: 1 });                                                           // UPDATE
+      mockNotificationLookups();
+      db.query.mockResolvedValueOnce({ rowCount: 1, rows: [{ ...activityRow, created_by: 'other-user-id', title: 'Updated' }] }); // getActivityById
 
       const res = await request(app)
         .put(`/trips/${TRIP_ID}/activities/${ACT_ID}`)
         .set('Authorization', `Bearer ${token}`)
         .send({ title: 'Updated' });
 
-      expect(res.statusCode).toBe(403);
+      expect(res.statusCode).toBe(200);
+      expect(res.body.activity.title).toBe('Updated');
     });
 
     it('returns 200 when creator updates own activity', async () => {

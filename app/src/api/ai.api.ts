@@ -18,7 +18,7 @@ export type TripContext = {
 };
 
 export type PendingAction = {
-  intent: 'create_trip' | 'create_event' | 'update_trip' | 'update_event' | 'add_note' | 'add_activities' | 'identify_update' | 'none';
+  intent: 'create_trip' | 'create_event' | 'update_trip' | 'update_event' | 'add_note' | 'add_activities' | 'save_profile_detail' | 'identify_update' | 'none';
   readyToCreate: boolean;
   /** When set, the app renders the structured trip/event planning card inline. */
   showForm?: 'trip' | 'event';

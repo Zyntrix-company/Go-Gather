@@ -260,17 +260,22 @@ describe('Expense Routes', () => {
   // ── DELETE /trips/:id/expenses/:eid ───────────────────────────────────────
 
   describe('DELETE /trips/:id/expenses/:eid', () => {
-    it('returns 403 when member tries to delete someone else\'s expense', async () => {
+    // The creator-only delete check was removed on purpose in a73ca4b —
+    // any trip member can delete any expense. This test locks that behaviour.
+    it('returns 200 when a member deletes someone else\'s expense', async () => {
       mockTripMember();
-      db.query.mockResolvedValueOnce({
-        rows: [{ ...expenseRow, created_by: USER2_ID }], // created by someone else
-      });
+      db.query
+        .mockResolvedValueOnce({ rowCount: 1, rows: [{ ...expenseRow, created_by: USER2_ID }] }) // find expense
+        .mockResolvedValueOnce({ rowCount: 1 })   // DELETE
+        .mockResolvedValueOnce({ rows: [] })       // splits recompute
+        .mockResolvedValueOnce({ rows: [] });      // settlements recompute
 
       const res = await request(app)
         .delete(`/trips/${TRIP_ID}/expenses/${EXP_ID}`)
         .set('Authorization', `Bearer ${token}`);
 
-      expect(res.statusCode).toBe(403);
+      expect(res.statusCode).toBe(200);
+      expect(res.body.success).toBe(true);
     });
 
     it('returns 200 when creator deletes their own expense', async () => {

@@ -3,6 +3,8 @@
  */
 
 const { EVENT_TYPE_MAP, APP_EVENT_TYPES, APP_BRAND_NAME } = require('./swee.config');
+const config = require('../../config');
+const { limits } = require('../../config/appLimits');
 
 const VALID_INTENTS = new Set([
   'none',
@@ -16,10 +18,27 @@ const VALID_INTENTS = new Set([
   'plan_itinerary',
 ]);
 
+/** Planning-journey intents (SWEE_PLANNER_V2): handled on the server, never sent to the app. */
+const PLANNER_INTENTS = new Set(['plan_trip', 'confirm_trip']);
+
+/** "Remember this" (PROFILE_TRAVEL_PREFS): the only profile fields Swee may write. */
+const PROFILE_DETAIL_FIELDS = {
+  homeCity: { column: 'home_city', label: 'your home city', max: limits.homeCityMax },
+  travelMode: { column: 'travel_mode_pref', label: 'how you usually travel', max: 16 },
+  interests: { column: 'interests', label: 'your interests' },
+  dietaryNeeds: { column: 'dietary_needs', label: 'your dietary needs', max: 200 },
+  accessibilityNeeds: { column: 'accessibility_needs', label: 'your accessibility needs', max: 200 },
+};
+
 /** Most activities Swee may add to an existing trip in one confirmed action (30 days × 3). */
 const MAX_ADD_ACTIVITIES = 90;
 
-const TOO_MANY_ACTIVITIES_REPLY = `That's more than I can add at once — I can add up to ${MAX_ADD_ACTIVITIES} activities at a time. Which days should I start with?`;
+const tooManyActivitiesReply = (max) => `That's more than I can add at once — I can add up to ${max} activities at a time. Which days should I start with?`;
+
+/** Per-action activity cap: the appLimits cap with Planner v2 on, today's 90 with it off. */
+function maxAddActivities() {
+  return config.featureFlags.sweePlannerV2 ? limits.itineraryMaxActivities : MAX_ADD_ACTIVITIES;
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -117,7 +136,9 @@ function validatePendingAction(action) {
   if (!action || typeof action !== 'object' || Array.isArray(action)) {
     return { valid: false, reason: 'not_object' };
   }
-  if (!VALID_INTENTS.has(action.intent)) {
+  const plannerIntent = config.featureFlags.sweePlannerV2 && PLANNER_INTENTS.has(action.intent);
+  const profileIntent = config.featureFlags.profileTravelPrefs && action.intent === 'save_profile_detail';
+  if (!VALID_INTENTS.has(action.intent) && !plannerIntent && !profileIntent) {
     return { valid: false, reason: 'invalid_intent' };
   }
   if (typeof action.readyToCreate !== 'boolean') {
@@ -143,7 +164,7 @@ function validatePendingAction(action) {
     if (!Array.isArray(acts) || acts.length === 0) {
       return { valid: false, reason: 'add_activities_missing_activities' };
     }
-    if (acts.length > MAX_ADD_ACTIVITIES) {
+    if (acts.length > maxAddActivities()) {
       return { valid: false, reason: 'add_activities_too_many' };
     }
     // The model sometimes writes a trip name where the id belongs — accept a name as a fallback.
@@ -156,6 +177,21 @@ function validatePendingAction(action) {
     const hasName = typeof action.targetTripName === 'string' && action.targetTripName.trim();
     if (!isUuid(action.tripId) && !hasName) {
       return { valid: false, reason: 'plan_itinerary_missing_trip' };
+    }
+  }
+  if (action.intent === 'plan_trip') {
+    const d = action.draft || {};
+    const iso = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    if (typeof d.destination !== 'string' || !d.destination.trim() || !iso(d.startDate) || !iso(d.endDate)) {
+      return { valid: false, reason: 'plan_trip_missing_facts' };
+    }
+  }
+  if (action.intent === 'save_profile_detail') {
+    const d = action.draft || {};
+    const known = Object.prototype.hasOwnProperty.call(PROFILE_DETAIL_FIELDS, d.field);
+    const okValue = typeof d.value === 'string' || (d.field === 'interests' && Array.isArray(d.value));
+    if (!known || !okValue) {
+      return { valid: false, reason: 'save_profile_detail_invalid' };
     }
   }
   if (action.showForm != null && action.showForm !== 'trip' && action.showForm !== 'event') {
@@ -209,7 +245,12 @@ function shortenDraftActivityTitles(action) {
   }
 }
 
-function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
+/**
+ * @param {object} [opts]
+ * @param {Function} [opts.prepareAction]  rewrites the parsed action before it is validated
+ *   (Planner v2: a planning action on a chat that already has a plan becomes a refine of it)
+ */
+function parseActionBlock(rawText, { logInvalid = false, logger = null, prepareAction = null } = {}) {
   const normalized = normalizeSweeReply(rawText);
   const marker = '###ACTION';
   const idx = normalized.lastIndexOf(marker);
@@ -220,7 +261,8 @@ function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
   const hadMarker = true;
 
   try {
-    const action = JSON.parse(jsonStr);
+    let action = JSON.parse(jsonStr);
+    if (prepareAction) action = prepareAction(action);
     const validation = validatePendingAction(action);
     if (!validation.valid) {
       if (logInvalid && logger) {
@@ -231,7 +273,7 @@ function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
         });
       }
       // The proposal table can't be saved as written — don't leave it on screen with no way to act on it.
-      if (validation.reason === 'add_activities_too_many') visibleReply = TOO_MANY_ACTIVITIES_REPLY;
+      if (validation.reason === 'add_activities_too_many') visibleReply = tooManyActivitiesReply(maxAddActivities());
       if (!visibleReply) visibleReply = ACTION_FALLBACK_REPLY;
       return {
         reply: visibleReply,
@@ -248,6 +290,7 @@ function parseActionBlock(rawText, { logInvalid = false, logger = null } = {}) {
     const meaningful = action.readyToCreate
       || action.intent === 'identify_update'
       || action.intent === 'plan_itinerary'
+      || PLANNER_INTENTS.has(action.intent)
       || action.showForm === 'trip'
       || action.showForm === 'event';
     return {
@@ -395,6 +438,7 @@ const PLANNING_META_KEYS = [
   'groupType', 'travelFocus', 'budgetTier', 'currency',
   'adults', 'kids', 'seniors', 'notes', 'budget', 'numPeople', 'activities',
   'eventType', 'eventTime', 'description', 'planItinerary', 'itineraryPrefs',
+  'origin', 'travelMode',
 ];
 
 function buildPlanningMetadata(draft = {}) {
@@ -428,6 +472,9 @@ module.exports = {
   isUuid,
   requireNonEmptyString,
   MAX_ADD_ACTIVITIES,
+  maxAddActivities,
+  PLANNER_INTENTS,
+  PROFILE_DETAIL_FIELDS,
   inferBudgetTier,
   buildPlanningMetadata,
 };

@@ -184,6 +184,13 @@ const deleteDoc = async ({ docId, parentType, parentId, requesterId, requesterRo
   }
   const doc = docResult.rows[0];
 
+  // Only the uploader or an admin/owner of the parent can delete (same rule as replaceDoc).
+  // 'owner' is passed by the personal-docs controller; 'admin' by trip/event members.
+  if (requesterRole !== 'admin' && requesterRole !== 'owner' && doc.uploaded_by !== requesterId) {
+    const e = new Error('Only the uploader or an admin can delete this document');
+    e.statusCode = 403; e.error = 'FORBIDDEN'; throw e;
+  }
+
   await deleteFromS3(doc.s3_key);
   await db('DELETE FROM docs WHERE id = $1', [docId]);
 };

@@ -858,7 +858,9 @@ export default function ChatDetailScreen({ route, navigation }: any) {
                         ? 'Save note'
                         : item.pendingAction?.intent === 'add_activities'
                           ? 'Add to itinerary'
-                          : 'Yes, create it'}
+                          : item.pendingAction?.intent === 'save_profile_detail'
+                            ? 'Save'
+                            : 'Yes, create it'}
                   </Text>
                 )}
               </TouchableOpacity>

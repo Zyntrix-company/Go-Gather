@@ -181,3 +181,12 @@ describe('swee.config buildSweetSystemPrompt', () => {
     expect(prompt).not.toMatch(/say briefly what you see/i);
   });
 });
+
+// These tests cover today's flow (SWEE_PLANNER_V2 off): pin the flag so the suite passes
+// whatever the environment sets. Planner v2: swee.planningJourney / swee.promptV2 tests.
+{
+  const flagConfig = require('../../src/config');
+  const plannerV2AtLoad = flagConfig.featureFlags.sweePlannerV2;
+  beforeEach(() => { flagConfig.featureFlags.sweePlannerV2 = false; });
+  afterAll(() => { flagConfig.featureFlags.sweePlannerV2 = plannerV2AtLoad; });
+}

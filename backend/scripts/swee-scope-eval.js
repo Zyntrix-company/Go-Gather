@@ -40,7 +40,8 @@ const USER_CONTEXT = {
     { id: 'trip-manali', name: 'Manali Dec 2026', location_name: 'Manali', start_date: '2026-12-20', end_date: '2026-12-26', member_names: null },
   ],
   events: [
-    { id: 'event-bday', name: "Priya's Birthday Dinner", location_name: 'The Sky Lounge', event_date: '2026-11-14', member_names: 'Priya' },
+    // Always upcoming: a fixed date went into the past and Swee (correctly) refused to edit it.
+    { id: 'event-bday', name: "Priya's Birthday Dinner", location_name: 'The Sky Lounge', event_date: new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10), member_names: 'Priya' },
   ],
   frequentCompanions: [{ full_name: 'Sam', trips_together: 3 }],
   budgetTier: 'Comfort',

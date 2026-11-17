@@ -142,6 +142,22 @@ module.exports = {
     graceMs: parseInt(process.env.SWEE_SCOPE_GUARD_GRACE_MS, 10) || 1500,
   },
 
+  // ─── Feature flags (on | off, default off; switching off is the rollback) ─
+  featureFlags: {
+    // Phase 1: reminders + "today" in the trip's/event's own time zone
+    tripTimezones: process.env.TRIP_TIMEZONES === 'on',
+    // Phase 2: Swee planning journey (Planner v2) — declared, not used yet
+    sweePlannerV2: process.env.SWEE_PLANNER_V2 === 'on',
+    // Phase 3: profile travel details in Swee — declared, not used yet
+    profileTravelPrefs: process.env.PROFILE_TRAVEL_PREFS === 'on',
+  },
+
+  // Local time ("HH:MM") of trip/event day reminders in the trip's/event's time zone.
+  // Used when TRIP_TIMEZONES=on; when off, REMINDER_HOUR_UTC/REMINDER_MIN_UTC still apply.
+  reminderLocalTime: /^([01]\d|2[0-3]):[0-5]\d$/.test(process.env.REMINDER_LOCAL_TIME || '')
+    ? process.env.REMINDER_LOCAL_TIME
+    : '09:00',
+
   // ─── Invite & App Store Links ─────────────────
   invite: {
     baseUrl:          process.env.APP_INVITE_BASE_URL || 'https://gatherrgo.com/invite',

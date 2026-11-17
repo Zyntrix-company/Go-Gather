@@ -1,6 +1,9 @@
 const cron = require('node-cron');
+const { DateTime } = require('luxon');
 const { query: db } = require('../config/database');
+const config = require('../config');
 const { createAndSendNotifications, sendFCMNotification, isInQuietHours } = require('./fcm.util');
+const { DEFAULT_TIME_ZONE, localToUtc, toIsoDate } = require('./localTime');
 const logger = require('./logger');
 
 // ── Reminder message maps ─────────────────────────────────────────────────────
@@ -121,6 +124,91 @@ const processEventReminders = async () => {
   return claimResult.rowCount;
 };
 
+// ── Trip / event day reminders (scheduling) ──────────────────────────────────
+// One shared implementation for trips and events (replaces 3 + 2 inline copies).
+
+const START_REMINDER_OFFSETS = [
+  { type: null, days: 0 }, // trip_start / event_start
+  { type: '1_day_before', days: 1 },
+  { type: '3_days_before', days: 3 },
+  { type: '1_week_before', days: 7 },
+];
+
+/**
+ * When each day reminder is due: [{ type, date }] (date = null when the start date is invalid).
+ * - local (TRIP_TIMEZONES=on): REMINDER_LOCAL_TIME (default 09:00) on each day, in `timeZone`
+ * - legacy (off): fixed UTC hour on each day — REMINDER_HOUR_UTC:REMINDER_MIN_UTC, default 03:30 UTC = 09:00 IST
+ */
+const startReminderTimes = (startDate, timeZone, startType, { useLocalTime = config.featureFlags.tripTimezones } = {}) => {
+  if (!useLocalTime) {
+    const HOUR = parseInt(process.env.REMINDER_HOUR_UTC ?? '3');
+    const MIN  = parseInt(process.env.REMINDER_MIN_UTC  ?? '30');
+    const start = new Date(startDate);
+    start.setUTCHours(HOUR, MIN, 0, 0);
+    return START_REMINDER_OFFSETS.map(({ type, days }) => ({
+      type: type || startType,
+      date: new Date(start.getTime() - days * 86400000),
+    }));
+  }
+  const isoDate = toIsoDate(startDate);
+  return START_REMINDER_OFFSETS.map(({ type, days }) => ({
+    type: type || startType,
+    date: isoDate
+      ? localToUtc(DateTime.fromISO(isoDate).minus({ days }).toISODate(), config.reminderLocalTime, timeZone || DEFAULT_TIME_ZONE)
+      : null,
+  }));
+};
+
+const scheduleStartReminders = async (executor, table, idColumn, startType, id, startDate, timeZone, { onlyExisting = false } = {}) => {
+  let changed = 0;
+  for (const r of startReminderTimes(startDate, timeZone, startType)) {
+    if (!(r.date > new Date())) {
+      // TRIP_TIMEZONES: dates or time zone moved so this reminder's time has passed — drop
+      // the stale unsent row so it can't fire late at its old time (flag off keeps today's behaviour).
+      if (r.date && config.featureFlags.tripTimezones) {
+        await executor.query(
+          `DELETE FROM ${table} WHERE ${idColumn} = $1 AND reminder_type = $2 AND sent_at IS NULL`,
+          [id, r.type],
+        );
+      }
+      continue; // invalid date, or already in the past
+    }
+    if (onlyExisting) {
+      // Time zone changed: move only reminders that already exist, are unsent and still ahead.
+      const result = await executor.query(
+        `UPDATE ${table} SET scheduled_at = $3
+         WHERE ${idColumn} = $1 AND reminder_type = $2
+           AND sent_at IS NULL AND scheduled_at > NOW() AND scheduled_at <> $3`,
+        [id, r.type, r.date.toISOString()],
+      );
+      changed += result.rowCount || 0;
+    } else {
+      await executor.query(
+        `INSERT INTO ${table} (${idColumn}, reminder_type, scheduled_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (${idColumn}, reminder_type) WHERE sent_at IS NULL
+         DO UPDATE SET scheduled_at = EXCLUDED.scheduled_at`,
+        [id, r.type, r.date.toISOString()],
+      );
+      changed += 1;
+    }
+  }
+  return changed;
+};
+
+/**
+ * Create/refresh a trip's start, 1-day, 3-day and 1-week reminders.
+ * @param executor  db client or pool-like object with .query(sql, params)
+ * @param {string} timeZone  trip's IANA zone (used only when TRIP_TIMEZONES=on; null → Asia/Kolkata)
+ * @param {{onlyExisting?: boolean}} opts  true = only move existing unsent future rows (time zone change)
+ */
+const scheduleTripReminders = (executor, tripId, startDate, timeZone, opts) =>
+  scheduleStartReminders(executor, 'trip_reminders', 'trip_id', 'trip_start', tripId, startDate, timeZone, opts);
+
+/** Same as scheduleTripReminders, for an event's day reminders. */
+const scheduleEventReminders = (executor, eventId, eventDate, timeZone, opts) =>
+  scheduleStartReminders(executor, 'event_reminders', 'event_id', 'event_start', eventId, eventDate, timeZone, opts);
+
 // ── Activity reminders ────────────────────────────────────────────────────────
 
 const REMINDER_MINUTES = [10, 30, 60];
@@ -138,8 +226,16 @@ const REMINDER_MINUTES = [10, 30, 60];
 const scheduleActivityReminders = async (activityId, tripId, activityDate, activityTime) => {
   if (!activityDate || !activityTime) return;
 
-  // Combine date + time as IST (UTC+5:30)
-  const startMs = new Date(`${activityDate}T${activityTime}+05:30`).getTime();
+  let startMs;
+  if (config.featureFlags.tripTimezones) {
+    // Activity date + time are the destination's local time → interpret in the trip's time zone
+    const tripResult = await db('SELECT timezone FROM trips WHERE id = $1', [tripId]);
+    const start = localToUtc(activityDate, activityTime, tripResult.rows[0]?.timezone || DEFAULT_TIME_ZONE);
+    startMs = start ? start.getTime() : NaN;
+  } else {
+    // Combine date + time as IST (UTC+5:30)
+    startMs = new Date(`${activityDate}T${activityTime}+05:30`).getTime();
+  }
   if (isNaN(startMs)) return;
 
   const now = Date.now();
@@ -262,4 +358,12 @@ const startRemindersCron = () => {
   logger.info('Reminders cron started (every 5 min, IST)');
 };
 
-module.exports = { startRemindersCron, processReminders, scheduleActivityReminders };
+module.exports = {
+  startRemindersCron,
+  processReminders,
+  scheduleActivityReminders,
+  scheduleTripReminders,
+  scheduleEventReminders,
+  startReminderTimes,
+  REMINDER_MINUTES,
+};

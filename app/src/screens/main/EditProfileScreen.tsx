@@ -145,7 +145,7 @@ export default function EditProfileScreen({ navigation }: any) {
   const isLoading = useAuthStore((s) => s.isLoading);
   const user = useAuthStore((s) => s.user);
   const uploadLimits = useUploadLimits();
-  const { bioMax } = useAppLimits();
+  const { bioMax, homeCityMax } = useAppLimits();
 
   const initialGender   = user?.gender   ? (GENDER_FROM_API[user.gender] ?? '') : '';
   const initialCountry  = user?.country  || '';
@@ -176,6 +176,12 @@ export default function EditProfileScreen({ navigation }: any) {
   const [focusedField,       setFocusedField]       = useState<string | null>(null);
   const [apiError,           setApiError]           = useState<string | null>(null);
   const [usernameValue,      setUsernameValue]      = useState(initialUsername);
+  // Shown once the server returns profile.homeCity (PROFILE_TRAVEL_PREFS on).
+  const showHomeCity = !!user?.profile && 'homeCity' in user.profile;
+  const [homeCity,           setHomeCity]           = useState<string>(user?.profile?.homeCity || '');
+  // The refresh on mount can bring the saved city after first render — never submit a stale ''.
+  const storeHomeCity = user?.profile?.homeCity || '';
+  useEffect(() => { setHomeCity(storeHomeCity); }, [storeHomeCity]);
 
   // Reactive display URI:
   // • While user has picked a new image → show local file URI (instant feedback)
@@ -233,6 +239,7 @@ export default function EditProfileScreen({ navigation }: any) {
         country:  country                || undefined,
         bio:      data.bio               || undefined,
         dob:      dob                    || undefined,
+        ...(showHomeCity ? { homeCity: homeCity.trim() } : {}),
       });
       navigation.goBack();
     } catch (err: any) {
@@ -392,6 +399,22 @@ export default function EditProfileScreen({ navigation }: any) {
                 {errors.country && <Text style={styles.errorText}>{errors.country.message}</Text>}
               </View>
             </View>
+
+            {/* ── Home city ── */}
+            {showHomeCity && (
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>Home city <Text style={styles.optional}>(optional)</Text></Text>
+                <TextInput
+                  style={[styles.input, focusedField === 'homeCity' && styles.inputFocused]}
+                  placeholder="e.g. Pune" placeholderTextColor="#94a3b8"
+                  value={homeCity}
+                  onChangeText={(v) => { setHomeCity(v); if (apiError) setApiError(null); }}
+                  onFocus={() => setFocusedField('homeCity')} onBlur={() => setFocusedField(null)}
+                  maxLength={homeCityMax}
+                  underlineColorAndroid="transparent" selectionColor="#0d9488" editable={!busy}
+                />
+              </View>
+            )}
 
             {/* ── Bio ── */}
             <View style={styles.field}>
