@@ -9,6 +9,11 @@ const DEFAULT_TITLE = 'New chat';
 const LIST_DEFAULT_LIMIT = 20;
 const MESSAGES_DEFAULT_LIMIT = 30;
 
+// How long after its last message a chat still counts as "recent". The Swee floating
+// button reopens such a chat instead of starting a new one. Change this number in code
+// (12 or 24) — it is deliberately not an env variable.
+const RESUME_WINDOW_HOURS = 12;
+
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
 function formatConversation(row) {
@@ -146,6 +151,30 @@ async function listConversations(userId, { page = 1, limit = LIST_DEFAULT_LIMIT 
     total,
     hasMore: offset + listRes.rows.length < total,
   };
+}
+
+/**
+ * The user's most recently active chat inside the resume window, or null.
+ * With contextType + contextId (trip/event screens) only a chat about that same
+ * trip/event qualifies; without them any recent chat does.
+ */
+async function findRecentConversation(userId, { contextType, contextId } = {}) {
+  const params = [userId, RESUME_WINDOW_HOURS];
+  let contextFilter = '';
+  if (contextType && contextId) {
+    params.push(contextType, String(contextId));
+    contextFilter = `AND trip_context->>'contextType' = $3 AND trip_context->>'id' = $4`;
+  }
+  const result = await db(
+    `SELECT * FROM ai_conversations
+     WHERE user_id = $1 AND deleted_at IS NULL
+       AND updated_at > NOW() - ($2 * INTERVAL '1 hour')
+       ${contextFilter}
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    params,
+  );
+  return result.rows[0] ? formatConversation(result.rows[0]) : null;
 }
 
 async function createConversation(userId, tripContext = null) {
@@ -466,6 +495,8 @@ module.exports = {
   loadHistoryForGemini,
   loadLastAssistantMessage,
   listConversations,
+  findRecentConversation,
+  RESUME_WINDOW_HOURS,
   createConversation,
   getConversation,
   deleteConversation,
