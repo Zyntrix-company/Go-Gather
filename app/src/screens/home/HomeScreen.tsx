@@ -57,6 +57,8 @@ import {
 } from '../../api/trips.api';
 import { getEvents, createEvent as apiCreateEvent, archiveEvent as apiArchiveEvent, deleteEvent as apiDeleteEvent } from '../../api/events.api';
 import { API_BASE } from '../../api/client';
+import CachedImage from '../../components/common/CachedImage';
+import { imageUriOf, sizedImageUri, sameList, loadCachedHomeFeed, refreshHomeFeed } from '../../utils/homeFeed';
 import Toast from 'react-native-toast-message';
 import TripsScreen, { CreateTripModal, BannerCropFraction as TripBannerCropFraction } from '../trips/TripsScreen';
 import EventsScreen, { CreateEventModal } from '../events/EventsScreen';
@@ -343,6 +345,29 @@ function daysUntil(isoDate: string): number {
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
+/** Deal card image. Module-level on purpose: defined inside HomeScreen it was a new component on
+ *  every render, so React reloaded all the deal images each time Home re-rendered. */
+function DealImage({ uri, height }: { uri: string | null | undefined; height: number }) {
+  const [failed, setFailed] = useState(false);
+  const sized = sizedImageUri(uri);
+  if (!sized || failed) {
+    return (
+      <View style={{ width: '100%', height, borderRadius: 10, backgroundColor: '#E8E4DF', alignItems: 'center', justifyContent: 'center' }}>
+        <Compass size={22} color="#94a3b8" />
+      </View>
+    );
+  }
+  return (
+    <CachedImage
+      uri={sized}
+      priority="high"
+      resizeMode="cover"
+      style={{ width: '100%', height, borderRadius: 10, backgroundColor: '#E8E4DF' }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 const PinIcon = ({ color = '#94a3b8', size = 13 }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
@@ -615,22 +640,26 @@ export default function HomeScreen({ navigation, route }: any) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch blogs + deals once on mount (they don't change with archive/delete)
+  // Blogs + deals: show the saved copy straight away (also works offline), then refresh in the
+  // background. The refresh was already started when the app launched, so it is usually done
+  // by now; only lists that actually changed replace what is on screen.
   useEffect(() => {
-    async function fetchStaticHomeData() {
-      try {
-        setBlogsLoading(true);
-        const blogsRes = await fetch(`${API_BASE}/blogs?client=app`);
-        if (blogsRes.ok) setBlogs(await blogsRes.json());
-      } catch { /* silently fall back to empty */ } finally { setBlogsLoading(false); }
-      try {
-        setDealsLoading(true);
-        const dealsRes = await fetch(`${API_BASE}/deals`);
-        if (dealsRes.ok) setDeals(await dealsRes.json());
-      } catch { /* silently fall back to empty */ } finally { setDealsLoading(false); }
-    }
-    fetchStaticHomeData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    let cancelled = false;
+    (async () => {
+      const saved = await loadCachedHomeFeed();
+      if (cancelled) return;
+      if (saved?.blogs.length) { setBlogs(saved.blogs); setBlogsLoading(false); }
+      if (saved?.deals.length) { setDeals(saved.deals); setDealsLoading(false); }
+      const fresh = await refreshHomeFeed();
+      if (cancelled) return;
+      if (fresh) {
+        setBlogs(prev => (sameList(prev, fresh.blogs) ? prev : fresh.blogs));
+        setDeals(prev => (sameList(prev, fresh.deals) ? prev : fresh.deals));
+      }
+      setBlogsLoading(false);
+      setDealsLoading(false);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Auto-scroll Get Inspired carousel every 3 seconds — true circular loop.
@@ -871,25 +900,6 @@ export default function HomeScreen({ navigation, route }: any) {
 
   // ─── Reusable home-feed sub-components ─────────────────────────────────────
 
-  const DealImage = ({ uri, height }: { uri: string | null | undefined; height: number }) => {
-    const [failed, setFailed] = useState(false);
-    if (!uri || failed) {
-      return (
-        <View style={{ width: '100%', height, borderRadius: 10, backgroundColor: '#E8E4DF', alignItems: 'center', justifyContent: 'center' }}>
-          <Compass size={22} color="#94a3b8" />
-        </View>
-      );
-    }
-    return (
-      <Image
-        source={{ uri }}
-        style={{ width: '100%', height, borderRadius: 10 }}
-        resizeMode="cover"
-        onError={() => setFailed(true)}
-      />
-    );
-  };
-
   const SectionHeader = ({
     icon,
     title,
@@ -1095,7 +1105,7 @@ export default function HomeScreen({ navigation, route }: any) {
                 setBlogIndex(clamped);
               }}
               renderItem={({ item }: { item: any }) => {
-                const imgUri = item.imageUrl ?? item.image_url ?? item.coverImage ?? item.thumbnail ?? item.image;
+                const imgUri = imageUriOf(item);
                 return (
                   <TouchableOpacity
                     activeOpacity={0.9}
@@ -1112,10 +1122,11 @@ export default function HomeScreen({ navigation, route }: any) {
                     style={{ width: CARD_BLOG_W, height: CARD_BLOG_H, borderRadius: 14, overflow: 'hidden', marginRight: 10 }}>
                     {/* Full-bleed background image */}
                     {imgUri ? (
-                      <Image
-                        source={{ uri: imgUri }}
-                        style={{ width: '100%', height: '100%', position: 'absolute' }}
+                      <CachedImage
+                        uri={sizedImageUri(imgUri)}
+                        priority="high"
                         resizeMode="cover"
+                        style={{ width: '100%', height: '100%', position: 'absolute', backgroundColor: '#E8E4DF' }}
                       />
                     ) : (
                       <View style={{ width: '100%', height: '100%', position: 'absolute', backgroundColor: '#E8E4DF' }} />
@@ -1168,7 +1179,7 @@ export default function HomeScreen({ navigation, route }: any) {
                 setDealIndex(Math.round(e.nativeEvent.contentOffset.x / (CARD_DEAL_W + 10)));
               }}
               renderItem={({ item, index }: { item: any; index: number }) => {
-                const imgUri = item.imageUrl ?? item.image_url ?? item.coverImage ?? item.thumbnail ?? item.image;
+                const imgUri = imageUriOf(item);
                 // Figma exact: image area 115×68 px on 375px screen
                 const IMG_H = SCREEN_W * 0.181; // ≈68px
                 return (

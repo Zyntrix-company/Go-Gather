@@ -20,6 +20,7 @@ import ThemedAlert from './src/components/common/ThemedAlert';
 import { usePushNotifications } from './src/hooks/usePushNotifications';
 import { loadUploadLimits } from './src/utils/uploadLimits';
 import { loadAppLimits } from './src/hooks/useAppLimits';
+import { prefetchHomeFeed } from './src/utils/homeFeed';
 import useAuthStore from './src/store/authStore';
 import usePendingInviteStore, { PendingInvite } from './src/store/pendingInviteStore';
 import { applyInstallReferrer } from './src/utils/installReferrer';
@@ -88,6 +89,12 @@ function runOpenInviteAction(nav: NavigationContainerRef<any> | null, action: Op
 
 function App() {
   usePushNotifications();
+
+  // Start loading the Home blogs/deals (and their first images) right away — in parallel with
+  // sign-in/splash — so Home already has them when it appears. Never throws.
+  useEffect(() => {
+    prefetchHomeFeed();
+  }, []);
   const navigationRef = useRef<NavigationContainerRef<any>>(null);
 
   // Push-tap navigation: background → foreground (app was suspended)
