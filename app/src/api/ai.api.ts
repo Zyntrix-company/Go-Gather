@@ -121,6 +121,18 @@ export async function listConversations(page = 1, limit = 20): Promise<Conversat
   return response.data as ConversationListResponse;
 }
 
+/**
+ * The chat the Swee floating button should reopen: the user's latest chat within the
+ * backend's resume window (optionally the latest one about a given trip/event), or null.
+ * The window length lives in the backend (RESUME_WINDOW_HOURS), not here.
+ */
+export async function getRecentConversation(
+  context?: { contextType: 'trip' | 'event'; contextId: string },
+): Promise<AiConversation | null> {
+  const response = await client.get('/ai/conversations/recent', { params: context, timeout: 4000 });
+  return (response.data?.conversation as AiConversation | null) ?? null;
+}
+
 export async function createConversation(tripContext?: TripContext | null): Promise<AiConversation> {
   const response = await client.post('/ai/conversations', {
     tripContext: tripContext ?? undefined,

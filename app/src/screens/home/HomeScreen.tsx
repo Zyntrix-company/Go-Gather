@@ -27,6 +27,7 @@ import ChromeSafeAreaView, { useChromeInsets } from '../../components/common/Chr
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import SweeIcon from '../../components/common/SweeIcon';
 import SweeFab from '../../components/details/SweeFab';
+import { openSweeChat } from '../../utils/openSweeChat';
 import LinearGradient from 'react-native-linear-gradient';
 import {
   Search,
@@ -1517,7 +1518,7 @@ export default function HomeScreen({ navigation, route }: any) {
         )}
 
         {/* Draggable Swee FAB */}
-        <SweeFab onPress={() => openNewChat()} />
+        <SweeFab onPress={() => openSweeChat(navigation)} />
 
         {/* Bottom Tab Bar — slides off screen when keyboard is open */}
         <Animated.View

@@ -134,6 +134,68 @@ describe('GET /ai/conversations', () => {
   });
 });
 
+describe('GET /ai/conversations/recent', () => {
+  beforeEach(() => jest.resetAllMocks());
+  const TRIP_ID = 'cccc0001-0000-4000-8000-000000000001';
+
+  it('returns 401 without auth', async () => {
+    const res = await request(app).get('/ai/conversations/recent');
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('returns the most recent chat inside the window (any chat when no context)', async () => {
+    db.query.mockResolvedValueOnce({ rows: [convRow] });
+
+    const res = await request(app)
+      .get('/ai/conversations/recent')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.conversation.id).toBe(CONV_ID);
+    expect(res.body.windowHours).toBe(conversationsService.RESUME_WINDOW_HOURS);
+    const [sql, params] = db.query.mock.calls[0];
+    expect(sql).toMatch(/updated_at > NOW\(\) - \(\$2 \* INTERVAL '1 hour'\)/);
+    expect(sql).toMatch(/deleted_at IS NULL/);
+    expect(params).toEqual([USER_ID, conversationsService.RESUME_WINDOW_HOURS]);
+  });
+
+  it('returns conversation null when nothing is recent', async () => {
+    db.query.mockResolvedValueOnce({ rows: [] });
+
+    const res = await request(app)
+      .get('/ai/conversations/recent')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.conversation).toBeNull();
+  });
+
+  it('scopes to the same trip/event when a context is given', async () => {
+    db.query.mockResolvedValueOnce({ rows: [convRow] });
+
+    const res = await request(app)
+      .get(`/ai/conversations/recent?contextType=trip&contextId=${TRIP_ID}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.statusCode).toBe(200);
+    const [sql, params] = db.query.mock.calls[0];
+    expect(sql).toMatch(/trip_context->>'contextType' = \$3 AND trip_context->>'id' = \$4/);
+    expect(params).toEqual([USER_ID, conversationsService.RESUME_WINDOW_HOURS, 'trip', TRIP_ID]);
+  });
+
+  it('rejects a bad context', async () => {
+    const res = await request(app)
+      .get('/ai/conversations/recent?contextType=trip&contextId=nope')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.statusCode).toBe(400);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('the resume window is a plain in-code constant of 12 or 24 hours', () => {
+    expect([12, 24]).toContain(conversationsService.RESUME_WINDOW_HOURS);
+  });
+});
+
 describe('POST /ai/conversations', () => {
   beforeEach(() => jest.resetAllMocks());
 

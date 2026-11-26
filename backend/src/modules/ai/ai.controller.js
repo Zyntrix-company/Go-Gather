@@ -192,6 +192,24 @@ const listConversations = async (req, res, next) => {
   }
 };
 
+// GET /ai/conversations/recent?contextType=trip|event&contextId=<uuid>
+// The chat the Swee floating button should reopen (null = start a new one).
+const getRecentConversation = async (req, res, next) => {
+  try {
+    const { contextType, contextId } = req.query;
+    if (contextType !== undefined || contextId !== undefined) {
+      if (!['trip', 'event'].includes(contextType) || !isUuid(contextId)) {
+        return res.status(400).json({ error: 'BadRequest', message: 'contextType must be trip or event and contextId a valid id' });
+      }
+    }
+    const conversation = await conversationsService.findRecentConversation(req.user.id, { contextType, contextId });
+    return res.status(200).json({ conversation, windowHours: conversationsService.RESUME_WINDOW_HOURS });
+  } catch (error) {
+    logger.error('getRecentConversation error', { error: error.message });
+    next(error);
+  }
+};
+
 const createConversation = async (req, res, next) => {
   try {
     const { tripContext } = req.body || {};
@@ -273,6 +291,7 @@ module.exports = {
   executeAction,
   reportIssue,
   listConversations,
+  getRecentConversation,
   createConversation,
   getConversation,
   getConversationMessages,

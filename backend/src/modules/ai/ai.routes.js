@@ -10,6 +10,7 @@ router.use(authenticateJWT);
 
 // Conversations
 router.get('/conversations', ctrl.listConversations);
+router.get('/conversations/recent', ctrl.getRecentConversation); // before /:id
 router.post('/conversations', ctrl.createConversation);
 router.get('/conversations/:id', ctrl.getConversation);
 router.get('/conversations/:id/messages', ctrl.getConversationMessages);

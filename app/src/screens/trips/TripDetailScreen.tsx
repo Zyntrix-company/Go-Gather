@@ -14,6 +14,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 import SweeIcon from '../../components/common/SweeIcon';
 import SweeFab from '../../components/details/SweeFab';
+import { openSweeChat } from '../../utils/openSweeChat';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { pick as pickDocument, types as docTypes, keepLocalCopy, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { WebView } from 'react-native-webview';
@@ -2262,16 +2263,14 @@ export default function TripDetailScreen({ route, navigation }: any) {
         </ScrollView>
 
         <SweeFab
-          onPress={() => navigation.navigate('ChatDetail', {
-            tripContext: {
-              id: trip?.id,
-              name: trip?.name,
-              destination: formatLocationsLabelFull(trip ?? {}),
-              startDate: trip?.start_date ? new Date(trip.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : undefined,
-              endDate: trip?.end_date ? new Date(trip.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : undefined,
-              memberCount: members?.length,
-              contextType: 'trip' as const,
-            },
+          onPress={() => openSweeChat(navigation, {
+            id: trip?.id,
+            name: trip?.name,
+            destination: formatLocationsLabelFull(trip ?? {}),
+            startDate: trip?.start_date ? new Date(trip.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : undefined,
+            endDate: trip?.end_date ? new Date(trip.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : undefined,
+            memberCount: members?.length,
+            contextType: 'trip' as const,
           })}
         />
 

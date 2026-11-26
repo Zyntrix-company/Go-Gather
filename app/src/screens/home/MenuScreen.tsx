@@ -7,6 +7,7 @@ import DeviceInfo from 'react-native-device-info';
 import AppScreenLayout, { tabBarContentPadding, TAB_BAR_BASE_HEIGHT } from '../../components/common/AppScreenLayout';
 import CachedImage from '../../components/common/CachedImage';
 import SweeFab from '../../components/details/SweeFab';
+import { openSweeChat } from '../../utils/openSweeChat';
 import colors from '../../theme/colors';
 import useAuthStore from '../../store/authStore';
 import useAuth from '../../hooks/useAuth';
@@ -208,7 +209,7 @@ export default function MenuScreen({ navigation }: { navigation: any }) {
         GatherrGo · Version {APP_VERSION}
       </Text>
 
-      <SweeFab onPress={() => navigation.navigate('ChatDetail', {})} />
+      <SweeFab onPress={() => openSweeChat(navigation)} />
     </AppScreenLayout>
   );
 }
