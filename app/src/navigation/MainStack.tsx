@@ -77,7 +77,13 @@ export default function MainStack() {
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="TripDetail" component={TripDetailScreen} />
       <Stack.Screen name="EventDetail" component={EventDetailScreen} />
-      <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
+      {/* One screen instance per chat id: ChatDetailScreen loads its chat once, so opening a
+          different chat must get a fresh instance instead of reusing one showing another chat. */}
+      <Stack.Screen
+        name="ChatDetail"
+        component={ChatDetailScreen}
+        getId={({ params }) => params?.conversationId}
+      />
       <Stack.Screen name="Archived" component={ArchivedScreen} />
       <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
       <Stack.Screen name="HowItWorks" component={HowItWorksScreen} />
