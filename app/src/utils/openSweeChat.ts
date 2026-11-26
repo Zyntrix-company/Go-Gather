@@ -16,10 +16,12 @@ export async function openSweeChat(navigation: ChatNavigation, tripContext?: Tri
   try {
     let recent: AiConversation | null = null;
     try {
-      const scope = tripContext?.id && tripContext.contextType
-        ? { contextType: tripContext.contextType, contextId: tripContext.id }
-        : undefined;
-      recent = await getRecentConversation(scope);
+      if (!tripContext) {
+        recent = await getRecentConversation(); // Home / Menu: latest chat of any kind
+      } else if (tripContext.id && tripContext.contextType) {
+        recent = await getRecentConversation({ contextType: tripContext.contextType, contextId: tripContext.id });
+      }
+      // A trip/event screen without an id yet: never fall back to an unrelated chat — start a new one.
     } catch {
       recent = null;
     }

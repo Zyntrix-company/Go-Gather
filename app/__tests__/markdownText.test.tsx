@@ -73,6 +73,23 @@ describe('MarkdownText', () => {
     expect(allText(root)).toContain('Tue 15');
   });
 
+  it('does not turn streamed "* " bullets into italics across lines', () => {
+    const root = render('* Beach\n* Fort\n* Market', true);
+    const text = allText(root);
+    // nothing between two asterisks is styled italic, and the text is all still there
+    expect(text).toContain('Beach');
+    expect(text).toContain('Market');
+    const italic: string[] = [];
+    const walk = (node: any) => {
+      if (!node || typeof node === 'string') return;
+      if (Array.isArray(node)) { node.forEach(walk); return; }
+      if (([] as any[]).concat(node.props?.style ?? []).flat(5).some(s => s && s.fontStyle === 'italic')) italic.push(flatten(node));
+      walk(node.children);
+    };
+    walk(root.toJSON() as any);
+    expect(italic).toEqual([]);
+  });
+
   it('renders bold while streaming', () => {
     const root = render('Day one: **Old Goa** then lunch', true);
     expect(allText(root)).not.toContain('*');

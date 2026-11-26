@@ -54,7 +54,7 @@ function parseInline(raw: string): Segment[] {
   return segments;
 }
 
-/** While a reply streams, an unclosed `**` / `*` would flash raw — hide the dangling marker. */
+/** While a reply streams, an unclosed `**` would flash raw — hide the dangling marker (a lone `*` is left alone). */
 function hideOpenMarkers(text: string): string {
   let out = text;
   if ((out.match(/\*\*/g) || []).length % 2 === 1) {
@@ -62,6 +62,21 @@ function hideOpenMarkers(text: string): string {
     out = out.slice(0, i) + out.slice(i + 2);
   }
   return out;
+}
+
+/** Streaming text with inline formatting, parsed one line at a time so a "* " bullet can't turn the lines between two asterisks into italics. */
+function StreamingInline({ text, baseStyle }: { text: string; baseStyle?: any }) {
+  const lines = hideOpenMarkers(text).split('\n');
+  return (
+    <Text style={baseStyle}>
+      {lines.map((line, i) => (
+        <React.Fragment key={i}>
+          <InlineText segments={parseInline(line)} baseStyle={baseStyle} />
+          {i < lines.length - 1 ? '\n' : null}
+        </React.Fragment>
+      ))}
+    </Text>
+  );
 }
 
 // Bullet markers Swee uses: "- ", "* " and the "• " it writes in itineraries (optionally indented).
@@ -233,7 +248,7 @@ export default function MarkdownText({ text, streaming, baseStyle }: Props) {
         <View>
           {beforeTable ? (
             <View>
-              <InlineText segments={parseInline(hideOpenMarkers(beforeTable))} baseStyle={baseStyle} />
+              <StreamingInline text={beforeTable} baseStyle={baseStyle} />
               <Text style={styles.cursor}>▌</Text>
             </View>
           ) : (
@@ -245,7 +260,7 @@ export default function MarkdownText({ text, streaming, baseStyle }: Props) {
     }
     return (
       <Text style={baseStyle}>
-        <InlineText segments={parseInline(hideOpenMarkers(safeText))} baseStyle={baseStyle} />
+        <StreamingInline text={safeText} baseStyle={baseStyle} />
         <Text style={styles.cursor}>▌</Text>
       </Text>
     );
